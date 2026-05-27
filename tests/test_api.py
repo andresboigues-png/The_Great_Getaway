@@ -4774,6 +4774,65 @@ def test_main_cleanup_feed_orphans_logs_when_rows_deleted(client, caplog):
     assert any("removed" in rec.getMessage() for rec in caplog.records)
 
 
+def test_cleanup_preserves_engagement_on_live_evergreen_post(client, seed_user):
+    """R2 audit fix: the previous AGE-ONLY sweep deleted every
+    feed_likes / feed_comments row older than 90 days regardless of
+    whether the underlying post still existed. Pre-fix, a friend's
+    long-running thread had its old comments quietly purged at 90d
+    even though the share was alive and still being discussed.
+
+    Now orphan-only: rows referencing a LIVE feed_posts row survive
+    no matter their age (up to the 365-day backstop)."""
+    import main as main_module
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        # Seed an actor user + a live feed_posts row.
+        c.execute(
+            "INSERT OR IGNORE INTO users (id, email, name) VALUES (?, ?, ?)",
+            ("user-evergreen", "ev@example.com", "Evergreen User"),
+        )
+        # Create a real trip + share for the user so feed_posts has
+        # a parent that satisfies the trip_id FK.
+        c.execute(
+            "INSERT INTO trips (id, user_id, name, country) VALUES (?, ?, ?, ?)",
+            ("trip-ev", "user-evergreen", "Ev Trip", "PT"),
+        )
+        c.execute(
+            "INSERT INTO feed_posts (id, user_id, trip_id, caption, created_at) "
+            "VALUES (?, ?, ?, ?, datetime('now', '-200 days'))",
+            (9999, "user-evergreen", "trip-ev", "still alive"),
+        )
+        # Engagement that is 200 days old but on the live post.
+        c.execute(
+            "INSERT INTO feed_likes (user_id, event_id, created_at) "
+            "VALUES (?, ?, datetime('now', '-200 days'))",
+            (seed_user, "share_9999"),
+        )
+        c.execute(
+            "INSERT INTO feed_comments (user_id, event_id, body, created_at) "
+            "VALUES (?, ?, ?, datetime('now', '-200 days'))",
+            (seed_user, "share_9999", "still relevant"),
+        )
+        conn.commit()
+    main_module._cleanup_feed_orphans()
+    # Both rows MUST survive — the underlying feed_posts row is alive.
+    with get_db() as conn:
+        c = conn.cursor()
+        likes = c.execute(
+            "SELECT 1 FROM feed_likes WHERE event_id = 'share_9999'",
+        ).fetchone()
+        comments = c.execute(
+            "SELECT 1 FROM feed_comments WHERE event_id = 'share_9999'",
+        ).fetchone()
+    assert likes is not None, (
+        "200-day-old like on LIVE share must survive the orphan-only sweep"
+    )
+    assert comments is not None, (
+        "200-day-old comment on LIVE share must survive the orphan-only sweep"
+    )
+
+
 # ── /api/feed — events-with-data paths ───────────────────────────────────────
 #
 # The earlier feed tests covered the rejection paths and idempotent-DELETE

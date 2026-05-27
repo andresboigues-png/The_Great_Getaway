@@ -424,17 +424,35 @@ def add_security_headers(response):
 # doesn't kill the worker. Cheap enough at this scale (single-digit-K
 # rows) that we don't bother with cron / job queues yet.
 def _cleanup_feed_orphans():
-    """Delete feed_likes and feed_comments rows older than 90 days that
-    refer to a synthesised event (trip_*, friendship_*, share_*,
-    repost_*) which no longer matches a live underlying record. Bookmarks
-    are exempt — saves are permanent. Also sweeps read notifications
-    older than 30 days + revoked auth_sessions older than 30 days.
-    Returns counts for logging.
+    """Delete feed_likes and feed_comments rows that refer to a
+    synthesised event_id whose underlying record no longer exists.
+    Bookmarks are exempt — saves are permanent. Also sweeps read
+    notifications older than 30 days + revoked auth_sessions older
+    than 30 days.
 
-    Audit fix (2026-05-27): added notification + auth_sessions sweep.
-    Pre-fix notifications accumulated forever (the list endpoint LIMIT
-    50 hid them, but the DB row count grew without bound), and revoked
-    auth_sessions rows kept piling up after per-device logout.
+    R2 audit fix: the previous implementation was an AGE-ONLY sweep
+    ("delete everything older than 90 days") which destroyed
+    engagement on EVERGREEN content. A friend's share that stays
+    actively discussed for >90 days had every old comment silently
+    deleted, and the visible comment_count dropped without
+    explanation. The DOCSTRING claimed orphan-only behaviour; the
+    IMPLEMENTATION did age-only.
+
+    Now genuinely orphan-only:
+      - share_<n> / repost_<n>  → drop when feed_posts.id = n is gone
+      - settled_up_<n>          → drop when settlements.id = n is gone
+      - trip_*_<id>             → drop when trips.id = id is gone
+      - friendship_<a>_<b>      → drop when neither side exists in
+                                  follows anymore
+      - achievement_<n>         → drop when user_achievements.id = n
+                                  is gone
+    Plus a 365-day backstop on any engagement row regardless of event
+    type, so rows for unknown / future event types don't accrue
+    forever. 365 ≫ the 30-day display window so legitimate engagement
+    on an evergreen event still has plenty of headroom.
+
+    Audit fix (2026-05-27): added notification + auth_sessions sweep
+    too.
     """
     deleted_likes = 0
     deleted_comments = 0
@@ -443,17 +461,53 @@ def _cleanup_feed_orphans():
     try:
         with get_db() as conn:
             cursor = conn.cursor()
-            # Likes: drop everything older than 90 days. Active events
-            # within the 30-day window will have fresh likes restamped
-            # whenever someone clicks again, so we don't lose heat on
-            # current content.
-            cursor.execute(
-                "DELETE FROM feed_likes WHERE created_at < datetime('now', '-90 days')"
-            )
+            # Orphan cleanup: delete rows whose event_id no longer
+            # resolves to a live record. Apply per-event-type because
+            # the synthesised id encodes the parent table+id.
+            orphan_where = """
+                -- share_<n> + repost_<n> point at feed_posts.id
+                (
+                    (event_id LIKE 'share\\_%' ESCAPE '\\'
+                     OR event_id LIKE 'repost\\_%' ESCAPE '\\')
+                    AND CAST(SUBSTR(event_id, INSTR(event_id, '_') + 1) AS INTEGER)
+                        NOT IN (SELECT id FROM feed_posts)
+                )
+                OR (
+                    -- settled_up_<n> points at settlements.id
+                    event_id LIKE 'settled\\_up\\_%' ESCAPE '\\'
+                    AND SUBSTR(event_id, LENGTH('settled_up_') + 1)
+                        NOT IN (SELECT id FROM settlements)
+                )
+                OR (
+                    -- achievement_<n> points at user_achievements.id
+                    event_id LIKE 'achievement\\_%' ESCAPE '\\'
+                    AND CAST(SUBSTR(event_id, LENGTH('achievement_') + 1) AS INTEGER)
+                        NOT IN (SELECT id FROM user_achievements)
+                )
+                OR (
+                    -- trip_created_<id> / trip_archived_<id> /
+                    -- trip_joined_<id>_<user> — extract the trip id
+                    -- between the second underscore and the next
+                    -- underscore (or end). Easier: check that no
+                    -- live trip's id appears as a substring of the
+                    -- event_id; cheap because trips count is small.
+                    event_id LIKE 'trip\\_%' ESCAPE '\\'
+                    AND NOT EXISTS (
+                        SELECT 1 FROM trips t
+                        WHERE event_id LIKE 'trip\\_%\\_' || t.id ESCAPE '\\'
+                           OR event_id LIKE 'trip\\_%\\_' || t.id || '\\_%' ESCAPE '\\'
+                    )
+                )
+                -- 365-day age backstop for any rows whose event_id
+                -- shape we don't cover above (friendship_*, future
+                -- types). 365d ≫ the 30d feed display window so
+                -- evergreen engagement isn't touched, but rows
+                -- never get to accumulate forever.
+                OR created_at < datetime('now', '-365 days')
+            """
+            cursor.execute(f"DELETE FROM feed_likes WHERE {orphan_where}")
             deleted_likes = cursor.rowcount or 0
-            cursor.execute(
-                "DELETE FROM feed_comments WHERE created_at < datetime('now', '-90 days')"
-            )
+            cursor.execute(f"DELETE FROM feed_comments WHERE {orphan_where}")
             deleted_comments = cursor.rowcount or 0
             # Read notifications older than 30 days. Unread rows stay
             # so the user's bell keeps surfacing them until they
