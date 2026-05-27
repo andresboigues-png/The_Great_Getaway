@@ -5834,6 +5834,28 @@ def test_settle_up_rejects_self_pay_and_bad_amounts(client, seed_user, auth_head
     })
     assert zero.status_code == 400
 
+    # R9-B1 M2: NaN + Infinity DO parse via float() and would have
+    # slipped past a naive `amount <= 0` check (NaN comparisons
+    # always return False). The route at settlements.py:166-172
+    # added an explicit `math.isfinite` check for exactly this
+    # reason — pin it so a future "simplify the validation"
+    # refactor can't silently regress.
+    nan_str = client.post("/api/settlements", headers=auth_headers, json={
+        "tripId": trip_id,
+        "fromUserId": seed_user,
+        "toUserId": "anyone",
+        "amount": "NaN",
+    })
+    assert nan_str.status_code == 400, "NaN amount must be rejected"
+
+    inf_str = client.post("/api/settlements", headers=auth_headers, json={
+        "tripId": trip_id,
+        "fromUserId": seed_user,
+        "toUserId": "anyone",
+        "amount": "Infinity",
+    })
+    assert inf_str.status_code == 400, "Infinity amount must be rejected"
+
 
 def test_settle_up_notification_to_recipient(
     client, seed_user, seed_other_user, auth_headers,

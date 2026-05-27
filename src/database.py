@@ -842,6 +842,24 @@ def init_db():
             "ON categories(user_id)",
             "CREATE INDEX IF NOT EXISTS idx_budgets_user "
             "ON budgets(user_id)",
+            # R9-B2 H2: partial UNIQUE index for the all-NULL filter
+            # shape (trip-wide, all-categories, all-people). SQLite
+            # treats NULL != NULL for UNIQUE constraints, so the
+            # existing UNIQUE(user_id, trip_id, category_id,
+            # owner_name) constraint at the CREATE TABLE level
+            # cannot dedupe this most-common case. Migration
+            # 3df6a8b0c2d4 brings prod onto this shape.
+            "CREATE UNIQUE INDEX IF NOT EXISTS "
+            "idx_budgets_user_trip_generic "
+            "ON budgets(user_id, trip_id) "
+            "WHERE category_id IS NULL AND owner_name IS NULL",
+            # R9-B2 M1: secondary index so /api/data's join on
+            # trip_collaborators.user_id can use an index. The
+            # table's PK is (trip_id, user_id) — leading col is
+            # trip_id, so SQLite can't use the PK for a
+            # user-side predicate. Migration 3df6a8b0c2d4 same.
+            "CREATE INDEX IF NOT EXISTS idx_trip_collaborators_user "
+            "ON trip_collaborators(user_id)",
             # notifications.related_id is hit by the daily trip_public
             # dedupe and the delete_trip cleanup. Existing
             # `(user_id, created_at)` index doesn't cover it.

@@ -1485,13 +1485,22 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         # uncluttered.
         if _doc.page > 1:
             canvas.saveState()
-            canvas.setFont("Helvetica-Bold", 7.5)
+            # R9-B1 H3: route through _font() so non-Latin trip names
+            # (東京旅行 / تونس / Москва) actually render in the per-page
+            # kicker. Pre-fix the hardcoded Helvetica fallback had
+            # NO glyphs for these scripts → blank string after the
+            # "TRIP PLAN  ·  " separator on every interior page.
+            # Same R3-Round 4 Unicode-font fix as the body text;
+            # this chrome path was missed. _strip_emoji ensures the
+            # font doesn't trip over emoji glyphs it can't render
+            # (e.g. user adds "✦" or a flag to their trip name).
+            canvas.setFont(_font(bold=True), 7.5)
             canvas.setFillColor(rl.colors.HexColor(_BRAND_BLUE))
             kicker_y = page_h - 0.9 * rl.cm
             canvas.drawRightString(
                 page_w - margin_lr,
                 kicker_y,
-                f"TRIP PLAN  ·  {trip_name.upper()}",
+                f"TRIP PLAN  ·  {_strip_emoji(trip_name).upper()}",
             )
             canvas.restoreState()
 
@@ -1505,13 +1514,16 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             page_w - margin_lr,
             1.3 * rl.cm,
         )
-        canvas.setFont("Helvetica", 8)
+        # R9-B1 H3: same Unicode-font + emoji-strip treatment as the
+        # kicker above. Pre-fix the footer's trip name was blank on
+        # every page for non-Latin titles.
+        canvas.setFont(_font(), 8)
         canvas.setFillColor(rl.colors.HexColor(_TEXT_SECONDARY))
         footer_y = 0.9 * rl.cm
         canvas.drawString(
             margin_lr,
             footer_y,
-            f"The Great Getaway  ·  {trip_name}",
+            f"The Great Getaway  ·  {_strip_emoji(trip_name)}",
         )
         canvas.drawRightString(
             page_w - margin_lr,
@@ -2293,7 +2305,20 @@ def export_trip_pdf(trip_id: str):
         sorted(options.keys()) if isinstance(options, dict) else [],
     )
 
-    pdf_bytes = _build_trip_pdf(trip, options)
+    # R9-B1 M3: wrap the build so a reportlab LayoutError (huge trip
+    # that doesn't fit the page) surfaces as JSON, not as Flask's
+    # default HTML 500. The frontend POSTs /api/trips/<id>/pdf and
+    # expects either application/pdf OR a JSON {error: ...} envelope
+    # — it has no path to render an HTML error body, so pre-fix the
+    # user saw a generic browser "download failed" with no hint
+    # about WHY (was it the layout, network, auth?).
+    try:
+        pdf_bytes = _build_trip_pdf(trip, options)
+    except RuntimeError as e:
+        # _build_trip_pdf raises a friendly RuntimeError for known-
+        # bad layouts (e.g. day-card too tall for the frame). Other
+        # exception types bubble — Flask's logger captures them.
+        return jsonify({"error": str(e)}), 500
     safe_name = "".join(
         c if (c.isalnum() or c in " -_") else "_"
         for c in (trip.get("name") or "trip")

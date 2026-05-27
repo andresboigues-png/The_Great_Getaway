@@ -137,9 +137,11 @@ def create_settlement():
     Note: the caller does NOT have to be one of the two parties.
     Trip planners often log settlements on behalf of others (e.g.
     "the four of us settled at dinner; Andre handled it"). Auditing
-    is preserved via `created_at` + the (yet-to-add) `recorded_by`
-    column — for v1 we keep the shape lean and rely on the trip
-    members chat to catch impersonation. Future: add `recorded_by`
+    is preserved via `created_at` + the `recorded_by` column
+    (migration f5a6b7c8d9e1; populated below at the INSERT site).
+    The original "for v1 we keep the shape lean" plan was
+    revisited — the column landed when the impersonation risk
+    moved from theoretical to "user A could spoof a settle-up
     if it becomes a real concern."""
     user_id = current_user_id()
     body = request.json or {}
@@ -257,11 +259,12 @@ def create_settlement():
         # behalf of others.
         #
         # Audit fix (2026-05-27): retry the INSERT up to 5 times on
-        # IntegrityError. `_settlement_id` has only ~54 bits of
-        # entropy after the [:9] truncation, so PK collisions are
-        # rare but real at scale — pre-fix the route 500'd on
-        # collision; now we re-generate and retry. Same pattern as
-        # `_clone_trip_record` in trips.py.
+        # IntegrityError. R9-B1 L1: `_settlement_id` now returns the
+        # full `token_urlsafe(8)` (~64 bits / 11 chars) — the old
+        # `[:9]` truncation was removed but the retry loop is still
+        # worth keeping as a defensive backstop against transient
+        # INSERT failures (concurrent writers, FK glitches). Same
+        # pattern as `_clone_trip_record` in trips.py.
         import sqlite3
         settlement_id = None
         for _attempt in range(5):

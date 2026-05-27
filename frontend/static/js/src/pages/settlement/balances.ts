@@ -397,8 +397,21 @@ export function computeLeaderboard(trip: any) {
         const amount = exp.euroValue || exp.value || 0;
         if (board[exp.who]) board[exp.who]!.paid += amount;
         if (exp.splits && Object.keys(exp.splits).length > 0) {
+            // R9-B1 H1: denominator is the SUM of split values, not
+            // a hardcoded 100. Trip-balance and global-balance code
+            // (computeTripBalances / computeGlobalBalances above)
+            // already normalize this way; this divisor was the lone
+            // holdover. A 33/33/33 split (=99) left each person 1%
+            // short; a 50/50/50 split (=150) inflated each share by
+            // 50%. Net effect: the leaderboard on the trip-detail
+            // page contradicted the balance section right next to
+            // it — same expense, different math.
+            const denom = Object.values(exp.splits).reduce(
+                (sum, v) => sum + Number(v), 0,
+            );
+            const divisor = denom > 0 ? denom : 100;  // legacy fallback
             for (const [person, pct] of Object.entries(exp.splits)) {
-                if (board[person]) board[person]!.share += amount * (Number(pct) / 100);
+                if (board[person]) board[person]!.share += amount * (Number(pct) / divisor);
             }
         } else {
             const share = amount / Math.max(roster.length, 1);

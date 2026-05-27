@@ -229,8 +229,17 @@ def get_public_trip(trip_id):
         # response object at all).
         expenses = []
         if viewer_sees_expenses:
+            # R9-B1 C1: exclude settlement rows from the public expense
+            # list. Pre-§4.5 settle-up rows live in `expenses` with
+            # `is_settlement=1`. Without this filter the share viewer
+            # saw "Sara paid Andres €45" interpersonal-debt rows mixed
+            # in with real spend — interpersonal debts the publicShow
+            # ExpensesCost toggle was NEVER meant to expose. Same
+            # filter as the PDF route (pdf.py ~2263) + balance math.
             cursor.execute(
-                "SELECT * FROM expenses WHERE trip_id = ? AND deleted_at IS NULL",
+                "SELECT * FROM expenses WHERE trip_id = ? "
+                "AND deleted_at IS NULL "
+                "AND COALESCE(is_settlement, 0) = 0",
                 (trip_id,),
             )
             expenses = [dict(r) for r in cursor.fetchall()]
@@ -569,10 +578,16 @@ def fetch_share_payload(token):
             # 2026-05-26 (audit SY5): tombstoned expenses excluded
             # from public per-country totals — same shape as the SY5
             # filter on the /api/data path.
+            # R9-B1 C1: same is_settlement filter as the detail SELECT
+            # above. Pre-fix per-country totals were INFLATED by every
+            # settlement amount (a €45 settle-up showed up as €45 of
+            # "spend in PT" on the public cost banner).
             cursor.execute(
                 "SELECT COALESCE(country, '?') AS country, "
                 "       SUM(COALESCE(euro_value, 0)) AS total "
-                "FROM expenses WHERE trip_id = ? AND deleted_at IS NULL "
+                "FROM expenses WHERE trip_id = ? "
+                "AND deleted_at IS NULL "
+                "AND COALESCE(is_settlement, 0) = 0 "
                 "GROUP BY country",
                 (row["id"],),
             )
