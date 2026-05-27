@@ -162,6 +162,22 @@ def upload_file():
     # mode), fall back to the bytes-verbatim save so the upload
     # still completes — the EXIF strip is defense-in-depth, not
     # the security boundary.
+    # R3-Round 3 fix: explicit HEIC/HEIF rejection. The magic-number
+    # gate above ACCEPTS the file (so the upload reaches here) but
+    # without `pillow-heif` installed PIL can't open it and the
+    # existing fall-through stored bytes-verbatim — EXIF/GPS would
+    # leak. Rather than silently degrading, tell the user to convert
+    # to JPEG so the iOS "Most Compatible" setting becomes a real
+    # affordance. The /api/upload-photo flow is symmetric; this
+    # branch handles both since the ext sniff is the same shape.
+    if ext in {'.heic', '.heif'}:
+        return jsonify({
+            "error": (
+                "HEIC photos aren't supported yet. On iPhone, switch "
+                "Settings → Camera → Formats to 'Most Compatible' so "
+                "new shots upload as JPEG."
+            ),
+        }), 415
     if ext in {'.jpg', '.jpeg', '.png', '.webp'}:
         try:
             from PIL import Image
@@ -187,11 +203,22 @@ def upload_file():
             # PIL's defaults change.
             save_kwargs = {"exif": b""}
             # PNG doesn't support the `exif` kwarg in all Pillow
-            # versions — strip via the `info` dict instead.
+            # versions — strip via the `info` dict instead. R3-Round
+            # 3 fix: preserve the ICC color profile so iPhone photos
+            # captured in Display P3 wide-gamut don't visibly color-
+            # shift to sRGB on re-encode. Pillow's `save()` on PNG
+            # drops the icc_profile chunk by default — passing it
+            # back through restores correct on-screen colour.
             if img.format == "PNG":
                 save_kwargs = {}
-                # Re-encoding from a fresh Image object drops the
-                # original info/metadata anyway.
+                icc_profile = img.info.get("icc_profile") if hasattr(img, 'info') else None
+                if icc_profile:
+                    save_kwargs["icc_profile"] = icc_profile
+            elif img.format == "WEBP":
+                # Same ICC preservation for WebP; the exif strip stays.
+                icc_profile = img.info.get("icc_profile") if hasattr(img, 'info') else None
+                if icc_profile:
+                    save_kwargs["icc_profile"] = icc_profile
             # Preserve format from the decoded image; falls back to
             # the requested extension if PIL can't detect.
             img_format = img.format or {

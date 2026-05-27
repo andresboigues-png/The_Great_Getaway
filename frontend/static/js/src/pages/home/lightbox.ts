@@ -67,6 +67,20 @@ export function openPhotoLightbox(arg: string | string[], startIndex: number = 0
         : (arg ? [arg] : []);
     if (photos.length === 0) return;
 
+    // R3-Round 3 fix: preload next + previous images so navigation
+    // doesn't blank the lightbox for 800ms-2s while a multi-MB iPhone
+    // JPEG fetches over slow wifi. `new Image().src = ...` triggers
+    // the browser cache fetch without inserting into DOM; the
+    // already-fetched bytes hit a cache HIT when the user advances.
+    const _preload = (url: string | undefined) => {
+        if (!url) return;
+        const img = new Image();
+        // Match the visible <img>'s decoding hint so the browser
+        // doesn't block the main thread when the user advances.
+        img.decoding = 'async';
+        img.src = url;
+    };
+
     let current = Math.max(0, Math.min(startIndex, photos.length - 1));
     const isGallery = photos.length > 1;
 
@@ -123,10 +137,27 @@ export function openPhotoLightbox(arg: string | string[], startIndex: number = 0
         if (counter) counter.textContent = `${current + 1} / ${photos.length}`;
         if (prevBtn) prevBtn.classList.toggle('lb-nav-btn--hidden', current === 0);
         if (nextBtn) nextBtn.classList.toggle('lb-nav-btn--hidden', current === photos.length - 1);
+        // R3-Round 3 fix: warm the browser cache for adjacent photos
+        // so the next prev/next nav is instant. Wraps defensively at
+        // both edges (already-cached single-photo gallery is a cheap
+        // no-op).
+        _preload(photos[current + 1]);
+        _preload(photos[current - 1]);
     };
 
     const next = () => { if (current < photos.length - 1) repaint(current + 1); };
     const prev = () => { if (current > 0) repaint(current - 1); };
+
+    // Hoisted forward-decl so the click handler below can reference
+    // closeWithCleanup before the keydown setup site assigns its body.
+    // Cleanup wrapper removes the document-level keydown listener
+    // attached at the bottom of this function — see "R3-Round 3 fix"
+    // note there for the leak history.
+    let onKey: ((e: KeyboardEvent) => void) | null = null;
+    const closeWithCleanup = () => {
+        if (onKey) document.removeEventListener('keydown', onKey);
+        close();
+    };
 
     // ── Click-to-dismiss (selective) ──────────────────────────────────
     // Pre-§4.9 the whole `root` was a dismiss hit area, including the
@@ -139,11 +170,11 @@ export function openPhotoLightbox(arg: string | string[], startIndex: number = 0
         if (target === img) return;
         if (target.closest('#lbPrev, #lbNext, #lbCounter')) return;
         if (target.closest('#lbClose')) {
-            close();
+            closeWithCleanup();
             return;
         }
         // Any other click landed on backdrop → close.
-        close();
+        closeWithCleanup();
     });
 
     if (prevBtn) prevBtn.addEventListener('click', (e) => { e.stopPropagation(); prev(); });
@@ -152,16 +183,22 @@ export function openPhotoLightbox(arg: string | string[], startIndex: number = 0
     // ── Keyboard navigation ────────────────────────────────────────────
     // Arrow keys for desktop; Escape to dismiss. Listener attached to
     // document (not root) because focus may land on the close button
-    // or nowhere at all — root-level keydown wouldn't catch it. Cleans
-    // up via the showModal's existing dismiss path... actually showModal
-    // doesn't expose an unmount hook, so we hand-roll cleanup: the
-    // listener no-ops when the modal element is gone from the DOM.
-    const onKey = (e: KeyboardEvent) => {
+    // or nowhere at all — root-level keydown wouldn't catch it.
+    //
+    // R3-Round 3 fix: the previous shape only cleaned the listener
+    // on the NEXT keydown after close, which never came if the user
+    // dismissed via backdrop click or ✕ button without touching the
+    // keyboard. Over a session of 50+ open/close cycles that's 50+
+    // dangling document-level listeners eating CPU on every keystroke
+    // anywhere on the page. Now: explicitly remove on close via
+    // closeWithCleanup; the inside-of-handler bail stays as a
+    // belt-and-braces guard for unmounts we didn't drive.
+    onKey = (e: KeyboardEvent) => {
         if (!document.body.contains(root)) {
-            document.removeEventListener('keydown', onKey);
+            if (onKey) document.removeEventListener('keydown', onKey);
             return;
         }
-        if (e.key === 'Escape') { close(); return; }
+        if (e.key === 'Escape') { closeWithCleanup(); return; }
         if (!isGallery) return;
         if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
         else if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
