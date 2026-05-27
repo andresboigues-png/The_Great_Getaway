@@ -2400,7 +2400,13 @@ def test_generate_itinerary_rejects_missing_key(client, seed_user, auth_headers,
 
 class _FakeGeminiResponse:
     """Stand-in for requests.Response. Models the slice of the API the
-    handler reads (status_code, ok, json(), text)."""
+    handler reads (status_code, ok, json(), text).
+
+    Context-manager protocol added 2026-05-27: the prod path in
+    routes/integrations.py wraps the response in `with requests.post(...)
+    as resp:` (FD-leak fix cbb2e3a). Without __enter__/__exit__ here,
+    every Gemini test crashes at the `with` line with
+    "object does not support the context manager protocol"."""
 
     def __init__(self, status_code: int, json_body=None, text: str = ""):
         self.status_code = status_code
@@ -2412,6 +2418,12 @@ class _FakeGeminiResponse:
         if self._json_body is None:
             raise ValueError("not JSON")
         return self._json_body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
 
 
 def test_generate_itinerary_happy_path(client, seed_user, auth_headers, monkeypatch):
@@ -5905,33 +5917,38 @@ def test_explore_ranks_higher_engagement_higher(
 def test_explore_recency_decay(
     client, seed_user, seed_other_user, auth_headers,
 ):
-    """Trips past the 60-day discovery window score 0 on recency
-    factor, which (because the score is multiplicative) drops them
-    out of the result set entirely — no matter how many views.
+    """Recency factor ranks fresher trips above stale ones — but old
+    trips no longer fall off entirely.
 
-    Design choice: a hard 60-day window keeps Explore feeling fresh.
-    Older trips will get a dedicated "search by country" surface in
-    §4.2 v2. Without this, viral-but-stale trips would crowd out
-    new discoveries forever."""
+    Design history: the pre-2026-05-19 implementation used a 60-day
+    hard cutoff (`score = 0` → row dropped). Real shares are too rare
+    for that to work; a small server with sparse activity ended up
+    serving an empty Explore feed once trips aged out. The current
+    implementation uses linear decay over 180 days with a 0.15 floor —
+    stale trips still surface but rank below recent ones. This test
+    pins the new "ranked, not gated" contract: fresh > stale, but
+    both present."""
     from datetime import datetime, timedelta, timezone
 
-    # 90 days old, lots of views — should NOT appear.
+    # 90 days old, lots of views.
     old_stamp = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%d %H:%M:%S")
     _seed_shareable_trip(
         seed_other_user, "exp-stale", country_code="JP",
-        share_views=10000, created_at=old_stamp,
+        share_views=0, created_at=old_stamp,
     )
-    # Fresh trip — should appear even with zero views.
+    # Fresh trip — should rank above the stale one even with zero views,
+    # because recency_factor dominates when engagement is equal.
     _seed_shareable_trip(seed_other_user, "exp-fresh", country_code="JP", share_views=0)
 
     items = client.get("/api/feed/explore", headers=auth_headers).get_json()["items"]
     ids = [i["tripId"] for i in items]
     assert "exp-fresh" in ids
-    assert "exp-stale" not in ids
+    assert "exp-stale" in ids
+    # Fresh ranks higher.
+    assert ids.index("exp-fresh") < ids.index("exp-stale")
 
-    # A trip JUST INSIDE the window with low engagement should still
-    # surface — confirm the cutoff is genuine and not "anything older
-    # than today is gone".
+    # A trip JUST INSIDE the original 60-day window with low engagement
+    # should also surface — sanity-check the floor isn't broken.
     recent_stamp = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
     _seed_shareable_trip(
         seed_other_user, "exp-recent", country_code="JP",
