@@ -3154,8 +3154,12 @@ def test_generate_itinerary_502_when_both_models_fail(
     })
     assert res.status_code == 502
     body = res.get_json()
+    # R3-Round 3 fix: user-facing error is now a friendly one-liner
+    # (no Google internal codes). The raw "UNAVAILABLE" / response
+    # text lands in the server log only.
     assert "AI generation failed" in body["error"]
-    assert "UNAVAILABLE" in body["error"]
+    assert "UNAVAILABLE" not in body["error"], \
+        "Google's raw error status should not appear in user-facing message"
     # Confirm both models were attempted before bailing.
     assert len(call_log) == 2
     assert "gemini-flash-latest" in call_log[0]
