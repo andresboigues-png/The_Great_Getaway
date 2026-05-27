@@ -835,6 +835,7 @@ export const es: Translations = {
         toastReposted: 'Recompartido en tu feed',
         toastRepostFailed: 'Error al recompartir — inténtalo de nuevo en un momento.',
         toastRepostOwnShare: 'Es tu propia publicación — no hace falta recompartirla.',
+        commentInputLabel: 'Añade un comentario…',
         relTimeJustNow: 'justo ahora',
         relTimeMin: 'hace {count}m',
         relTimeHour: 'hace {count}h',

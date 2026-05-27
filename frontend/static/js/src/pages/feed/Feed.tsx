@@ -1216,7 +1216,13 @@ function CommentThread({ eventId, comments, onDelete, onEdit, onSubmit }: Commen
                     ref={inputRef}
                     type="text"
                     name="body"
-                    placeholder="Add a comment…"
+                    /* R6-B5: placeholder is not a label — screen
+                     * readers announce "edit, blank" without an
+                     * explicit aria-label. The placeholder also
+                     * disappears on input. Route through t() so
+                     * the announcement matches the user's locale. */
+                    aria-label={t('feed.commentInputLabel')}
+                    placeholder={t('feed.commentInputLabel')}
                     maxLength={500}
                     autoComplete="off"
                     className="flex-1 min-w-0 py-2 px-3 border border-[rgba(0,45,91,0.12)] rounded-full text-[0.85rem] bg-[rgba(0,113,227,0.04)] text-brand-navy font-[inherit]"

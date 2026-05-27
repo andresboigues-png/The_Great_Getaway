@@ -65,6 +65,17 @@ export function wireNavChrome(): void {
                 'aria-expanded', isOpen ? 'true' : 'false',
             );
         }
+        // R6-B2: move focus FIRST, then apply inert/aria-hidden. Pre-fix
+        // we set aria-hidden=true on the navbar (which contained the
+        // still-focused hamburger) BEFORE moving focus → a brief window
+        // where focus was inside an aria-hidden subtree, which screen
+        // readers (NVDA in particular) flag as a violation.
+        if (isOpen) {
+            const close = document.getElementById('sidebarClose');
+            (close as HTMLElement | null)?.focus();
+        } else {
+            hamburgerBtn?.focus();
+        }
         // R3-Fix #19: when the sidebar is open it's the only visible
         // surface — the rest of the page must be inert to keyboard +
         // screen reader so Tab/TalkBack swipe don't escape into the
@@ -84,18 +95,24 @@ export function wireNavChrome(): void {
                 el.removeAttribute('aria-hidden');
             }
         }
-        // Move focus into the drawer on open; restore to hamburger on close.
-        if (isOpen) {
-            const close = document.getElementById('sidebarClose');
-            (close as HTMLElement | null)?.focus();
-        } else {
-            hamburgerBtn?.focus();
-        }
     };
 
     document.getElementById('hamburgerBtn')?.addEventListener('click', toggleSidebar);
     document.getElementById('sidebarOverlay')?.addEventListener('click', toggleSidebar);
     document.getElementById('sidebarClose')?.addEventListener('click', toggleSidebar);
+    // R6-B2: Escape key closes the sidebar — Modal.ts has the same
+    // pattern but the sidebar was missing it. Pre-fix keyboard-only
+    // users who tabbed past the close button had no key-only escape
+    // (the drawer is morally a modal dialog; Modal.ts gives every
+    // other modal Esc, sidebar was the lone exception).
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar?.classList.contains('open')) {
+            e.preventDefault();
+            toggleSidebar();
+        }
+    });
 
     // ── Mobile swipe-between-tabs ──
     // Round 3 reorg. Idempotent — wires touchstart/touchend on document.
@@ -161,6 +178,22 @@ export function wireNavChrome(): void {
             btn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
             if (isHidden) {
                 renderNotificationDropdown();
+                // R6-B2: focus the first notification row on open so
+                // a keyboard-only user can act without Tab-walking
+                // through every following nav item. Falls back to the
+                // "Mark all read" button if there are no notifications.
+                // Use a microtask so the dropdown's display:flex has
+                // settled before we read offsetParent (offscreen
+                // elements can't receive focus).
+                queueMicrotask(() => {
+                    const firstItem = dropdown.querySelector(
+                        '[data-notification-id]',
+                    ) as HTMLElement | null;
+                    const markAll = dropdown.querySelector(
+                        '[id^="markAllReadBtn"]',
+                    ) as HTMLElement | null;
+                    (firstItem || markAll)?.focus();
+                });
                 // R3-Fix #20: don't auto-mark-read on open. The previous
                 // shape fired markNotificationsRead() the instant ANY
                 // bell opened, so screen-reader users (Eduardo persona)
@@ -169,9 +202,39 @@ export function wireNavChrome(): void {
                 // Now: keep the unread tag until the user either clicks
                 // a row (handled in the delegated click handler) or
                 // taps "Mark all read" explicitly.
+            } else {
+                // R6-B2: restore focus to the bell on close so the
+                // keyboard user lands back where they started.
+                btn.focus();
             }
         });
     }
+
+    // R6-B2: Escape closes any open notification dropdown OR the
+    // trip-controls popover, restoring focus to the trigger button.
+    // Pre-fix keyboard-only users had no key to dismiss these — only
+    // an outside-click handler, which doesn't fire for keyboard
+    // navigation.
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        for (const pair of bellPairs) {
+            if (pair.dropdown.style.display === 'flex') {
+                e.preventDefault();
+                pair.dropdown.style.display = 'none';
+                pair.btn.setAttribute('aria-expanded', 'false');
+                pair.btn.focus();
+                return;
+            }
+        }
+        const tcp = document.getElementById('tripControlsPopover');
+        if (tcp && tcp.style.display && tcp.style.display !== 'none') {
+            e.preventDefault();
+            tcp.style.display = 'none';
+            const trigger = document.getElementById('tripControlsBtn');
+            trigger?.setAttribute('aria-expanded', 'false');
+            trigger?.focus();
+        }
+    });
 
     // ── Mobile compass — trip-controls popover ──
     // Mirrors the bell-dropdown pattern. The popover is mobile-only (CSS

@@ -1065,6 +1065,10 @@ export const en = {
         toastReposted: 'Reposted to your feed',
         toastRepostFailed: 'Repost failed — try again in a moment.',
         toastRepostOwnShare: "That's your own share — no need to repost it.",
+        // R6-B5: accessible label for the comment input (also used
+        // as the placeholder). Pre-fix only the placeholder was set,
+        // which screen readers don't announce as a label.
+        commentInputLabel: 'Add a comment…',
         // ── Relative time (pages/feed/render.ts relativeTime).
         // `justNow` is used for <60s, the rest are short forms (m / h / d).
         // Note: the pluralised m/h/d-ago strings DON'T need separate one/other

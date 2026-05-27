@@ -839,6 +839,7 @@ export const pt: Translations = {
         toastReposted: 'Repartilhado no teu feed',
         toastRepostFailed: 'Falha ao repartilhar — tenta novamente daqui a pouco.',
         toastRepostOwnShare: 'Esta é a tua própria partilha — não precisas de a repartilhar.',
+        commentInputLabel: 'Adicionar um comentário…',
         relTimeJustNow: 'agora mesmo',
         relTimeMin: 'há {count}m',
         relTimeHour: 'há {count}h',

@@ -840,6 +840,7 @@ export const fr: Translations = {
         toastReposted: 'Repartagé sur ton fil',
         toastRepostFailed: 'Échec du repartage — réessaie dans un instant.',
         toastRepostOwnShare: 'C\'est ton propre partage — pas besoin de le repartager.',
+        commentInputLabel: 'Ajouter un commentaire…',
         relTimeJustNow: "à l'instant",
         relTimeMin: 'il y a {count}m',
         relTimeHour: 'il y a {count}h',

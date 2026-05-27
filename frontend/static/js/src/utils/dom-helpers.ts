@@ -41,6 +41,15 @@ export function showLiquidAlert(msg: string): void {
     // browser collapses both states into one paint and skips the slide.
     requestAnimationFrame(() => requestAnimationFrame(() => alert.classList.add('show')));
 
+    // R6-B5: scale dismissal time to message length so screen-reader
+    // users finish hearing long messages before they disappear. WCAG
+    // 2.2.4 (Timing Adjustable) requires either an extend mechanism
+    // or at least 20s — we use the length-scaled heuristic
+    // ~80ms/char (a typical TTS rate). Short toasts still snap at
+    // ~3s for sighted users; the 60s cap stops a 500-char toast
+    // from lingering forever. Pre-fix the 3s hard-cap could cut a
+    // 60-char error mid-sentence for NVDA/JAWS users.
+    const dismissAfter = Math.min(60_000, Math.max(3000, msg.length * 80));
     setTimeout(() => {
         alert.classList.remove('show');
         alert.classList.add('dismiss');
@@ -48,7 +57,7 @@ export function showLiquidAlert(msg: string): void {
             alert.remove();
             _activeAlerts.delete(msg);
         }, 500);
-    }, 3000);
+    }, dismissAfter);
 }
 
 export function generateId(): string {

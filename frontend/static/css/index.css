@@ -881,10 +881,18 @@ h1 {
 .sidebar-rail__item svg {
     stroke: var(--accent-blue);
 }
-.sidebar-rail__item:hover,
+.sidebar-rail__item:hover {
+    background: rgba(0, 113, 227, 0.08);
+}
+/* R6-B5: split :focus-visible from :hover so the focus indicator is
+   a real WCAG-compliant 2px outline at ≥3:1 contrast. Pre-fix the
+   focus state was an 0.08-opacity tint with `outline: none` —
+   fails WCAG 2.4.7 (Focus Visible) and 1.4.11 (Non-text Contrast).
+   Hover keeps the soft tint; focus gets the outline. */
 .sidebar-rail__item:focus-visible {
     background: rgba(0, 113, 227, 0.08);
-    outline: none;
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
 }
 .sidebar-rail__item:active {
     transform: scale(0.94);
@@ -917,12 +925,20 @@ h1 {
        hover background tint that the other items use, since the
        avatar's image already fills the button's content box. */
 }
-.sidebar-rail__profile:hover,
-.sidebar-rail__profile:focus-visible {
+.sidebar-rail__profile:hover {
     background: transparent;
     /* Subtle ring on hover so the user gets feedback without the
        avatar reflowing into a tinted square. */
     box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.32);
+}
+/* R6-B5: keyboard focus indicator must be visible enough to meet
+   WCAG 2.4.7 — bump the ring opacity + add an outline so the focus
+   state is unambiguous against the white rail background. */
+.sidebar-rail__profile:focus-visible {
+    background: transparent;
+    box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.32);
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
 }
 .sidebar-rail__profile img {
     width: 36px;

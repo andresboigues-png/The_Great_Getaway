@@ -350,8 +350,12 @@
                  cluster, immediately after notifications per user
                  request. Same #tripControlsBtn id, popover, and main.ts
                  click-handler as before; only its position changed. -->
+            <!-- R6-B5: aria-haspopup="dialog" matches the popover's new
+                 role="dialog" (was "menu", but the contents aren't
+                 menuitems — a screen-reader user pressing Arrow Down
+                 expecting cycling got nothing). -->
             <button type="button" id="tripControlsBtn" aria-label="Trip controls"
-                aria-haspopup="menu" aria-expanded="false" aria-controls="tripControlsPopover" title="Trip controls"
+                aria-haspopup="dialog" aria-expanded="false" aria-controls="tripControlsPopover" title="Trip controls"
                 style="background: transparent; border: none; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; color: inherit; -webkit-tap-highlight-color: transparent;">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <circle cx="12" cy="12" r="10"></circle>
@@ -460,7 +464,13 @@
          test surface don't change — only the host element does.
          Hidden on desktop (the same controls live inline in the
          navbar via .nav-trips--desktop-only). -->
-    <div id="tripControlsPopover" class="trip-controls-popover" role="menu" aria-label="Trip controls" style="display: none;">
+    <!-- R6-B5: role="dialog" instead of "menu". The contents (a form
+         + a few buttons) are NOT menuitems — `role="menu"` promised
+         arrow-key cycling that the screen-reader user pressed Down to
+         get, then heard nothing because <select> swallows the key.
+         A non-modal dialog matches the actual behaviour (Escape-
+         dismissable popover wired in nav-chrome.ts). -->
+    <div id="tripControlsPopover" class="trip-controls-popover" role="dialog" aria-modal="false" aria-label="Trip controls" style="display: none;">
         <div class="sidebar-trip-controls">
             <button class="btn-primary-pill sidebar-trip-controls__new" id="newTripBtnSidebar">+ New Trip</button>
             <select id="tripSelectorSidebar" class="btn-primary-pill--inverse sidebar-trip-controls__selector" aria-label="Select active trip">
