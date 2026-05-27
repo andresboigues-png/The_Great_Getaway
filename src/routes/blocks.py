@@ -97,15 +97,24 @@ def block_user(user_id):
             "(follower_id = ? AND followee_id = ?)",
             (caller_id, user_id, user_id, caller_id),
         )
-        # Tear down any pending trip invites the blocked user sent.
+        # Tear down any pending trip invites in BOTH directions.
         # Accepted memberships stay — kicking them out of trips
         # they're already on is a separate, more destructive
         # decision the caller can make via /api/trips/members/remove.
+        #
+        # R2 audit fix: the pre-fix DELETE only handled invites
+        # the BLOCKED user sent to the blocker. The reverse case
+        # — blocker had previously invited the blocked user — was
+        # left alone, so the blocked user could accept the stale
+        # invite AFTER the block and become a co-member of the
+        # blocker's trip. Symmetric DELETE closes the gap.
         cursor.execute(
             "DELETE FROM trip_members "
-            "WHERE invitation_status = 'pending' "
-            "  AND invited_by = ? AND user_id = ?",
-            (user_id, caller_id),
+            "WHERE invitation_status = 'pending' AND ("
+            "  (invited_by = ? AND user_id = ?) OR "
+            "  (invited_by = ? AND user_id = ?)"
+            ")",
+            (user_id, caller_id, caller_id, user_id),
         )
         conn.commit()
     return jsonify({"status": "blocked"})

@@ -1901,6 +1901,38 @@ def test_blocked_user_cannot_follow_via_legacy_friends_add(
         assert rows == [], "block bypass via /api/friends/add must not insert follow"
 
 
+def test_block_drops_pending_invite_from_blocker_to_blocked(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R2 audit fix: pre-fix the block cleanup only tore down invites
+    from BLOCKED user → BLOCKER, not the reverse. A blocker who had
+    previously invited the blocked user left a pending row that the
+    blocked user could later accept → co-membership despite the
+    block. Symmetric DELETE closes this."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-pending-cleanup")
+    # Blocker invites the other user (pending invite).
+    invite = client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id,
+        "target_user_id": seed_other_user,
+        "role": "relaxer",
+    })
+    assert invite.status_code == 200
+    # Blocker now blocks them.
+    blk = client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers)
+    assert blk.status_code == 200
+    # The pending invite must be gone.
+    from database import get_db
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT 1 FROM trip_members WHERE trip_id = ? AND user_id = ?",
+            (trip_id, seed_other_user),
+        ).fetchall()
+    assert rows == [], (
+        "pending invite from blocker to blocked must be deleted on block; "
+        "otherwise the blocked user can accept it and become a co-member"
+    )
+
+
 def test_blocker_excluded_from_friends_search_for_blocked_user(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):
@@ -4079,6 +4111,31 @@ def test_clone_trip_requires_auth(client, seed_user, auth_headers):
     trip_id = _create_trip(client, auth_headers, trip_id="trip-needs-auth")
     res = client.post(f"/api/trips/clone/{trip_id}")
     assert res.status_code == 401
+
+
+def test_clone_trip_id_path_refuses_archived_source(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R2 audit fix: /api/share/<token>/clone correctly refused
+    archived sources (Trip #39); /api/trips/clone/<id> didn't. A
+    member who knew the source trip id could clone it after the
+    owner had archived. Now both paths return 410 on archived."""
+    # Owner creates a public trip, invites other as member, then archives.
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-clone-arch", public=True)
+    client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id,
+        "target_user_id": seed_other_user,
+        "role": "relaxer",
+    })
+    client.post("/api/trips/invite/respond", headers=other_auth_headers, json={
+        "trip_id": trip_id, "accept": True,
+    })
+    client.post(f"/api/trips/{trip_id}/archive", headers=auth_headers)
+    # Member tries to clone via the id path — must 410.
+    res = client.post(f"/api/trips/clone/{trip_id}", headers=other_auth_headers)
+    assert res.status_code == 410, (
+        f"clone of archived trip via /api/trips/clone/<id> must 410, got {res.status_code}"
+    )
 
 
 def test_share_view_count_increments_and_dedupes_in_24h(

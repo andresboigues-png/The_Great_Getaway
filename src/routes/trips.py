@@ -954,6 +954,12 @@ def clone_trip(source_id):
     member of). Returns `{ tripId }` for the new draft owned by the
     caller. Visibility gate matches /api/public-trip — anything else
     would let the caller exfiltrate private trips by id-guessing.
+
+    R2 audit fix: mirror the archive-410 gate from the share-token
+    clone path. Pre-fix, /api/share/<token>/clone correctly refused
+    archived sources but /api/trips/clone/<id> didn't — a member who
+    knew the source trip's id could clone an archived trip after the
+    owner had completed it. Now both paths agree.
     """
     bind_trip_context(source_id)
     user_id = current_user_id()
@@ -963,6 +969,19 @@ def clone_trip(source_id):
             # Mirror /api/public-trip's 404 (rather than 403) so
             # id-existence isn't leaked via differential codes.
             return jsonify({"error": "Not found"}), 404
+        # Archive-410 gate, same shape as clone_trip_from_share_token.
+        cursor.execute(
+            "SELECT COALESCE(tm.is_archived, t.is_archived, 0) AS is_archived "
+            "FROM trips t LEFT JOIN trip_members tm "
+            "  ON tm.trip_id = t.id AND tm.user_id = t.user_id "
+            "WHERE t.id = ?",
+            (source_id,),
+        )
+        arch_row = cursor.fetchone()
+        if arch_row and arch_row["is_archived"]:
+            return jsonify({
+                "error": "This trip is no longer available for cloning",
+            }), 410
         new_trip_id = _clone_trip_record(cursor, source_id, user_id)
         if not new_trip_id:
             return jsonify({"error": "Not found"}), 404

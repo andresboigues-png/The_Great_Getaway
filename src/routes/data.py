@@ -164,11 +164,20 @@ def sync_data():
                     -- every sync that didn't carry the field —
                     -- silent data loss for multi-country trips.
                     trip_countries_json=COALESCE(excluded.trip_countries_json, trip_countries_json),
-                    companions_json=excluded.companions_json,
-                    marked_places_json=excluded.marked_places_json,
-                    documents_json=excluded.documents_json,
-                    photos_json=excluded.photos_json,
-                    checklist_json=excluded.checklist_json,
+                    -- R2 audit fix: COALESCE protection on every JSON
+                    -- field, mirroring the /api/trips upsert. Pre-fix
+                    -- /api/sync wrote `excluded.X` verbatim — a partial
+                    -- payload (older client, future field-renaming)
+                    -- that omitted any of these keys would NULL the
+                    -- column. Most users sync these fields on every
+                    -- write so the regression was rare in practice,
+                    -- but companions / photos wipe-on-partial-sync
+                    -- was reproducible and lost user data.
+                    companions_json=COALESCE(excluded.companions_json, companions_json),
+                    marked_places_json=COALESCE(excluded.marked_places_json, marked_places_json),
+                    documents_json=COALESCE(excluded.documents_json, documents_json),
+                    photos_json=COALESCE(excluded.photos_json, photos_json),
+                    checklist_json=COALESCE(excluded.checklist_json, checklist_json),
                     cover_url=excluded.cover_url
             ''', (t['id'], user_id, t['name'], t['country'],
                   1 if t.get('is_archived') else 0,
