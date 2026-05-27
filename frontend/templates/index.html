@@ -31,6 +31,19 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="The GG">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-180.png') }}">
+    <!-- R9-F2: iOS PWA cold-launch splash. Without an
+         apple-touch-startup-image, iOS shows a stark white screen
+         for 1-3 seconds on cold launch from the home screen — long
+         enough to feel unfinished on cellular. We don't ship a full
+         per-resolution splash matrix (would need a build-time asset
+         pipeline), but pointing the legacy single-asset form at our
+         existing 512px icon gives iOS something on a #0071e3
+         background to display during launch, which combined with
+         the `black-translucent` status bar above produces a
+         continuous app-color frame instead of a white flash.
+         When media queries are absent (this form), iOS uses the
+         image for ALL device sizes (centered + scaled by iOS). -->
+    <link rel="apple-touch-startup-image" href="{{ url_for('static', filename='icons/icon-512.png') }}">
 
     <!-- Sentry — error tracking. Loader is async and lazy-loads the full
          SDK on first error. Placed early so it can capture errors from
