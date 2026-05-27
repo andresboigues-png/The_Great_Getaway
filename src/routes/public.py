@@ -455,14 +455,30 @@ def fetch_share_payload(token):
     """
     with get_db() as conn:
         cursor = conn.cursor()
+        # R5-B1 fix: include is_archived so we can refuse to serve an
+        # archived trip's share page. The clone-from-share path already
+        # refuses archived trips (clone_trip_from_share_token in
+        # routes/trips.py with the "owner archived for a reason" 410),
+        # but the READ path was happily serving the full payload after
+        # the owner had completed/archived — an inconsistent privacy
+        # contract. Anon viewers can't supply their own viewer-side
+        # tm.is_archived, so trips.is_archived is the only signal we
+        # can use (and it's set whenever the owner archives their own
+        # copy — see trips.py:378).
         cursor.execute(
             "SELECT id, user_id, name, country, country_code, cover_url, "
-            "lat, lng, viewport_json, share_views, share_show_cost, share_show_plans "
+            "lat, lng, viewport_json, share_views, share_show_cost, share_show_plans, "
+            "is_archived "
             "FROM trips WHERE share_token = ?",
             (token,),
         )
         row = cursor.fetchone()
         if not row:
+            return None
+        # R5-B1 fix: archived trips are not visible via share URL.
+        # Owner archiving = "I'm done" = stop serving. Re-share works
+        # by unarchiving + re-running the Share modal.
+        if row["is_archived"]:
             return None
         bind_trip_context(row["id"])
         trip = {

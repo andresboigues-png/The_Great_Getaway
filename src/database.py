@@ -688,6 +688,14 @@ def init_db():
                 -- DBs onto this shape.
                 context_json TEXT
                     CHECK(context_json IS NULL OR json_valid(context_json)),
+                -- R5-B3 soft-revoke. When the rule for an earned
+                -- badge no longer passes (un-archive, deleted trip,
+                -- etc.) the engine sets `revoked_at = strftime(...)`
+                -- instead of DELETEing the row. A subsequent re-earn
+                -- clears revoked_at silently — no duplicate
+                -- "achievement unlocked" notification. Migration
+                -- 2ce5f7a9b1c3 brings prod DBs onto this shape.
+                revoked_at DATETIME,
                 UNIQUE(user_id, badge_id),
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
@@ -930,6 +938,7 @@ _EXPECTED_COLUMNS = {
     "follows": ["id", "follower_id", "followee_id", "created_at"],
     "user_achievements": [
         "id", "user_id", "badge_id", "earned_at", "context_json",
+        "revoked_at",
     ],
     "settlements": [
         "id", "trip_id", "from_user_id", "to_user_id",

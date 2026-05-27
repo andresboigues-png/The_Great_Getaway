@@ -869,18 +869,26 @@ def serve_upload(relpath: str):
     #     JSON-string quotes — `"/static/uploads/<relpath>"` — so a
     #     scheme-prefixed pollution string no longer matches the LIKE.
     needle_exact = f"/static/uploads/{relpath}"
-    needle_json = f'%"/static/uploads/{relpath}"%'
     from database import get_db
     with get_db() as conn:
         cursor = conn.cursor()
+        # R5-B1: anonymous viewers can ONLY fetch a trip's cover_url
+        # (the share + explore templates only render the cover; photos
+        # and documents are members-only by contract). Pre-fix the
+        # photos_json / documents_json LIKE clauses widened the anon
+        # surface to every photo/document on any public-or-shared trip
+        # — fine when nothing links to them, but a defense-in-depth
+        # liability if a future template tweak, OG-crawler log, or
+        # browser-history leak ever exposes a deep URL. Anon stays
+        # cover-only; authenticated members get the rest via the
+        # session_user_id branch above (which already gates by membership
+        # and includes the photos/documents matches).
         cursor.execute(
             "SELECT 1 FROM trips "
-            "WHERE (is_public = 1 OR share_token IS NOT NULL) AND ("
-            "  cover_url = ? OR "
-            "  COALESCE(photos_json, '') LIKE ? OR "
-            "  COALESCE(documents_json, '') LIKE ?"
-            ") LIMIT 1",
-            (needle_exact, needle_json, needle_json),
+            "WHERE (is_public = 1 OR share_token IS NOT NULL) "
+            "  AND cover_url = ? "
+            "LIMIT 1",
+            (needle_exact,),
         )
         if cursor.fetchone():
             return send_from_directory(UPLOAD_FOLDER, relpath)

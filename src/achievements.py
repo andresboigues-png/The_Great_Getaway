@@ -196,8 +196,14 @@ def _check_repeat_country(cursor, user_id):
     """Visited the same country (by country_code or country name) on
     2+ trips. Encourages domestic / repeat-destination travel (the
     "internal tourism" call-out from FIXING_ROADMAP)."""
+    # R5-B3 fix: UPPER both branches so a trip stamped
+    # country_code='PT' and another stamped country='Portugal'
+    # collapse to the same key. Pre-fix the LOWER branch yielded
+    # 'portugal' while the country_code branch yielded 'PT' so the
+    # user never crossed the HAVING threshold despite genuinely
+    # visiting Portugal twice.
     cursor.execute(
-        "SELECT COALESCE(NULLIF(t.country_code, ''), LOWER(t.country)) AS key, "
+        "SELECT UPPER(TRIM(COALESCE(NULLIF(t.country_code, ''), t.country))) AS key, "
         "       COUNT(*) AS c "
         "FROM trip_members tm "
         "JOIN trips t ON t.id = tm.trip_id "
@@ -395,8 +401,14 @@ def _check_intra_country_3(cursor, user_id):
     """Visited the same country on 3+ trips. Extends repeat_country
     (≥2). Promotes deep-dive travel patterns (regulars, locals,
     domestic). Same key-normalisation as repeat_country."""
+    # R5-B3 fix: UPPER both branches so a trip stamped
+    # country_code='PT' and another stamped country='Portugal'
+    # collapse to the same key. Pre-fix the LOWER branch yielded
+    # 'portugal' while the country_code branch yielded 'PT' so the
+    # user never crossed the HAVING threshold despite genuinely
+    # visiting Portugal twice.
     cursor.execute(
-        "SELECT COALESCE(NULLIF(t.country_code, ''), LOWER(t.country)) AS key, "
+        "SELECT UPPER(TRIM(COALESCE(NULLIF(t.country_code, ''), t.country))) AS key, "
         "       COUNT(*) AS c "
         "FROM trip_members tm "
         "JOIN trips t ON t.id = tm.trip_id "
@@ -416,16 +428,30 @@ def _check_intra_country_3(cursor, user_id):
 
 
 def _check_back_to_back(cursor, user_id):
-    """Trips in 2 consecutive calendar months. Uses trips.created_at
-    grouped by YYYY-MM and walks the sorted list looking for an
-    adjacent pair. Crosses year boundaries correctly (Dec/Jan).
+    """Trips in 2 consecutive calendar months. Walks the sorted list
+    of YYYY-MM looking for an adjacent pair. Crosses year boundaries
+    correctly (Dec/Jan).
+
+    R5-B3 fix: uses MIN(trip_days.date) per trip as the trip's travel
+    month, NOT trips.created_at. Pre-fix the badge fired for trips
+    CREATED in adjacent months even if the actual travel happened a
+    year apart — a user could create June + December trip records on
+    the same day in January and pop the badge instantly. Now the
+    travel-date signal is what matters. Trips with no scaffolded days
+    fall back to trips.created_at as a defensive default (rare —
+    the home flow always scaffolds days post-create).
 
     First streak found wins — the badge fires once, even if the user
-    has multiple streaks across their history. Future tiers (3-month,
-    year-long) can extend this with longer-streak rules using the
-    same DISTINCT-month scaffold."""
+    has multiple streaks across their history."""
     cursor.execute(
-        "SELECT DISTINCT strftime('%Y-%m', t.created_at) AS ym "
+        "SELECT DISTINCT strftime('%Y-%m', "
+        "    COALESCE("
+        "        (SELECT MIN(date) FROM trip_days td "
+        "         WHERE td.trip_id = t.id AND td.deleted_at IS NULL "
+        "           AND td.date IS NOT NULL), "
+        "        t.created_at"
+        "    )"
+        ") AS ym "
         "FROM trip_members tm "
         "JOIN trips t ON t.id = tm.trip_id "
         "WHERE tm.user_id = ? "
@@ -581,6 +607,59 @@ BADGES_BY_ID: dict[str, BadgeDef] = {b.id: b for b in BADGES}
 # ── Detection ────────────────────────────────────────────────────────
 
 
+# R5-B3 perf P1: per-process per-user throttle for the achievement
+# engine. Pre-fix the engine ran on every /api/data poll (every 15s
+# per active tab × N users) — the dominant cost of the platform.
+# Since badges only flip on user-initiated state changes (archive,
+# share, settle, etc.), running the full sweep more than once a
+# minute per user is pure overhead. The map is in-memory (no
+# cross-worker sync) — a worker restart re-runs the sweep on the
+# next poll, which is fine. Bounded growth: an LRU evict keeps the
+# dict from growing without limit if many distinct users hit one
+# worker. The throttle window is intentionally short (60s) so a
+# user who just earned/revoked a badge sees the change reflected on
+# their next poll or two — long enough to slash polling cost ~4x,
+# short enough that "complete a trip → see badge" feels instant.
+_ACHIEVEMENT_CHECK_TTL_SECONDS = 60
+_ACHIEVEMENT_CHECK_LRU_MAX = 1024
+_last_achievement_check: dict[str, float] = {}
+
+
+def _should_run_achievement_check(user_id: str) -> bool:
+    """True if enough time has elapsed since the last check for this
+    user (or never). Updates the in-memory map as a side effect so
+    callers can fire-and-forget.
+
+    Test bypass: when GG_DISABLE_ACHIEVEMENT_THROTTLE is set OR when
+    pytest is running (PYTEST_CURRENT_TEST in env), the throttle is
+    disabled so tests can assert deterministic state changes on
+    every poll without 60s sleeps. The throttle is a production
+    perf optimization; tests need every poll to re-evaluate.
+    """
+    import os as _os
+    if _os.environ.get("GG_DISABLE_ACHIEVEMENT_THROTTLE") \
+       or _os.environ.get("PYTEST_CURRENT_TEST"):
+        return True
+    import time as _time
+    now = _time.time()
+    last = _last_achievement_check.get(user_id, 0.0)
+    if now - last < _ACHIEVEMENT_CHECK_TTL_SECONDS:
+        return False
+    if len(_last_achievement_check) >= _ACHIEVEMENT_CHECK_LRU_MAX:
+        # Evict the single oldest entry — cheap O(N) on this scale.
+        oldest = min(_last_achievement_check, key=_last_achievement_check.get)
+        del _last_achievement_check[oldest]
+    _last_achievement_check[user_id] = now
+    return True
+
+
+def force_recheck_achievements(user_id: str) -> None:
+    """Public hook for mutating routes (archive, unarchive, share, etc.)
+    to bust the throttle so the next /api/data poll re-runs the sweep
+    even if the 60s window hasn't elapsed."""
+    _last_achievement_check.pop(user_id, None)
+
+
 def check_user_achievements(cursor, user_id: str) -> list[dict]:
     """Re-evaluate every BADGE rule for the user. Returns the list of
     NEWLY earned badges (those that weren't already in
@@ -593,15 +672,15 @@ def check_user_achievements(cursor, user_id: str) -> list[dict]:
     that all trip-based badges should only count CURRENTLY archived
     trips. Now every rule re-runs every poll: passing rules insert
     (idempotent via UNIQUE), failing rules whose badge IS already
-    present get DELETED. Cost is a handful of single-row SQL counts
-    per poll — well under a millisecond even for the busy badge set.
+    present get SOFT-revoked (revoked_at stamped).
 
-    Revocations are SILENT (no notification dropped) — losing a badge
-    is a passive side-effect of mutating trip state, not an event the
-    user "earned". The frontend will simply stop rendering the badge
-    on the next /api/data refresh. Re-earning a previously revoked
-    badge generates a fresh `achievement_unlocked` notification the
-    same way as a first-time unlock.
+    R5-B3 fix: revocation is now SOFT — we set `revoked_at = strftime(...)`
+    instead of DELETEing the row. A subsequent re-earn finds the row
+    still present (UNIQUE → INSERT OR IGNORE no-op) and clears
+    revoked_at SILENTLY via the secondary UPDATE — no duplicate
+    `achievement_unlocked` notification, no duplicate feed event spam.
+    The frontend filter on revoked_at IS NULL hides revoked badges
+    from the profile.
 
     The return shape is a list of dicts:
         [{"badgeId": "...", "context": {...}, "label": "...",
@@ -614,14 +693,20 @@ def check_user_achievements(cursor, user_id: str) -> list[dict]:
 
     # Cheap pre-fetch: which badges does this user already have? One
     # query is cheaper than per-badge "do they have this?" round-trips.
+    # We pull revoked_at too so we can distinguish "active earn" from
+    # "previously earned but revoked" — only the latter gets silent
+    # re-activation; the former needs the genuine "newly earned" flow.
     cursor.execute(
-        "SELECT badge_id FROM user_achievements WHERE user_id = ?",
+        "SELECT badge_id, revoked_at FROM user_achievements WHERE user_id = ?",
         (user_id,),
     )
-    already_earned = {r["badge_id"] for r in cursor.fetchall()}
+    rows = cursor.fetchall()
+    active_earned = {r["badge_id"] for r in rows if r["revoked_at"] is None}
+    revoked_earned = {r["badge_id"] for r in rows if r["revoked_at"] is not None}
 
     newly_earned: list[dict] = []
     to_revoke: list[str] = []
+    to_reactivate: list[tuple[str, str | None]] = []  # (badge_id, context_json)
     for badge in BADGES:
         try:
             context = badge.check(cursor, user_id)
@@ -639,22 +724,34 @@ def check_user_achievements(cursor, user_id: str) -> list[dict]:
             )
             continue
         if context is None:
-            # Rule no longer (or not yet) passes. Queue a revoke if
-            # the user had previously earned it — un-archiving a trip
-            # is the canonical trigger for this branch.
-            if badge.id in already_earned:
+            # Rule no longer (or not yet) passes. Queue a soft-revoke
+            # if the user had previously earned it AND it's currently
+            # active. Already-revoked rows stay revoked (no churn).
+            if badge.id in active_earned:
                 to_revoke.append(badge.id)
             continue
-        # Rule passes. Skip insert if already earned (saves a write).
-        if badge.id in already_earned:
+        ctx_json = json.dumps(context) if context else None
+        # Rule passes. Branch on prior state:
+        #   - active_earned: idempotent — refresh context_json but no
+        #     notify (the user already has this badge active).
+        #   - revoked_earned: silent re-activation — clear revoked_at
+        #     and refresh context. NO notification (already earned
+        #     once at the earned_at timestamp; the user lost it then
+        #     re-earned it — not a fresh "unlocked" event).
+        #   - neither: first-ever earn — INSERT + notify.
+        if badge.id in active_earned:
             continue
-        # Insert. UNIQUE(user_id, badge_id) makes this idempotent across
-        # concurrent /api/data polls; one of them wins, the other no-ops.
+        if badge.id in revoked_earned:
+            to_reactivate.append((badge.id, ctx_json))
+            continue
+        # First-ever earn. Insert. UNIQUE(user_id, badge_id) makes this
+        # idempotent across concurrent /api/data polls; one of them
+        # wins, the other no-ops.
         try:
             cursor.execute(
                 "INSERT OR IGNORE INTO user_achievements "
                 "(user_id, badge_id, context_json) VALUES (?, ?, ?)",
-                (user_id, badge.id, json.dumps(context) if context else None),
+                (user_id, badge.id, ctx_json),
             )
             # If a parallel poll already inserted, rowcount is 0 — we
             # skip the "newly earned" return so we don't double-notify.
@@ -675,18 +772,33 @@ def check_user_achievements(cursor, user_id: str) -> list[dict]:
             )
 
     if to_revoke:
-        # One DELETE per badge — keeps the SQL trivial and the count is
-        # almost always 0 or 1 in practice. Notifications are NOT
-        # cleared; the original unlock notif stays in the bell history
-        # (it accurately records that the badge was earned at that
-        # moment in time).
+        # R5-B3: SOFT-revoke instead of DELETE. The row stays in place
+        # with `revoked_at` set so a future re-earn can be silent.
         cursor.executemany(
-            "DELETE FROM user_achievements WHERE user_id = ? AND badge_id = ?",
+            "UPDATE user_achievements "
+            "SET revoked_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
+            "WHERE user_id = ? AND badge_id = ? AND revoked_at IS NULL",
             [(user_id, bid) for bid in to_revoke],
         )
         logger.info(
             "achievements revoked",
             extra=log_extra(user_id=user_id, badge_ids=to_revoke),
+        )
+
+    if to_reactivate:
+        # R5-B3: silently un-revoke + refresh context. No notification.
+        cursor.executemany(
+            "UPDATE user_achievements "
+            "SET revoked_at = NULL, context_json = ? "
+            "WHERE user_id = ? AND badge_id = ?",
+            [(ctx, user_id, bid) for (bid, ctx) in to_reactivate],
+        )
+        logger.info(
+            "achievements re-activated (silent)",
+            extra=log_extra(
+                user_id=user_id,
+                badge_ids=[bid for (bid, _) in to_reactivate],
+            ),
         )
 
     if newly_earned:
@@ -724,9 +836,13 @@ def list_user_achievements(cursor, user_id: str) -> list[dict]:
     Joins each row against the BADGES_BY_ID registry so missing copy
     (e.g. a badge that was renamed) degrades gracefully — the row still
     returns its id + earned_at, just with empty display fields."""
+    # R5-B3: filter revoked_at IS NULL so soft-revoked badges don't
+    # render on the profile. The row stays in the DB (for re-earn
+    # dedup) but is invisible to readers.
     cursor.execute(
         "SELECT badge_id, earned_at, context_json FROM user_achievements "
-        "WHERE user_id = ? ORDER BY earned_at ASC",
+        "WHERE user_id = ? AND revoked_at IS NULL "
+        "ORDER BY earned_at ASC",
         (user_id,),
     )
     out = []

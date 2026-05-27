@@ -381,6 +381,11 @@ def archive_trip(trip_id):
                 (trip_id, user_id),
             )
         conn.commit()
+    # R5-B3: archive flips trip-based badges (archivist, longest,
+    # repeat_country, etc.) so bust the throttle so the next /api/data
+    # poll re-runs the engine.
+    from achievements import force_recheck_achievements
+    force_recheck_achievements(user_id)
     return jsonify({"status": "archived"})
 
 
@@ -454,6 +459,11 @@ def unarchive_trip(trip_id):
                 (trip_id, user_id),
             )
         conn.commit()
+    # R5-B3: un-archive may revoke trip-based badges (the rule reads
+    # tm.is_archived = 1). Bust the throttle to let the engine
+    # re-evaluate immediately.
+    from achievements import force_recheck_achievements
+    force_recheck_achievements(user_id)
     return jsonify({"status": "unarchived"})
 
 
@@ -687,7 +697,10 @@ def respond_trip_invite():
             msg = f"{responder_name} declined the invite to {trip_name}."
             note_type = "trip_invite_declined"
 
-        if inviter_id:
+        # R5-B2: skip if the inviter blocked the responder. A blocked
+        # user accepting/declining shouldn't ping the blocker's bell.
+        from routes.blocks import is_blocked
+        if inviter_id and not is_blocked(cursor, inviter_id, user_id):
             cursor.execute(
                 "INSERT INTO notifications (user_id, type, title, related_id, message, is_read) "
                 "VALUES (?, ?, 'Trip invite update', ?, ?, 0)",

@@ -151,8 +151,19 @@ def notify_trip_public():
         # follows you without expecting follow-back still gets the
         # ping.
         from social import followers_of
+        from routes.blocks import blocked_ids_for, is_blocked
         recipients = followers_of(cursor, user_id)
+        # R5-B2: filter out (a) followers the caller has blocked
+        # (shouldn't see caller's activity) and (b) followers who
+        # have blocked the caller (block tear-down should have
+        # already wiped the follow row, but defensive double-check
+        # so a partial state doesn't leak the broadcast).
+        caller_blocks = blocked_ids_for(cursor, user_id)
         for recipient_id in recipients:
+            if recipient_id in caller_blocks:
+                continue
+            if is_blocked(cursor, recipient_id, user_id):
+                continue
             msg = f"{user_name} completed their trip to {trip_name} and made it public!"
             cursor.execute(
                 "INSERT INTO notifications "

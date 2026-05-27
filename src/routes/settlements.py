@@ -304,7 +304,16 @@ def create_settlement():
         # just typed). Audit fix: include the recorder's name when
         # they're neither party so the recipient can confirm with
         # the actual payer ("Charlie recorded that Bob paid you...").
-        if user_id != to_user_id:
+        # R5-B2: also skip if the recipient blocked the recorder OR
+        # the payer — a blocked user shouldn't reach the blocker's
+        # bell, even indirectly through a third-party recorder.
+        from routes.blocks import is_blocked
+        notify_recipient = (
+            user_id != to_user_id
+            and not is_blocked(cursor, to_user_id, user_id)
+            and not is_blocked(cursor, to_user_id, from_user_id)
+        )
+        if notify_recipient:
             cursor.execute(
                 "SELECT name FROM users WHERE id = ?", (from_user_id,)
             )
@@ -429,8 +438,16 @@ def delete_settlement(settlement_id):
         # which can happen when the recipient is the trip owner and
         # the row was logged on their behalf). Resolve display names
         # for the message body, same shape as the create path.
+        # R5-B2: also skip if the recipient blocked the deleter or
+        # the original payer — same block-respect rule as create.
+        from routes.blocks import is_blocked
         recipient_id = row["to_user_id"]
-        if recipient_id and recipient_id != user_id:
+        if (
+            recipient_id
+            and recipient_id != user_id
+            and not is_blocked(cursor, recipient_id, user_id)
+            and not is_blocked(cursor, recipient_id, row["from_user_id"])
+        ):
             cursor.execute(
                 "SELECT name FROM users WHERE id = ?", (row["from_user_id"],)
             )

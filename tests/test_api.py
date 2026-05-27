@@ -6635,9 +6635,13 @@ def test_achievements_revoked_when_trip_unarchived(client, seed_user, auth_heade
     # Revoke is silent — no fresh notification, no entry in newlyEarned.
     assert "archivist" not in [a["badgeId"] for a in data["newlyEarnedAchievements"]]
 
-    # Re-archive — badge comes back AND fires as newly earned so the UI
-    # can re-toast it. Notification rows are append-only (the original
-    # unlock notif stays in the bell history regardless of revoke/regrant).
+    # Re-archive — badge comes back, but R5-B3: re-earning a
+    # previously-revoked badge is now SILENT. The row stays in place
+    # (soft-revoked via revoked_at), and re-earning just clears
+    # revoked_at without firing a fresh notification or appearing in
+    # newlyEarnedAchievements. Pre-fix this re-fired every cycle —
+    # a fidgety user could spam dozens of "you unlocked archivist"
+    # rows just by archive-toggling.
     with get_db() as conn:
         conn.execute(
             "UPDATE trip_members SET is_archived = 1 "
@@ -6647,9 +6651,10 @@ def test_achievements_revoked_when_trip_unarchived(client, seed_user, auth_heade
         conn.commit()
 
     data = client.get("/api/data", headers=auth_headers).get_json()
-    assert "archivist" in [a["badgeId"] for a in data["achievements"]]
-    assert "archivist" in [a["badgeId"] for a in data["newlyEarnedAchievements"]], \
-        "re-archiving should re-grant + fire newly-earned so the toast can show"
+    assert "archivist" in [a["badgeId"] for a in data["achievements"]], \
+        "re-archiving should re-activate the soft-revoked badge"
+    assert "archivist" not in [a["badgeId"] for a in data["newlyEarnedAchievements"]], \
+        "R5-B3: re-earn is silent — no fresh newly-earned, no re-toast"
 
 
 def test_achievements_globe_trotter_revoked_when_country_unarchived(client, seed_user, auth_headers):
@@ -6833,14 +6838,22 @@ def test_achievements_revoked_when_trip_deleted(client, seed_user, auth_headers)
     assert "first_trip" not in [a["badgeId"] for a in data["achievements"]], \
         "first_trip should be revoked the instant the only earning trip is deleted"
 
-    # Direct DB sanity: the row really is gone, not just hidden by the
-    # response layer.
+    # Direct DB sanity: the row exists but is soft-revoked
+    # (revoked_at IS NOT NULL). R5-B3: changed from hard-DELETE to
+    # soft-revoke so a future re-earn of the same badge can be silent
+    # — see test_achievements_revoked_when_trip_unarchived.
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT badge_id FROM user_achievements WHERE user_id = ?",
+            "SELECT badge_id, revoked_at FROM user_achievements "
+            "WHERE user_id = ?",
             (seed_user,),
         ).fetchall()
-    assert not any(r["badge_id"] == "first_trip" for r in rows)
+    first_trip_row = next(
+        (r for r in rows if r["badge_id"] == "first_trip"), None
+    )
+    assert first_trip_row is not None, "soft-revoked row should still exist"
+    assert first_trip_row["revoked_at"] is not None, \
+        "first_trip should be soft-revoked (revoked_at stamped)"
 
 
 def test_user_data_delete_rate_limited(temp_db, seed_user, seed_other_user):

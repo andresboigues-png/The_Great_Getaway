@@ -316,12 +316,18 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // /share/<token> — public share page. Network-first so the OG-meta
-    // / view-counter side effects stay live; cached fallback lets the
-    // share recipient at least see the page on a flaky connection.
+    // /share/<token> — public share page. R5-B1 fix: do NOT cache.
+    // Pre-fix this used _networkFirst(SHELL_CACHE), which silently
+    // defeated /share/<token>'s `Cache-Control: private, no-store`
+    // (R3-Fix #15) in two ways: (a) a revoked token kept serving
+    // the cached snapshot offline / on flaky connections, and (b)
+    // on shared devices, recipient B saw recipient A's previously
+    // cached share page (cache key is the raw URL with no per-user
+    // scoping). Anonymous share viewers shouldn't be cached at all
+    // — the page is privacy-sensitive and rarely re-loaded. Pass
+    // through to the network unmodified.
     if (url.pathname.startsWith('/share/')) {
-        event.respondWith(_networkFirst(request, SHELL_CACHE));
-        return;
+        return;  // pass-through to network (no event.respondWith)
     }
 
     // App shell — `/`, `/static/*` (bundle / chunks / CSS / manifest),

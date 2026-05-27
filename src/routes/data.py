@@ -1010,13 +1010,22 @@ def get_data():
         # even with many badges. UNIQUE constraint makes it idempotent
         # across the polling cadence (15s in main.ts).
         #
-        # Notifications fire for genuinely-new earnings only. The
-        # achievements list returned to the client is the full earned
-        # set (including the new ones) so the profile renderer doesn't
-        # need a second round-trip.
-        newly_earned = check_user_achievements(cursor, user_id)
-        if newly_earned:
-            notify_achievements(cursor, user_id, newly_earned)
+        # R5-B3 perf P1: throttle to per-user 60s — the engine used to
+        # run on EVERY poll (every 15s × N users), dominating platform
+        # cost. Badges flip on user-initiated state changes; mutating
+        # routes (archive, share, settle) call force_recheck_achievements
+        # to bust the throttle so post-mutation polls see fresh state
+        # immediately.
+        #
+        # R5-B3 H4: ALWAYS commit after the sweep — pre-fix the
+        # conditional `if newly_earned` skipped commit when ONLY
+        # revocations happened, leaving DELETEs uncommitted.
+        from achievements import _should_run_achievement_check
+        newly_earned: list[dict] = []
+        if _should_run_achievement_check(user_id):
+            newly_earned = check_user_achievements(cursor, user_id)
+            if newly_earned:
+                notify_achievements(cursor, user_id, newly_earned)
             conn.commit()
         achievements = list_user_achievements(cursor, user_id)
 
