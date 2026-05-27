@@ -74,7 +74,7 @@ def upsert_day():
         # day_number / date / name / morning / afternoon / evening /
         # tip / lat / lng).
         cursor.execute(
-            "SELECT trip_id FROM trip_days WHERE id = ?", (day_id,),
+            "SELECT trip_id, updated_at FROM trip_days WHERE id = ?", (day_id,),
         )
         existing = cursor.fetchone()
         gate_trip_id = existing["trip_id"] if existing else claimed_trip_id
@@ -85,6 +85,18 @@ def upsert_day():
             return jsonify({
                 "error": "Trip is archived — unarchive to edit",
             }), 409
+        # R3-Round 5: optimistic-concurrency gate — same pattern as
+        # the /api/expenses + /api/trips + /api/budgets routes.
+        client_updated_at = d.get('clientUpdatedAt')
+        if existing and client_updated_at:
+            stored_updated_at = existing['updated_at']
+            if stored_updated_at and stored_updated_at != client_updated_at:
+                cursor.execute("SELECT * FROM trip_days WHERE id = ?", (day_id,))
+                live = cursor.fetchone()
+                return jsonify({
+                    "error": "Stale edit — another device updated this day",
+                    "current": dict(live) if live else None,
+                }), 409
         try:
             # 2026-05-26 (audit SY5): WHERE guard mirrors the expense
             # upsert — `deleted_at IS NULL` makes the ON CONFLICT UPDATE a
@@ -93,8 +105,8 @@ def upsert_day():
             # See migration b7c8d9e0f1a2_add_tombstone_columns for the
             # column rationale.
             cursor.execute('''
-                INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, lat, lng)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, lat, lng, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
                 ON CONFLICT(id) DO UPDATE SET
                     day_number=excluded.day_number,
                     date=excluded.date,
@@ -104,7 +116,8 @@ def upsert_day():
                     evening=excluded.evening,
                     tip=excluded.tip,
                     lat=excluded.lat,
-                    lng=excluded.lng
+                    lng=excluded.lng,
+                    updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
                 WHERE trip_days.deleted_at IS NULL
             ''', (day_id, claimed_trip_id, d.get('dayNumber'), d.get('date'), d.get('name'),
                   # Plain text — see /api/sync in main.py for the json.dumps fix.
@@ -129,8 +142,15 @@ def upsert_day():
                     "error": "A day with that day_number already exists on this trip",
                 }), 409
             raise
+        # R3-Round 5: return the fresh updated_at so the client can
+        # stash it for the next edit. Same shape as expenses/trips.
+        cursor.execute(
+            "SELECT updated_at FROM trip_days WHERE id = ?", (day_id,),
+        )
+        new_row = cursor.fetchone()
+        new_updated_at = new_row['updated_at'] if new_row else None
         conn.commit()
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", "updatedAt": new_updated_at})
 
 
 @bp.route("/api/days/<day_id>", methods=["DELETE"])

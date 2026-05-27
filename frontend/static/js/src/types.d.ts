@@ -201,6 +201,11 @@ export interface Trip {
      *  Path. Owner-controlled; off by default. Photos / documents are
      *  still NEVER exposed regardless of this flag. */
     shareShowPlans?: boolean;
+    /** R3-Round 5: optimistic-concurrency stamp. Server stamps on
+     *  every write; client stores + sends back as `clientUpdatedAt`
+     *  on subsequent writes so a stale tab can't blind-overwrite.
+     *  Populated by /api/data + /api/trips POST responses. */
+    updatedAt?: string | null;
 }
 
 /** Single row in `Trip.checklist`. `id` is a stable client-generated
@@ -235,6 +240,11 @@ export interface TripDay {
     documents?: Document[];
     /** Free-form "pro tip" string surfaced on the day-detail card. */
     tip?: string;
+    /** R3-Round 5: optimistic-concurrency stamp. Server stamps on
+     *  every write; client stores + sends back as `clientUpdatedAt`
+     *  on subsequent writes so a stale tab can't blind-overwrite.
+     *  Populated by /api/data + /api/days POST responses. */
+    updatedAt?: string | null;
 }
 
 export interface Ticket {
@@ -367,6 +377,11 @@ export interface Expense {
      *  History rows render a clip icon when set; clicking opens a
      *  lightbox with the image. NULL for legacy expenses. */
     receiptUrl?: string | null;
+    /** R3-Round 5: optimistic-concurrency stamp. Server stamps on
+     *  every write; client stores + sends back as `clientUpdatedAt`
+     *  on subsequent writes so a stale tab can't blind-overwrite.
+     *  Populated by /api/data + /api/expenses POST responses. */
+    updatedAt?: string | null;
 }
 
 /** FIXING_ROADMAP §4.4 — one earned badge on a user's profile. Shape
@@ -447,6 +462,11 @@ export interface Budget {
     amount: number;
     originalAmount: number;
     originalCurrency: string;
+    /** R3-Round 5: optimistic-concurrency stamp. Server stamps on
+     *  every write; client stores + sends back as `clientUpdatedAt`
+     *  on subsequent writes so a stale tab can't blind-overwrite.
+     *  Populated by /api/data + /api/budgets POST responses. */
+    updatedAt?: string | null;
 }
 
 /** Trip-scoped travel companion. Companions live ONLY inside `Trip.companions`

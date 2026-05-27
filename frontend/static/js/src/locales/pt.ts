@@ -107,6 +107,7 @@ export const pt: Translations = {
         deleteFailed: 'Não foi possível apagar — tenta novamente daqui a pouco.',
         likeFailed: 'Não foi possível atualizar o gosto — tenta novamente.',
         bookmarkFailed: 'Não foi possível atualizar o marcador — tenta novamente.',
+        staleEdit: 'Outro dispositivo acabou de atualizar isto — recarrega para ver a versão mais recente.',
         tripHubCannotDelete: 'O Centro da Viagem não pode ser apagado — é a base da viagem.',
         dateRangeInvalid: 'A data final tem de ser igual ou posterior à data inicial.',
         placePickerHint: 'Escolhe uma sugestão para confirmar o local.',

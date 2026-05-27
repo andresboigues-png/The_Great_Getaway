@@ -114,6 +114,11 @@ export const en = {
         msgShareReposted: '{actor} reposted your share.',
         msgSettledUp: '{from} settled {amount} {currency} with you for {trip}.',
     },
+    // R3-Round 5 fix: optimistic-concurrency 409 toast. Surfaced
+    // when a write hits the server with a `clientUpdatedAt` that no
+    // longer matches the stored value — another device wrote in the
+    // interim. UI then re-pulls / re-renders to show the live state.
+
     // Connectivity / error toasts surfaced by api.ts on the offline →
     // online → server-unreachable transitions, and login / clone /
     // delete / map-load failures across the app.
@@ -129,6 +134,10 @@ export const en = {
         deleteFailed: "Couldn't delete — try again in a moment.",
         likeFailed: "Couldn't update like — try again.",
         bookmarkFailed: "Couldn't update bookmark — try again.",
+        // R3-Round 5: surfaced on 409 from any per-row write when
+        // another device touched the row between read + write.
+        // UI re-pulls fresh state so the user can see what changed.
+        staleEdit: 'Another device just updated this — refresh to see the latest.',
         tripHubCannotDelete: "Trip Hub can't be deleted — it's the trip's home base.",
         dateRangeInvalid: 'End date must be on or after the start date.',
         placePickerHint: 'Pick a suggestion to confirm the location.',

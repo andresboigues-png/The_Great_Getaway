@@ -407,6 +407,11 @@ def serialize_trip_row(row):
     # impact — knowing "this trip is configured to NOT show expenses"
     # is no more information than the visible-page behaviour conveys.
     t['publicShowExpenses'] = bool(t.pop('public_show_expenses', 0))
+    # R3-Round 5: optimistic-concurrency stamp. Client stores this
+    # locally and sends it back as `clientUpdatedAt` on subsequent
+    # writes so a stale tab can't blind-overwrite. See
+    # serialize_expense_row for the matching pattern.
+    t['updatedAt'] = t.pop('updated_at', None)
     return t
 
 

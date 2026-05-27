@@ -182,7 +182,13 @@ def test_upsert_trip_happy_path(client, seed_user, auth_headers):
         "trip": {"id": "trip-1", "name": "Tuscany", "country": "Italy"},
     })
     assert res.status_code == 200
-    assert res.get_json() == {"status": "ok"}
+    body = res.get_json()
+    assert body["status"] == "ok"
+    # R3-Round 5: response now also carries `updatedAt` for the
+    # client's optimistic-concurrency cycle. Format is a millisecond-
+    # precision SQL timestamp.
+    assert "updatedAt" in body
+    assert body["updatedAt"], "updatedAt should be non-empty"
 
 
 def test_upsert_trip_rejects_non_planner_edit(

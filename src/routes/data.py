@@ -910,7 +910,8 @@ def get_data():
         # storage) → `user` (camelCase frontend field).
         cursor.execute(
             "SELECT id, trip_id, label, amount, currency, "
-            "category_id, owner_name, original_amount, original_currency "
+            "category_id, owner_name, original_amount, original_currency, "
+            "updated_at "
             "FROM budgets WHERE user_id = ?",
             (user_id,),
         )
@@ -925,6 +926,8 @@ def get_data():
             'user': r['owner_name'],
             'originalAmount': r['original_amount'],
             'originalCurrency': r['original_currency'],
+            # R3-Round 5: stamp for client-side optimistic concurrency.
+            'updatedAt': r['updated_at'],
         } for r in budgets_rows]
 
         # Get trip days for every trip the caller can see.
@@ -949,6 +952,10 @@ def get_data():
             day['tripId'] = day.pop('trip_id')
             day['dayNumber'] = day.pop('day_number')
             day['lon'] = day.pop('lng')
+            # R3-Round 5: optimistic-concurrency stamp surfaced as
+            # camelCase. Client stores → sends back as clientUpdatedAt
+            # on the next /api/days POST.
+            day['updatedAt'] = day.pop('updated_at', None)
 
             day['plan'] = {
                 'morning': unwrap_legacy_plan_text(day.pop('morning', '')),

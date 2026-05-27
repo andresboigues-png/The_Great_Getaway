@@ -518,10 +518,95 @@ const _postJson = async (url: string, body: unknown): Promise<ApiJsonResult> => 
 // server-side (see /src/auth.py current_user_id()). We no longer pass
 // user_id in the body — the server ignores it anyway.
 
-/** Upsert a single trip to the server. */
+/**
+ * R3-Round 5 shared helper: per-row upsert with optimistic-
+ * concurrency wiring.
+ *
+ *  1. Reads `obj.updatedAt` and sends it as `clientUpdatedAt` so
+ *     the server can refuse stale edits.
+ *  2. POSTs and reads `{updatedAt: ...}` from the response.
+ *  3. Writes that fresh stamp back into `obj` (in-place mutation —
+ *     callers that hold a STATE reference get refreshed).
+ *  4. On 409 (stale), surfaces the localized `staleEdit` toast +
+ *     fires pullFromServer so the next render reflects live state.
+ *
+ *  Returns void so existing fire-and-forget callers don't need
+ *  changes. _upsertWithUpdatedAtJson is the Promise<ApiJsonResult>
+ *  variant for callers (openAddDayModal) that need the result
+ *  envelope.
+ */
+async function _upsertWithUpdatedAt(url: string, key: string, obj: any) {
+    const payload: any = { [key]: obj };
+    let payloadBody: any = obj;
+    if (obj && typeof obj === 'object' && obj.updatedAt) {
+        // Spread so we don't accidentally add a `clientUpdatedAt`
+        // property to the live STATE row.
+        payloadBody = { ...obj, clientUpdatedAt: obj.updatedAt };
+        payload[key] = payloadBody;
+    }
+    try {
+        const res = await apiFetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (res.status === 409) {
+            showLiquidAlert(t('errors.staleEdit'));
+            // Fresh state from server so the UI reflects what
+            // actually persisted. Fire-and-forget.
+            pullFromServer().catch(() => { /* best-effort */ });
+            return;
+        }
+        if (!res.ok) return;
+        const body = await res.json().catch(() => null);
+        const fresh = body && body.updatedAt;
+        if (fresh && obj && typeof obj === 'object') {
+            obj.updatedAt = fresh;
+        }
+    } catch (e) {
+        console.error(`POST ${url} failed:`, e);
+    }
+}
+
+async function _upsertWithUpdatedAtJson(url: string, key: string, obj: any): Promise<ApiJsonResult> {
+    const payload: any = { [key]: obj };
+    if (obj && typeof obj === 'object' && obj.updatedAt) {
+        payload[key] = { ...obj, clientUpdatedAt: obj.updatedAt };
+    }
+    try {
+        const res = await apiFetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        let body: any = null;
+        try { body = await res.json(); } catch { /* not JSON */ }
+        if (res.status === 409) {
+            showLiquidAlert(t('errors.staleEdit'));
+            pullFromServer().catch(() => { /* best-effort */ });
+        } else if (res.ok && body && body.updatedAt && obj && typeof obj === 'object') {
+            obj.updatedAt = body.updatedAt;
+        }
+        return { ok: res.ok, status: res.status, body };
+    } catch (e) {
+        console.error(`POST ${url} failed:`, e);
+        return { ok: false, status: 0, body: null };
+    }
+}
+
+/** Upsert a single trip to the server.
+ *
+ *  R3-Round 5: optimistic-concurrency wire-up. The trip object's
+ *  existing `updatedAt` (server-stamped at last write) is forwarded
+ *  as `clientUpdatedAt` so the server can refuse a stale edit.
+ *  On success the response's fresh `updatedAt` is written back
+ *  into the trip object — mutating in place, so callers that
+ *  hold a STATE reference get their copy refreshed automatically.
+ *  On 409 the server's `current` row + a stale-edit toast surface
+ *  to the user. */
 export function upsertTrip(trip: any) {
     if (!STATE.user) return;
-    return _post('/api/trips', { trip });
+    return _upsertWithUpdatedAt('/api/trips', 'trip', trip);
 }
 
 /** Permanently delete a trip and its expenses from the server. */
@@ -891,10 +976,11 @@ export function removeTripMember(tripId: string, targetUserId: string) {
     });
 }
 
-/** Upsert a single expense to the server. */
+/** Upsert a single expense to the server. See upsertTrip for
+ *  the optimistic-concurrency contract. */
 export function upsertExpense(expense: any) {
     if (!STATE.user) return;
-    return _post('/api/expenses', { expense });
+    return _upsertWithUpdatedAt('/api/expenses', 'expense', expense);
 }
 
 /** Delete a single expense from the server. */
@@ -933,10 +1019,11 @@ export function syncCategories() {
     return _post('/api/categories', { categories: STATE.categories });
 }
 
-/** Upsert a single budget to the server. */
+/** Upsert a single budget to the server. See upsertTrip for
+ *  the optimistic-concurrency contract. */
 export function upsertBudget(budget: any) {
     if (!STATE.user) return;
-    return _post('/api/budgets', { budget });
+    return _upsertWithUpdatedAt('/api/budgets', 'budget', budget);
 }
 
 /** Delete a single budget from the server. */
@@ -957,7 +1044,11 @@ export function deleteBudgetOnServer(budgetId: string) {
  * now toast on failure and the user knows to retry. */
 export function upsertDay(day: any) {
     if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null } as ApiJsonResult);
-    return _postJson('/api/days', { day });
+    // R3-Round 5: wire optimistic-concurrency. Same shape as
+    // upsertTrip/Expense/Budget but keeps the existing
+    // ApiJsonResult return type so the day-add modal's
+    // success / failure branching stays compatible.
+    return _upsertWithUpdatedAtJson('/api/days', 'day', day);
 }
 
 /** Delete a single trip day from the server. */

@@ -106,7 +106,7 @@ def upsert_budget():
         # someone else, refuse. The "new row" path is unaffected (no
         # existing owner to clash with).
         cursor.execute(
-            "SELECT user_id FROM budgets WHERE id = ?",
+            "SELECT user_id, updated_at FROM budgets WHERE id = ?",
             (budget_id,),
         )
         existing = cursor.fetchone()
@@ -122,10 +122,24 @@ def upsert_budget():
             return jsonify({
                 "error": "Trip is archived — unarchive to edit",
             }), 409
+        # R3-Round 5: optimistic-concurrency gate. Same pattern as the
+        # /api/expenses + /api/trips routes (see those for full notes).
+        client_updated_at = b.get('clientUpdatedAt')
+        if existing and client_updated_at:
+            stored_updated_at = existing['updated_at']
+            if stored_updated_at and stored_updated_at != client_updated_at:
+                cursor.execute(
+                    "SELECT * FROM budgets WHERE id = ?", (budget_id,),
+                )
+                live = cursor.fetchone()
+                return jsonify({
+                    "error": "Stale edit — another device updated this budget",
+                    "current": dict(live) if live else None,
+                }), 409
         cursor.execute('''
             INSERT INTO budgets (id, user_id, trip_id, label, amount, currency,
-                                 category_id, owner_name, original_amount, original_currency)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                 category_id, owner_name, original_amount, original_currency, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
             ON CONFLICT(id) DO UPDATE SET
                 label=excluded.label,
                 amount=excluded.amount,
@@ -134,14 +148,20 @@ def upsert_budget():
                 category_id=excluded.category_id,
                 owner_name=excluded.owner_name,
                 original_amount=excluded.original_amount,
-                original_currency=excluded.original_currency
+                original_currency=excluded.original_currency,
+                updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
             WHERE budgets.user_id = ?
         ''', (budget_id, user_id, trip_id, label,
               amount, currency,
               category_id, owner_name, original_amount, original_currency,
               user_id))
+        cursor.execute(
+            "SELECT updated_at FROM budgets WHERE id = ?", (budget_id,),
+        )
+        new_row = cursor.fetchone()
+        new_updated_at = new_row['updated_at'] if new_row else None
         conn.commit()
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", "updatedAt": new_updated_at})
 
 
 @bp.route("/api/budgets/<budget_id>", methods=["DELETE"])

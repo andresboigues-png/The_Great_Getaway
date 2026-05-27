@@ -76,10 +76,32 @@ def upsert_trip():
     with get_db() as conn:
         cursor = conn.cursor()
         # Existing trip? Gate on planner role (owner counts as planner).
-        cursor.execute("SELECT user_id FROM trips WHERE id = ?", (t["id"],))
+        cursor.execute(
+            "SELECT user_id, updated_at FROM trips WHERE id = ?", (t["id"],),
+        )
         existing = cursor.fetchone()
         if existing and not can_edit_trip(cursor, t["id"], user_id):
             return jsonify({"error": "Forbidden"}), 403
+
+        # R3-Round 5: optimistic-concurrency gate. Same pattern as the
+        # /api/expenses route (see that file for the full rationale).
+        # Trips are particularly prone to two-tab clobbers because the
+        # edit modal touches many fields at once — Maria opening the
+        # same trip in two tabs and editing the name in tab A then the
+        # cover image in tab B pre-fix had tab B's whole-trip payload
+        # silently overwrite tab A's name change. Now: tab B's
+        # `clientUpdatedAt` is stale → 409 with the live row →
+        # client re-renders and retries.
+        client_updated_at = t.get('clientUpdatedAt')
+        if existing and client_updated_at:
+            stored_updated_at = existing['updated_at']
+            if stored_updated_at and stored_updated_at != client_updated_at:
+                cursor.execute("SELECT * FROM trips WHERE id = ?", (t["id"],))
+                live = cursor.fetchone()
+                return jsonify({
+                    "error": "Stale edit — another device updated this trip",
+                    "current": dict(live) if live else None,
+                }), 409
 
         owner_id = existing["user_id"] if existing else user_id
 
@@ -126,8 +148,8 @@ def upsert_trip():
                                place_id, lat, lng, viewport_json, place_types, country_code,
                                companions_json, marked_places_json,
                                documents_json, photos_json, checklist_json,
-                               trip_countries_json, cover_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               trip_countries_json, cover_url, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
             ON CONFLICT(id) DO UPDATE SET
                 name=excluded.name,
                 country=excluded.country,
@@ -146,7 +168,8 @@ def upsert_trip():
                 photos_json=COALESCE(excluded.photos_json, photos_json),
                 checklist_json=COALESCE(excluded.checklist_json, checklist_json),
                 trip_countries_json=COALESCE(excluded.trip_countries_json, trip_countries_json),
-                cover_url=excluded.cover_url
+                cover_url=excluded.cover_url,
+                updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
         ''', (t['id'], owner_id, t['name'], t.get('country', ''),
               1 if t.get('isArchived') else 0,
               1 if t.get('isPublic') else 0,
@@ -178,8 +201,15 @@ def upsert_trip():
             "WHERE trip_id = ? AND user_id = ?",
             (1 if t.get('isArchived') else 0, t['id'], owner_id),
         )
+        # R3-Round 5: read back the fresh updated_at so the client
+        # can stash it for the next edit's clientUpdatedAt.
+        cursor.execute(
+            "SELECT updated_at FROM trips WHERE id = ?", (t['id'],),
+        )
+        new_row = cursor.fetchone()
+        new_updated_at = new_row['updated_at'] if new_row else None
         conn.commit()
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", "updatedAt": new_updated_at})
 
 
 @bp.route("/api/trips/<trip_id>", methods=["DELETE"])
