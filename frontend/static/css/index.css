@@ -5581,6 +5581,31 @@ main#app-container.nav-anim-backward {
     font-size: 0.85rem;
 }
 
+/* R3-Round 3 fix: skip-link styling. Hidden off-screen by default;
+   slides into view on keyboard focus. The high z-index lifts it
+   above the sticky navbar so it's never visually covered. Mirrors
+   the standard a11y skip-link pattern. */
+.skip-link {
+    position: absolute;
+    top: -100px;
+    left: 12px;
+    z-index: 99999;
+    padding: 10px 18px;
+    background: var(--accent-blue, #0071e3);
+    color: white;
+    font-weight: 700;
+    border-radius: 8px;
+    text-decoration: none;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+    transition: top 0.18s ease;
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+    top: 12px;
+    outline: 2px solid white;
+    outline-offset: 2px;
+}
+
 /* R3-Round 2 fix: lift every icon-button-shaped affordance to the
    WCAG/Apple-HIG 44×44 minimum on mobile. Pre-fix the trip-card
    actions (Edit / PDF / Silence / Switch / Complete / Delete /

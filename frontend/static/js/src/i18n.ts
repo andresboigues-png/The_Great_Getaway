@@ -169,6 +169,14 @@ export async function setLocale(locale: Locale): Promise<void> {
     try {
         document.documentElement.lang = locale;
     } catch { /* SSR / unusual env */ }
+    // R3-Round 3 fix: also persist to localStorage so the early
+    // boot script in index.html can stamp `<html lang>` BEFORE
+    // the bundle loads. Without this the very first paint always
+    // announced in the static "en" from the HTML attribute, no
+    // matter what the user picked.
+    try {
+        localStorage.setItem('gg.locale', locale);
+    } catch { /* private mode / quota — non-fatal */ }
     emit(EVENTS.STATE_CHANGED);
     // Persist to server. Static import of apiFetch keeps the chunk
     // graph stable — an earlier draft of this used dynamic

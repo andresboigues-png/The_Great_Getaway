@@ -95,6 +95,13 @@ export function openPhotoLightbox(arg: string | string[], startIndex: number = 0
     const nextHiddenClass = current === photos.length - 1 ? ' lb-nav-btn--hidden' : '';
     const { root, close } = showModal({
         cardClass: 'card glass lightbox-card',
+        // R3-Round 3 fix: explicit ariaLabel since the lightbox has
+        // no visible heading. Screen readers now announce
+        // "Photo viewer, dialog. 3 of 12" on open instead of bare
+        // "dialog."
+        ariaLabel: isGallery
+            ? `Photo viewer, ${current + 1} of ${photos.length}`
+            : 'Photo viewer',
         innerHTML: `
             <img id="lbImg" src="${esc(photos[current]!)}" alt="Trip photo" class="lb-img">
             ${isGallery ? `

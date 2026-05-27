@@ -88,6 +88,31 @@
 
 <body>
 
+    <!-- R3-Round 3 fix: skip-link so keyboard + screen-reader users
+         can jump past the navbar / nav chrome straight to the main
+         content. Hidden off-screen until focused. Targets
+         #app-container which gets tabindex=-1 so focus actually
+         lands there. -->
+    <a class="skip-link" href="#app-container">Skip to content</a>
+
+    <!-- R3-Round 3 fix: stamp <html lang> from localStorage BEFORE
+         the bundle runs so the initial paint announces in the
+         correct language. Pre-fix main.ts only ran setLocale after
+         loadLocale resolved — screen readers reading first paint
+         heard English even for an es / pt / fr user. Mirrors the
+         early theme script for the same reason (no FOUC). Carries
+         the CSP nonce so it passes script-src 'nonce-...'. -->
+    <script nonce="{{ csp_nonce }}">
+        (function () {
+            try {
+                var l = localStorage.getItem('gg.locale');
+                if (l && /^[a-z]{2}(-[A-Z]{2})?$/.test(l)) {
+                    document.documentElement.lang = l;
+                }
+            } catch (e) { /* private mode or older Safari */ }
+        })();
+    </script>
+
     <!-- Left Sidebar Overlay -->
     <div id="sidebarOverlay" class="sidebar-overlay"></div>
 
@@ -528,7 +553,11 @@
     </aside>
 
     <!-- Main Content Area -->
-    <main id="app-container">
+    <!-- R3-Round 3 fix: tabindex=-1 so the skip-link can move focus
+         here. Without it, anchoring to #app-container shifts the
+         scroll position but focus stays on the skip-link, which
+         means the next Tab still cycles through the navbar. -->
+    <main id="app-container" tabindex="-1">
         <!-- Pages will be dynamically injected here via JS -->
     </main>
 

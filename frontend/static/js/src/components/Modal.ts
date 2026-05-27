@@ -48,6 +48,11 @@ export function showModal(opts: {
     closeOnBackdrop?: boolean;
     closeOnEscape?: boolean;
     onClose?: () => void;
+    /** R3-Round 3 fix: optional accessible name for the dialog.
+     *  Use when the modal has no visible heading (lightbox, image
+     *  viewer, popovers). Pre-fix headingless modals announced as
+     *  bare "dialog" with no name. */
+    ariaLabel?: string;
 }): { root: HTMLElement; close: () => void } {
     const {
         variant = 'glass',
@@ -57,6 +62,7 @@ export function showModal(opts: {
         closeOnBackdrop = true,
         closeOnEscape = true,
         onClose,
+        ariaLabel,
     } = opts;
 
     const previouslyFocused = (document.activeElement as HTMLElement | null);
@@ -80,13 +86,19 @@ export function showModal(opts: {
     if (cardStyle) card.setAttribute('style', cardStyle);
     card.innerHTML = innerHTML;
     overlay.appendChild(card);
+    // R3-Round 3 fix: explicit aria-label takes precedence — headingless
+    // modals (lightbox) can pass `ariaLabel` so screen readers announce
+    // a real name instead of bare "dialog."
+    if (ariaLabel) {
+        card.setAttribute('aria-label', ariaLabel);
+    }
     // If the card's first heading has an id, point aria-labelledby
     // at it so the dialog's accessible name is announced on open.
     // Otherwise auto-generate an id on the first heading we find
     // and use that — keeps existing modal sites working without
     // requiring them to pre-bake an id.
     const firstHeading = card.querySelector('h1, h2, h3') as HTMLElement | null;
-    if (firstHeading) {
+    if (firstHeading && !ariaLabel) {
         if (!firstHeading.id) {
             firstHeading.id = `modal-title-${Math.random().toString(36).slice(2, 10)}`;
         }

@@ -303,8 +303,17 @@ export function navigate(
     // data-page=""; we match against that now. Covers both the top
     // navbar `.nav-item` links AND the new sidebar-rail items so the
     // active-page highlight follows the user across both surfaces.
+    // R3-Round 3 fix: also set `aria-current="page"` on the matching
+    // link so screen readers announce which tab is active (visual-only
+    // .active class was opaque to assistive tech).
     document.querySelectorAll('.nav-item, .sidebar-rail__item').forEach(item => {
-        item.classList.toggle('active', item.getAttribute('data-page') === page);
+        const isActive = item.getAttribute('data-page') === page;
+        item.classList.toggle('active', isActive);
+        if (isActive) {
+            item.setAttribute('aria-current', 'page');
+        } else {
+            item.removeAttribute('aria-current');
+        }
     });
 
     // Update hash for deep linking / persistence on refresh
