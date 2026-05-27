@@ -67,10 +67,26 @@ def upsert_budget():
     # before the frontend's currency conversion. Default to the
     # canonical amount/currency if not explicitly sent — covers older
     # clients that don't know about these fields.
-    original_amount = b.get('originalAmount')
-    if original_amount is None:
+    #
+    # R2 audit fix: validate them too. Pre-fix they flowed through
+    # unvalidated → "NaN USD" / arbitrary strings could land in the
+    # column and render in the "was X" badge.
+    raw_original = b.get('originalAmount')
+    if raw_original is None:
         original_amount = amount
-    original_currency = b.get('originalCurrency') or currency
+    else:
+        try:
+            original_amount = validate_money(raw_original, field_name="originalAmount")
+        except ValidationError as ve:
+            return jsonify({"error": str(ve)}), 400
+    raw_original_curr = b.get('originalCurrency')
+    if raw_original_curr:
+        try:
+            original_currency = validate_currency(raw_original_curr)
+        except ValidationError as ve:
+            return jsonify({"error": str(ve)}), 400
+    else:
+        original_currency = currency
 
     with get_db() as conn:
         cursor = conn.cursor()

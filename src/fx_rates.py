@@ -57,6 +57,13 @@ _FRANKFURTER_LATEST = "https://api.frankfurter.app/latest?from=EUR"
 # Module-private cache.
 _cache: dict[str, Optional[float]] = {}
 _cache_set_at: float = 0.0
+# R2 audit fix: failed-fetch back-off. When Frankfurter is down,
+# _refresh() returns without bumping _cache_set_at, so every
+# subsequent read sees an "expired" cache and dogpiles the failing
+# fetch — wall-clock latency of every /api/data poll goes up by
+# the 5s timeout. _refresh_fail_until lets us back off for 5min
+# after a failure so the hot path stays fast.
+_refresh_fail_until: float = 0.0
 # Audit fix (2026-05-27, fix #61): per-worker re-entrant lock so
 # concurrent _maybe_refresh() calls within the same Python process
 # don't dogpile Frankfurter. Without this, a cold worker that
@@ -72,7 +79,7 @@ def _refresh() -> None:
     """Pull the latest rates from Frankfurter and replace the
     cache. Inverts the provider's `EUR → X` table to `X → EUR`
     so the rest of the server reads in the convention it expects."""
-    global _cache_set_at
+    global _cache, _cache_set_at, _refresh_fail_until
     try:
         # 5s connect/read budget — Frankfurter is normally < 200ms.
         # A slow upstream shouldn't block the request handler for
@@ -83,6 +90,10 @@ def _refresh() -> None:
             data = res.json()
     except Exception as e:
         logger.warning("fx_rates refresh failed: %s", e)
+        # R2 audit fix: 5-minute back-off after a failed fetch so
+        # the hot path doesn't dogpile the failing API for the
+        # whole TTL window.
+        _refresh_fail_until = time.time() + 300
         return
     raw = data.get("rates") or {}
     new_cache: dict[str, Optional[float]] = {"EUR": 1.0}
@@ -97,14 +108,27 @@ def _refresh() -> None:
         # We store the inverse (`code → EUR`) so callers can
         # multiply: amount_in_code * rate = amount_in_EUR.
         new_cache[code] = 1.0 / rate
-    if not new_cache or len(new_cache) < 5:
-        # Suspicious payload — refuse to overwrite a working cache
-        # with a near-empty one.
-        logger.warning("fx_rates refresh returned suspiciously small set; keeping prior cache")
+    # R2 audit fix: tighter floor — was `< 5`, but Frankfurter
+    # serves ~30 currencies normally. A 6-row response (most of
+    # the world missing) would have overwritten a working cache.
+    # 20 is the sweet spot: covers a degraded-but-usable response
+    # while rejecting an outright partial.
+    if len(new_cache) < 20:
+        logger.warning(
+            "fx_rates refresh returned suspiciously small set (%d); keeping prior cache",
+            len(new_cache),
+        )
+        _refresh_fail_until = time.time() + 300
         return
-    _cache.clear()
-    _cache.update(new_cache)
+    # R2 audit fix: atomic swap. Pre-fix `_cache.clear(); _cache.
+    # update(new_cache)` had a microsecond window where readers
+    # saw an empty dict — even with the lock held by the writer,
+    # the read path doesn't take the lock and could fall through
+    # to rate=1 for every currency. Single reference-swap is
+    # atomic under both GIL'd Python and free-threaded 3.13+.
+    _cache = new_cache
     _cache_set_at = time.time()
+    _refresh_fail_until = 0.0
     logger.info("fx_rates refreshed: %d currencies", len(_cache))
 
 
@@ -113,12 +137,19 @@ def _maybe_refresh() -> None:
     # cache and avoid the lock entirely.
     if _cache and (time.time() - _cache_set_at) <= _TTL_SECONDS:
         return
+    # R2 audit fix: back-off after a failed fetch. Without this,
+    # a sustained Frankfurter outage made every read block on the
+    # 5s timeout (TTL expired → retry → timeout → return).
+    if _refresh_fail_until and time.time() < _refresh_fail_until:
+        return
     # Lock + double-check inside the critical section. A concurrent
     # caller that won the race to refresh has already populated
     # _cache by the time we get the lock; the second check skips
     # the redundant fetch.
     with _refresh_lock:
         if _cache and (time.time() - _cache_set_at) <= _TTL_SECONDS:
+            return
+        if _refresh_fail_until and time.time() < _refresh_fail_until:
             return
         _refresh()
 

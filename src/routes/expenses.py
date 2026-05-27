@@ -10,6 +10,7 @@ from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
+from extensions import limiter
 from helpers import can_edit_expenses
 from observability import bind_trip_context
 from validators import (
@@ -25,6 +26,7 @@ bp = Blueprint("expenses", __name__)
 
 
 @bp.route("/api/expenses", methods=["POST"])
+@limiter.limit("120/minute")
 @require_auth
 @retry_on_lock()
 def upsert_expense():

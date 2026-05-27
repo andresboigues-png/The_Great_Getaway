@@ -390,8 +390,12 @@ def sync_data():
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     who=excluded.who,
+                    category_id=excluded.category_id,
                     label=excluded.label,
+                    date=excluded.date,
+                    country=excluded.country,
                     value=excluded.value,
+                    currency=excluded.currency,
                     euro_value=excluded.euro_value,
                     receipt_url=excluded.receipt_url,
                     splits=excluded.splits,
