@@ -261,6 +261,12 @@ def init_db():
                 share_show_cost INTEGER DEFAULT 0,
                 share_show_plans INTEGER DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                -- R3-Round 4: optimistic-concurrency primitive.
+                -- Per-row write routes stamp this on every UPDATE;
+                -- clients send `clientUpdatedAt` back on subsequent
+                -- writes so a stale tab can't blind-overwrite. See
+                -- migration 1bd4e5f6a7b8.
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
@@ -302,6 +308,9 @@ def init_db():
                 -- undo a delete that happened on a peer device. See
                 -- migration b7c8d9e0f1a2_add_tombstone_columns.
                 deleted_at TEXT,
+                -- R3-Round 4: optimistic-concurrency primitive (see
+                -- the matching column on `trips` above).
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE
             )
         ''')
@@ -418,6 +427,8 @@ def init_db():
                 owner_name TEXT,
                 original_amount REAL,
                 original_currency TEXT,
+                -- R3-Round 4: optimistic-concurrency primitive.
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE SET NULL,
                 -- 2026-05-26 (audit B6): a user can't have two budgets
@@ -576,6 +587,8 @@ def init_db():
                 -- migration b7c8d9e0f1a2_add_tombstone_columns and the
                 -- matching comment on `expenses` above.
                 deleted_at TEXT,
+                -- R3-Round 4: optimistic-concurrency primitive.
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE
             )
         ''')
@@ -892,6 +905,8 @@ _EXPECTED_COLUMNS = {
         "photos_json", "checklist_json", "trip_countries_json",
         "cover_url", "actions_hidden", "share_token", "share_views",
         "share_show_cost", "share_show_plans", "created_at",
+        # R3-Round 4: optimistic-concurrency primitive.
+        "updated_at",
     ],
     "expenses": [
         "id", "trip_id", "who", "category_id", "label", "date",
@@ -900,6 +915,8 @@ _EXPECTED_COLUMNS = {
         "splits", "is_settlement",
         # 2026-05-26: soft-delete tombstone (audit SY5).
         "deleted_at",
+        # R3-Round 4: optimistic-concurrency primitive.
+        "updated_at",
     ],
     "friends": ["user_id", "friend_id", "status", "created_at"],
     "companions": ["user_id", "name", "linked_user_id", "link_status"],
@@ -938,6 +955,8 @@ _EXPECTED_COLUMNS = {
         "photos", "documents", "tip", "lat", "lng",
         # 2026-05-26: tombstone (audit SY5).
         "deleted_at",
+        # R3-Round 4: optimistic-concurrency primitive.
+        "updated_at",
     ],
     "categories": ["id", "user_id", "name", "icon", "color"],
     "budgets": [
@@ -946,6 +965,8 @@ _EXPECTED_COLUMNS = {
         # but the schema-check didn't enforce — regressions slipped through.
         "category_id", "owner_name",
         "original_amount", "original_currency",
+        # R3-Round 4: optimistic-concurrency primitive.
+        "updated_at",
     ],
     "notifications": [
         "id", "user_id", "type", "title", "related_id", "message",

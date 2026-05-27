@@ -439,4 +439,8 @@ def serialize_expense_row(row):
     # is_settlement: SQLite stores as int (0/1); ship as bool so
     # the frontend's truthy checks (`if (e.isSettlement)`) DTRT.
     e['isSettlement'] = bool(e.pop('is_settlement', 0))
+    # R3-Round 4: optimistic-concurrency stamp. Client stores this
+    # locally and sends it back as `clientUpdatedAt` on subsequent
+    # writes so a stale tab can't blind-overwrite.
+    e['updatedAt'] = e.pop('updated_at', None)
     return e

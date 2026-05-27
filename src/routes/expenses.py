@@ -160,6 +160,32 @@ def upsert_expense():
         else:
             splits_json = None
         is_settlement = 1 if e.get('isSettlement') else 0
+        # R3-Round 4 fix: optimistic-concurrency gate. The client
+        # ships `clientUpdatedAt` (the timestamp it last saw for this
+        # row); if it doesn't match the stored `updated_at`, another
+        # device wrote in the interim and we 409 with the fresh row
+        # attached so the client can re-render and let the user
+        # retry. Pre-fix two tabs editing the same expense
+        # last-write-wins — silent overwrite. The check only fires on
+        # UPDATE (existing row); INSERTs (new id) bypass it. Client
+        # can opt out by omitting `clientUpdatedAt` — that's the
+        # legacy path + the /api/sync bulk channel.
+        client_updated_at = e.get('clientUpdatedAt')
+        if existing and client_updated_at:
+            cursor.execute(
+                "SELECT updated_at FROM expenses WHERE id = ?", (expense_id,),
+            )
+            srow = cursor.fetchone()
+            if srow and srow['updated_at'] and srow['updated_at'] != client_updated_at:
+                # Stale edit — return the live row so client can refresh.
+                cursor.execute(
+                    "SELECT * FROM expenses WHERE id = ?", (expense_id,),
+                )
+                live = cursor.fetchone()
+                return jsonify({
+                    "error": "Stale edit — another device updated this expense",
+                    "current": dict(live) if live else None,
+                }), 409
         # 2026-05-26 (audit SY5): the ON CONFLICT UPDATE clause now gates
         # on `expenses.deleted_at IS NULL` so a queued resurrection from
         # an offline device can't undo a tombstone. For a tombstoned row
@@ -167,9 +193,17 @@ def upsert_expense():
         # stays exactly as it was, no stale data leaks back in. New
         # inserts (no conflict) are unaffected: they create a fresh row
         # with deleted_at = NULL.
+        # R3-Round 4: stamp updated_at at MILLISECOND resolution
+        # via strftime so two rapid writes in the same wall-clock
+        # second produce distinct values. Plain CURRENT_TIMESTAMP
+        # is 1-second precision in SQLite — two test writes ran
+        # back-to-back collapse to the same string, breaking the
+        # stale-detection 409. Real-world human edits are spaced
+        # by far more than a millisecond, but the test exposes
+        # the gap.
         cursor.execute('''
-            INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits, is_settlement)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits, is_settlement, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
             ON CONFLICT(id) DO UPDATE SET
                 who=excluded.who,
                 category_id=excluded.category_id,
@@ -181,14 +215,23 @@ def upsert_expense():
                 euro_value=excluded.euro_value,
                 receipt_url=excluded.receipt_url,
                 splits=excluded.splits,
-                is_settlement=excluded.is_settlement
+                is_settlement=excluded.is_settlement,
+                updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
             WHERE expenses.deleted_at IS NULL
         ''', (expense_id, claimed_trip_id, who, category_id,
               label, date, country,
               value, currency, euro_value,
               receipt_url, splits_json, is_settlement))
+        # Read back the freshly-stamped updated_at so the client can
+        # store it for the next edit (closes the read-modify-write
+        # cycle).
+        cursor.execute(
+            "SELECT updated_at FROM expenses WHERE id = ?", (expense_id,),
+        )
+        new_row = cursor.fetchone()
+        new_updated_at = new_row['updated_at'] if new_row else None
         conn.commit()
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", "updatedAt": new_updated_at})
 
 
 @bp.route("/api/expenses/<expense_id>", methods=["DELETE"])

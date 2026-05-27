@@ -1378,6 +1378,60 @@ def test_user_data_delete_wipes_trips_and_expenses(client, seed_user, auth_heade
     assert pull.status_code == 401
 
 
+def test_expense_stale_clientUpdatedAt_returns_409(
+    client, seed_user, auth_headers,
+):
+    """R3-Round 4 fix: when a client POSTs an UPDATE with
+    `clientUpdatedAt` set to a value that no longer matches the
+    stored `updated_at`, the route returns 409 + the live row.
+    Pre-fix the second client's edit silently clobbered the first
+    — last-write-wins. Now: the second client gets a chance to
+    re-render against fresh state and retry."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-stale-edit")
+    res = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-stale", "tripId": trip_id, "who": "Me",
+            "value": 10, "currency": "EUR", "euroValue": 10,
+            "label": "first", "date": "2026-05-12",
+        },
+    })
+    assert res.status_code == 200
+    first_updated_at = res.get_json()["updatedAt"]
+    assert first_updated_at, "first write should return updatedAt"
+
+    # Second write WITHOUT clientUpdatedAt — legacy path, accepted.
+    res2 = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-stale", "tripId": trip_id, "who": "Me",
+            "value": 11, "currency": "EUR", "euroValue": 11,
+            "label": "second", "date": "2026-05-12",
+        },
+    })
+    assert res2.status_code == 200
+    second_updated_at = res2.get_json()["updatedAt"]
+    assert second_updated_at != first_updated_at, \
+        "updatedAt should advance on each write"
+
+    # Third write WITH the now-stale first_updated_at → 409.
+    res3 = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-stale", "tripId": trip_id, "who": "Me",
+            "value": 99, "currency": "EUR", "euroValue": 99,
+            "label": "stale", "date": "2026-05-12",
+            "clientUpdatedAt": first_updated_at,
+        },
+    })
+    assert res3.status_code == 409
+    body = res3.get_json()
+    assert "current" in body, "409 should include the live row"
+    # And the row is unchanged from the second write.
+    pull = client.get("/api/data", headers=auth_headers).get_json()
+    found = next(e for e in pull["expenses"] if e["id"] == "exp-stale")
+    assert found["label"] == "second", \
+        "stale write should not have overwritten the second write"
+    assert found["value"] == 11
+
+
 def test_expense_euro_value_recomputed_server_side(
     client, seed_user, auth_headers,
 ):
