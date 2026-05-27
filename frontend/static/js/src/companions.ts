@@ -44,7 +44,16 @@ export function getTripCompanionNames(trip: TripWithCompanions | null | undefine
 
 export function findTripCompanion(trip: TripWithCompanions | null | undefined, name: string): Companion | undefined {
     if (!name) return undefined;
-    return (trip?.companions ?? []).find(c => c.name === name);
+    // R3-Round 2 fix: case-insensitive match to mirror the server.
+    // `clean_companions` (validators.py) NFC-normalises and case-folds
+    // dedupe keys, so "Alice" and "alice" become the same row server-
+    // side. Pre-fix the client looked up by exact string === — so
+    // expenses with `who: "alice"` couldn't find the "Alice" companion
+    // row from the trip's roster, producing ghost balances. Use a
+    // locale-insensitive lower-case compare; the existing roster
+    // names stay in their original casing for display.
+    const lower = name.toLocaleLowerCase();
+    return (trip?.companions ?? []).find(c => (c.name || '').toLocaleLowerCase() === lower);
 }
 
 export function findTripCompanionByLinkedUser(trip: TripWithCompanions | null | undefined, userId: string): Companion | undefined {
@@ -65,7 +74,11 @@ export function addTripCompanion(
     linkedUserId?: string,
 ): Companion {
     if (!trip.companions) trip.companions = [];
-    const existing = trip.companions.find(c => c.name === name);
+    // R3-Round 2 fix: case-insensitive existence check mirrors
+    // `clean_companions` server-side dedupe so "Alice" and "alice"
+    // don't both land in the roster.
+    const lower = name.toLocaleLowerCase();
+    const existing = trip.companions.find(c => (c.name || '').toLocaleLowerCase() === lower);
     if (existing) {
         if (linkedUserId && !existing.linkedUserId) existing.linkedUserId = linkedUserId;
         return existing;
@@ -81,6 +94,8 @@ export function addTripCompanion(
 export function removeTripCompanion(trip: TripWithCompanions, name: string): boolean {
     if (!trip.companions) return false;
     const before = trip.companions.length;
-    trip.companions = trip.companions.filter(c => c.name !== name);
+    // R3-Round 2 fix: case-insensitive match for the remove path too.
+    const lower = name.toLocaleLowerCase();
+    trip.companions = trip.companions.filter(c => (c.name || '').toLocaleLowerCase() !== lower);
     return trip.companions.length < before;
 }

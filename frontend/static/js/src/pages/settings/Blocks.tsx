@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fetchBlockedUsers, unblockUser, type BlockedUser } from '../../api.js';
 import { showConfirmModal } from '../../utils.js';
+import { getIntlLocale, t } from '../../i18n.js';
 
 function _formatRelativeTime(iso: string | null | undefined): string {
     if (!iso) return '—';
@@ -23,14 +24,18 @@ function _formatRelativeTime(iso: string | null | undefined): string {
     if (Number.isNaN(tms)) return '—';
     const diffMs = Date.now() - tms;
     const sec = Math.floor(diffMs / 1000);
-    if (sec < 60) return 'just now';
+    // R3-Round 2 fix: route through the i18n table (feed.relTime*
+    // keys exist in all four shipped locales). Pre-fix the strings
+    // were hardcoded English regardless of the user's preferred
+    // language.
+    if (sec < 60) return t('feed.relTimeJustNow');
     const min = Math.floor(sec / 60);
-    if (min < 60) return `${min} min ago`;
+    if (min < 60) return t('feed.relTimeMin', { count: min });
     const hr = Math.floor(min / 60);
-    if (hr < 24) return `${hr}h ago`;
+    if (hr < 24) return t('feed.relTimeHour', { count: hr });
     const d = Math.floor(hr / 24);
-    if (d < 30) return `${d}d ago`;
-    return new Date(tms).toLocaleDateString();
+    if (d < 30) return t('feed.relTimeDay', { count: d });
+    return new Date(tms).toLocaleDateString(getIntlLocale());
 }
 
 

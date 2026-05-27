@@ -13,6 +13,23 @@ import { PAGES } from '../constants.js';
 import { esc } from '../utils.js';
 import { openTripInviteResponseModal } from '../modals.js';
 
+/**
+ * R3-Round 2 fix: server emits SQLite-naive UTC timestamps
+ * (`YYYY-MM-DD HH:MM:SS`, no timezone). ECMAScript's `new Date(...)`
+ * parses that shape as LOCAL time, so a Tokyo (UTC+9) user reading
+ * a notification recorded at 23:00 UTC sees it 9 hours later in
+ * "today" semantics — and crucially the displayed date can flip
+ * around midnight UTC. `feed/render.ts:relativeTime` already does
+ * this normalisation; mirroring it here keeps the dropdown timestamp
+ * honest.
+ */
+function _normaliseServerIso(s: string | null | undefined): string {
+    if (!s) return '';
+    return (typeof s === 'string' && s.includes(' ') && !s.includes('T'))
+        ? s.replace(' ', 'T') + 'Z'
+        : s;
+}
+
 export function updateNotificationUI() {
     // Two badges live in the DOM: #notificationBadge in the mobile
     // top-banner bell, #notificationBadgeDesktop on the bell now sitting
@@ -223,7 +240,7 @@ export function renderNotificationDropdown() {
                     ${esc(title)}
                 </div>
                 <div class="notification-item__message">${esc(message)}</div>
-                <div class="notification-item__time">${new Date(n.created_at).toLocaleDateString(getIntlLocale(), { month: 'short', day: 'numeric' })}</div>
+                <div class="notification-item__time">${new Date(_normaliseServerIso(n.created_at)).toLocaleDateString(getIntlLocale(), { month: 'short', day: 'numeric' })}</div>
             </div>
         `;
     }).join('');
