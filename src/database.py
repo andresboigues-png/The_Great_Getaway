@@ -885,6 +885,10 @@ _EXPECTED_COLUMNS = {
     "expenses": [
         "id", "trip_id", "who", "category_id", "label", "date",
         "country", "value", "currency", "euro_value", "receipt_url",
+        # 2026-05-25: split map + settlement flag persisted (audit S1).
+        "splits", "is_settlement",
+        # 2026-05-26: soft-delete tombstone (audit SY5).
+        "deleted_at",
     ],
     "friends": ["user_id", "friend_id", "status", "created_at"],
     "companions": ["user_id", "name", "linked_user_id", "link_status"],
@@ -892,15 +896,57 @@ _EXPECTED_COLUMNS = {
         "id", "user_id", "trip_id", "repost_of_post_id", "caption",
         "created_at", "trip_was_public",
     ],
+    "feed_likes": ["user_id", "event_id", "created_at"],
+    "feed_bookmarks": ["user_id", "event_id", "created_at"],
+    "feed_comments": ["id", "event_id", "user_id", "body", "created_at"],
     "follows": ["id", "follower_id", "followee_id", "created_at"],
     "user_achievements": [
         "id", "user_id", "badge_id", "earned_at", "context_json",
     ],
     "settlements": [
-        "id", "trip_id", "from_user_id", "to_user_id", "amount",
-        "currency", "euro_value", "method", "note", "recorded_by",
+        "id", "trip_id", "from_user_id", "to_user_id",
+        # 2026-05-26: name snapshots so balance math survives an
+        # unlinked companion (audit S1+S6).
+        "from_name", "to_name",
+        "amount", "currency", "euro_value", "method", "note",
+        # 2026-05-26 audit #D-6: who clicked save (may differ from
+        # from_user_id when planner records on behalf of others).
+        "recorded_by",
         "created_at",
     ],
+    "trip_members": [
+        "trip_id", "user_id", "role", "is_archived",
+        "invitation_status", "invited_by",
+        # 2026-05-26 audit #C-1: per-user completion timestamp.
+        "completed_at",
+    ],
+    "trip_collaborators": ["trip_id", "user_id"],
+    "trip_days": [
+        "id", "trip_id", "day_number", "date", "name",
+        "morning", "afternoon", "evening", "notes",
+        "photos", "documents", "tip", "lat", "lng",
+        # 2026-05-26: tombstone (audit SY5).
+        "deleted_at",
+    ],
+    "categories": ["id", "user_id", "name", "icon", "color"],
+    "budgets": [
+        "id", "user_id", "trip_id", "label", "amount", "currency",
+        # 2026-05-25 audit B1: filter columns that fresh DBs always had
+        # but the schema-check didn't enforce — regressions slipped through.
+        "category_id", "owner_name",
+        "original_amount", "original_currency",
+    ],
+    "notifications": [
+        "id", "user_id", "type", "title", "related_id", "message",
+        "is_read", "created_at",
+        # 2026-05-26 (audit NF1 + NF3): post_id for engagement notifs.
+        "post_id",
+    ],
+    "auth_sessions": [
+        "id", "user_id", "jti", "device_label",
+        "created_at", "last_seen_at", "revoked_at",
+    ],
+    "blocks": ["blocker_id", "blocked_id", "created_at"],
 }
 
 

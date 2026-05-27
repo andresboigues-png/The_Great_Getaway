@@ -1990,7 +1990,17 @@ def export_trip_pdf(trip_id: str):
             "ORDER BY day_number ASC, date ASC",
             (trip_id,),
         )
-        trip["days"] = [dict(r) for r in cursor.fetchall()]
+        # Audit fix: cap rendered days at 1000. The longest legitimate
+        # trip in our user base is ~400 days; anything past 1000 is a
+        # data-bug or an attempt to DoS the worker (each day fetches
+        # a static map tile + renders multi-line text). Truncating
+        # rather than 413'ing keeps the export usable for the
+        # pathological-but-real case of a forgotten-archive trip
+        # with thousands of legacy rows.
+        rows = cursor.fetchall()
+        if len(rows) > 1000:
+            rows = rows[:1000]
+        trip["days"] = [dict(r) for r in rows]
 
         # Budgets attached to the trip — owner-scoped, label+amount
         # shape (no category mapping in this schema, so per-row

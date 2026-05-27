@@ -95,13 +95,15 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
 app.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_SIZE
 
-# E2E test mode shares the env-gate with the test-login bypass: Playwright
-# runs 30+ tests against the same Flask process, each calling
-# /api/auth/google to sign in, easily tripping the 10/min limit. The flag
-# has to be set BEFORE Limiter() is instantiated (Flask-Limiter snapshots
-# the config at init), so this branch comes ahead of the limiter block
-# below. Pytest disables limits independently in conftest.
-if os.getenv("GG_ALLOW_TEST_LOGIN") == "1":
+# E2E test mode disables rate limits so Playwright can run 30+ tests
+# against the same Flask process without tripping per-IP throttles.
+# Gated by its OWN env var (GG_E2E) so the test-login bypass flag
+# (GG_ALLOW_TEST_LOGIN) doesn't also nuke rate limits — defense in
+# depth in case GG_ALLOW_TEST_LOGIN ever leaks into a non-test env.
+# The flag has to be set BEFORE Limiter() is instantiated (Flask-Limiter
+# snapshots the config at init), so this branch comes ahead of the
+# limiter block below. Pytest disables limits independently in conftest.
+if os.getenv("GG_E2E") == "1":
     app.config["RATELIMIT_ENABLED"] = False
 
 # Rate limiting. Per-IP for now; will switch to per-user once Phase G's

@@ -56,13 +56,18 @@ def upgrade() -> None:
     # (which ran fk_audit.py against the live DB and reported zero
     # orphans), but cheap insurance: insert OR IGNORE so existing
     # rows are preserved untouched.
+    # invited_by is NULL for owner self-rows — nobody invited the owner;
+    # they created the trip. Pre-fix this stamped t.user_id (owner →
+    # owner), which made "X invited Y" copy round-trip nonsense for the
+    # owner's own row. Cleaned up in the follow-up migration
+    # `null_owner_self_invited_by`.
     op.execute(
         """
         INSERT OR IGNORE INTO trip_members
             (trip_id, user_id, role, is_archived, invitation_status, invited_by)
         SELECT t.id, t.user_id, 'planner',
                COALESCE(t.is_archived, 0),
-               'accepted', t.user_id
+               'accepted', NULL
         FROM trips t
         WHERE t.user_id IS NOT NULL
         """

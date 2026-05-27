@@ -15,12 +15,18 @@ import json
 
 def ensure_owner_member_row(cursor, trip_id, owner_id):
     """Idempotent: makes sure the trip's owner has a planner-role member
-    row. Called from /api/trips upsert and from /api/sync's trip loop."""
+    row. Called from /api/trips upsert and from /api/sync's trip loop.
+
+    invited_by is NULL for the owner self-row — no one invited the owner;
+    they created the trip. Pre-fix this stamped owner_id, which made
+    "X invited Y" notification copy round-trip nonsense ("you invited
+    yourself") if any downstream code ever read it for owners.
+    """
     cursor.execute(
         "INSERT OR IGNORE INTO trip_members "
         "(trip_id, user_id, role, is_archived, invitation_status, invited_by) "
-        "VALUES (?, ?, 'planner', 0, 'accepted', ?)",
-        (trip_id, owner_id, owner_id),
+        "VALUES (?, ?, 'planner', 0, 'accepted', NULL)",
+        (trip_id, owner_id),
     )
 
 

@@ -56,12 +56,15 @@ export default defineConfig({
         stderr: 'pipe',
         // GG_ALLOW_TEST_LOGIN unlocks the /api/auth/google
         // `test:<user_id>` shortcut that helpers.js's loginAsTestUser
-        // hits. Off by default — production deploys would never set
-        // this; the dev server on a developer's box also doesn't
-        // unless they're explicitly running e2e tests.
+        // hits. GG_E2E disables rate limits so 30+ parallel tests
+        // don't trip per-IP throttles. They're separate flags so an
+        // accidental GG_ALLOW_TEST_LOGIN leak into another env can't
+        // also disable all rate limits. Both off by default —
+        // production deploys would never set either.
         env: {
             ...process.env,
             GG_ALLOW_TEST_LOGIN: '1',
+            GG_E2E: '1',
         },
     },
 });
