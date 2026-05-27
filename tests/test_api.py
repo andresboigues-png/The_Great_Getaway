@@ -2987,8 +2987,15 @@ def test_generate_itinerary_places_verification_enriches_items(
     assert morning_items[0]["placeId"].startswith("ChIJ-")
     assert morning_items[0]["rating"] == 4.7
     assert morning_items[0]["address"] == "Some real address, Barcelona, Spain"
-    assert morning_items[0]["photoUrl"].startswith("https://places.googleapis.com/v1/")
-    assert "fake-maps-key" in morning_items[0]["photoUrl"]
+    # R2 audit fix: photoUrl is now a same-origin proxy URL, NEVER an
+    # absolute Google URL with the server key embedded. The proxy
+    # injects the key server-side at request time. Anyone inspecting
+    # the AI response can no longer harvest the Maps server key.
+    assert morning_items[0]["photoUrl"].startswith("/api/places/photo/")
+    assert "fake-maps-key" not in morning_items[0]["photoUrl"], \
+        "Maps key MUST NOT appear in the response body"
+    assert "googleapis.com" not in morning_items[0]["photoUrl"], \
+        "photoUrl should be same-origin (proxy), not Google's CDN"
     # Phase G slice 2 — lat/lng plumbed through so the home map can
     # render to-do markers for AI-suggested places without a separate
     # Place Details fetch.

@@ -210,18 +210,23 @@ def _verify_place(query: str, destination: str, api_key: str) -> dict | None:
             return None
         p = places[0]
         # Photo URL — Places API NEW serves photos via the place name +
-        # photo name path; the frontend hot-links this URL. Photo serving
-        # itself isn't billed (the billable hit is the searchText
-        # request above; the photo URL is a static-image redirect).
+        # photo name path; the frontend hot-links this URL.
+        #
+        # R2 audit fix: pre-fix we interpolated `&key={api_key}` directly
+        # into the URL and shipped it back to the browser. The server-
+        # only Maps key was therefore visible in DevTools / network
+        # traffic on every AI itinerary render — defeating the whole
+        # point of splitting the keys (the server key is intentionally
+        # NOT referrer-restricted, so anyone harvesting it can burn
+        # quota against arbitrary Maps/Places/Geocoding APIs). Now we
+        # return a same-origin proxy URL; the proxy route (below)
+        # injects the key server-side and streams the image bytes back.
         photo_url = None
         photos = p.get("photos") or []
         if photos:
             photo_name = photos[0].get("name")
             if photo_name:
-                photo_url = (
-                    f"https://places.googleapis.com/v1/{photo_name}/media"
-                    f"?key={api_key}&maxWidthPx=480&maxHeightPx=320"
-                )
+                photo_url = f"/api/places/photo/{photo_name}?w=480&h=320"
         location = p.get("location") or {}
         return {
             "placeId": p.get("id"),
@@ -400,6 +405,87 @@ def get_config():
     return jsonify({
         "google_client_id": os.getenv("CLIENT_ID_GOOGLE_AUTH", ""),
     })
+
+
+@bp.route("/api/places/photo/<path:photo_name>", methods=["GET"])
+@limiter.limit("120 per minute")
+@require_auth
+def proxy_place_photo(photo_name: str):
+    """Server-side proxy for Google Places photo URLs.
+
+    R2 audit fix. `_verify_place` used to interpolate `&key={api_key}`
+    into the returned photoUrl; the browser then hot-linked the URL
+    via `<img src=...>` and the server-only Maps key was exposed in
+    every Network tab. Now `_verify_place` returns this same-origin
+    proxy URL; the proxy injects the key here, server-side, and
+    streams the image bytes back. The browser never sees the key.
+
+    Auth-gated because the only callers are authenticated AI-itinerary
+    consumers (the source of every photoUrl in marked_places etc.).
+    Anonymous public-trip viewers don't render Places photos today;
+    if that changes, we can add the same is_public reference check
+    used by /static/uploads/.
+
+    `photo_name` shape from Google: `places/<placeId>/photos/<photoRef>`.
+    We accept any path-segmented value (Flask `<path:...>`) and validate
+    structurally before forwarding. Width / height are clamped to
+    Google's documented bounds (1–4800 px).
+    """
+    # Structural validation: avoid being a generic Maps API proxy.
+    # The shape must match `places/<id>/photos/<id>`; reject anything
+    # else (path injection, alternate Google paths, etc.).
+    parts = photo_name.split("/")
+    if len(parts) != 4 or parts[0] != "places" or parts[2] != "photos":
+        return jsonify({"error": "invalid photo name"}), 400
+    if not all(parts):
+        return jsonify({"error": "invalid photo name"}), 400
+
+    try:
+        w = int(request.args.get("w", 480))
+        h = int(request.args.get("h", 320))
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid dimensions"}), 400
+    w = max(1, min(4800, w))
+    h = max(1, min(4800, h))
+
+    api_key = os.getenv("GOOGLE_MAPS_SERVER_KEY") or os.getenv("GOOGLE_MAPS_API_KEY")
+    if not api_key:
+        return jsonify({"error": "places photo proxy not configured"}), 503
+
+    upstream = (
+        f"https://places.googleapis.com/v1/{photo_name}/media"
+        f"?key={api_key}&maxWidthPx={w}&maxHeightPx={h}"
+    )
+    from flask import Response
+    try:
+        # `with` so the socket is released on exit. 8s timeout matches
+        # the verification path; photos can be a touch slower under
+        # cold cache but this still bounds worker stalls.
+        with requests.get(upstream, timeout=8, stream=True) as resp:
+            if not resp.ok:
+                # Don't surface upstream status detail or echo the URL
+                # (which carries the key) — log scrubbed, return generic.
+                logger.warning(
+                    "places photo proxy upstream %s for %s",
+                    resp.status_code, parts[1] if len(parts) > 1 else "?",
+                )
+                return jsonify({"error": "upstream photo unavailable"}), 502
+            content_type = resp.headers.get("Content-Type", "image/jpeg")
+            # Buffer the body — `requests` is sync and we want the
+            # socket released before returning. Photos are small
+            # (~50-200KB at our dimensions), so memory cost is fine.
+            body = resp.content
+    except requests.RequestException as e:
+        logger.warning("places photo proxy network error: %s", e)
+        return jsonify({"error": "upstream photo unavailable"}), 502
+
+    response = Response(body, mimetype=content_type)
+    # Cache aggressively at the browser. The Place photo URLs are
+    # immutable (photo_name changes when the photo changes), so a
+    # long browser cache is safe and slashes our outbound Google
+    # cost. The SW upload-cache already does similar.
+    response.headers["Cache-Control"] = "private, max-age=86400"
+    return response
 
 
 @bp.route("/api/generate_itinerary", methods=["POST"])
