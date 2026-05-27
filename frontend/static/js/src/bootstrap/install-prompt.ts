@@ -26,6 +26,7 @@
 // forever, until the user clears site data. Same for actual install.
 
 import { esc } from '../utils.js';
+import { t } from '../i18n.js';
 
 
 // ── localStorage keys ───────────────────────────────────────────────
@@ -132,11 +133,15 @@ function _showBanner(variant: 'chrome' | 'ios'): void {
         'animation: ggInstallSlideUp 280ms cubic-bezier(0.22, 0.61, 0.36, 1)',
     ].join(';');
 
-    const title = isIOS ? 'Add to your Home Screen' : 'Install The Great Getaway';
-    const body = isIOS
-        ? 'Tap the Share button and pick "Add to Home Screen" for an app-like experience.'
-        : 'Install for an app-like experience with offline support.';
-    const ctaLabel = isIOS ? 'Got it' : 'Install';
+    // R7-F5: route every visible string through t() so PT/ES/FR
+    // users see their locale on the most-attention-grabbing prompt
+    // the app shows. Pre-fix these were hardcoded English literals
+    // that broke language consistency at the worst possible
+    // moment (a new install banner).
+    const title = t(isIOS ? 'install.titleIOS' : 'install.title');
+    const body = t(isIOS ? 'install.bodyIOS' : 'install.body');
+    const ctaLabel = t(isIOS ? 'install.ctaIOS' : 'install.cta');
+    const dismissLabel = t('install.dismiss');
 
     banner.innerHTML = `
         <div style="font-size: 1.5rem; line-height: 1; flex-shrink: 0;">✈️</div>
@@ -145,14 +150,19 @@ function _showBanner(variant: 'chrome' | 'ios'): void {
             <div style="font-size: 0.8rem; color: var(--text-secondary, rgba(0,0,0,0.6)); line-height: 1.35;">${esc(body)}</div>
         </div>
         <button id="ggInstallAccept" type="button"
-            style="background: var(--accent-blue, #007aff); color: white; border: 0; padding: 7px 14px; border-radius: 999px; font-size: 0.82rem; font-weight: 700; cursor: pointer; flex-shrink: 0;">
+            style="background: var(--accent-blue, #007aff); color: white; border: 0; padding: 7px 14px; border-radius: 999px; font-size: 0.82rem; font-weight: 700; cursor: pointer; flex-shrink: 0; min-height: 44px; min-width: 44px;">
             ${esc(ctaLabel)}
         </button>
-        <button id="ggInstallDismiss" type="button" aria-label="Dismiss"
-            style="background: transparent; border: 0; color: var(--text-secondary, rgba(0,0,0,0.5)); width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 0.95rem; line-height: 1; flex-shrink: 0;">
+        <button id="ggInstallDismiss" type="button" aria-label="${esc(dismissLabel)}"
+            style="background: transparent; border: 0; color: var(--text-secondary, rgba(0,0,0,0.5)); width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 1.1rem; line-height: 1; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
             ✕
         </button>
     `;
+    // R7-F5: dismiss button bumped 28→44px to meet the iOS HIG +
+    // Material 44/48 tap-target floor that the rest of the app
+    // respects via --tap-min. Same for the install CTA (which
+    // already had vertical padding but lacked min-height on
+    // short translations).
 
     // Inject the keyframe definition once. The banner's CSS is fully
     // inline elsewhere; only the animation needs a stylesheet rule.

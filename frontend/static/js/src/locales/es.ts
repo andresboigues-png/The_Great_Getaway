@@ -132,6 +132,15 @@ export const es: Translations = {
         restoreTripBody: 'Esto mueve el viaje de vuelta a tu lista activa.',
         deleteTripBody: 'Este viaje y todos sus recuerdos se perderán para siempre.',
     },
+    install: {
+        title: 'Instala The Great Getaway',
+        titleIOS: 'Añadir a la pantalla de inicio',
+        body: 'Instálala para tener una experiencia tipo app, con soporte sin conexión.',
+        bodyIOS: 'Toca el botón Compartir y elige "Añadir a la pantalla de inicio" para una experiencia tipo app.',
+        cta: 'Instalar',
+        ctaIOS: 'Entendido',
+        dismiss: 'Descartar',
+    },
     pwa: {
         updateAvailable: 'Hay una nueva versión de The Great Getaway disponible. ¿Recargar para actualizar?',
         updateAvailableTitle: 'Actualización disponible',

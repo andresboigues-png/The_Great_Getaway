@@ -23,6 +23,7 @@ from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
 from extensions import limiter
+from observability import log_extra
 from validators import scrub_key
 
 
@@ -850,6 +851,31 @@ def generate_itinerary():
         # when the LLM made it up. No-op when GOOGLE_MAPS_API_KEY
         # isn't set — items stay as strings.
         itinerary = _enrich_itinerary(itinerary, destination)
+        # R7-F6: per-success telemetry so operators can correlate
+        # pool exhaustion back to the user(s) who burned it. Pre-fix
+        # the only signal was `_mark_key_exhausted` on quota — once
+        # the pool drained, the operator could not tell WHICH user
+        # to throttle/ban. Now every success logs user_id + slot +
+        # last attempted model + num_days + a rough size signal
+        # (items count) at INFO level — visible in observability /
+        # Sentry breadcrumbs. Lightweight (one line per generation;
+        # the route is hard-capped to 20/day/user anyway via R6-B1).
+        days_count = (
+            len(itinerary) if isinstance(itinerary, list)
+            else len(itinerary.get("days", [])) if isinstance(itinerary, dict)
+            else 0
+        )
+        logger.info(
+            "ai.generated",
+            extra=log_extra(
+                user_id=current_user_id() or "anon",
+                slot=slot,
+                model=model,
+                num_days_requested=num_days,
+                days_returned=days_count,
+                byo=bool(user_key),
+            ),
+        )
         # Include the pool snapshot on success too so the frontend
         # bar refreshes after every generation — useful when one
         # request silently drains the last available slot.

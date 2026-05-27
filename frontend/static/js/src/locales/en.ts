@@ -176,6 +176,19 @@ export const en = {
     // R4-B4: PWA service-worker update prompt. Routed through t() so
     // non-EN users don't see English copy at the most-disruptive
     // moment (forced reload).
+    // R7-F5: install-prompt banner copy. Pre-fix all strings were
+    // hardcoded English in bootstrap/install-prompt.ts, leaving
+    // PT/ES/FR users to read English at the most attention-grabbing
+    // moment the app offers (a fresh install banner).
+    install: {
+        title: 'Install The Great Getaway',
+        titleIOS: 'Add to your Home Screen',
+        body: 'Install for an app-like experience with offline support.',
+        bodyIOS: 'Tap the Share button and pick "Add to Home Screen" for an app-like experience.',
+        cta: 'Install',
+        ctaIOS: 'Got it',
+        dismiss: 'Dismiss',
+    },
     pwa: {
         updateAvailable: 'A new version of The Great Getaway is available. Reload to update?',
         // R7-F3: title + button label for the in-app confirm modal

@@ -105,11 +105,66 @@ export function showModal(opts: {
         card.setAttribute('aria-labelledby', firstHeading.id);
     }
 
+    // R7-F4: push a sentinel history entry on open so the hardware
+    // back button / swipe-back gesture closes the modal instead of
+    // navigating the SPA route or exiting the installed PWA. Common
+    // pre-fix scenario: user opens "Add Day" modal on Android, taps
+    // back to dismiss, gets kicked out of the app. The sentinel is
+    // a no-op route change (we push the current URL with a marker
+    // state object) so back-navigation can be intercepted without
+    // affecting the URL the user sees in the address bar.
+    //
+    // popstate fires when the user goes back; we close the modal +
+    // remove the listener (so a subsequent back doesn't double-fire).
+    // If the modal is closed PROGRAMMATICALLY (Esc, backdrop, action
+    // button), we go back ourselves to pop the sentinel — but
+    // suppressed via `_poppedBySentinel` so the popstate handler
+    // doesn't re-close.
+    let _poppedBySentinel = false;
+    const hasHistory = typeof window !== 'undefined'
+        && typeof window.history?.pushState === 'function';
+    if (hasHistory) {
+        try {
+            window.history.pushState(
+                { ggModal: true }, '', window.location.href,
+            );
+        } catch { /* private mode rarely throws here, ignore */ }
+    }
+    const onPopState = () => {
+        // Back button pressed → close the modal. _poppedBySentinel
+        // means WE just popped via close(), so this is the matching
+        // popstate firing — don't recursively close.
+        if (_poppedBySentinel) {
+            _poppedBySentinel = false;
+            return;
+        }
+        // Mark so close() doesn't try to pop again (history is
+        // already at the pre-modal entry after this event).
+        _poppedBySentinel = true;
+        close();
+    };
+    if (hasHistory) {
+        window.addEventListener('popstate', onPopState);
+    }
+
     let closed = false;
     const close = () => {
         if (closed) return;
         closed = true;
         document.removeEventListener('keydown', onKeyDown, true);
+        if (hasHistory) {
+            window.removeEventListener('popstate', onPopState);
+            // Programmatic close — pop the sentinel ourselves so the
+            // history stack stays clean (otherwise back-navigation
+            // after close would re-fire popstate against a dead
+            // listener and look like the user went back twice).
+            // Skip if we got here via popstate (the entry's already
+            // gone from the stack).
+            if (!_poppedBySentinel) {
+                _poppedBySentinel = true;
+                try { window.history.back(); } catch { /* ignore */ }
+            }
+        }
         overlay.remove();
         // §2.11: focus restoration — only refocus the previously-
         // active element if it's STILL in the DOM. If the user
