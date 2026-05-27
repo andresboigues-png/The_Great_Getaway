@@ -112,15 +112,26 @@ export const CONVERSION_RATES: Record<string, number> = {
     'ZAR': 0.049,
 };
 
-// Display symbols paired with the codes in CONVERSION_RATES.
-// Falls back to the code itself ("CHF 12.50") when no symbol
-// is meaningful. `Record<string, string>` so dynamic lookups
-// typecheck under noImplicitAny.
+// Display symbols paired with currency codes. R3-Round 2 fix:
+// symbols added for every currency the server's _ALLOWED_CURRENCIES
+// accepts (validators.py) so the expense-form dropdown can show a
+// proper symbol for THB/EGP/TRY/ARS etc. instead of falling back to
+// the bare code. Codes without a meaningful single-char symbol use
+// the ISO 4217 code itself (Frankfurter API rates for all of these
+// are typically present in the live FX cache).
 export const CURRENCY_SYMBOLS: Record<string, string> = {
     'EUR': '€', 'USD': '$', 'GBP': '£', 'JPY': '¥', 'CHF': 'CHF',
     'CAD': 'C$', 'AUD': 'A$', 'CNY': '¥', 'BRL': 'R$', 'MXN': 'MX$',
     'INR': '₹', 'IDR': 'Rp', 'SGD': 'S$', 'NZD': 'NZ$', 'HKD': 'HK$',
     'KRW': '₩', 'ZAR': 'R',
+    // R3-Round 2 fix additions — _ALLOWED_CURRENCIES server-side has
+    // these, but the client had no way to pick them.
+    'THB': '฿', 'EGP': 'E£', 'TRY': '₺', 'ARS': '$',
+    'VND': '₫', 'PHP': '₱', 'MYR': 'RM', 'COP': 'COL$',
+    'CLP': 'CLP$', 'PEN': 'S/', 'ILS': '₪', 'AED': 'د.إ',
+    'SAR': 'SAR', 'PLN': 'zł', 'CZK': 'Kč', 'HUF': 'Ft',
+    'RON': 'lei', 'BGN': 'лв', 'HRK': 'kn', 'ISK': 'kr',
+    'SEK': 'kr', 'NOK': 'kr', 'DKK': 'kr', 'TWD': 'NT$',
 };
 
 // Map browser locale region (e.g. "en-US" → "US") to a default

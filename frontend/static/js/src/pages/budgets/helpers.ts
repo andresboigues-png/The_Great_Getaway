@@ -7,7 +7,7 @@
 
 import { STATE, emit } from '../../state.js';
 import { CONVERSION_RATES, EVENTS } from '../../constants.js';
-import { convertCurrency } from '../../utils/currency.js';
+import { convertCurrency, getSupportedCurrencies } from '../../utils/currency.js';
 import {
     generateId,
     q,
@@ -180,7 +180,10 @@ export const openCreateBudgetModal = () => {
     ).sort();
     const userOpts = allCompanionNames.map((g) => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
     const home = getHomeCurrency();
-    const currOpts = Object.keys(CONVERSION_RATES)
+    // R3-Round 2 fix: same widening as ManualTab — show every currency
+    // the live FX cache OR the static fallback knows about (not just
+    // the 17-entry CONVERSION_RATES).
+    const currOpts = getSupportedCurrencies()
         .map((c) => `<option value="${c}" ${home === c ? 'selected' : ''}>${c}</option>`)
         .join('');
 

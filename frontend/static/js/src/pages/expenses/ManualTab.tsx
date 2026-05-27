@@ -48,7 +48,7 @@ import {
 } from '../../constants.js';
 import { generateId, showLiquidAlert } from '../../utils.js';
 import { upsertExpense, uploadMedia } from '../../api.js';
-import { convertCurrency } from '../../utils/currency.js';
+import { convertCurrency, getSupportedCurrencies, hasRate } from '../../utils/currency.js';
 import { navigate } from '../../router.js';
 import { t } from '../../i18n.js';
 import type { Expense } from '../../types';
@@ -58,7 +58,15 @@ import type { Expense } from '../../types';
 // alphabetical order without re-sorting per render.
 const SORTED_COUNTRIES = [...COUNTRIES].sort();
 
-const CURRENCY_CODES = Object.keys(CONVERSION_RATES);
+// R3-Round 2 fix: pre-fix this was `Object.keys(CONVERSION_RATES)` (17
+// entries), hard-locking the form to a narrow 2024-era list — THB /
+// EGP / TRY / ARS / VND / PHP all in the server's _ALLOWED_CURRENCIES
+// but invisible to the user. `getSupportedCurrencies()` returns the
+// union of CONVERSION_RATES + the live FX cache + EUR, sorted with
+// EUR first. Called as a function not a top-level constant so a
+// late-arriving /api/fx-rates payload (Frankfurter slow path)
+// expands the dropdown on the next render rather than being stuck
+// on the boot-time snapshot.
 
 
 export function ManualTab() {
@@ -323,16 +331,17 @@ export function ManualTab() {
             showLiquidAlert(t('validation.currencyRequired'));
             return;
         }
-        // 2026-05-26 (audit SP3): the conversion fallback used to be
-        // `CONVERSION_RATES[curr] || 1`, which silently treated any
-        // currency missing from the rate table as 1:1 EUR. A legacy
-        // record (or a typo in a paste) of `currency='ARS'` then
-        // counted 100 ARS as €100 in every balance — silent corruption
-        // with no user signal. Now we require the currency to be in the
-        // known rate table; if it isn't, abort the submit so the user
-        // can pick a supported currency from the dropdown.
-        const rate = CONVERSION_RATES[curr];
-        if (rate === undefined) {
+        // 2026-05-26 (audit SP3) + R3-Round 2 widening: pre-fix the
+        // conversion fallback was `CONVERSION_RATES[curr] || 1`, which
+        // silently treated any currency missing from the rate table as
+        // 1:1 EUR. A legacy record (or a typo) of `currency='ARS'` then
+        // counted 100 ARS as €100 in every balance — silent corruption.
+        // R3 widens "known rate" to also cover the live FX cache so a
+        // user picking THB / EGP / TRY / ARS / VND can actually submit
+        // (those currencies are in the Frankfurter feed but were absent
+        // from the static fallback table). Only when BOTH miss do we
+        // refuse — that's the true "we cannot convert" case.
+        if (!hasRate(curr)) {
             showLiquidAlert(t('budgets.createUnknownCurrency', { curr }));
             return;
         }
@@ -644,7 +653,7 @@ export function ManualTab() {
                             }}
                         >
                             <option value="">{t('expenses.currencyPlaceholder')}</option>
-                            {CURRENCY_CODES.map((c) => (
+                            {getSupportedCurrencies().map((c) => (
                                 <option key={c} value={c}>
                                     {c}
                                 </option>

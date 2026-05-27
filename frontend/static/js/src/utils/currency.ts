@@ -76,6 +76,40 @@ function _rateFor(code: string): number {
 }
 
 /**
+ * R3-Round 2 fix: returns true iff we actually have a real rate
+ * (live OR static) for this code. Distinguishes "I know how to
+ * convert this" from "I'll fall back to 1:1 silently". Callers
+ * that submit money (expense form, settlement form) should gate
+ * on this so a user picking THB while Frankfurter is down doesn't
+ * accidentally write `1 THB = 1 EUR`.
+ */
+export function hasRate(code: string): boolean {
+    if (!code) return false;
+    const upper = code.toUpperCase();
+    if (upper === 'EUR') return true;
+    if (_liveRates[upper] !== undefined) return true;
+    return CONVERSION_RATES[upper] !== undefined;
+}
+
+/**
+ * R3-Round 2 fix: union of every currency the client knows about
+ * (static fallback + live cache + EUR). Used by the expense /
+ * budget / settlement dropdowns so a user CAN pick THB / EGP /
+ * TRY / ARS / VND etc. — they're in the server's _ALLOWED_CURRENCIES
+ * and Frankfurter's live feed, but the pre-fix dropdown only listed
+ * the 17 entries in CONVERSION_RATES, making those trips literally
+ * impossible to enter via the form. Sorted with EUR first then
+ * alphabetically.
+ */
+export function getSupportedCurrencies(): string[] {
+    const codes = new Set<string>(['EUR']);
+    for (const k of Object.keys(CONVERSION_RATES)) codes.add(k.toUpperCase());
+    for (const k of Object.keys(_liveRates)) codes.add(k.toUpperCase());
+    const sorted = Array.from(codes).sort();
+    return ['EUR', ...sorted.filter(c => c !== 'EUR')];
+}
+
+/**
  * Convert an amount from one currency to another via the EUR-pivot table.
  * Reads from the live (server-fetched) rate cache first, falls back to
  * the static CONVERSION_RATES table baked into the bundle.

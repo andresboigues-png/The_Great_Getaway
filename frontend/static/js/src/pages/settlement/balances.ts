@@ -86,7 +86,16 @@ export function applySettlementToBalances(
         if (found && balances[found] !== undefined) toName = found;
     }
     if (!fromName || !toName) return;
-    if (balances[fromName] === undefined || balances[toName] === undefined) return;
+    // R3-Round 2 fix: SEED missing roster entries instead of silently
+    // dropping the settlement. The expense-side path already does this
+    // for removed companions (via `removedFromRoster`); pre-fix the
+    // settlement side just returned, so a settlement involving a
+    // companion who was later removed left the original debt visible
+    // forever as if the payment never happened. Now: if the snapshot
+    // name resolves to a person not in the live roster, we create a
+    // zero balance for them so the +=/-= below applies cleanly.
+    if (balances[fromName] === undefined) balances[fromName] = 0;
+    if (balances[toName] === undefined) balances[toName] = 0;
     // euroValue is the cross-currency-normalised amount the balance
     // math uses everywhere else. Falls back to `amount` only when
     // euroValue is null (older / non-EUR rows that pre-date the
