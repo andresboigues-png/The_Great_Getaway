@@ -174,7 +174,18 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
     // the router's per-nav signal. Build the merged init object
     // conditionally so we don't write `signal: undefined` (TS's
     // exactOptionalPropertyTypes flags that).
-    const inheritedSignal = options.signal ?? currentNavSignal();
+    // R6-B4: 20s timeout on every fetch so flaky-cell mutations
+    // can't hang for the browser default (often 5 minutes). Combine
+    // with any caller-supplied signal — the request aborts on
+    // whichever fires first. Without this a user on slow 3G hits
+    // Save, sees no spinner timeout, taps Save again → duplicate
+    // submission (R5's If-Match catches the corruption but the user
+    // hits a confusing 409 stale-edit toast they didn't cause).
+    const timeoutSignal = AbortSignal.timeout(20_000);
+    const callerSignal = options.signal ?? currentNavSignal();
+    const combinedSignal = callerSignal
+        ? AbortSignal.any([callerSignal, timeoutSignal])
+        : timeoutSignal;
     const merged: RequestInit = {
         ...options,
         // `credentials: 'include'` attaches the gg_session cookie to
@@ -183,8 +194,8 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
         // default browser behaviour (which has varied across vendors
         // and Fetch-spec revisions for the "default" case).
         credentials: 'include',
+        signal: combinedSignal,
     };
-    if (inheritedSignal) merged.signal = inheritedSignal;
     let res: Response;
     try {
         res = await fetch(url, merged);

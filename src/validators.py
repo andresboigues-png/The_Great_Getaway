@@ -33,16 +33,29 @@ from typing import Optional
 # Centralised here so every external-API code path can `from
 # validators import scrub_key`.
 _KEY_QS_RE = re.compile(r"[?&]key=[^&\s]+")
+# R6-B3: Google API keys are AIzaSy + 33 chars from [A-Za-z0-9_-].
+# Sometimes Google's error JSON echoes the key OUTSIDE a querystring
+# (e.g. `{"error": {"message": "API key AIzaSy... not valid"}}` or
+# `keyValue: "AIzaSy..."` fields). The querystring regex above
+# wouldn't catch those — this standalone-key regex does.
+_STANDALONE_KEY_RE = re.compile(r"AIzaSy[A-Za-z0-9_-]{33}")
 
 
 def scrub_key(text: str | None) -> str:
     """Replace any `?key=<value>` or `&key=<value>` substring with
     `?key=REDACTED`. Safe to call on None/empty (returns ''). Used
     before any logger.warning / RuntimeError that interpolates
-    upstream-API output."""
+    upstream-API output.
+
+    R6-B3: also strips standalone Gemini key tokens (AIzaSy + 33
+    chars) that Google sometimes echoes in error JSON bodies
+    outside of querystring form. Both server-pool keys AND user
+    BYO keys are covered."""
     if not text:
         return ""
-    return _KEY_QS_RE.sub("?key=REDACTED", text)
+    cleaned = _KEY_QS_RE.sub("?key=REDACTED", text)
+    cleaned = _STANDALONE_KEY_RE.sub("AIza...REDACTED", cleaned)
+    return cleaned
 
 
 # ── Constants ────────────────────────────────────────────────────────

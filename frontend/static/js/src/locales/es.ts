@@ -97,7 +97,7 @@ export const es: Translations = {
     },
     errors: {
         backOnline: 'De vuelta en línea — tus cambios se han guardado.',
-        offline: 'Estás sin conexión — los cambios se sincronizarán cuando vuelvas.',
+        offline: 'Estás sin conexión — inténtalo de nuevo cuando vuelvas a estar en línea.',
         serverUnreachable: 'No puedo alcanzar el servidor — seguiremos reintentando.',
         loginFailed: 'Error al iniciar sesión — por favor inténtalo de nuevo.',
         cloneFailedFromCollections: 'No se pudo clonar ese viaje. Inténtalo de nuevo desde Colecciones.',

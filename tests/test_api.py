@@ -3508,8 +3508,13 @@ def test_generate_itinerary_502_when_both_models_fail(
     import routes.integrations
     monkeypatch.setattr(routes.integrations.requests, "post", fake_post)
 
+    # R6-B1: BYO key must match Google's AIzaSy + 33-char shape, else
+    # the route falls through to the host pool (per-IP limit + per-user
+    # 20/day on the host pool). Use a properly-shaped placeholder so
+    # the BYO single-key path runs (2 model calls, no pool walk).
     res = client.post("/api/generate_itinerary", headers=auth_headers, json={
-        "destination": "Lisbon", "gemini_key": "byo-key",
+        "destination": "Lisbon",
+        "gemini_key": "AIzaSy" + "A" * 33,
     })
     assert res.status_code == 502
     body = res.get_json()

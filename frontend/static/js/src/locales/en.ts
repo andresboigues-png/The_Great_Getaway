@@ -124,7 +124,13 @@ export const en = {
     // delete / map-load failures across the app.
     errors: {
         backOnline: 'Back online — your changes are saved.',
-        offline: "You're offline — changes will sync when you're back.",
+        // R6-B4: honest copy. Pre-fix the toast claimed changes
+        // would auto-sync, but there is no IDB outbox — mutations
+        // that fail offline are silently lost. Tell the user the
+        // truth so they don't close the tab assuming it'll
+        // reconcile. A real offline outbox is queued for a future
+        // round; until then, "retry when back online" is honest.
+        offline: "You're offline — please retry your last change when you're back.",
         serverUnreachable: "Can't reach the server — we'll keep retrying.",
         loginFailed: 'Login failed — please try again.',
         cloneFailedFromCollections: "Couldn't clone that trip. Try again from Collections.",

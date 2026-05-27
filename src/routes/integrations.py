@@ -21,7 +21,7 @@ import time
 import requests
 from flask import Blueprint, jsonify, request
 
-from auth import require_auth
+from auth import current_user_id, require_auth
 from extensions import limiter
 from validators import scrub_key
 
@@ -149,6 +149,7 @@ def _looks_like_quota_error(err_msg: str) -> bool:
 
 @bp.route("/api/gemini/host-keys/status", methods=["GET"])
 @require_auth
+@limiter.limit("30/minute")
 def gemini_host_keys_status():
     """Lightweight read of the host-key pool state. Called by
     pages/ai/AI.tsx on mount + periodically while the AI page is
@@ -156,7 +157,15 @@ def gemini_host_keys_status():
 
     Auth-gated so anonymous traffic can't probe how much of the
     quota is left (which would let them time their own
-    quota-burning script to land when the pool is healthy)."""
+    quota-burning script to land when the pool is healthy).
+
+    R6-B3 fix: 30/minute rate limit. Pre-fix this had only
+    @require_auth — a logged-in attacker could poll cheaply to
+    detect when the pool drops below N available, then time a
+    quota-burning script to land at peak hours. 30/min covers
+    the AI page's open-tab polling cadence with headroom while
+    killing scripted oracle reads.
+    """
     return jsonify(_pool_status())
 
 
@@ -492,6 +501,21 @@ def proxy_place_photo(photo_name: str):
 
 @bp.route("/api/generate_itinerary", methods=["POST"])
 @limiter.limit("10 per hour")
+# R6-B1 fix: SECOND limit, keyed on user_id, layered ON TOP of the
+# default per-IP limit above. Pre-fix the per-IP limit was the only
+# defense — a single bad actor cycling IPs (VPN, mobile NAT, cloud
+# rotation) could legally drain the entire 6-key host pool in one
+# afternoon, locking every other user out of the AI feature for
+# the rest of the day. The user's standing mandate ("the AI api
+# key system should be the same for every user", "we have 6 keys
+# that allow ALL users in the platform to use the AI feature")
+# requires that no single user be able to monopolise the pool.
+# 20/day per user is generous for genuine multi-trip planning
+# (each planning session is ~3-5 generations) but caps abuse.
+@limiter.limit(
+    "20/day",
+    key_func=lambda: f"ai:user:{current_user_id() or 'anon'}",
+)
 @require_auth
 def generate_itinerary():
     """Call Gemini API to generate a structured JSON itinerary.
@@ -510,6 +534,12 @@ def generate_itinerary():
       injection without RLHF in the model, but cutting 50KB exploit
       strings down to short bounded text + dropping newlines makes
       the obvious "Ignore previous instructions" tricks much harder.
+    - R6-B1: per-user 20/day cap layered on top of the per-IP cap
+      so no single user can drain the shared 6-key pool.
+    - R6-B1: BYO `gemini_key` is now validated for shape (Google
+      keys are `AIzaSy` + 33 chars from [A-Za-z0-9_-]) so the route
+      can't be abused as a generic LLM proxy with arbitrary key
+      text. Invalid BYO falls through to the host pool.
     """
     data = request.json or {}
     destination = str(data.get("destination", "Unknown"))[:120]
@@ -533,8 +563,26 @@ def generate_itinerary():
     # context so a prompt injection can't smuggle in an instruction
     # break via "\n\nIgnore the previous instructions". The model
     # sees a single-line, bounded string for each user field.
+    #
+    # R6-B3: also strip Unicode invisibles + bidi overrides — they
+    # survive the ASCII control-char filter but can fool the
+    # `<user-data>` tag boundary downstream (zero-width chars
+    # inserted into a closing-tag string match, bidi flips the
+    # apparent text direction so the model "reads" instructions
+    # the human user never typed). Targets:
+    #   U+200B-U+200F  zero-width + LTR/RTL marks
+    #   U+202A-U+202E  bidi embeddings / overrides
+    #   U+2028-U+2029  line / paragraph separators
+    #   U+2060         word joiner
+    #   U+FEFF         BOM / zero-width no-break space
+    _INVISIBLES = set("​‌‍‎‏"
+                      "‪‫‬‭‮"
+                      "  ⁠﻿")
     def _scrub(s: str) -> str:
-        return "".join(c for c in s if ord(c) >= 0x20 and c not in "\r\n\t")
+        return "".join(
+            c for c in s
+            if ord(c) >= 0x20 and c not in "\r\n\t" and c not in _INVISIBLES
+        )
     destination = _scrub(destination).strip()
     date_from = _scrub(date_from).strip()
     date_to = _scrub(date_to).strip()
@@ -558,8 +606,17 @@ def generate_itinerary():
     # Other errors (network, model 500s, invalid request)
     # propagate immediately — those aren't pool-rotation events.
     user_key = (data.get("gemini_key") or "").strip()
+    # R6-B1: validate the BYO key's shape. Google API keys are
+    # `AIzaSy` + 33 chars from [A-Za-z0-9_-]. Anything else is
+    # either a typo, a Gemini Studio personal access token (wrong
+    # endpoint), or a malicious caller trying to use TGG as a
+    # generic LLM proxy. Invalid shapes silently fall through to
+    # the host pool — the user's BYO setting is preserved but
+    # ignored for this call (no error UI clutter on a typo).
+    import re
+    _GEMINI_KEY_RE = re.compile(r"^AIzaSy[A-Za-z0-9_-]{33}$")
     keys_to_try: list[tuple[int, str]] = []
-    if user_key:
+    if user_key and _GEMINI_KEY_RE.match(user_key):
         keys_to_try.append((0, user_key))  # slot 0 = BYO
     else:
         keys_to_try = _available_host_keys()
@@ -802,5 +859,20 @@ def generate_itinerary():
             "host_keys": _pool_status(),
         })
     except Exception as e:
-        logger.error(f"Gemini API Error: {e}")
-        return jsonify({"error": str(e)}), 500
+        # R6-B3: scrub_key on BOTH the log line AND the response body.
+        # Pre-fix the log raw-interpolated `e` and the response
+        # returned `str(e)` verbatim — if the exception text included
+        # the request URL (`key=AIzaSy...`) or Google's error JSON
+        # embedded the key in a non-querystring field, the host pool
+        # key OR the user's BYO key leaked to the client AND the
+        # server log. Also: the client never needs the raw Python
+        # exception — surface a friendly generic instead.
+        scrubbed = scrub_key(str(e))
+        logger.error("Gemini API Error: %s", scrubbed)
+        return jsonify({
+            "error": (
+                "AI generation failed unexpectedly. Try again in a "
+                "minute — if it keeps failing, add your own Gemini "
+                "API key in Settings."
+            ),
+        }), 500
