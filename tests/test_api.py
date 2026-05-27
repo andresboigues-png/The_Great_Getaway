@@ -1714,6 +1714,57 @@ def test_blocked_user_cannot_follow_blocker(
     assert res.status_code == 404
 
 
+def test_blocked_user_cannot_follow_via_legacy_friends_add(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R2 audit fix: the legacy /api/friends/add path used to bypass
+    the block check entirely, fully defeating the block primitive. Now
+    it returns success (idempotent semantics) but does NOT insert the
+    follow row when either party blocks the other."""
+    client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers)
+    res = client.post(
+        "/api/friends/add",
+        headers=other_auth_headers,
+        json={"friend_id": seed_user},
+    )
+    # The endpoint returns success for the API contract, but no row.
+    assert res.status_code == 200
+    from database import get_db
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = ?",
+            (seed_other_user, seed_user),
+        ).fetchall()
+        assert rows == [], "block bypass via /api/friends/add must not insert follow"
+
+
+def test_blocker_excluded_from_friends_search_for_blocked_user(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R2 audit fix: a user who has blocked the searcher must not
+    appear in the searcher's /api/friends/search results. Pre-fix
+    the blocked user could prefix-search the blocker's email, get
+    their id, and hit the legacy /api/friends/add bypass."""
+    # Set seed_user's email to a predictable prefix the other will search.
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE users SET email = 'blocker.audit@example.com' WHERE id = ?",
+            (seed_user,),
+        )
+        conn.commit()
+    # seed_user blocks seed_other_user.
+    client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers)
+    # seed_other_user searches by prefix that matches the blocker.
+    res = client.get(
+        "/api/friends/search?q=blocker.audit",
+        headers=other_auth_headers,
+    )
+    assert res.status_code == 200
+    ids = {u["id"] for u in res.get_json()}
+    assert seed_user not in ids, "blocker must not surface to blocked searcher"
+
+
 def test_blocked_user_cannot_be_invited_to_blockers_trip(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):

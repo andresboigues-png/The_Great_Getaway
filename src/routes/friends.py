@@ -36,6 +36,7 @@ from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
 from helpers import ensure_user_exists
+from routes.blocks import is_blocked
 from social import mutuals_of
 
 
@@ -68,12 +69,24 @@ def search_friends():
     # query of "_" doesn't match every single-character email.
     safe_query = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
+    # Audit fix (R2): exclude users who have blocked the caller from
+    # search results. Pre-fix, a blocked user could prefix-search the
+    # blocker's email, see them in results with id + masked email, and
+    # use that id to call the legacy /api/friends/add endpoint (which
+    # used to bypass the block — now also fixed in _follow). Defense
+    # in depth: even if /api/friends/add were ever to regress, the
+    # search itself doesn't hand the blocker's id to the blocked user.
+    # The blocker can still see THEMSELVES via search; we only filter
+    # rows that have an active blocks(blocker_id=row.id, blocked_id=caller).
+    caller_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
             "SELECT id, name, email, picture FROM users "
-            "WHERE email LIKE ? ESCAPE '\\' LIMIT 5",
-            (f"{safe_query}%",),
+            "WHERE email LIKE ? ESCAPE '\\' "
+            "AND id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?) "
+            "LIMIT 5",
+            (f"{safe_query}%", caller_id),
         )
         rows = cursor.fetchall()
     # 2026-05-18 audit H7: mask the email before returning. The 3-char
@@ -129,7 +142,18 @@ def _follow(cursor, follower_id: str, followee_id: str, source: str) -> bool:
     / 'accepted_request') we used to fire — kept as the notification
     `type` value so existing client-side dropdown rendering still
     shows the right icon/copy until the frontend migrates to the
-    `followed_you` type from §4.7."""
+    `followed_you` type from §4.7.
+
+    Audit fix (R2): block-symmetry gate, mirroring routes/follows.py.
+    Pre-fix the legacy /api/friends/add + /api/friends/accept routes
+    skipped the block check entirely (the new /api/follows/<id> POST
+    had it, but the legacy façades didn't). That meant a blocked user
+    could re-establish a follow via the legacy endpoint and entirely
+    defeat the block primitive. Returns False (idempotent no-op) when
+    either party blocks the other, NOT an error — matches the silent
+    no-op semantics the rest of the route surface uses for blocks."""
+    if is_blocked(cursor, follower_id, followee_id) or is_blocked(cursor, followee_id, follower_id):
+        return False
     cursor.execute(
         "INSERT OR IGNORE INTO follows (follower_id, followee_id) VALUES (?, ?)",
         (follower_id, followee_id),
