@@ -6288,19 +6288,42 @@ def test_achievements_notification_on_unlock(client, seed_user, auth_headers):
 def test_achievements_on_public_profile(
     client, seed_user, seed_other_user, auth_headers,
 ):
-    """A viewer fetching /api/public-profile/<id> sees the user's
-    earned badges. Public surface — same shape as /api/data."""
+    """A signed-in viewer fetching their OWN public profile sees
+    their earned badges. R3-Round 2 #36 narrowed the public
+    achievements surface — anonymous and non-follower viewers
+    no longer get the badge list (it reveals fingerprintable
+    travel patterns)."""
     _create_trip(client, auth_headers, trip_id="trip-ach-pub")
     _archive_all_trips(seed_user)
     # Trigger detection by polling /api/data for the owner first.
     client.get("/api/data", headers=auth_headers)
 
-    res = client.get(f"/api/public-profile/{seed_user}")
+    # Self-view — always allowed.
+    res = client.get(f"/api/public-profile/{seed_user}", headers=auth_headers)
     assert res.status_code == 200
     payload = res.get_json()
     assert "achievements" in payload
     ids = [a["badgeId"] for a in payload["achievements"]]
     assert "first_trip" in ids
+
+
+def test_achievements_hidden_from_anonymous_profile_viewer(
+    client, seed_user, auth_headers,
+):
+    """R3-Round 2 #36: anonymous viewers (no auth) get an empty
+    achievements array on /api/public-profile/<id> — strangers
+    with the URL shouldn't be able to fingerprint a user's
+    travel pattern via badges + context_json. Profile shell +
+    public trips still render normally."""
+    _create_trip(client, auth_headers, trip_id="trip-ach-anon-hidden")
+    _archive_all_trips(seed_user)
+    client.get("/api/data", headers=auth_headers)
+    # Anonymous fetch — no headers.
+    res = client.get(f"/api/public-profile/{seed_user}")
+    assert res.status_code == 200
+    payload = res.get_json()
+    assert payload["achievements"] == [], \
+        "anonymous viewer should not see the badge list"
 
 
 def test_achievements_feed_event_for_friends(

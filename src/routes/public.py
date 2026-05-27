@@ -372,16 +372,23 @@ def get_public_profile(user_id):
         # see their travel CV. Same `list_user_achievements` shape the
         # owner's /api/data returns, so the renderer is identical
         # whether you're viewing yourself or a friend.
-        achievements = list_user_achievements(cursor, user_id)
-
-        # §4.7 — follower / following counts + the caller's
-        # `isFollowing` flag (false when anonymous / self / not signed
-        # in). Bundling these into the profile read so the profile
-        # page renders in one round-trip rather than fanning out to
-        # /api/follows/<user_id> after the first paint.
+        #
+        # R3-Round 2 #36: achievements + their `context_json` (which
+        # can include country names, trip ids, spend totals) reveal a
+        # fingerprintable travel pattern to anyone with the URL.
+        # Restrict the badge list to: self + followers + signed-in
+        # mutual-friends. Anonymous viewers get an empty list — they
+        # see the profile shell + public trips but not the CV.
         counts = follower_counts(cursor, user_id)
         caller_id = current_user_id()
         isFollowing = is_following(cursor, caller_id, user_id) if caller_id else False
+        can_see_achievements = bool(
+            caller_id
+            and (caller_id == user_id or isFollowing)
+        )
+        achievements = (
+            list_user_achievements(cursor, user_id) if can_see_achievements else []
+        )
 
         return jsonify({
             "user": dict(user_row),

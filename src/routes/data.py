@@ -508,6 +508,19 @@ def sync_data():
         # Sync Categories
         categories = data.get("categories", [])
         if categories:
+            # R3-Round 2 #7: snapshot the about-to-be-deleted category ids
+            # so we can sweep dangling references in expenses + budgets.
+            # Pre-fix `DELETE FROM categories` left orphaned `category_id`
+            # on those rows — budgets filtered on the deleted category
+            # showed €0 spent (no expense matched a now-missing id),
+            # silently bypassing overspend warnings on a scoped budget.
+            kept_ids = {cat['id'] for cat in categories if cat.get('id')}
+            cursor.execute(
+                "SELECT id FROM categories WHERE user_id = ?", (user_id,),
+            )
+            doomed_cat_ids = [
+                r["id"] for r in cursor.fetchall() if r["id"] not in kept_ids
+            ]
             cursor.execute("DELETE FROM categories WHERE user_id = ?", (user_id,))
             for cat in categories:
                 cursor.execute('''
@@ -516,6 +529,26 @@ def sync_data():
                     ON CONFLICT(id, user_id) DO UPDATE SET
                         name=excluded.name, icon=excluded.icon, color=excluded.color
                 ''', (cat['id'], user_id, cat['name'], cat.get('icon', ''), cat.get('color', '#007aff')))
+            # Null out references on the deleted categories. Scoped to
+            # this user's data so we never touch other users' rows.
+            if doomed_cat_ids:
+                placeholders = ",".join(["?"] * len(doomed_cat_ids))
+                # Expenses on trips the caller owns (legacy path) +
+                # trips they're a member of. Easier: only own trips
+                # for now — non-owner expense edits go through
+                # /api/expenses + /api/sync expenses-loop which won't
+                # have stale category_id on conflict resolution.
+                cursor.execute(
+                    f"UPDATE expenses SET category_id = NULL "
+                    f"WHERE category_id IN ({placeholders}) "
+                    f"  AND trip_id IN (SELECT id FROM trips WHERE user_id = ?)",
+                    doomed_cat_ids + [user_id],
+                )
+                cursor.execute(
+                    f"UPDATE budgets SET category_id = NULL "
+                    f"WHERE category_id IN ({placeholders}) AND user_id = ?",
+                    doomed_cat_ids + [user_id],
+                )
 
         # Commit categories section before budgets.
         conn.commit()
