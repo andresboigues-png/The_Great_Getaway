@@ -531,9 +531,20 @@ def sync_data():
 
 
 @bp.route("/api/data", methods=["GET"])
+@limiter.limit("60/minute")
 @require_auth
 def get_data():
-    """Fetch all data for a user, including shared trips."""
+    """Fetch all data for a user, including shared trips.
+
+    R2 audit fix: 60/min rate limit. Pre-fix this was the most
+    expensive un-rate-limited endpoint — every call also fires
+    achievement detection writes (check_user_achievements +
+    notify_achievements + commit). A stolen / leaked token could
+    be replayed thousands of times per minute to harvest data and
+    tarpit the writer lock. 60/min covers the 15s polling cadence
+    (~4 calls/min in steady state) with 15x headroom for retries
+    and multi-tab.
+    """
     user_id = current_user_id()
 
     with get_db() as conn:
@@ -865,6 +876,42 @@ def delete_user_data():
             "DELETE FROM follows WHERE follower_id = ? OR followee_id = ?",
             (user_id, user_id),
         )
+        # R2 audit fix: scan OTHER users' trips for the deleted
+        # user's linkedUserId in companions_json. Pre-fix the
+        # account-deletion left dangling `{linkedUserId: <dead>}`
+        # entries forever — owners' companion pickers showed the
+        # dead user as ⏳ Pending and the snapshotted display name
+        # (typed by other users at link time) survived perpetually.
+        # GDPR-style account-deletion semantics require the link
+        # to be torn down. Use a coarse LIKE pre-filter to avoid
+        # parsing every trip's JSON; for each candidate parse,
+        # strip the link, write back.
+        cursor.execute(
+            "SELECT id, companions_json FROM trips "
+            "WHERE companions_json LIKE ?",
+            (f'%"{user_id}"%',),
+        )
+        for row in cursor.fetchall():
+            raw = row["companions_json"]
+            if not raw:
+                continue
+            try:
+                comps = json.loads(raw)
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(comps, list):
+                continue
+            changed = False
+            for c in comps:
+                if isinstance(c, dict) and c.get("linkedUserId") == user_id:
+                    c["linkedUserId"] = None
+                    c["linkStatus"] = None
+                    changed = True
+            if changed:
+                cursor.execute(
+                    "UPDATE trips SET companions_json = ? WHERE id = ?",
+                    (json.dumps(comps), row["id"]),
+                )
         cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
         conn.commit()
 

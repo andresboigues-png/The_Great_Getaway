@@ -640,6 +640,7 @@ def home():
 # coming back the same day doesn't double-count; a new visitor (or
 # the same person tomorrow) does.
 @app.route("/share/<token>")
+@limiter.limit("60/minute")
 def share_page(token):
     payload = fetch_share_payload(token)
     if not payload:

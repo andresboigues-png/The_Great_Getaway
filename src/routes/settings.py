@@ -174,7 +174,27 @@ def update_profile():
         pic = payload.get("picture") or ""
         if not isinstance(pic, str):
             return jsonify({"error": "picture must be a string"}), 400
-        is_google = pic.startswith("https://lh3.googleusercontent.com/")
+        # R2 audit fix: pre-fix any lh3.googleusercontent.com URL was
+        # accepted as a "Google picture". That CDN serves arbitrary
+        # user-uploaded content (Google Photos shares, Workspace
+        # assets). An attacker could host a phishing-image, get a
+        # lh3.googleusercontent.com/... URL, set it as their TGG
+        # picture, and the image surfaces in every chat / feed /
+        # member list across the app. Now: only accept the EXACT
+        # google URL the user's CURRENT users.picture field holds
+        # (the canonical value Google set at OAuth time). Re-OAuth
+        # updates it on every login (routes/auth.py line ~188).
+        is_google_owned = False
+        if pic.startswith("https://lh3.googleusercontent.com/"):
+            with get_db() as _conn:
+                _c = _conn.cursor()
+                _c.execute(
+                    "SELECT picture FROM users WHERE id = ?", (user_id,),
+                )
+                _row = _c.fetchone()
+                if _row and _row["picture"] == pic:
+                    is_google_owned = True
+        is_google = is_google_owned  # only true when matches DB-canonical
         is_empty = pic == ""
         # FIXING_ROADMAP §2.7 — local uploads are now stored in a
         # per-user subdirectory (`/static/uploads/<user_id>/...`).

@@ -165,8 +165,22 @@ def upload_file():
     if ext in {'.jpg', '.jpeg', '.png', '.webp'}:
         try:
             from PIL import Image
+            # R2 audit fix: decompression-bomb DoS. Without a pixel
+            # cap, a crafted 30k × 30k PNG (~100KB compressed) decodes
+            # to ~3.6GB of raw pixels and OOMs the worker. PIL's
+            # built-in DecompressionBombWarning fires at ~178M px by
+            # default but is a WARNING, not an exception; we tighten
+            # to 25M px (≈ 5000×5000, generous for any phone camera)
+            # AND turn it into a hard error rather than the silent
+            # fall-through-to-file.save() the old code did.
+            import warnings
+            Image.MAX_IMAGE_PIXELS = 25_000_000
+            warnings.simplefilter('error', Image.DecompressionBombWarning)
             file.stream.seek(0)
             img = Image.open(file.stream)
+            # Trigger decode validation early so DecompressionBomb
+            # fires before the save (which buffers pixel data).
+            img.load()
             # Re-save WITHOUT the EXIF dict. PIL's save() drops EXIF
             # by default unless explicitly passed; the `exif=b""`
             # argument makes the strip explicit + future-proof if
@@ -185,6 +199,15 @@ def upload_file():
                 '.png': 'PNG', '.webp': 'WEBP',
             }[ext]
             img.save(out_path, format=img_format, **save_kwargs)
+        except Image.DecompressionBombError:
+            # R2 audit fix: REFUSE the upload on a decompression
+            # bomb — don't fall back to file.save() (the old code
+            # did, which defeated the cap). 413 = "Payload Too Large"
+            # mirrors Flask's MAX_CONTENT_LENGTH 413 for the file-
+            # size cap; same user message shape.
+            return jsonify({
+                "error": "Image dimensions too large to process",
+            }), 413
         except Exception:
             file.stream.seek(0)
             file.save(out_path)

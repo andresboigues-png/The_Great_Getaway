@@ -387,6 +387,7 @@ def get_fx_rates():
 
 
 @bp.route("/api/config", methods=["GET"])
+@limiter.limit("60/minute")
 def get_config():
     """Expose ONLY non-sensitive client config — currently the public
     Google OAuth client id used by the GIS sign-in button.

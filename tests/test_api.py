@@ -745,13 +745,46 @@ def test_update_profile_picture_local_upload_url(client, seed_user, auth_headers
 
 def test_update_profile_picture_google_oauth_url(client, seed_user, auth_headers):
     """Google's OAuth profile-picture URLs (lh3.googleusercontent.com)
-    also pass validation — that's what we get from the GIS sign-in
-    flow on first login."""
+    pass validation when they MATCH the canonical value the OAuth flow
+    set on first login.
+
+    R2 audit fix: previously ANY lh3.googleusercontent.com URL was
+    accepted, which let an attacker host a phishing image on Google
+    Photos and set it as their TGG picture. Now only the exact URL
+    Google issued during OAuth (stored in users.picture) is accepted
+    on the BYO-google-url path. Other shapes (own upload, empty) are
+    unchanged.
+    """
+    canonical = "https://lh3.googleusercontent.com/a/ACg8ocIabcdef=s96-c"
+    # Simulate the OAuth flow having stamped this canonical value
+    # onto the user's row.
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE users SET picture = ? WHERE id = ?",
+            (canonical, seed_user),
+        )
+        conn.commit()
     res = client.post("/api/profile/update", headers=auth_headers, json={
-        "picture": "https://lh3.googleusercontent.com/a/ACg8ocIabcdef=s96-c",
+        "picture": canonical,
     })
     assert res.status_code == 200
     assert res.get_json() == {"status": "updated"}
+
+
+def test_update_profile_picture_rejects_arbitrary_google_cdn_url(
+    client, seed_user, auth_headers,
+):
+    """R2 audit fix regression: an lh3.googleusercontent.com URL that
+    DOESN'T match the user's canonical OAuth-issued picture must be
+    rejected. Pre-fix the validator accepted any URL on that CDN —
+    attacker could host arbitrary content via Google Photos and set
+    it as their TGG picture."""
+    res = client.post("/api/profile/update", headers=auth_headers, json={
+        # Not the user's canonical OAuth picture — should 403.
+        "picture": "https://lh3.googleusercontent.com/a/attacker-controlled-asset=s96-c",
+    })
+    assert res.status_code == 403
 
 
 def test_update_profile_picture_empty_clears(client, seed_user, auth_headers):

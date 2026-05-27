@@ -127,6 +127,57 @@ _RULE_GREY = "#e5e7eb"
 bp = Blueprint("pdf", __name__)
 
 
+# R2 audit fix helpers ----------------------------------------------------
+import re as _re
+
+_KEY_QS_RE = _re.compile(r"[?&]key=[^&\s]+")
+
+
+def _scrub_key(text: str | None) -> str:
+    """Replace `?key=...` / `&key=...` in upstream-API response bodies
+    or URLs before logging. The server Maps key has no HTTP-referrer
+    restriction; if Google echoes the request URL in an error body
+    it lands in our logs (and Sentry breadcrumbs) where any operator
+    with log access can lift it. Always pass log lines through this
+    helper before interpolating external-API output."""
+    if not text:
+        return ""
+    return _KEY_QS_RE.sub("?key=REDACTED", text)
+
+
+def _safe_coord(value, lo: float, hi: float):
+    """Validate a lat/lng-shaped value before interpolating into a
+    Static Maps URL. Returns the float when valid, None otherwise.
+
+    R2 audit fix: pre-fix the URL builders embedded
+    `f"{lat},{lng}"` from raw marked_places_json. A crafted
+    `lat="0|markers:color:red|99,99"` smuggled extra pins (or
+    polylines / styles) into the paid Google API call. Now every
+    coord goes through this gate first; non-numeric or out-of-range
+    values are dropped so the marker is skipped silently rather than
+    flowing through as an injection vector."""
+    try:
+        n = float(value)
+    except (TypeError, ValueError):
+        return None
+    if n != n or n in (float("inf"), float("-inf")):
+        return None
+    if n < lo or n > hi:
+        return None
+    return n
+
+
+def _safe_latlng(lat, lng):
+    """Convenience for the common pair-validation shape. Returns
+    `(lat, lng)` when BOTH are valid; (None, None) otherwise so
+    callers can `if not lat or not lng: skip`."""
+    safe_lat = _safe_coord(lat, -90, 90)
+    safe_lng = _safe_coord(lng, -180, 180)
+    if safe_lat is None or safe_lng is None:
+        return None, None
+    return safe_lat, safe_lng
+
+
 def _can_read_trip(cursor, trip_id: str, user_id: str) -> bool:
     """True if the caller can read this trip for export. Owner +
     accepted members qualify. We don't restrict to editors — even
@@ -153,12 +204,9 @@ def _fetch_cover_map(lat: float | None, lng: float | None, place_id: str | None)
             "nor GOOGLE_MAPS_API_KEY is set in env"
         )
         return None
+    lat, lng = _safe_latlng(lat, lng)
     if lat is None or lng is None:
-        logger.warning(
-            "pdf cover map skipped: trip has no lat/lng "
-            "(lat=%r lng=%r)",
-            lat, lng,
-        )
+        logger.warning("pdf cover map skipped: trip has no valid lat/lng")
         return None
     try:
         params = {
@@ -183,7 +231,7 @@ def _fetch_cover_map(lat: float | None, lng: float | None, place_id: str | None)
                 logger.warning(
                     "pdf cover map: Google Static Maps returned %d — %s",
                     res.status_code,
-                    (res.text or "")[:300],
+                    _scrub_key((res.text or "")[:300]),
                 )
                 return None
             return res.content
@@ -236,11 +284,18 @@ def _fetch_overview_pins_map(
             ("maptype", "roadmap"),
             ("key", key),
         ]
-        if center_lat is not None and center_lng is not None:
-            params.append(("center", f"{center_lat},{center_lng}"))
-        for plat, plng, plabel in pins[:20]:  # URL size cap
+        clat, clng = _safe_latlng(center_lat, center_lng)
+        if clat is not None and clng is not None:
+            params.append(("center", f"{clat},{clng}"))
+        for plat_raw, plng_raw, plabel in pins[:20]:  # URL size cap
+            plat, plng = _safe_latlng(plat_raw, plng_raw)
+            if plat is None or plng is None:
+                continue  # R2 fix: skip injection-shaped coords
             # label must be a single alphanumeric char; truncate
             safe_label = (str(plabel) or "")[:1].upper() if plabel else ""
+            # Reject non-alphanumeric labels (e.g. `|`, `:` smuggling).
+            if safe_label and not safe_label.isalnum():
+                safe_label = ""
             marker = f"color:0x0071e3|label:{safe_label}|{plat},{plng}" if safe_label \
                 else f"color:0x0071e3|{plat},{plng}"
             params.append(("markers", marker))
@@ -257,7 +312,7 @@ def _fetch_overview_pins_map(
                 logger.warning(
                     "pdf overview map: Google Static Maps returned %d — %s",
                     res.status_code,
-                    (res.text or "")[:300],
+                    _scrub_key((res.text or "")[:300]),
                 )
                 return None
             logger.info(
@@ -283,6 +338,7 @@ def _fetch_day_pin_map(
         or os.getenv("GOOGLE_MAPS_API_KEY")
         or ""
     )
+    lat, lng = _safe_latlng(lat, lng)
     if not key or lat is None or lng is None:
         return None
     # Audit fix (2026-05-26): Google Static Maps marker labels MUST
@@ -292,7 +348,10 @@ def _fetch_day_pin_map(
     # Drop the label entirely (no label = default marker pin, which
     # is what we want for a single-pin anchor map).
     markers = [f"color:0x0071e3|{lat},{lng}"]
-    for plat, plng in (extra_pins or [])[:8]:  # cap the URL size
+    for plat_raw, plng_raw in (extra_pins or [])[:8]:  # cap the URL size
+        plat, plng = _safe_latlng(plat_raw, plng_raw)
+        if plat is None or plng is None:
+            continue  # R2 fix: skip injection-shaped coords
         markers.append(f"color:0x9b59b6|size:small|{plat},{plng}")
     try:
         params = [

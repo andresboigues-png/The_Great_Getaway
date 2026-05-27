@@ -17,9 +17,15 @@ bp = Blueprint("notifications", __name__)
 
 
 @bp.route("/api/notifications/list", methods=["GET"])
+@limiter.limit("120/minute")
 @require_auth
 def list_notifications():
-    """Get notifications for a user."""
+    """Get notifications for a user.
+
+    R2 audit fix: 120/min rate limit. Pre-fix this was hammered with
+    no cap; the bell-poll cadence is ~15s (~4/min in steady state)
+    so 120/min covers tab-switching + multi-tab + retries with
+    headroom."""
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
@@ -45,10 +51,15 @@ def list_notifications():
 
 
 @bp.route("/api/notifications/read", methods=["POST"])
+@limiter.limit("60/minute")
 @require_auth
 @retry_on_lock()
 def read_notifications():
-    """Mark all notifications as read for a user."""
+    """Mark all notifications as read for a user.
+
+    R2 audit fix: 60/min rate limit. This is a write path; without a
+    cap a stolen token could hammer it indefinitely + tarpit the
+    writer lock."""
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()

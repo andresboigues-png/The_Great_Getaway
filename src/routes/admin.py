@@ -29,6 +29,7 @@ from flask import Blueprint, jsonify
 
 from auth import require_auth, current_user_id
 from database import get_db
+from extensions import limiter
 
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,7 @@ def _is_admin(user_id: str) -> bool:
 
 
 @bp.route("/api/admin/stats", methods=["GET"])
+@limiter.limit("60/minute")
 @require_auth
 def admin_stats():
     """App-wide stats + user roster for the developer dashboard.

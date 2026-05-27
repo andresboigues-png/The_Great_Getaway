@@ -131,18 +131,60 @@ def bump_user_jti(user_id: str) -> str:
     return new_jti
 
 
+def _summarize_ua(ua: str | None) -> str | None:
+    """Reduce a raw User-Agent string to a high-level "Browser on OS"
+    summary suitable for the /api/auth/sessions UI.
+
+    R2 audit fix: pre-fix we stored the verbatim UA (capped at 120
+    chars). An attacker holding a stolen JWT could call
+    /api/auth/sessions and see every other device's UA — a useful
+    fingerprint for follow-on attacks ("victim is on iOS 17.4
+    Safari, last active 5 min ago"). Summarising to a coarse tag
+    keeps the human-useful "this is my iPhone vs my laptop" signal
+    while losing the fingerprint.
+    """
+    if not ua:
+        return None
+    ua = str(ua)
+    os_token = "Unknown"
+    if "iPhone" in ua or "iPad" in ua or "iPod" in ua:
+        os_token = "iOS"
+    elif "Android" in ua:
+        os_token = "Android"
+    elif "Mac OS X" in ua or "Macintosh" in ua:
+        os_token = "macOS"
+    elif "Windows" in ua:
+        os_token = "Windows"
+    elif "Linux" in ua or "X11" in ua:
+        os_token = "Linux"
+    browser = "Browser"
+    # Order matters — Edge advertises Chrome+Safari in its UA, etc.
+    if "Edg/" in ua:
+        browser = "Edge"
+    elif "OPR/" in ua or "Opera" in ua:
+        browser = "Opera"
+    elif "Firefox/" in ua:
+        browser = "Firefox"
+    elif "Chrome/" in ua and "Chromium" not in ua:
+        browser = "Chrome"
+    elif "Safari/" in ua:
+        browser = "Safari"
+    return f"{browser} on {os_token}"[:80]
+
+
 def _create_session(user_id: str, device_label: str | None) -> str:
     """Create a fresh auth_sessions row + return its jti. Each call
     yields a unique jti so devices don't share one. device_label
-    is best-effort metadata (user-agent fragment) — handy for the
-    /api/auth/sessions UI ("revoke iPhone session")."""
+    is a coarse "Chrome on macOS"-style summary derived from the
+    User-Agent — kept human-useful for /api/auth/sessions ("revoke
+    iPhone session") without leaking the full UA fingerprint."""
     new_jti = secrets.token_hex(16)
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
             "INSERT INTO auth_sessions (user_id, jti, device_label, last_seen_at) "
             "VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
-            (user_id, new_jti, (device_label or "")[:120] or None),
+            (user_id, new_jti, _summarize_ua(device_label)),
         )
         conn.commit()
     return new_jti
