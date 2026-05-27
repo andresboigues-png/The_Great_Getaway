@@ -274,6 +274,19 @@ def delete_trip(trip_id):
             " 'settled_up_reverted')",
             (trip_id,),
         )
+        # R3-Round 2 fix: engagement notifications (share_liked /
+        # commented / reposted) are keyed by `post_id`, NOT
+        # `related_id` (related_id = actor user). The pre-fix sweep
+        # above missed them — so deleting a trip left bell-click-404
+        # rows referencing the now-gone feed_posts. notifications.post_id
+        # has no FK (database.py), so this is the only thing that
+        # cleans them.
+        if doomed_post_ids:
+            placeholders = ",".join(["?"] * len(doomed_post_ids))
+            cursor.execute(
+                f"DELETE FROM notifications WHERE post_id IN ({placeholders})",
+                doomed_post_ids,
+            )
         # Delete the trip row first, THEN re-evaluate the user's
         # achievements. Two reasons:
         #   1. user_achievements has no trip_id column — the previous
@@ -666,6 +679,18 @@ def remove_trip_member():
             "AND type IN ('trip_invite', 'trip_invite_accepted', "
             " 'trip_invite_declined', 'trip_public', 'settled_up', "
             " 'settled_up_reverted')",
+            (target, trip_id),
+        )
+        # R3-Round 2 fix: also sweep engagement notifications keyed
+        # by post_id for feed_posts on this trip. share_liked /
+        # share_commented / share_reposted notifs reference the post,
+        # not the trip — they survive the type-list above. Clicking
+        # them post-kick routes to a trip the user can no longer
+        # access (404 or "Forbidden").
+        cursor.execute(
+            "DELETE FROM notifications WHERE user_id = ? AND post_id IN ("
+            "  SELECT id FROM feed_posts WHERE trip_id = ?"
+            ")",
             (target, trip_id),
         )
 

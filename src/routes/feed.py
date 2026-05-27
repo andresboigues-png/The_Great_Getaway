@@ -977,16 +977,45 @@ def delete_feed_comment(comment_id):
                 if p and p["user_id"] == user_id:
                     moderator_ok = True
             elif event_id.startswith("trip_"):
-                # trip_*_<id> — owner can moderate. Walk the registry
-                # to extract the trip id; fall back to a substring
-                # match against live trips owned by the caller.
-                cursor.execute(
-                    "SELECT id FROM trips WHERE user_id = ?", (user_id,),
+                # trip_*_<id> — owner can moderate. R3-Round 2 fix:
+                # parse the trip_id from a known prefix instead of
+                # substring-in matching. The pre-fix `tr["id"] in event_id`
+                # loop matched any trip_id that was a substring of the
+                # event_id — so trip A with id "abc" could moderate a
+                # comment on `trip_created_abc123` (trip B's event)
+                # because "abc" is in the longer string. Now: strip a
+                # known prefix and exact-match.
+                prefix_map = (
+                    "trip_created_",
+                    "trip_archived_",
+                    "trip_joined_",  # has trailing _<user> suffix
                 )
-                for tr in cursor.fetchall():
-                    if tr["id"] in event_id:
-                        moderator_ok = True
+                candidate_trip_id: str | None = None
+                for prefix in prefix_map:
+                    if event_id.startswith(prefix):
+                        rest = event_id[len(prefix):]
+                        # trip_joined_<trip>_<user> — take the part
+                        # before the trailing _<user>. trip_created /
+                        # trip_archived have NO trailing segment, so
+                        # `rest` IS the full trip_id.
+                        if prefix == "trip_joined_":
+                            # Anchor on the LAST underscore — split
+                            # from the right so a trip_id containing
+                            # an underscore isn't truncated.
+                            if "_" in rest:
+                                candidate_trip_id = rest.rsplit("_", 1)[0]
+                            else:
+                                candidate_trip_id = rest
+                        else:
+                            candidate_trip_id = rest
                         break
+                if candidate_trip_id:
+                    cursor.execute(
+                        "SELECT 1 FROM trips WHERE id = ? AND user_id = ?",
+                        (candidate_trip_id, user_id),
+                    )
+                    if cursor.fetchone():
+                        moderator_ok = True
             if not moderator_ok:
                 return jsonify({"error": "Forbidden"}), 403
         cursor.execute("DELETE FROM feed_comments WHERE id = ?", (comment_id,))

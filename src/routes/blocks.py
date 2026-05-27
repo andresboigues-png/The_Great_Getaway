@@ -116,6 +116,67 @@ def block_user(user_id):
             ")",
             (user_id, caller_id, caller_id, user_id),
         )
+        # R3-Round 2 fix: cascade engagement + notifications between the
+        # two users.
+        #
+        # Pre-fix the block primitive only stopped FUTURE interactions —
+        # historical comments / likes / reposts / notifications from the
+        # blocked user persisted on the blocker's surfaces. R2 added a
+        # block-aware READ filter at /api/feed/comments + explore feed,
+        # but: like counts still included the blocked user's likes,
+        # reposts (which are independent rows) survived in mutuals'
+        # feeds, and notifications already on the blocker's bell
+        # ("Tomás liked your share") stayed forever.
+        #
+        # The block primitive should make the relationship a clean
+        # break. Three sweeps, each scoped to the (caller, blocked)
+        # pair:
+        #
+        # 1. Blocked user's engagement on caller's feed_posts
+        #    (likes / comments / bookmarks keyed on share_<post_id> /
+        #    repost_<post_id> shapes) — drop.
+        # 2. Blocked user's reposts of caller's originals — drop
+        #    (cascade handles the engagement-on-repost chain via
+        #    feed_posts FK).
+        # 3. Notifications the blocker received from the blocked user
+        #    (related_id = blocked_user_id) — drop.
+        #
+        # Symmetric — same three sweeps in the reverse direction so the
+        # blocked user's surfaces are also clean.
+        for blocker, blocked in ((caller_id, user_id), (user_id, caller_id)):
+            # Collect the blocker's feed_posts so we can target engagement
+            # by the synthesized event_ids.
+            cursor.execute(
+                "SELECT id FROM feed_posts WHERE user_id = ?", (blocker,),
+            )
+            blocker_post_ids = [r["id"] for r in cursor.fetchall()]
+            if blocker_post_ids:
+                event_ids = [f"share_{pid}" for pid in blocker_post_ids] \
+                    + [f"repost_{pid}" for pid in blocker_post_ids]
+                placeholders = ",".join(["?"] * len(event_ids))
+                for table in ("feed_likes", "feed_comments", "feed_bookmarks"):
+                    cursor.execute(
+                        f"DELETE FROM {table} WHERE user_id = ? "
+                        f"AND event_id IN ({placeholders})",
+                        [blocked] + event_ids,
+                    )
+            # Drop the blocked user's reposts of the blocker's originals.
+            # CASCADE handles likes/comments on those repost rows via
+            # the feed_posts FK.
+            if blocker_post_ids:
+                placeholders = ",".join(["?"] * len(blocker_post_ids))
+                cursor.execute(
+                    f"DELETE FROM feed_posts WHERE user_id = ? "
+                    f"AND repost_of_post_id IN ({placeholders})",
+                    [blocked] + blocker_post_ids,
+                )
+            # Notifications the blocker received from the blocked user.
+            # related_id stores the ACTOR for engagement notifs.
+            cursor.execute(
+                "DELETE FROM notifications "
+                "WHERE user_id = ? AND related_id = ?",
+                (blocker, blocked),
+            )
         conn.commit()
     return jsonify({"status": "blocked"})
 
