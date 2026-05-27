@@ -14,7 +14,11 @@ from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
-from helpers import can_edit_trip
+from helpers import (
+    _extract_upload_paths as _extract_upload_paths,
+    can_edit_trip,
+    delete_upload_files,
+)
 from observability import bind_trip_context
 
 
@@ -132,8 +136,11 @@ def delete_day(day_id):
         # 2026-05-26 (audit SY5): pull deleted_at alongside trip context
         # so a re-delete of an already-tombstoned day is an idempotent
         # no-op (matches the expenses route's shape).
+        # R3-Fix #12: also pull photos + documents JSON to snapshot the
+        # upload paths before tombstoning, so we can rm the files.
         cursor.execute(
-            "SELECT trip_id, day_number, deleted_at FROM trip_days WHERE id = ?",
+            "SELECT trip_id, day_number, deleted_at, photos, documents "
+            "FROM trip_days WHERE id = ?",
             (day_id,),
         )
         row = cursor.fetchone()
@@ -144,6 +151,23 @@ def delete_day(day_id):
             return jsonify({"error": "Forbidden"}), 403
         if int(row["day_number"] or 0) == 0:
             return jsonify({"error": "Trip Anchor (day 0) anchors the trip and can't be deleted."}), 422
+        # R3-Fix #12: collect upload paths owned by THIS trip's owner
+        # before we tombstone. Need the owner_id (not the caller —
+        # planner could be deleting a day on a trip they don't own).
+        cursor.execute("SELECT user_id FROM trips WHERE id = ?", (row["trip_id"],))
+        owner_row = cursor.fetchone()
+        owner_id = owner_row["user_id"] if owner_row else None
+        upload_paths: list[str] = []
+        import json as _json
+        for col in ("photos", "documents"):
+            raw = row[col]
+            if not raw:
+                continue
+            try:
+                parsed = _json.loads(raw)
+            except (TypeError, ValueError):
+                continue
+            upload_paths.extend(_extract_upload_paths(parsed))
         # 2026-05-26 (audit SY5): soft-delete via tombstone — see the
         # matching block in routes/expenses.py for the full rationale.
         # Hard delete used to let an offline peer's queued state
@@ -154,4 +178,8 @@ def delete_day(day_id):
             (day_id,),
         )
         conn.commit()
+    # Disk cleanup outside the transaction — see trips.py delete_trip
+    # for the same pattern + rationale.
+    if owner_id:
+        delete_upload_files(upload_paths, owner_id)
     return jsonify({"status": "deleted"})

@@ -24,6 +24,27 @@ import re
 from typing import Optional
 
 
+# R2 + R3 shared helper: scrub `?key=...` / `&key=...` from any
+# upstream-API URL or response body before logging or returning
+# to the client. Google's Generative Language + Maps APIs both
+# echo the request URL in some error response bodies, which would
+# otherwise leak our server keys (or the user's BYO Gemini key)
+# into logs, Sentry breadcrumbs, and HTTP 5xx response bodies.
+# Centralised here so every external-API code path can `from
+# validators import scrub_key`.
+_KEY_QS_RE = re.compile(r"[?&]key=[^&\s]+")
+
+
+def scrub_key(text: str | None) -> str:
+    """Replace any `?key=<value>` or `&key=<value>` substring with
+    `?key=REDACTED`. Safe to call on None/empty (returns ''). Used
+    before any logger.warning / RuntimeError that interpolates
+    upstream-API output."""
+    if not text:
+        return ""
+    return _KEY_QS_RE.sub("?key=REDACTED", text)
+
+
 # ── Constants ────────────────────────────────────────────────────────
 
 # ISO 4217 currencies we explicitly accept. Mirrors the frontend's

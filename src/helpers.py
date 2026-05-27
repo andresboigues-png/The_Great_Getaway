@@ -13,6 +13,141 @@ acquisition and lets a multi-step caller stay inside one BEGIN/COMMIT.
 import json
 
 
+def _extract_upload_paths(value) -> list[str]:
+    """Pull every `/static/uploads/...` path out of a JSON value
+    (string scalar, list-of-strings, list-of-objects-with-url-field).
+    Returns relative paths (without leading slash trim) so callers
+    can compare against an UPLOAD_FOLDER + os.path.basename split.
+    """
+    paths: list[str] = []
+    if value is None:
+        return paths
+    if isinstance(value, str):
+        if value.startswith("/static/uploads/"):
+            paths.append(value)
+        return paths
+    if isinstance(value, list):
+        for item in value:
+            paths.extend(_extract_upload_paths(item))
+        return paths
+    if isinstance(value, dict):
+        for key in ("url", "src", "path", "thumbnail"):
+            v = value.get(key)
+            if isinstance(v, str) and v.startswith("/static/uploads/"):
+                paths.append(v)
+    return paths
+
+
+def collect_trip_upload_paths(cursor, trip_id: str) -> list[str]:
+    """Return every `/static/uploads/...` path referenced by a trip
+    and its children (days + expenses). Used at delete time so we can
+    rm the files alongside the DB rows. Returns paths in arbitrary
+    order; duplicates are de-duped by the caller via a set.
+
+    R3-Fix #12. Pre-fix delete_trip / delete_day only touched DB rows
+    — disk files orphaned forever under /static/uploads/<user>/<file>.
+    A previously-collaborating user who memorised URLs retained access
+    indefinitely (signed-in users have read-any-upload semantics).
+    """
+    import json as _json
+
+    paths: list[str] = []
+
+    # Trip-level JSON columns.
+    cursor.execute(
+        "SELECT cover_url, photos_json, documents_json FROM trips WHERE id = ?",
+        (trip_id,),
+    )
+    trip_row = cursor.fetchone()
+    if trip_row:
+        cover = trip_row["cover_url"]
+        if cover and cover.startswith("/static/uploads/"):
+            paths.append(cover)
+        for col in ("photos_json", "documents_json"):
+            raw = trip_row[col]
+            if not raw:
+                continue
+            try:
+                parsed = _json.loads(raw)
+            except (TypeError, ValueError):
+                continue
+            paths.extend(_extract_upload_paths(parsed))
+
+    # Per-day JSON columns. trip_days.photos and trip_days.documents
+    # are stored as JSON strings in the same shape as the trip-level
+    # ones.
+    cursor.execute(
+        "SELECT photos, documents FROM trip_days WHERE trip_id = ?",
+        (trip_id,),
+    )
+    for row in cursor.fetchall():
+        for col_value in (row["photos"], row["documents"]):
+            if not col_value:
+                continue
+            try:
+                parsed = _json.loads(col_value)
+            except (TypeError, ValueError):
+                continue
+            paths.extend(_extract_upload_paths(parsed))
+
+    # Per-expense receipts.
+    cursor.execute(
+        "SELECT receipt_url FROM expenses WHERE trip_id = ?",
+        (trip_id,),
+    )
+    for row in cursor.fetchall():
+        rurl = row["receipt_url"]
+        if rurl and rurl.startswith("/static/uploads/"):
+            paths.append(rurl)
+
+    return paths
+
+
+def delete_upload_files(relpaths: list[str], owner_id: str) -> int:
+    """Remove uploaded files from disk. Only deletes files inside the
+    owner's `/static/uploads/<owner_id>/` namespace — caller must
+    have already verified ownership of the rows that referenced them.
+    Returns the number of files removed; silently skips missing or
+    out-of-namespace entries (a defensive caller invariant: only
+    legitimate trip-scoped paths get passed in)."""
+    import os
+    from werkzeug.utils import secure_filename
+    from flask import current_app
+
+    upload_root = current_app.config.get('UPLOAD_FOLDER', '')
+    if not upload_root or not owner_id:
+        return 0
+    safe_owner = secure_filename(owner_id) or "anon"
+    user_dir = os.path.join(upload_root, safe_owner)
+    removed = 0
+    seen: set[str] = set()
+    for relpath in relpaths:
+        if not isinstance(relpath, str):
+            continue
+        if relpath in seen:
+            continue
+        seen.add(relpath)
+        # Expected shape: `/static/uploads/<owner_id>/<filename>`.
+        if not relpath.startswith(f"/static/uploads/{safe_owner}/"):
+            continue
+        filename = relpath.rsplit("/", 1)[-1]
+        # Reject anything Werkzeug doesn't accept as a safe filename
+        # (defense-in-depth — JSON columns are CHECK json_valid, but
+        # the value INSIDE the JSON could still be a `../escape`).
+        safe = secure_filename(filename)
+        if not safe or safe != filename:
+            continue
+        full = os.path.join(user_dir, safe)
+        try:
+            if os.path.isfile(full):
+                os.remove(full)
+                removed += 1
+        except OSError:
+            # Best-effort — disk hiccup must not block the DB delete.
+            pass
+    return removed
+
+
 def ensure_owner_member_row(cursor, trip_id, owner_id):
     """Idempotent: makes sure the trip's owner has a planner-role member
     row. Called from /api/trips upsert and from /api/sync's trip loop.

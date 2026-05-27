@@ -23,6 +23,7 @@ from flask import Blueprint, jsonify, request
 
 from auth import require_auth
 from extensions import limiter
+from validators import scrub_key
 
 
 logger = logging.getLogger(__name__)
@@ -662,19 +663,39 @@ def generate_itinerary():
                 with requests.post(url, headers=headers, json=payload, timeout=30) as resp:
                     # Capture Google's error body before raising — a bare HTTPError
                     # message ("503 Server Error") hides the actual reason.
+                    #
+                    # R3-Fix #14: scrub `?key=...` from the response body
+                    # before interpolating into the RuntimeError. Google's
+                    # Generative Language API echoes the request URL in
+                    # several error response shapes (INVALID_ARGUMENT,
+                    # PERMISSION_DENIED), which means the host API key (or
+                    # worse, the user's BYO key) flowed into:
+                    #   - the RuntimeError string,
+                    #   - `last_error` below,
+                    #   - the 502 response body returned to the client
+                    #     ("AI generation failed. Last error: …"),
+                    #   - every logger.warning call.
+                    # `scrub_key` lives in validators.py — shared with pdf.py's
+                    # Static Maps error path.
                     if not resp.ok:
                         try:
                             err_body = resp.json().get("error", {})
-                            raise RuntimeError(f"{err_body.get('status', resp.status_code)}: {err_body.get('message', resp.text[:200])}")
+                            msg = err_body.get('message', resp.text[:200])
+                            raise RuntimeError(f"{err_body.get('status', resp.status_code)}: {scrub_key(msg)}")
                         except ValueError:
-                            raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
+                            raise RuntimeError(f"HTTP {resp.status_code}: {scrub_key(resp.text[:200])}")
 
                     result = resp.json()
                 result_text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "[]")
                 if result_text:
                     break
             except Exception as e:
-                last_error = str(e)
+                # R3-Fix #14: scrub the exception string before storing
+                # / logging. `str(e)` may still contain the response
+                # body for paths that bypassed the RuntimeError builder
+                # above (network errors carrying URLs with embedded
+                # keys, etc.).
+                last_error = scrub_key(str(e))
                 # Quota / rate-limit errors → the key is cooked for
                 # the day. Mark it (unless BYO) and bail out of the
                 # model loop — the other model on the same key will
@@ -684,10 +705,13 @@ def generate_itinerary():
                         _mark_key_exhausted(slot)
                     logger.warning(
                         "Gemini slot %d quota hit on model %s: %s",
-                        slot, model, e,
+                        slot, model, last_error,
                     )
                     break
-                logger.warning(f"Gemini model {model} on slot {slot} failed: {e}")
+                logger.warning(
+                    "Gemini model %s on slot %d failed: %s",
+                    model, slot, last_error,
+                )
                 continue
         if result_text:
             break

@@ -21,6 +21,8 @@ from database import get_db, retry_on_lock
 from extensions import limiter
 from helpers import (
     can_edit_trip,
+    collect_trip_upload_paths,
+    delete_upload_files,
     ensure_owner_member_row,
     ensure_user_exists,
     is_trip_owner,
@@ -202,6 +204,12 @@ def delete_trip(trip_id):
         cursor = conn.cursor()
         if not is_trip_owner(cursor, trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
+        # R3-Fix #12: snapshot every /static/uploads/... path the trip
+        # and its children reference BEFORE we delete the rows. We can't
+        # collect them after — the JSON columns are gone. The os.remove
+        # loop runs outside the transaction so a disk hiccup can't roll
+        # back the DB delete.
+        upload_paths = collect_trip_upload_paths(cursor, trip_id)
         # Cascade in dependency order — child rows first, parent last,
         # so any FK that's missing ON DELETE CASCADE doesn't block.
         cursor.execute("DELETE FROM expenses WHERE trip_id = ?", (trip_id,))
@@ -280,6 +288,11 @@ def delete_trip(trip_id):
         cursor.execute("DELETE FROM trips WHERE id = ? AND user_id = ?", (trip_id, user_id))
         check_user_achievements(cursor, user_id)
         conn.commit()
+    # R3-Fix #12: clean disk files. Outside the transaction so a
+    # missing file / FS hiccup doesn't roll back the DB delete. The
+    # owner_id is the trip's user_id (= caller, gated by is_trip_owner
+    # above) so the path-scoped guard in delete_upload_files matches.
+    delete_upload_files(upload_paths, user_id)
     return jsonify({"status": "deleted"})
 
 

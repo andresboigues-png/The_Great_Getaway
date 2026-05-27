@@ -128,21 +128,10 @@ bp = Blueprint("pdf", __name__)
 
 
 # R2 audit fix helpers ----------------------------------------------------
-import re as _re
-
-_KEY_QS_RE = _re.compile(r"[?&]key=[^&\s]+")
-
-
-def _scrub_key(text: str | None) -> str:
-    """Replace `?key=...` / `&key=...` in upstream-API response bodies
-    or URLs before logging. The server Maps key has no HTTP-referrer
-    restriction; if Google echoes the request URL in an error body
-    it lands in our logs (and Sentry breadcrumbs) where any operator
-    with log access can lift it. Always pass log lines through this
-    helper before interpolating external-API output."""
-    if not text:
-        return ""
-    return _KEY_QS_RE.sub("?key=REDACTED", text)
+# Promoted to validators.scrub_key in R3-Fix #14 so integrations.py can
+# share the same scrub before logging Gemini's response bodies. The
+# local alias keeps existing call sites in this file unchanged.
+from validators import scrub_key as _scrub_key  # noqa: F401
 
 
 def _safe_coord(value, lo: float, hi: float):

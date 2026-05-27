@@ -20,3 +20,15 @@ sentry-sdk[flask]
 # code per page but produces higher-fidelity PDFs and ships fonts
 # cleanly. The trip-PDF builder lives at routes/pdf.py.
 reportlab
+
+# R3-Fix #17: Pillow is imported directly by both routes/media.py
+# (EXIF strip on photo uploads) and routes/pdf.py (Static Maps
+# image sizing). Reportlab pulls Pillow as a transitive dep today
+# but a future resolver pass could drop it on a wheel build that
+# doesn't need PIL — which would silently break:
+#   - photo uploads (EXIF strip falls back to bytes-verbatim save
+#     → GPS lat/lng + camera serial preserved in every shared photo);
+#   - PDF map sizing (would crash on `from PIL import Image`).
+# Pin explicitly so the install is deterministic regardless of
+# reportlab's resolution.
+Pillow>=10.0

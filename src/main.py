@@ -743,6 +743,12 @@ def share_page(token):
         og_image_url=og_image_url,
         canonical_url=request.url,
     ))
+    # R3-Fix #15: don't let intermediaries (CDNs, corp proxies,
+    # transparent ISP caches) hold a copy of this response. The
+    # body embeds the dedup cookie + view counter — caching it
+    # means visitor B downstream sees visitor A's set-cookie +
+    # view count rather than incrementing their own.
+    response.headers["Cache-Control"] = "private, no-store"
     if not has_seen:
         response.set_cookie(
             cookie_name, "1",
@@ -829,20 +835,23 @@ def serve_upload(relpath: str):
     if caller_id:
         return send_from_directory(UPLOAD_FOLDER, relpath)
 
-    # Anonymous branch — only allow when at least one is_public=1 trip
-    # references the file. R3-Fix #22: pre-fix the LIKE pattern was
-    # `%/static/uploads/<relpath>` — non-anchored, so a malicious trip
-    # owner who plants `"https://attacker.example/static/uploads/<victim>/<file>"`
-    # in their public trip's photos_json would have the LIKE match and
-    # serve the victim's private file to anonymous viewers. The fix:
-    #   - cover_url: exact-equality match (it's a single string column).
-    #   - photos_json / documents_json: require the path to be wrapped
-    #     in JSON-string quotes — `"/static/uploads/<relpath>"` — so
-    #     a polluted scheme-prefixed string like
-    #     `"https://attacker/static/uploads/<...>"` no longer matches.
-    # An attacker who plants the EXACT canonical form still leaks (they
-    # could just link directly anyway), but the narrowing closes the
-    # generic-substring exposure.
+    # Anonymous branch — allow when at least one trip with PUBLIC reach
+    # references the file. "Public reach" = is_public=1 (Explore feed
+    # surface) OR share_token IS NOT NULL (share-link surface).
+    #
+    # R3-Fix #13: pre-fix this only checked is_public=1. Share-only
+    # trips (share_token set but is_public=0 — "send a link to my
+    # friends without listing me in Explore") rendered as broken
+    # images to every recipient because the cover_url + per-day
+    # photos all 404'd through the SW.
+    #
+    # R3-Fix #22: LIKE pattern is anchored so a malicious owner who
+    # plants `"https://attacker.example/static/uploads/<victim>/<file>"`
+    # in their public trip's photos_json can no longer match.
+    #   - cover_url: exact-equality (single string column).
+    #   - photos_json / documents_json: require the path wrapped in
+    #     JSON-string quotes — `"/static/uploads/<relpath>"` — so a
+    #     scheme-prefixed pollution string no longer matches the LIKE.
     needle_exact = f"/static/uploads/{relpath}"
     needle_json = f'%"/static/uploads/{relpath}"%'
     from database import get_db
@@ -850,7 +859,7 @@ def serve_upload(relpath: str):
         cursor = conn.cursor()
         cursor.execute(
             "SELECT 1 FROM trips "
-            "WHERE is_public = 1 AND ("
+            "WHERE (is_public = 1 OR share_token IS NOT NULL) AND ("
             "  cover_url = ? OR "
             "  COALESCE(photos_json, '') LIKE ? OR "
             "  COALESCE(documents_json, '') LIKE ?"
