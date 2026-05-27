@@ -122,20 +122,11 @@ def upsert_budget():
             return jsonify({
                 "error": "Trip is archived — unarchive to edit",
             }), 409
-        # R3-Round 5: optimistic-concurrency gate. Same pattern as the
-        # /api/expenses + /api/trips routes (see those for full notes).
+        # R3-Round 5: optimistic-concurrency gate. R8-B4 atomicity:
+        # the staleness check now lives INSIDE the ON CONFLICT
+        # UPDATE's WHERE clause below. See trips.py / expenses.py
+        # for the full TOCTOU rationale.
         client_updated_at = b.get('clientUpdatedAt')
-        if existing and client_updated_at:
-            stored_updated_at = existing['updated_at']
-            if stored_updated_at and stored_updated_at != client_updated_at:
-                cursor.execute(
-                    "SELECT * FROM budgets WHERE id = ?", (budget_id,),
-                )
-                live = cursor.fetchone()
-                return jsonify({
-                    "error": "Stale edit — another device updated this budget",
-                    "current": dict(live) if live else None,
-                }), 409
         cursor.execute('''
             INSERT INTO budgets (id, user_id, trip_id, label, amount, currency,
                                  category_id, owner_name, original_amount, original_currency, updated_at)
@@ -151,10 +142,29 @@ def upsert_budget():
                 original_currency=excluded.original_currency,
                 updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
             WHERE budgets.user_id = ?
+              -- R8-B4 atomic staleness gate. See trips.py for the
+              -- full rationale; same pattern.
+              AND (? IS NULL
+                   OR budgets.updated_at IS NULL
+                   OR budgets.updated_at = ?)
         ''', (budget_id, user_id, trip_id, label,
               amount, currency,
               category_id, owner_name, original_amount, original_currency,
-              user_id))
+              user_id, client_updated_at, client_updated_at))
+        # R8-B4: existing + rowcount==0 = stale or IDOR (user_id
+        # mismatch). The IDOR case was already pre-blocked by the
+        # SELECT above (we return 403 before reaching here when
+        # existing.user_id != user_id), so rowcount==0 here can
+        # only be staleness.
+        if existing and cursor.rowcount == 0:
+            cursor.execute(
+                "SELECT * FROM budgets WHERE id = ?", (budget_id,),
+            )
+            live = cursor.fetchone()
+            return jsonify({
+                "error": "Stale edit — another device updated this budget",
+                "current": dict(live) if live else None,
+            }), 409
         cursor.execute(
             "SELECT updated_at FROM budgets WHERE id = ?", (budget_id,),
         )

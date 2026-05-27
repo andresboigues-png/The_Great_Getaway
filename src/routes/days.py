@@ -87,16 +87,8 @@ def upsert_day():
             }), 409
         # R3-Round 5: optimistic-concurrency gate — same pattern as
         # the /api/expenses + /api/trips + /api/budgets routes.
+        # R8-B4: now atomic via the ON CONFLICT UPDATE's WHERE clause.
         client_updated_at = d.get('clientUpdatedAt')
-        if existing and client_updated_at:
-            stored_updated_at = existing['updated_at']
-            if stored_updated_at and stored_updated_at != client_updated_at:
-                cursor.execute("SELECT * FROM trip_days WHERE id = ?", (day_id,))
-                live = cursor.fetchone()
-                return jsonify({
-                    "error": "Stale edit — another device updated this day",
-                    "current": dict(live) if live else None,
-                }), 409
         try:
             # 2026-05-26 (audit SY5): WHERE guard mirrors the expense
             # upsert — `deleted_at IS NULL` makes the ON CONFLICT UPDATE a
@@ -119,6 +111,11 @@ def upsert_day():
                     lng=excluded.lng,
                     updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
                 WHERE trip_days.deleted_at IS NULL
+                  -- R8-B4 atomic staleness gate. See trips.py /
+                  -- expenses.py for the full TOCTOU rationale.
+                  AND (? IS NULL
+                       OR trip_days.updated_at IS NULL
+                       OR trip_days.updated_at = ?)
             ''', (day_id, claimed_trip_id, d.get('dayNumber'), d.get('date'), d.get('name'),
                   # Plain text — see /api/sync in main.py for the json.dumps fix.
                   d.get('morning', d.get('plan', {}).get('morning', '')) or '',
@@ -128,7 +125,23 @@ def upsert_day():
                   d.get('lat'),
                   # §2.4 — `or` drops lng=0 (prime meridian). Explicit
                   # is-not-None instead.
-                  d['lng'] if d.get('lng') is not None else d.get('lon')))
+                  d['lng'] if d.get('lng') is not None else d.get('lon'),
+                  client_updated_at, client_updated_at))
+            # R8-B4: existing + rowcount==0 = stale OR tombstoned.
+            # Disambiguate via a live re-read of deleted_at (mirrors
+            # the expenses.py shape).
+            if existing and cursor.rowcount == 0:
+                cursor.execute(
+                    "SELECT * FROM trip_days WHERE id = ?", (day_id,),
+                )
+                live = cursor.fetchone()
+                if live and not live['deleted_at']:
+                    return jsonify({
+                        "error": "Stale edit — another device updated this day",
+                        "current": dict(live),
+                    }), 409
+                # Tombstoned — silent no-op success (matches the
+                # pre-fix tombstone semantic).
         except sqlite3.IntegrityError as exc:
             # Audit fix (2026-05-26): the new partial UNIQUE on
             # (trip_id, day_number) can fire when two clients race

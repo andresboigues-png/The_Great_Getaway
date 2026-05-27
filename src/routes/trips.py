@@ -92,16 +92,16 @@ def upsert_trip():
         # silently overwrite tab A's name change. Now: tab B's
         # `clientUpdatedAt` is stale → 409 with the live row →
         # client re-renders and retries.
+        #
+        # R8-B4 atomicity: the staleness check is enforced INSIDE the
+        # ON CONFLICT DO UPDATE's WHERE clause (see the SQL below),
+        # NOT via a Python SELECT-then-compare. Pre-fix two parallel
+        # writes could both read stored=T0, both pass the Python
+        # check, both commit — second silently overwrites first.
+        # SQLite's deferred transaction doesn't write-lock at SELECT;
+        # only the UPDATE acquires the lock. The WHERE-based gate is
+        # atomic at the SQL layer: the rowcount discriminates.
         client_updated_at = t.get('clientUpdatedAt')
-        if existing and client_updated_at:
-            stored_updated_at = existing['updated_at']
-            if stored_updated_at and stored_updated_at != client_updated_at:
-                cursor.execute("SELECT * FROM trips WHERE id = ?", (t["id"],))
-                live = cursor.fetchone()
-                return jsonify({
-                    "error": "Stale edit — another device updated this trip",
-                    "current": dict(live) if live else None,
-                }), 409
 
         owner_id = existing["user_id"] if existing else user_id
 
@@ -170,6 +170,19 @@ def upsert_trip():
                 trip_countries_json=COALESCE(excluded.trip_countries_json, trip_countries_json),
                 cover_url=excluded.cover_url,
                 updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
+            -- R8-B4 atomic staleness gate. When client_updated_at
+            -- is supplied AND non-null, the UPDATE only fires if
+            -- the stored updated_at matches. Two parallel writes
+            -- both submitting `WHERE updated_at = T0`: the first
+            -- bumps the stamp to T1, the second's WHERE no longer
+            -- matches → rowcount=0 → handled below as a 409.
+            -- The NULL allowances cover (a) clients that don't
+            -- send clientUpdatedAt (bulk /api/sync; legacy clients)
+            -- and (b) legacy rows whose stored updated_at is NULL
+            -- (pre-R3-R4 migration backfill edge case).
+            WHERE ? IS NULL
+               OR trips.updated_at IS NULL
+               OR trips.updated_at = ?
         ''', (t['id'], owner_id, t['name'], t.get('country', ''),
               1 if t.get('isArchived') else 0,
               1 if t.get('isPublic') else 0,
@@ -186,7 +199,19 @@ def upsert_trip():
               json.dumps(t['photos']) if isinstance(t.get('photos'), list) else None,
               json.dumps(t['checklist']) if isinstance(t.get('checklist'), list) else None,
               countries_payload,
-              t.get('coverUrl')))
+              t.get('coverUrl'),
+              client_updated_at, client_updated_at))
+        # R8-B4: existing row + UPDATE filtered out = stale edit.
+        # INSERT path always returns rowcount=1; an UPDATE with the
+        # WHERE filter passing also returns 1. Only the stale case
+        # gives 0.
+        if existing and cursor.rowcount == 0:
+            cursor.execute("SELECT * FROM trips WHERE id = ?", (t["id"],))
+            live = cursor.fetchone()
+            return jsonify({
+                "error": "Stale edit — another device updated this trip",
+                "current": dict(live) if live else None,
+            }), 409
         ensure_owner_member_row(cursor, t['id'], owner_id)
         # 2026-05-18 audit H1: mirror the client-supplied archive flag
         # to the OWNER's trip_members row so the per-user archive

@@ -170,22 +170,15 @@ def upsert_expense():
         # UPDATE (existing row); INSERTs (new id) bypass it. Client
         # can opt out by omitting `clientUpdatedAt` — that's the
         # legacy path + the /api/sync bulk channel.
+        #
+        # R8-B4 atomicity: the staleness check now lives INSIDE the
+        # ON CONFLICT DO UPDATE's WHERE clause below — Python
+        # SELECT-then-compare was TOCTOU-racy under parallel writes.
+        # Tombstone disambiguation is handled by the existing
+        # `expenses.deleted_at IS NULL` filter (same WHERE clause);
+        # the rowcount==0 path below differentiates "stale" from
+        # "tombstoned" by re-reading the live row's deleted_at.
         client_updated_at = e.get('clientUpdatedAt')
-        if existing and client_updated_at:
-            cursor.execute(
-                "SELECT updated_at FROM expenses WHERE id = ?", (expense_id,),
-            )
-            srow = cursor.fetchone()
-            if srow and srow['updated_at'] and srow['updated_at'] != client_updated_at:
-                # Stale edit — return the live row so client can refresh.
-                cursor.execute(
-                    "SELECT * FROM expenses WHERE id = ?", (expense_id,),
-                )
-                live = cursor.fetchone()
-                return jsonify({
-                    "error": "Stale edit — another device updated this expense",
-                    "current": dict(live) if live else None,
-                }), 409
         # 2026-05-26 (audit SY5): the ON CONFLICT UPDATE clause now gates
         # on `expenses.deleted_at IS NULL` so a queued resurrection from
         # an offline device can't undo a tombstone. For a tombstoned row
@@ -218,10 +211,40 @@ def upsert_expense():
                 is_settlement=excluded.is_settlement,
                 updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
             WHERE expenses.deleted_at IS NULL
+              -- R8-B4 atomic staleness gate. See trips.py upsert
+              -- for the full rationale. Two parallel writes both
+              -- carrying clientUpdatedAt=T0: the first stamps T1,
+              -- the second's WHERE no longer matches → rowcount=0
+              -- → 409 below.
+              AND (? IS NULL
+                   OR expenses.updated_at IS NULL
+                   OR expenses.updated_at = ?)
         ''', (expense_id, claimed_trip_id, who, category_id,
               label, date, country,
               value, currency, euro_value,
-              receipt_url, splits_json, is_settlement))
+              receipt_url, splits_json, is_settlement,
+              client_updated_at, client_updated_at))
+        # R8-B4: existing + rowcount==0 means EITHER the row was
+        # tombstoned (deleted_at != NULL) OR the staleness gate
+        # filtered the UPDATE. INSERTs always return rowcount=1.
+        if existing and cursor.rowcount == 0:
+            cursor.execute(
+                "SELECT * FROM expenses WHERE id = ?", (expense_id,),
+            )
+            live = cursor.fetchone()
+            if live and not live['deleted_at']:
+                # Live row exists and isn't tombstoned → staleness
+                # gate fired. Return 409 with the live row.
+                return jsonify({
+                    "error": "Stale edit — another device updated this expense",
+                    "current": dict(live),
+                }), 409
+            # Else: row is tombstoned. Pre-R8-B4 the deleted_at gate
+            # was a silent no-op for the legitimate case (a queued
+            # resurrection from an offline device for a row another
+            # device deleted). Preserve that semantic — fall through
+            # to the success response with the row's now-tombstoned
+            # stamp (which is unchanged from the SELECT above).
         # Read back the freshly-stamped updated_at so the client can
         # store it for the next edit (closes the read-modify-write
         # cycle).
