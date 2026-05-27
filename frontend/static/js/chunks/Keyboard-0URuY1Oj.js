@@ -1,2 +1,0 @@
-function e(e){e.addEventListener(`keydown`,e=>{if(e.key!==`Enter`&&e.key!==` `)return;let t=e.target;if(!t)return;let n=t.closest(`[role="button"]`);n&&(t.matches(`input, button, select, textarea, a`)||(e.preventDefault(),n.click()))})}export{e as t};
-//# sourceMappingURL=Keyboard-0URuY1Oj.js.map

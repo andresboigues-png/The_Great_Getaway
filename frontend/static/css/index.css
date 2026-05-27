@@ -603,12 +603,41 @@ input:checked+.slider:before {
 
 /* Main Container */
 #app-container {
-    margin-top: 80px;
+    /* R2 audit fix: respect iOS safe-area insets so PWA standalone
+       mode doesn't hide content under the status bar / notch, and
+       so landscape on notched devices doesn't clip the sides.
+       The --safe-* tokens are declared but were previously unused;
+       wire them here in the most-trafficked surface (the rest of
+       the app inherits the margin). */
+    margin-top: calc(80px + env(safe-area-inset-top, 0px));
     /* Account for fixed navbar */
-    padding: 20px 40px;
+    padding:
+        20px
+        calc(40px + env(safe-area-inset-right, 0px))
+        calc(20px + env(safe-area-inset-bottom, 0px))
+        calc(40px + env(safe-area-inset-left, 0px));
     max-width: 1200px;
     margin-left: auto;
     margin-right: auto;
+}
+
+/* R2 audit fix: iOS Safari auto-zooms the page on any input/textarea
+   with font-size < 16px AND never zooms back out. Several form inputs
+   (Day Detail filter, MapSearchBar, share modal, checklist) were
+   sub-16px and triggered the bug. Force ≥16px on mobile across the
+   board; desktop keeps its smaller, denser styling. */
+@media (max-width: 720px) {
+    input,
+    textarea,
+    select {
+        font-size: 16px !important;
+    }
+}
+
+/* R2 audit fix: contain iOS pull-to-refresh so a stray pull on
+   any page doesn't reload the app + dump unsaved draft state. */
+html, body {
+    overscroll-behavior-y: contain;
 }
 
 /* Cards */
@@ -1296,6 +1325,13 @@ body.is-signed-out .trip-controls-popover {
     left: 0 !important;
     width: 100vw !important;
     height: 100vh !important;
+    /* R2 audit fix: iOS Safari URL bar — `100vh` is the LARGER
+       measurement (when URL bar is hidden). When the URL bar
+       collapses mid-modal, the overlay extends below the visible
+       area and causes scroll jank. `100dvh` is the dynamic
+       viewport height that tracks the URL bar; fall back to
+       100vh on browsers that don't support dvh yet. */
+    height: 100dvh !important;
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -3345,7 +3381,11 @@ body.is-signed-out #sidebarOverlay {
 }
 
 .login-wall {
+    /* R2 audit fix: 100dvh tracks the iOS Safari URL bar — 100vh
+       is the LARGER measurement (URL bar hidden), so under a
+       visible URL bar the wall extends below the viewport. */
     min-height: calc(100vh - 120px);
+    min-height: calc(100dvh - 120px);
     display: flex;
     align-items: center;
     justify-content: center;

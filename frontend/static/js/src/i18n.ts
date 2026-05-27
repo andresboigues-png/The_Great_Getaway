@@ -161,6 +161,14 @@ export async function setLocale(locale: Locale): Promise<void> {
     if (STATE.user) {
         STATE.user.language = locale;
     }
+    // R2 audit fix: keep <html lang> in sync with the active locale.
+    // Pre-fix `<html lang="en">` was static across all locales →
+    // screen readers (VoiceOver, NVDA, TalkBack) pronounced every
+    // pt/es/fr label with English phonemes. Critical accessibility
+    // for users who rely on screen readers in their native language.
+    try {
+        document.documentElement.lang = locale;
+    } catch { /* SSR / unusual env */ }
     emit(EVENTS.STATE_CHANGED);
     // Persist to server. Static import of apiFetch keeps the chunk
     // graph stable — an earlier draft of this used dynamic

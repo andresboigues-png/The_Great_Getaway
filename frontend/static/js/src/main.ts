@@ -73,6 +73,12 @@ async function init() {
     } catch (err) {
         console.error('i18n: failed to load active locale, falling back to en:', err);
     }
+    // R2 audit fix: stamp <html lang> on boot so screen readers
+    // pronounce the active locale's content correctly from first
+    // paint (not just after a setLocale change).
+    try {
+        document.documentElement.lang = getLocale();
+    } catch { /* SSR / unusual env */ }
 
     // Audit fix (2026-05-26): pull fresh FX rates from the server.
     // The static CONVERSION_RATES table in constants.ts is ~2 years

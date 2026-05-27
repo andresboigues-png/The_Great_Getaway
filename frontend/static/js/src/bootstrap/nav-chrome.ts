@@ -19,6 +19,7 @@ import { logout } from '../pages/profile.js';
 import { initMobileSwipe } from '../mobileSwipe.js';
 import { renderNotificationDropdown, handleNotificationClick } from './notifications.js';
 import { archiveActiveTrip, deleteActiveTrip } from './trip-controls.js';
+import { wireRoleButtonKeys } from '../components/Keyboard.js';
 
 /**
  * Narrow an arbitrary string (from the URL hash or a `data-page` attribute)
@@ -32,6 +33,14 @@ export function resolvePage(raw: string): PageName {
 }
 
 export function wireNavChrome(): void {
+    // ── Keyboard activation for `role="button"` divs ──
+    // Notification rows in the bell dropdown (and any other future
+    // div-as-button in nav chrome) are `<div role="button" tabindex="0">`.
+    // Without a keydown delegate, Enter/Space don't activate them — WCAG
+    // violation. wireRoleButtonKeys on document.body translates key →
+    // click() for the entire page in a single delegated listener.
+    wireRoleButtonKeys(document.body);
+
     // ── Hamburger ──
     // §2.8: a11y — same aria-expanded story as the notification bells.
     // The hamburger button toggles the side-drawer; screen readers
