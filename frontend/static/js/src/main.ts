@@ -207,30 +207,77 @@ async function init() {
 
     // Audit fix (2026-05-27): capture the timer id so we can clearInterval
     // on pagehide / beforeunload (see _stopPoll below).
-    const syncTimerId = setInterval(() => {
-        // FIXING_ROADMAP §1.8 — skip the poll when the tab isn't
-        // visible. A user with the app open in a background tab was
-        // previously paying for sync + notifications fetches every
-        // 15s indefinitely. document.hidden flips back to false the
-        // moment they focus the tab, so the next tick (within 15s)
-        // resumes normal polling.
-        if (!STATE.user || document.hidden) return;
-        syncWithServer();
-        fetchNotifications();
-    }, 15000);
-
-    // Audit fix (2026-05-27): clear the sync interval on pagehide /
-    // beforeunload. The STATE.user guard inside the tick already
-    // turns it into a no-op after logout, but the timer keeps
-    // firing for the document lifetime — wasted CPU on long-lived
-    // background tabs, and a slow memory leak. We listen on both
-    // events because Safari sometimes doesn't fire beforeunload on
-    // mobile (pagehide is more reliable there).
-    const _stopPoll = () => {
-        clearInterval(syncTimerId);
+    //
+    // R2 audit fix: lift to `let` so the bfcache-restore handler
+    // (pageshow + persisted=true) can re-arm the interval after a
+    // pagehide cleared it. Without this, a Safari/Chrome bfcache
+    // restore left the document alive with no polling forever.
+    let syncTimerId: ReturnType<typeof setInterval> | null = null;
+    const _startPoll = () => {
+        if (syncTimerId !== null) return;
+        syncTimerId = setInterval(() => {
+            // FIXING_ROADMAP §1.8 — skip the poll when the tab isn't
+            // visible. A user with the app open in a background tab was
+            // previously paying for sync + notifications fetches every
+            // 15s indefinitely.
+            if (!STATE.user || document.hidden) return;
+            syncWithServer();
+            fetchNotifications();
+        }, 15000);
     };
-    window.addEventListener('pagehide', _stopPoll, { once: true });
-    window.addEventListener('beforeunload', _stopPoll, { once: true });
+    const _stopPoll = () => {
+        if (syncTimerId !== null) {
+            clearInterval(syncTimerId);
+            syncTimerId = null;
+        }
+    };
+    _startPoll();
+
+    // R2 audit fix: visibilitychange fires an IMMEDIATE refresh
+    // when the user re-focuses a backgrounded tab. Pre-fix the
+    // tick guard skipped polls while hidden, so after returning
+    // the user waited up to 15s seeing stale data.
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && STATE.user) {
+            syncWithServer();
+            fetchNotifications();
+        }
+    });
+
+    // R2 audit fix: pageshow with persisted=true means bfcache
+    // restore — the document is alive again but pagehide killed
+    // the interval. Re-arm it. Also fire an immediate sync to
+    // refresh data that's now potentially minutes/hours stale.
+    window.addEventListener('pageshow', (e: PageTransitionEvent) => {
+        if (e.persisted) {
+            _startPoll();
+            if (STATE.user) {
+                syncWithServer();
+                fetchNotifications();
+            }
+        }
+    });
+
+    // R2 audit fix: also fire an immediate sync when the browser
+    // transitions from offline → online. Pre-fix the user waited
+    // up to 15s for the next tick after connectivity restored.
+    window.addEventListener('online', () => {
+        if (STATE.user) {
+            syncWithServer();
+            fetchNotifications();
+        }
+    });
+
+    // Clear the interval on pagehide / beforeunload. The
+    // STATE.user guard inside the tick already turns it into a
+    // no-op after logout, but the timer keeps firing for the
+    // document lifetime — wasted CPU on long-lived background
+    // tabs, and a slow memory leak. Listen on both because
+    // Safari sometimes doesn't fire beforeunload on mobile.
+    // NOTE: dropped `{once: true}` so bfcache restore + re-hide
+    // cycles keep clearing correctly.
+    window.addEventListener('pagehide', _stopPoll);
+    window.addEventListener('beforeunload', _stopPoll);
 }
 
 // Start the app

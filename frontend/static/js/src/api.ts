@@ -203,6 +203,13 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
         clearAuthToken();
         STATE.user = null;
         emit(EVENTS.STATE_CHANGED);
+        // R2 audit fix: navigate to HOME so the router lands the
+        // user on the login wall. Pre-fix the current page stayed
+        // mounted and any component that read STATE.user.id
+        // without optional-chaining crashed inside an ErrorBoundary.
+        try {
+            navigate(PAGES.HOME);
+        } catch { /* router may not be ready on initial boot */ }
     } else if (!res.ok) {
         // Log 4xx/5xx so a user reporting "X doesn't work" can share
         // the console output and we can see which call is failing.

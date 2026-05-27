@@ -366,8 +366,23 @@ self.addEventListener('message', (event) => {
         // SW can key its API cache per-user. Without this every user
         // shared the `anon` bucket and a shared-device logout+login
         // served the previous user's /api/data from cache.
+        //
+        // R2 audit fix: chain off _logoutLock too. Pre-fix SET_USER
+        // wrote synchronously while a CLEAR_USER `.then()` queued
+        // earlier was still pending — sequence:
+        //   1. logout: CLEAR_API_CACHE bumps epoch, kicks off delete
+        //   2. logout: CLEAR_USER queues `.then(() => _currentUserId = null)`
+        //   3. login: SET_USER writes _currentUserId = 'bob' synchronously
+        //   4. delete completes, CLEAR_USER's then resolves → resets to null
+        //   5. Bob's /api/data caches under 'anon' key
+        // Chaining SET_USER off the same lock guarantees the reset
+        // (if any) lands first, then SET_USER overwrites it cleanly.
         if (data.userId && typeof data.userId === 'string') {
-            _currentUserId = data.userId;
+            const newId = data.userId;
+            const set = _logoutLock.then(() => { _currentUserId = newId; });
+            if (event.waitUntil) {
+                event.waitUntil(set);
+            }
         }
         return;
     }
