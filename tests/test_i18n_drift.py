@@ -97,6 +97,74 @@ _INTENTIONAL_ENGLISH = {
     'todo.itemCount.one':            'pt: loan word "item"',
     'ai.todoPanelTickedCount.one':   'pt: loan word "item"',
     'todo.categoryFilterLabel':      'fr: same word "Type"',
+
+    # ── Settlement payment-method brand names ─────────────────────
+    # Brand names — Revolut, Wise, PayPal — keep their English form
+    # everywhere (the apps themselves don't localise their names).
+    'settlement.methodRevolut': 'brand name',
+    'settlement.methodWise':    'brand name',
+    'settlement.methodPayPal':  'brand name',
+
+    # ── Universal short words shared across PT/ES/FR ──────────────
+    # 'Date' is the literal cognate in all three. 'Note' is loaned
+    # into PT/ES as-is. 'Menu' and 'Notification' both Latin-rooted
+    # and visually identical to their PT/ES/FR forms in compact UI
+    # contexts where adding accents would feel pedantic.
+    'settlement.labelDate':       'cognate identical in pt/es/fr',
+    'settlement.labelNote':       'loanword identical in pt/es',
+    'sidebar.menuTitle':          'identical loanword pt/es/fr',
+    'notifications.titleGeneric': 'identical loanword pt/es/fr',
+
+    # ── editTrip.destination ───────────────────────────────────────
+    # "Destination" is the identical French spelling and the standard
+    # PT/ES loanword (the travel-industry term is the same word).
+    'editTrip.destination': 'cognate identical pt/es/fr',
+
+    # ── Documents / Photos labels with emoji prefix ───────────────
+    # "Documents" and "Photos" are identical in French (same spelling)
+    # and PT/ES accept them as standard loanwords in travel-app UIs
+    # (Instagram, TripAdvisor, etc. all keep them in English).
+    'pathTab.btnDocuments':         'fr: identical; pt/es: standard loanword',
+    'pathTab.btnPhotos':            'fr: identical; pt/es: standard loanword',
+    'dayDetail.quickDocuments':     'fr: identical; pt/es: standard loanword',
+    'dayDetail.quickPhotos':        'fr: identical; pt/es: standard loanword',
+    'tripMedia.docsTitle':          'fr: identical; pt/es: standard loanword',
+    'tripMedia.docsCountOne':       'fr: identical; pt/es: standard loanword',
+    'tripMedia.docsCountOther':     'fr: identical; pt/es: standard loanword',
+    'tripMedia.docsFallbackName':   'fr: identical; pt/es: standard loanword',
+    'tripMedia.photosTitle':        'fr: identical; pt/es: standard loanword',
+    'tripMedia.photosCountOne':     'fr: identical; pt/es: standard loanword',
+
+    # ── Shortlist AM/PM time-of-day buttons ───────────────────────
+    # 'AM'/'PM' are universal time-abbreviation conventions, same
+    # in every locale's 12h displays.
+    'dayDetail.shortlistBtnAm': 'universal time abbreviation',
+    'dayDetail.shortlistBtnPm': 'universal time abbreviation',
+
+    # ── Auto-fill placeholder ──────────────────────────────────────
+    # '(Auto)' is shown briefly in date-input fields when the
+    # frontend auto-derives the date — a short marker, kept English
+    # for compactness (mirrors the en/dis/fr identical loanword).
+    'modals.addDayDateAuto': 'compact universal marker',
+
+    # ── URL-placeholder hints for media inputs ────────────────────
+    # The hint strings demo a literal URL prefix — "https://..." —
+    # which renders identically across locales.
+    'tripMedia.addDocPlaceholderUrl':   'literal URL example',
+    'tripMedia.addPhotoPlaceholderUrl': 'literal URL example',
+
+    # ── FR identical to EN — Latin cognates ────────────────────────
+    # 'Date', 'Notes', 'Documents', 'Photos', 'Destination', 'Budgets'
+    # are all spelled identically in French. The duplicate-key surfaces
+    # in archivedDetail + modals are the same lexicon, kept short.
+    'tripMedia.photosCountOther':   'fr: identical (loanword pt/es too)',
+    'archivedDetail.docsTitle':     'fr: identical',
+    'archivedDetail.notesChip':     'fr: identical "Notes"',
+    'archivedDetail.statDocuments': 'fr: identical',
+    'archivedDetail.statPhotos':    'fr: identical',
+    'modals.addDayLabelDate':       'fr: identical "Date"',
+    'modals.newTripLabelDest':      'fr: identical "Destination"',
+    'modals.pdfOptBudgets':         'fr: identical "Budgets"',
 }
 
 

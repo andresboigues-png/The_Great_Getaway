@@ -356,6 +356,12 @@ def init_db():
                 is_archived INTEGER DEFAULT 0,
                 invitation_status TEXT DEFAULT 'accepted',
                 invited_by TEXT,
+                -- 2026-05-26 audit #C-1: per-user completion timestamp.
+                -- Source of truth for friend_archived_trip feed events
+                -- and the achievement timing window. NULL until the
+                -- member archives the trip; cleared on unarchive so
+                -- re-archiving stamps a fresh time.
+                completed_at TIMESTAMP,
                 PRIMARY KEY(trip_id, user_id),
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,

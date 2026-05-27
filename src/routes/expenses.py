@@ -81,6 +81,27 @@ def upsert_expense():
     except ValidationError as ve:
         return jsonify({"error": str(ve)}), 400
 
+    # Audit fix: validate the splits map shape before hitting the DB.
+    # Must be a dict of `str → number in [0, 100]`. Non-dict values
+    # (lists, strings), out-of-range percentages, and NaN/Inf are all
+    # rejected with 400 rather than silently coerced. `None` and
+    # missing keep the legacy equal-share fallback.
+    splits_raw = e.get('splits')
+    if splits_raw is not None and splits_raw != "":
+        if not isinstance(splits_raw, dict):
+            return jsonify({"error": "splits must be an object"}), 400
+        for k, v in splits_raw.items():
+            if not isinstance(k, str) or not k.strip():
+                return jsonify({"error": "split keys must be non-empty strings"}), 400
+            try:
+                pct = float(v)
+            except (TypeError, ValueError):
+                return jsonify({"error": "split values must be numeric"}), 400
+            if pct != pct or pct in (float("inf"), float("-inf")):
+                return jsonify({"error": "split values must be finite"}), 400
+            if pct < 0 or pct > 100:
+                return jsonify({"error": "split values must be in [0, 100]"}), 400
+
     with get_db() as conn:
         cursor = conn.cursor()
         if not can_edit_expenses(cursor, claimed_trip_id, user_id):
@@ -88,7 +109,6 @@ def upsert_expense():
         # 2026-05-25 (audit S1): splits + isSettlement are now persisted.
         # `splits` may arrive as a dict (the frontend's shape) — serialise
         # to JSON for storage. None / missing = legacy equal-share fallback.
-        splits_raw = e.get('splits')
         if isinstance(splits_raw, dict) and splits_raw:
             import json as _json
             splits_json = _json.dumps(splits_raw)

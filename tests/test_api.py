@@ -2548,7 +2548,13 @@ def test_generate_itinerary_rejects_missing_key(client, seed_user, auth_headers,
 
 class _FakeGeminiResponse:
     """Stand-in for requests.Response. Models the slice of the API the
-    handler reads (status_code, ok, json(), text)."""
+    handler reads (status_code, ok, json(), text).
+
+    Context-manager protocol added 2026-05-27: the prod path in
+    routes/integrations.py wraps the response in `with requests.post(...)
+    as resp:` (FD-leak fix cbb2e3a). Without __enter__/__exit__ here,
+    every Gemini test crashes at the `with` line with
+    "object does not support the context manager protocol"."""
 
     def __init__(self, status_code: int, json_body=None, text: str = ""):
         self.status_code = status_code
@@ -2560,6 +2566,12 @@ class _FakeGeminiResponse:
         if self._json_body is None:
             raise ValueError("not JSON")
         return self._json_body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
 
 
 def test_generate_itinerary_happy_path(client, seed_user, auth_headers, monkeypatch):
@@ -4060,7 +4072,7 @@ def test_auth_google_sets_session_cookie(client, monkeypatch):
     migration; localStorage-based storage is going away.
     """
     monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
-    res = client.post("/api/auth/google", json={"token": "test:cookie-user", "name": "Cookie User"})
+    res = client.post("/api/auth/google", json={"token": "test:test-cookie-user", "name": "Cookie User"})
     assert res.status_code == 200
     # Werkzeug's test client surfaces Set-Cookie via the Set-Cookie header(s).
     set_cookie_headers = [v for k, v in res.headers.items() if k.lower() == "set-cookie"]
@@ -4091,7 +4103,7 @@ def test_auth_google_cookie_is_secure_when_proxy_signals_https(client, monkeypat
     monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
     res = client.post(
         "/api/auth/google",
-        json={"token": "test:secure-user", "name": "Secure User"},
+        json={"token": "test:test-secure-user", "name": "Secure User"},
         headers={"X-Forwarded-Proto": "https"},
     )
     assert res.status_code == 200
@@ -4116,7 +4128,7 @@ def test_auth_cookie_authenticates_request_without_bearer_header(client, monkeyp
     monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
     login = client.post(
         "/api/auth/google",
-        json={"token": "test:round-trip-user", "name": "Round Trip"},
+        json={"token": "test:test-round-trip-user", "name": "Round Trip"},
     )
     assert login.status_code == 200
 
@@ -4126,7 +4138,7 @@ def test_auth_cookie_authenticates_request_without_bearer_header(client, monkeyp
     assert status.status_code == 200
     body = status.get_json()
     assert body.get("logged_in") is True
-    assert body["user"]["id"] == "round-trip-user"
+    assert body["user"]["id"] == "test-round-trip-user"
 
 
 def test_auth_logout_clears_session_cookie(client, monkeypatch):
@@ -4137,7 +4149,7 @@ def test_auth_logout_clears_session_cookie(client, monkeypatch):
     monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
     client.post(
         "/api/auth/google",
-        json={"token": "test:logout-user", "name": "Logout User"},
+        json={"token": "test:test-logout-user", "name": "Logout User"},
     )
     # Before logout: cookie-only request authenticates.
     assert client.get("/api/user-status").get_json()["logged_in"] is True
@@ -4204,7 +4216,7 @@ def test_auth_cookie_wins_when_both_cookie_and_bearer_present(client, monkeypatc
     # User A logs in — client jar now carries A's cookie.
     client.post(
         "/api/auth/google",
-        json={"token": "test:cookie-user-a", "name": "User A"},
+        json={"token": "test:test-cookie-user-a", "name": "User A"},
     )
     # Forge a Bearer header for seed_user (different identity).
     from auth import issue_token
@@ -4217,7 +4229,7 @@ def test_auth_cookie_wins_when_both_cookie_and_bearer_present(client, monkeypatc
     body = res.get_json()
     assert body["logged_in"] is True
     # Cookie wins → identity is A, not seed_user.
-    assert body["user"]["id"] == "cookie-user-a", \
+    assert body["user"]["id"] == "test-cookie-user-a", \
         f"expected cookie to win, got identity={body['user']['id']!r}"
 
 
@@ -6186,33 +6198,38 @@ def test_explore_ranks_higher_engagement_higher(
 def test_explore_recency_decay(
     client, seed_user, seed_other_user, auth_headers,
 ):
-    """Trips past the 60-day discovery window score 0 on recency
-    factor, which (because the score is multiplicative) drops them
-    out of the result set entirely — no matter how many views.
+    """Recency factor ranks fresher trips above stale ones — but old
+    trips no longer fall off entirely.
 
-    Design choice: a hard 60-day window keeps Explore feeling fresh.
-    Older trips will get a dedicated "search by country" surface in
-    §4.2 v2. Without this, viral-but-stale trips would crowd out
-    new discoveries forever."""
+    Design history: the pre-2026-05-19 implementation used a 60-day
+    hard cutoff (`score = 0` → row dropped). Real shares are too rare
+    for that to work; a small server with sparse activity ended up
+    serving an empty Explore feed once trips aged out. The current
+    implementation uses linear decay over 180 days with a 0.15 floor —
+    stale trips still surface but rank below recent ones. This test
+    pins the new "ranked, not gated" contract: fresh > stale, but
+    both present."""
     from datetime import datetime, timedelta, timezone
 
-    # 90 days old, lots of views — should NOT appear.
+    # 90 days old, lots of views.
     old_stamp = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%d %H:%M:%S")
     _seed_shareable_trip(
         seed_other_user, "exp-stale", country_code="JP",
-        share_views=10000, created_at=old_stamp,
+        share_views=0, created_at=old_stamp,
     )
-    # Fresh trip — should appear even with zero views.
+    # Fresh trip — should rank above the stale one even with zero views,
+    # because recency_factor dominates when engagement is equal.
     _seed_shareable_trip(seed_other_user, "exp-fresh", country_code="JP", share_views=0)
 
     items = client.get("/api/feed/explore", headers=auth_headers).get_json()["items"]
     ids = [i["tripId"] for i in items]
     assert "exp-fresh" in ids
-    assert "exp-stale" not in ids
+    assert "exp-stale" in ids
+    # Fresh ranks higher.
+    assert ids.index("exp-fresh") < ids.index("exp-stale")
 
-    # A trip JUST INSIDE the window with low engagement should still
-    # surface — confirm the cutoff is genuine and not "anything older
-    # than today is gone".
+    # A trip JUST INSIDE the original 60-day window with low engagement
+    # should also surface — sanity-check the floor isn't broken.
     recent_stamp = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
     _seed_shareable_trip(
         seed_other_user, "exp-recent", country_code="JP",
