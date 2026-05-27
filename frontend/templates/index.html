@@ -21,7 +21,14 @@
          180×180 is the canonical apple-touch-icon size; iOS scales down for
          older devices. -->
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <!-- R7-F7: was "default" — that puts the iOS status bar OVER
+         the app's #0071e3 theme-color edge with a stark white
+         background, looking unfinished on standalone PWA mode.
+         "black-translucent" lets the page extend underneath the
+         status bar; the viewport-fit=cover on the viewport meta +
+         env(safe-area-inset-*) in CSS make sure interactive
+         content stays out of the notch + dynamic island areas. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="The GG">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-180.png') }}">
 

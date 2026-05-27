@@ -635,9 +635,19 @@ input:checked+.slider:before {
 }
 
 /* R2 audit fix: contain iOS pull-to-refresh so a stray pull on
-   any page doesn't reload the app + dump unsaved draft state. */
+   any page doesn't reload the app + dump unsaved draft state.
+   R7-F7: also clip horizontal overflow so a single offending wide
+   element (long unbreakable trip name "WhatsAppLengthDestination",
+   a wide chart, a debugging fixture) doesn't trigger horizontal
+   page scroll on iPhone SE 320px. `clip` is preferred over
+   `hidden` because it doesn't establish a containing block for
+   `position: fixed` descendants (which would break .modal-overlay
+   and the bottom-nav). Both modern Safari + Chrome support it
+   since 2021; Firefox falls back to `hidden` which is acceptable
+   for the same case. */
 html, body {
     overscroll-behavior-y: contain;
+    overflow-x: clip;
 }
 
 /* Cards */
@@ -1339,7 +1349,13 @@ body.is-signed-out .trip-controls-popover {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
-    width: 100vw !important;
+    /* R7-F7: was 100vw — that includes the scrollbar gutter on
+       desktop and can stick past the visible viewport edge on
+       iPhone SE when a horizontal scrollbar is reserved.
+       width: 100% inside a position:fixed root resolves to the
+       layout viewport width without the gutter, which is what
+       we want. */
+    width: 100% !important;
     height: 100vh !important;
     /* R2 audit fix: iOS Safari URL bar — `100vh` is the LARGER
        measurement (when URL bar is hidden). When the URL bar
