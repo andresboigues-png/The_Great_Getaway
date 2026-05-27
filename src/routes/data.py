@@ -468,6 +468,21 @@ def sync_data():
             if b_original_amount is None:
                 b_original_amount = b.get('amount', 0)
             b_original_currency = b.get('originalCurrency') or b.get('currency', 'EUR')
+            # R3-Fix #2: budget IDOR — pre-fix, /api/sync would happily
+            # overwrite anyone's budget by id because the ON CONFLICT
+            # clause had no user_id gate. Same defense as the per-row
+            # /api/budgets POST handler: SELECT existing first, refuse
+            # if it belongs to someone else; restrict ON CONFLICT
+            # UPDATE via a WHERE guard.
+            cursor.execute(
+                "SELECT user_id FROM budgets WHERE id = ?",
+                (b['id'],),
+            )
+            existing_b = cursor.fetchone()
+            if existing_b and existing_b["user_id"] != user_id:
+                # Silently skip — sync is a bulk path; one rogue row
+                # shouldn't blow up the whole batch.
+                continue
             cursor.execute('''
                 INSERT INTO budgets (id, user_id, trip_id, label, amount, currency,
                                      category_id, owner_name, original_amount, original_currency)
@@ -481,9 +496,11 @@ def sync_data():
                     owner_name=excluded.owner_name,
                     original_amount=excluded.original_amount,
                     original_currency=excluded.original_currency
+                WHERE budgets.user_id = ?
             ''', (b['id'], user_id, b_trip_id, b.get('label', ''),
                   b.get('amount', 0), b.get('currency', 'EUR'),
-                  b_category_id, b_owner_name, b_original_amount, b_original_currency))
+                  b_category_id, b_owner_name, b_original_amount, b_original_currency,
+                  user_id))
 
         # Commit budgets section before trip days.
         conn.commit()
@@ -907,6 +924,40 @@ def delete_user_data():
         # lists (and vice versa). Symmetric clean-up mirrors `friends`.
         cursor.execute(
             "DELETE FROM follows WHERE follower_id = ? OR followee_id = ?",
+            (user_id, user_id),
+        )
+        # R3-Fix #4: pre-fix the wipe left auth_sessions / feed_posts /
+        # feed_likes / feed_comments / feed_bookmarks / blocks intact:
+        #   - auth_sessions rows persisted with their jti still
+        #     unrevoked — orphaned-FK storage leak.
+        #   - feed_posts, feed_likes/comments/bookmarks the caller
+        #     produced on OTHER users' threads survived and were still
+        #     attributed by the (now-deleted) user_id; cascade kicks
+        #     in only at FK eval time and not all paths are FK-backed.
+        #   - blocks in either direction stayed, leaving silently
+        #     unblockable phantom relationships.
+        # All scoped strictly to the caller; symmetric clean-up for
+        # blocks mirrors follows/friends.
+        cursor.execute(
+            "DELETE FROM auth_sessions WHERE user_id = ?", (user_id,),
+        )
+        cursor.execute(
+            "DELETE FROM feed_likes WHERE user_id = ?", (user_id,),
+        )
+        cursor.execute(
+            "DELETE FROM feed_comments WHERE user_id = ?", (user_id,),
+        )
+        cursor.execute(
+            "DELETE FROM feed_bookmarks WHERE user_id = ?", (user_id,),
+        )
+        # feed_posts CASCADE-deletes reposts (FK on repost_of_post_id).
+        # The user may have reposts of OTHER users' originals — those
+        # are also `user_id = ?` so the same DELETE catches them.
+        cursor.execute(
+            "DELETE FROM feed_posts WHERE user_id = ?", (user_id,),
+        )
+        cursor.execute(
+            "DELETE FROM blocks WHERE blocker_id = ? OR blocked_id = ?",
             (user_id, user_id),
         )
         # R2 audit fix: scan OTHER users' trips for the deleted

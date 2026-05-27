@@ -90,6 +90,28 @@ def upsert_budget():
 
     with get_db() as conn:
         cursor = conn.cursor()
+        # R3-Fix #2: pre-fix this was a bare `ON CONFLICT(id) DO UPDATE`
+        # with no user_id ownership gate, and the SET clause didn't
+        # include user_id either — so a malicious caller posting
+        # `{budget:{id:"<victim_budget_id>", amount:0, ...}}` would
+        # overwrite the victim's budget row in place. The row stayed
+        # under the victim's user_id but every other field got
+        # rewritten. Same anti-pattern R1 Fix #2 caught in 4 endpoints —
+        # this one was missed because budgets.py was added later.
+        #
+        # Fix: SELECT existing row first; if present and belongs to
+        # someone else, refuse. The "new row" path is unaffected (no
+        # existing owner to clash with).
+        cursor.execute(
+            "SELECT user_id FROM budgets WHERE id = ?",
+            (budget_id,),
+        )
+        existing = cursor.fetchone()
+        if existing and existing["user_id"] != user_id:
+            # Don't reveal whether the id exists for a different user
+            # vs not at all — 403 collapsed to 404 keeps the anti-
+            # enumeration posture consistent with /api/expenses etc.
+            return jsonify({"error": "Not found"}), 404
         cursor.execute('''
             INSERT INTO budgets (id, user_id, trip_id, label, amount, currency,
                                  category_id, owner_name, original_amount, original_currency)
@@ -103,9 +125,11 @@ def upsert_budget():
                 owner_name=excluded.owner_name,
                 original_amount=excluded.original_amount,
                 original_currency=excluded.original_currency
+            WHERE budgets.user_id = ?
         ''', (budget_id, user_id, trip_id, label,
               amount, currency,
-              category_id, owner_name, original_amount, original_currency))
+              category_id, owner_name, original_amount, original_currency,
+              user_id))
         conn.commit()
     return jsonify({"status": "ok"})
 

@@ -707,8 +707,15 @@ def init_db():
             CREATE TABLE IF NOT EXISTS settlements (
                 id TEXT PRIMARY KEY,
                 trip_id TEXT NOT NULL,
-                from_user_id TEXT NOT NULL,
-                to_user_id TEXT NOT NULL,
+                -- R3-Fix #5: party FKs are SET NULL (not CASCADE).
+                -- The from_name / to_name snapshot columns below
+                -- preserve the display name forever; balance math
+                -- reads by name. If we cascaded, Bruno deleting his
+                -- account would erase every "Ana paid Bruno €50" row
+                -- on Ana's OWN trip and Ana's balance page would
+                -- silently regress to pre-payment state.
+                from_user_id TEXT,
+                to_user_id TEXT,
                 -- 2026-05-26 (audit S1 + S6): snapshot the party
                 -- display names at settlement-record time so the
                 -- balance math doesn't depend on live companion
@@ -739,8 +746,8 @@ def init_db():
                 recorded_by TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-                FOREIGN KEY(from_user_id) REFERENCES users(id) ON DELETE CASCADE,
-                FOREIGN KEY(to_user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY(from_user_id) REFERENCES users(id) ON DELETE SET NULL,
+                FOREIGN KEY(to_user_id) REFERENCES users(id) ON DELETE SET NULL,
                 FOREIGN KEY(recorded_by) REFERENCES users(id) ON DELETE SET NULL
             )
         ''')

@@ -1375,6 +1375,157 @@ def test_user_data_delete_wipes_trips_and_expenses(client, seed_user, auth_heade
     assert pull.status_code == 401
 
 
+def test_budget_upsert_rejects_cross_user_id(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R3-Fix #2: pre-fix, `POST /api/budgets` with another user's
+    budget id silently rewrote the row in place because the ON
+    CONFLICT clause had no user_id ownership gate. Now: the route
+    SELECTs first and returns 404 if the existing row belongs to
+    another caller (anti-enumeration: same shape as a non-existent
+    id)."""
+    # Victim creates a budget.
+    res = client.post("/api/budgets", headers=auth_headers, json={
+        "budget": {
+            "id": "bud-victim", "label": "Lisbon Food",
+            "amount": 300, "currency": "EUR",
+        },
+    })
+    assert res.status_code == 200
+
+    # Attacker tries to overwrite it with their own id reference.
+    res = client.post("/api/budgets", headers=other_auth_headers, json={
+        "budget": {
+            "id": "bud-victim", "label": "Hijacked",
+            "amount": 0, "currency": "USD",
+        },
+    })
+    assert res.status_code == 404
+
+    # Verify the victim's row is unchanged.
+    from database import get_db
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT label, amount, currency, user_id FROM budgets WHERE id = ?",
+            ("bud-victim",),
+        ).fetchone()
+        assert row["label"] == "Lisbon Food"
+        assert row["amount"] == 300
+        assert row["currency"] == "EUR"
+        assert row["user_id"] == seed_user
+
+
+def test_settlement_party_fk_set_null_on_user_delete(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R3-Fix #5: pre-fix, settlements.from_user_id and to_user_id
+    were ON DELETE CASCADE. When the from-party deleted their account,
+    every settlement they were a party to was cascade-deleted —
+    including ones on the OTHER user's trips. The counter-party's
+    balance page then silently regressed (the settlement that paid
+    a debt was gone, but the debt-creating expense survived).
+    Now: party FKs SET NULL; from_name/to_name snapshots preserve
+    the audit trail."""
+    # Ana (seed_user) makes a trip and invites Bruno (seed_other_user)
+    # as planner; Bruno accepts. Both are now accepted members — the
+    # route gates settlements on both parties being accepted.
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-fk-settle")
+    client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id,
+        "target_user_id": seed_other_user,
+        "role": "planner",
+    })
+    client.post("/api/trips/invite/respond", headers=other_auth_headers, json={
+        "trip_id": trip_id, "accept": True,
+    })
+    # Ana records a settlement: Ana paid Bruno €50.
+    res = client.post("/api/settlements", headers=auth_headers, json={
+        "tripId": trip_id, "fromName": "Ana", "toName": "Bruno",
+        "fromUserId": seed_user, "toUserId": seed_other_user,
+        "amount": 50, "currency": "EUR", "euroValue": 50,
+    })
+    assert res.status_code == 201, res.get_json()
+    settlement_id = res.get_json()["settlement"]["id"]
+
+    # Bruno deletes his account.
+    res = client.delete("/api/user-data", headers=other_auth_headers)
+    assert res.status_code == 200
+
+    # The settlement row STILL EXISTS — to_user_id is now NULL,
+    # to_name snapshot preserved.
+    from database import get_db
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT id, from_user_id, to_user_id, from_name, to_name "
+            "FROM settlements WHERE id = ?",
+            (settlement_id,),
+        ).fetchone()
+        assert row is not None, "settlement got cascade-deleted on user delete"
+        assert row["to_user_id"] is None  # FK SET NULL fired
+        # Snapshot name (whatever the server resolved from users.name at
+        # insert time) survives. Don't assert the exact string — different
+        # fixtures pick different display names — just confirm we still
+        # have the audit trail.
+        assert row["to_name"], \
+            "to_name snapshot was lost on user delete (audit trail broken)"
+
+
+def test_user_data_delete_wipes_auth_sessions_and_feed(
+    client, seed_user, auth_headers,
+):
+    """R3-Fix #4: pre-fix, /api/user-data left auth_sessions /
+    feed_posts / feed_likes / feed_comments / feed_bookmarks / blocks
+    intact. Now they're all wiped alongside the rest."""
+    # Seed: a feed_like, a feed_comment, an auth_sessions row (auto-
+    # created on issue_token), and a block.
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO feed_likes (user_id, event_id) VALUES (?, ?)",
+            (seed_user, "trip_created_x"),
+        )
+        conn.execute(
+            "INSERT INTO feed_comments (event_id, user_id, body) VALUES (?, ?, ?)",
+            ("trip_created_x", seed_user, "hi"),
+        )
+        # Need a second user for the block target.
+        conn.execute(
+            "INSERT OR IGNORE INTO users (id, email, name) VALUES (?, ?, ?)",
+            ("u-target", "target@example.com", "Target"),
+        )
+        conn.execute(
+            "INSERT INTO blocks (blocker_id, blocked_id) VALUES (?, ?)",
+            (seed_user, "u-target"),
+        )
+        conn.commit()
+        # Verify the seeded rows are there before delete.
+        assert conn.execute(
+            "SELECT 1 FROM feed_likes WHERE user_id = ?", (seed_user,),
+        ).fetchone()
+        assert conn.execute(
+            "SELECT 1 FROM auth_sessions WHERE user_id = ?", (seed_user,),
+        ).fetchone()
+
+    res = client.delete("/api/user-data", headers=auth_headers)
+    assert res.status_code == 200
+
+    # All wiped.
+    with get_db() as conn:
+        assert not conn.execute(
+            "SELECT 1 FROM feed_likes WHERE user_id = ?", (seed_user,),
+        ).fetchone()
+        assert not conn.execute(
+            "SELECT 1 FROM feed_comments WHERE user_id = ?", (seed_user,),
+        ).fetchone()
+        assert not conn.execute(
+            "SELECT 1 FROM auth_sessions WHERE user_id = ?", (seed_user,),
+        ).fetchone()
+        assert not conn.execute(
+            "SELECT 1 FROM blocks WHERE blocker_id = ? OR blocked_id = ?",
+            (seed_user, seed_user),
+        ).fetchone()
+
+
 # ── Rate limiting ────────────────────────────────────────────────────────────
 
 def test_rate_limit_friends_add(temp_db, seed_user):
