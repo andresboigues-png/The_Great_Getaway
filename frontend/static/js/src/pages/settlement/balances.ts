@@ -190,13 +190,23 @@ export function computeTripBalances(trip: any) {
 }
 
 /** Greedy minimal-payments list. Pairs largest debtor with largest
- *  creditor, settles the smaller of the two, repeats. */
+ *  creditor, settles the smaller of the two, repeats.
+ *
+ *  R3-Round 2 fix: epsilon bumped from €0.01 to €0.50. The previous
+ *  value couldn't absorb FX rounding residue from multi-currency
+ *  trips (JPY→EUR rounds at the thousandths place per row; summed
+ *  over a few dozen expenses the residue routinely lands in
+ *  €0.02–€0.40 range). Users saw "Alice owes Bob €0.02" lingering
+ *  after a settle-up. €0.50 is below the visible-friction threshold
+ *  (nobody balks at the cents column in a group split) and well
+ *  above plausible accumulated rounding error. */
+const _ZERO_EPSILON_EUR = 0.5;
 export function simplifyDebts(balances: Record<string, number>): SettlementDebt[] {
     const creditors: BalanceEntry[] = [];
     const debtors: BalanceEntry[] = [];
     for (const [person, balance] of Object.entries(balances)) {
-        if (balance > 0.01) creditors.push({ person, amount: balance });
-        else if (balance < -0.01) debtors.push({ person, amount: Math.abs(balance) });
+        if (balance > _ZERO_EPSILON_EUR) creditors.push({ person, amount: balance });
+        else if (balance < -_ZERO_EPSILON_EUR) debtors.push({ person, amount: Math.abs(balance) });
     }
     creditors.sort((a, b) => b.amount - a.amount);
     debtors.sort((a, b) => b.amount - a.amount);
@@ -210,8 +220,8 @@ export function simplifyDebts(balances: Record<string, number>): SettlementDebt[
         debts.push({ from: debtor.person, to: creditor.person, amount: pay });
         debtor.amount -= pay;
         creditor.amount -= pay;
-        if (debtor.amount < 0.01) i++;
-        if (creditor.amount < 0.01) j++;
+        if (debtor.amount < _ZERO_EPSILON_EUR) i++;
+        if (creditor.amount < _ZERO_EPSILON_EUR) j++;
     }
     return debts;
 }

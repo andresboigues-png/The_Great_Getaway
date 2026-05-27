@@ -52,7 +52,13 @@ def upsert_expense():
     # other users' uploads. Now every field is cleaned/range-checked,
     # and failures collapse to 400.
     try:
-        value = validate_money(e.get("value", 0), field_name="value")
+        # R3-Round 2 fix: reject zero-value expenses. The validator
+        # default `allow_zero=True` accepts them globally (kept for
+        # legacy paths) but a zero expense renders as a ghost row in
+        # History, shows up in feed events, and confuses balance math
+        # users. Server enforces the same `> 0` invariant the
+        # ManualTab form already had client-side.
+        value = validate_money(e.get("value", 0), field_name="value", allow_zero=False)
         currency = validate_currency(e.get("currency"))
         # R3-Fix #6: derive euro_value server-side from the live FX
         # cache. Pre-fix the client euroValue was stored verbatim —

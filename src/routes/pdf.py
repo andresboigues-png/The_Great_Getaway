@@ -1992,20 +1992,33 @@ def export_trip_pdf(trip_id: str):
         trip["days"] = [dict(r) for r in rows]
 
         # Budgets attached to the trip — owner-scoped, label+amount
-        # shape (no category mapping in this schema, so per-row
-        # spend can't be cleanly computed; PDF builder shows trip-
-        # total spend instead).
+        # shape — R3-Round 2 fix: include category_id + owner_name so
+        # scoped budgets ("Food only" / "Bruno only") render with
+        # their qualifier and the renderer can compare them against
+        # the right subset of expenses. Pre-fix the SELECT dropped
+        # those columns and the PDF compared every per-trip budget to
+        # the trip-wide total spend, so a €200 "Bruno only" budget
+        # showed as €200 against the WHOLE trip's spend (misleading
+        # 1500% overspend chips on tightly-scoped budgets).
         cursor.execute(
-            "SELECT label, amount, currency FROM budgets "
+            "SELECT label, amount, currency, category_id, owner_name "
+            "FROM budgets "
             "WHERE trip_id = ? AND user_id = ?",
             (trip_id, trip["user_id"]),
         )
         trip["budgets"] = [dict(b) for b in cursor.fetchall()]
 
         # Total spend across the trip — drives the cover stat tile.
+        # R3-Round 2 fix: exclude `is_settlement = 1` rows. The
+        # frontend balance math (balances.ts) filters them; PDF
+        # included them, so cover-page total overstated trip spend
+        # by the settlement total. Same fix applied to achievements
+        # totals and public-profile totals where they exist.
         cursor.execute(
             "SELECT COALESCE(SUM(euro_value), 0) AS total "
-            "FROM expenses WHERE trip_id = ? AND deleted_at IS NULL",
+            "FROM expenses "
+            "WHERE trip_id = ? AND deleted_at IS NULL "
+            "  AND COALESCE(is_settlement, 0) = 0",
             (trip_id,),
         )
         ts = cursor.fetchone()

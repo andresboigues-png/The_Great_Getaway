@@ -1254,11 +1254,14 @@ def test_expenses_single_row_upsert_blocks_cross_trip_hijack(
     client.post("/api/trips", headers=auth_headers, json={
         "trip": {"id": "trip-attacker", "name": "Attacker"},
     })
-    # Attacker tries to rewrite victim's expense by claiming attacker tripId
+    # Attacker tries to rewrite victim's expense by claiming attacker tripId.
+    # value=1 (not 0) — R3-Round 2 fix tightened validate_money to
+    # reject zero-value expenses globally, so we use a positive value
+    # so the hijack-check fires BEFORE the validator.
     res = client.post("/api/expenses", headers=auth_headers, json={
         "expense": {
             "id": "exp-victim", "tripId": "trip-attacker", "who": "PWNED",
-            "value": 0, "currency": "EUR", "euroValue": 0,
+            "value": 1, "currency": "EUR", "euroValue": 1,
             "label": "hijacked", "date": "2026-01-01",
         },
     })

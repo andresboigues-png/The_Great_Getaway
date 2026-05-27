@@ -349,6 +349,24 @@ export function ManualTab() {
         // conversion routes through the overlay-aware helper.
         const countryVal = countryValue || (activeTrip ? activeTrip.country : '');
         const isEdit = !!STATE.draftExpense?.id;
+        // R3-Round 2 fix: only re-derive euroValue when the user
+        // actually changed value or currency. Pre-fix every edit
+        // (typo fix in label, who change, receipt swap, …) re-stamped
+        // euroValue at TODAY's FX, breaking the "stamped at write time"
+        // invariant the balance math relies on. A 6-month-old expense
+        // edited just to fix its label would silently shift its EUR
+        // value as the rate had drifted.
+        const draftValue = Number(STATE.draftExpense?.value ?? NaN);
+        const draftCurrency = STATE.draftExpense?.currency ?? '';
+        const draftEuro = Number(STATE.draftExpense?.euroValue ?? NaN);
+        const moneyUnchanged = (
+            isEdit
+            && Number.isFinite(draftValue)
+            && draftValue === val
+            && draftCurrency === curr
+            && Number.isFinite(draftEuro)
+        );
+        const euroValueForRow = moneyUnchanged ? draftEuro : convertCurrency(val, curr, 'EUR');
         const expense: Expense = {
             id: isEdit && STATE.draftExpense.id ? STATE.draftExpense.id : generateId(),
             tripId,
@@ -359,7 +377,7 @@ export function ManualTab() {
             country: countryVal,
             value: val,
             currency: curr,
-            euroValue: convertCurrency(val, curr, 'EUR'),
+            euroValue: euroValueForRow,
             splits,
             receiptUrl,
         };

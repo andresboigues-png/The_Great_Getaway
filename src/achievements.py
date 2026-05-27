@@ -319,11 +319,20 @@ def _check_priciest_trip(cursor, user_id):
     that this isn't worth filtering for. New settlements (post-§4.5)
     live in the settlements table and naturally don't double-count
     here."""
+    # R3-Round 2 fix: exclude `is_settlement = 1` and tombstoned rows.
+    # The R3-Fix #6 sweep moved euro_value to server-derived, but the
+    # legacy comment was wrong about post-§4.5 settlements not being
+    # in `expenses` — `is_settlement = 1` rows DO live alongside real
+    # expenses in this table and inflate the "priciest trip" total
+    # by their value. Filter them so the badge math matches the
+    # frontend balance / PDF total / Insights aggregates.
     cursor.execute(
         "SELECT t.id, t.name, COALESCE(SUM(e.euro_value), 0) AS spend "
         "FROM trip_members tm "
         "JOIN trips t ON t.id = tm.trip_id "
         "LEFT JOIN expenses e ON e.trip_id = t.id "
+        "  AND COALESCE(e.is_settlement, 0) = 0 "
+        "  AND e.deleted_at IS NULL "
         "WHERE tm.user_id = ? "
         "  AND tm.invitation_status = 'accepted' "
         "  AND COALESCE(tm.is_archived, 0) = 1 "
