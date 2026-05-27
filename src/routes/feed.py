@@ -450,6 +450,21 @@ def share_trip_to_feed():
         # remember the value when we're about to flip it (private →
         # public); for already-public trips there's nothing to restore.
         trip_was_public = bool(trip_row["is_public"])
+        # R2 audit fix: run the membership gate BEFORE the privacy
+        # check. Pre-fix a non-member calling /api/feed/share with
+        # a guessed trip_id got the "trip is private" message,
+        # which confirmed the trip's existence + privacy + owner.
+        # Now non-members get a generic 404 from the membership
+        # check; only owners + accepted members reach the privacy
+        # branch (and the message text is meaningful there).
+        if not is_owner:
+            cursor.execute(
+                "SELECT 1 FROM trip_members WHERE trip_id = ? "
+                "AND user_id = ? AND invitation_status = 'accepted'",
+                (trip_id, user_id),
+            )
+            if not cursor.fetchone():
+                return jsonify({"error": "Not found"}), 404
         if not trip_row["is_public"]:
             if is_owner:
                 cursor.execute(
@@ -463,14 +478,6 @@ def share_trip_to_feed():
                         "it public before sharing to the feed."
                     ),
                 }), 400
-        if not is_owner:
-            cursor.execute(
-                "SELECT 1 FROM trip_members WHERE trip_id = ? "
-                "AND user_id = ? AND invitation_status = 'accepted'",
-                (trip_id, user_id),
-            )
-            if not cursor.fetchone():
-                return jsonify({"error": "Forbidden"}), 403
         # 2026-05-18 audit H5: race-safe share via the partial UNIQUE
         # index `idx_feed_posts_unique_original_share` on
         # (user_id, trip_id) WHERE repost_of_post_id IS NULL. Two

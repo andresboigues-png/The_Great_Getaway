@@ -28,9 +28,33 @@ from helpers import (
     unlink_companion_user_from_trip,
 )
 from observability import bind_trip_context
+from validators import clean_companions
 
 
 bp = Blueprint("trips", __name__)
+
+
+def _cleaned_companions(cursor, trip_id, raw):
+    """Wrapper that fetches `verified_linked_ids` from trip_members
+    and pipes the raw companions array through `clean_companions`.
+
+    R2 audit fix: stops clients from planting `linkedUserId` values
+    that don't correspond to an actual accepted/pending member of
+    the trip. For a brand-new trip (no members yet) the verified
+    set is empty, so any non-null linkedUserId gets coerced to
+    None — the name + UI presence survive but the spoofed link
+    silently disappears. After the owner-self-stamp + invitations
+    flow, legitimate linkedUserIds are in trip_members and pass."""
+    if not isinstance(raw, list):
+        return []
+    verified: set[str] = set()
+    if trip_id:
+        cursor.execute(
+            "SELECT user_id FROM trip_members WHERE trip_id = ?",
+            (trip_id,),
+        )
+        verified = {r["user_id"] for r in cursor.fetchall() if r["user_id"]}
+    return clean_companions(raw, verified_linked_ids=verified)
 
 
 @bp.route("/api/trips", methods=["POST"])
@@ -130,7 +154,7 @@ def upsert_trip():
               json.dumps(t['viewport']) if t.get('viewport') else None,
               json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
               t.get('countryCode'),
-              json.dumps(t['companions']) if isinstance(t.get('companions'), list) else None,
+              json.dumps(_cleaned_companions(cursor, t.get('id'), t.get('companions'))) if isinstance(t.get('companions'), list) else None,
               json.dumps(t['markedPlaces']) if isinstance(t.get('markedPlaces'), list) else None,
               json.dumps(t['documents']) if isinstance(t.get('documents'), list) else None,
               json.dumps(t['photos']) if isinstance(t.get('photos'), list) else None,
@@ -587,7 +611,15 @@ def remove_trip_member():
 
     with get_db() as conn:
         cursor = conn.cursor()
-        if not can_edit_trip(cursor, trip_id, actor):
+        # R2 audit fix: allow self-leave on any role. Pre-fix only
+        # planners could call this route, leaving Relaxers /
+        # Budgeteers no way to leave a trip they accepted — they
+        # could only archive their personal copy. Now: if the actor
+        # is removing THEMSELVES, skip the planner gate. The owner
+        # check below still blocks self-leave for owners (they need
+        # to delete the trip via /api/trips/<id> DELETE instead).
+        is_self_leave = (actor == target)
+        if not is_self_leave and not can_edit_trip(cursor, trip_id, actor):
             return jsonify({"error": "Forbidden"}), 403
         if is_trip_owner(cursor, trip_id, target):
             return jsonify({"error": "Cannot remove the trip owner"}), 400

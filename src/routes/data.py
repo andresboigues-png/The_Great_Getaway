@@ -29,6 +29,22 @@ from helpers import (
     serialize_trip_row,
     unwrap_legacy_plan_text,
 )
+from validators import clean_companions as _clean_companions_raw
+
+
+def _cleaned_companions_for_sync(cursor, trip_id, raw):
+    """Same shape as routes/trips.py::_cleaned_companions. Inlined
+    here to avoid a cross-blueprint import dance."""
+    if not isinstance(raw, list):
+        return []
+    verified: set[str] = set()
+    if trip_id:
+        cursor.execute(
+            "SELECT user_id FROM trip_members WHERE trip_id = ?",
+            (trip_id,),
+        )
+        verified = {r["user_id"] for r in cursor.fetchall() if r["user_id"]}
+    return _clean_companions_raw(raw, verified_linked_ids=verified)
 
 
 bp = Blueprint("data", __name__)
@@ -190,7 +206,7 @@ def sync_data():
                   json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
                   t.get('countryCode'),
                   countries_json,
-                  json.dumps(t['companions']) if isinstance(t.get('companions'), list) else None,
+                  json.dumps(_cleaned_companions_for_sync(cursor, t.get('id'), t.get('companions'))) if isinstance(t.get('companions'), list) else None,
                   json.dumps(t['markedPlaces']) if isinstance(t.get('markedPlaces'), list) else None,
                   json.dumps(t['documents']) if isinstance(t.get('documents'), list) else None,
                   json.dumps(t['photos']) if isinstance(t.get('photos'), list) else None,
@@ -271,7 +287,7 @@ def sync_data():
                   json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
                   t.get('countryCode'),
                   arch_countries_json,
-                  json.dumps(t['companions']) if isinstance(t.get('companions'), list) else None,
+                  json.dumps(_cleaned_companions_for_sync(cursor, t.get('id'), t.get('companions'))) if isinstance(t.get('companions'), list) else None,
                   json.dumps(t['markedPlaces']) if isinstance(t.get('markedPlaces'), list) else None,
                   json.dumps(t['documents']) if isinstance(t.get('documents'), list) else None,
                   json.dumps(t['photos']) if isinstance(t.get('photos'), list) else None,

@@ -248,3 +248,80 @@ def validate_upload_url(
     raise ValidationError(
         f"{field_name} must point at your own upload",
     )
+
+
+# ── Companions ──────────────────────────────────────────────────────
+#
+# R2 audit fix: the companions array (trip.companions_json) was
+# previously persisted verbatim — no name length cap, no field-shape
+# validation, no linkedUserId verification. This let:
+#   - a malicious POST persist [{"name": "A" * 100000}] → 100KB stored
+#     per trip, ballooning /api/data response sizes
+#   - a crafted [{"name": "...", "linkedUserId": "<any-real-id>"}]
+#     plant a fake link → balance math + member chips display the
+#     fabricated name for any user the attacker names
+#   - control chars / NUL bytes / unicode-overflow tricks slip into
+#     downstream renderers
+#
+# `clean_companions(comps)` returns a normalised list with each entry
+# guaranteed to be `{name: str (1-200 chars, control-stripped),
+# linkedUserId: str | None}`. Invalid entries are DROPPED rather than
+# raising — the route should accept a partial sync that includes
+# garbage from a legacy client without failing the whole upsert.
+# `verified_linked_ids` (set[str], optional) further constrains
+# linkedUserId values: only entries whose linkedUserId is in this set
+# (or None) survive. Pass the live trip_members user_ids to enforce
+# "linkedUserId must correspond to an actual invited member".
+
+
+def clean_companions(comps, verified_linked_ids=None):
+    """Best-effort normalisation of a companions list. Returns a list
+    of dicts shaped {name: str, linkedUserId: str | None,
+    linkStatus: str | None}. Drops entries that can't be made sane.
+
+    If `verified_linked_ids` is provided, any linkedUserId NOT in the
+    set is coerced to None (the name + UI presence survive; the
+    attacker-planted link silently disappears)."""
+    if not isinstance(comps, list):
+        return []
+    out: list[dict] = []
+    seen_names: set[str] = set()
+    for c in comps:
+        if not isinstance(c, dict):
+            continue
+        raw_name = c.get("name")
+        if not isinstance(raw_name, str):
+            continue
+        # Strip C0 control chars + NUL.
+        name = "".join(ch for ch in raw_name if ord(ch) >= 0x20).strip()
+        if not name:
+            continue
+        # NFC normalise so visually-identical Unicode (decomposed vs
+        # composed) doesn't dupe.
+        import unicodedata
+        name = unicodedata.normalize("NFC", name)[:_MAX_NAME_LEN]
+        # Case-fold dedupe — same shape as the frontend's modal-level
+        # check, mirrored server-side so a curl bypass can't sneak in
+        # `Sara` + `sara`.
+        key = name.lower()
+        if key in seen_names:
+            continue
+        seen_names.add(key)
+        linked = c.get("linkedUserId")
+        if linked is not None and not isinstance(linked, str):
+            linked = None
+        if linked and len(linked) > 128:
+            # User IDs are Google `sub` (~21 digits) or test-prefixed.
+            # Anything past 128 chars is junk / malicious.
+            linked = None
+        if linked and verified_linked_ids is not None:
+            if linked not in verified_linked_ids:
+                linked = None
+        link_status = c.get("linkStatus") if isinstance(c.get("linkStatus"), str) else None
+        out.append({
+            "name": name,
+            "linkedUserId": linked,
+            "linkStatus": link_status,
+        })
+    # Cap total length — no one needs 1000 companions on one trip.
+    return out[:200]

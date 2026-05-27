@@ -3174,21 +3174,25 @@ def test_feed_share_rejects_missing_trip_id_400(client, seed_user, auth_headers)
     assert "trip_id" in (res.get_json().get("error", "")).lower()
 
 
-def test_feed_share_rejects_non_member_403(
+def test_feed_share_rejects_non_member_404(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):
     """Audit-fix gate: caller must own the trip OR be an accepted member.
-    seed_other_user creates a private trip; seed_user (no membership)
-    can't share it. Without this gate, anyone with a guessed trip_id
-    could surface someone else's trip on the public feed."""
+    seed_other_user creates a trip; seed_user (no membership) can't
+    share it.
+
+    R2 audit fix: response is now 404 (was 403). Pre-fix the route
+    leaked trip existence + privacy to non-members via differential
+    response codes; now non-members get the same 404 they'd get for
+    a non-existent trip_id."""
     trip_id = _create_trip(
         client, other_auth_headers, trip_id="trip-share-403", public=True,
     )
     res = client.post("/api/feed/share", headers=auth_headers, json={
         "trip_id": trip_id,
     })
-    assert res.status_code == 403
-    assert res.get_json().get("error") == "Forbidden"
+    assert res.status_code == 404
+    assert res.get_json().get("error") == "Not found"
 
 
 def test_feed_share_status_returns_false_when_unshared(
