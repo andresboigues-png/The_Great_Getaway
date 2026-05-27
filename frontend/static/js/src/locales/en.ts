@@ -355,6 +355,10 @@ export const en = {
         logOut: 'Log Out',
         setStatus: 'Set status…',
         addBio: 'Add a bio…',
+        // R3-Round 3: shown on a public profile when the user hasn't
+        // written one. Pre-fix the fallback "No bio yet." was
+        // hardcoded English in Profile.tsx.
+        noBioYet: 'No bio yet.',
         homeCurrencyLabel: "Home currency — what you'll see totals and insights in",
         // Plural-form labels for the profile stat row (count is rendered
         // separately so it can take its own font-weight). Use via
@@ -979,6 +983,10 @@ export const en = {
         noExpensesYet: 'No expenses for this trip yet',
         // Date-group fallback for expenses without a date.
         globalGroup: 'Global',
+        // R3-Round 3: shown when an expense was saved without a label
+        // (legacy CSV imports / older clients). Pre-fix the row
+        // rendered a blank <strong> above the meta line.
+        noLabelPlaceholder: '(no label)',
         // Tab labels.
         tabManual: 'Manual Upload',
         tabBatch: 'Batch Upload',

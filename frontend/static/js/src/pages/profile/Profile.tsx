@@ -1045,7 +1045,7 @@ function BioBlock({
                 <p
                     className="text-[0.95rem] text-primary leading-[1.5] my-1 mx-0"
                 >
-                    {user.bio || 'No bio yet.'}
+                    {user.bio || t('profile.noBioYet')}
                 </p>
             )}
         </div>

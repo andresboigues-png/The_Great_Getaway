@@ -308,11 +308,11 @@ export function HistoryTab() {
                                 <div className="flex items-center gap-4">
                                     <div className="expense-row__icon">{cat ? cat.icon : '💰'}</div>
                                     <div>
-                                        <strong className="expense-row__title">{e.label}</strong>
+                                        <strong className="expense-row__title">{e.label || t('expenses.noLabelPlaceholder')}</strong>
                                         <div className="expense-row__meta">
                                             <span>{formatAppleDate(e.date)}</span>
                                             <span className="expense-row__meta-dot"></span>
-                                            <span>{e.country || 'Global'}</span>
+                                            <span>{e.country || t('expenses.globalGroup')}</span>
                                             <span className="expense-row__meta-dot"></span>
                                             <span>{e.who}</span>
                                         </div>

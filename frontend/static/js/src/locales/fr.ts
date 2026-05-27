@@ -303,6 +303,7 @@ export const fr: Translations = {
         logOut: 'Se déconnecter',
         setStatus: 'Définir un statut…',
         addBio: 'Ajoute une bio…',
+        noBioYet: 'Pas encore de bio.',
         homeCurrencyLabel: 'Devise principale — celle dans laquelle tu verras totaux et analyses',
         publicTripsLabel: {
             one: 'voyage public',
@@ -789,6 +790,7 @@ export const fr: Translations = {
         undoBatchBtn: 'Annuler le lot',
         noExpensesYet: 'Pas encore de dépenses pour ce voyage',
         globalGroup: 'Global',
+        noLabelPlaceholder: '(sans libellé)',
         tabManual: 'Manuel',
         tabBatch: 'Par lots',
         tabHistory: 'Historique',

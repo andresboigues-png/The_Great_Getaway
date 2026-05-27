@@ -302,6 +302,7 @@ export const pt: Translations = {
         logOut: 'Terminar sessão',
         setStatus: 'Definir estado…',
         addBio: 'Adiciona uma biografia…',
+        noBioYet: 'Sem biografia ainda.',
         homeCurrencyLabel: 'Moeda de origem — em que verás totais e análises',
         publicTripsLabel: {
             one: 'viagem pública',
@@ -788,6 +789,7 @@ export const pt: Translations = {
         undoBatchBtn: 'Desfazer lote',
         noExpensesYet: 'Sem despesas nesta viagem ainda',
         globalGroup: 'Global',
+        noLabelPlaceholder: '(sem descrição)',
         tabManual: 'Manual',
         tabBatch: 'Em lote',
         tabHistory: 'Histórico',

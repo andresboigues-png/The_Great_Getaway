@@ -298,6 +298,7 @@ export const es: Translations = {
         logOut: 'Cerrar sesión',
         setStatus: 'Define un estado…',
         addBio: 'Añade una biografía…',
+        noBioYet: 'Aún sin biografía.',
         homeCurrencyLabel: 'Moneda local — en la que verás totales y análisis',
         publicTripsLabel: {
             one: 'viaje público',
@@ -784,6 +785,7 @@ export const es: Translations = {
         undoBatchBtn: 'Deshacer lote',
         noExpensesYet: 'Aún no hay gastos en este viaje',
         globalGroup: 'Global',
+        noLabelPlaceholder: '(sin etiqueta)',
         tabManual: 'Manual',
         tabBatch: 'Por lotes',
         tabHistory: 'Historial',

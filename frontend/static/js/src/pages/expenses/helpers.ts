@@ -14,7 +14,7 @@
 // Safe to import from anywhere; unit-testable in isolation if we
 // ever add a jest harness for the expenses surface.
 
-import { t } from '../../i18n.js';
+import { getIntlLocale, t } from '../../i18n.js';
 import type { Expense } from '../../types';
 
 
@@ -64,10 +64,27 @@ export function formatAppleDate(dateStr: string | null | undefined): string {
     if (!dateStr) return t('expenses.globalGroup');
     const date = new Date(dateStr + 'T00:00:00Z');
     if (isNaN(date.getTime())) return t('expenses.globalGroup');
-    const dd = String(date.getUTCDate()).padStart(2, '0');
-    const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
-    const yyyy = date.getUTCFullYear();
-    return `${dd}-${mm}-${yyyy}`;
+    // R3-Round 3 fix: route through Intl.DateTimeFormat with the
+    // active app locale instead of the hardcoded DD-MM-YYYY shape.
+    // Pre-fix US users saw "25-03-2024" (interpreted as March-25 or
+    // 25-March depending on assumption) instead of "3/25/2024".
+    // Numeric+2digit gives 25/3/24 (pt), 3/25/24 (en-US), 25.03.2024
+    // (de). Storage stays YYYY-MM-DD via the ISO date parse above
+    // so sort/range comparisons remain lexicographic.
+    try {
+        return new Intl.DateTimeFormat(getIntlLocale(), {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+        }).format(date);
+    } catch {
+        // Last-resort fallback if Intl rejects the locale tag — keeps
+        // the original DD-MM-YYYY shape so the field renders SOMETHING.
+        const dd = String(date.getUTCDate()).padStart(2, '0');
+        const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const yyyy = date.getUTCFullYear();
+        return `${dd}-${mm}-${yyyy}`;
+    }
 }
 
 
