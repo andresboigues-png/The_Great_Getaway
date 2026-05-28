@@ -1,0 +1,71 @@
+# R11-FOLLOWUP (#213): bundle freshness gate.
+#
+# Before R11-EMERGENCY, ~25 commits of TypeScript source changes
+# shipped to production WITHOUT a rebuilt `app.bundle.js`, because
+# the build was a manual step that everyone forgot. The result was
+# a stale bundle in prod that broke login (R11-B2 deploy day).
+#
+# This hook prevents recurrence by enforcing: every push must
+# include a bundle that reflects the source. We do this by:
+#
+#   1. Running `npm run build` (fast: ~350ms via vite + rolldown).
+#   2. Checking `git diff` against tracked bundle/chunk/asset paths.
+#   3. If the build produced changes that aren't in the push → FAIL
+#      with a clear instruction. The user then `git add -A &&
+#      git commit --amend --no-edit && git push` to ship a fresh
+#      bundle.
+#
+# Why a HOOK and not just CI: PA pulls from main on its own loop;
+# a broken bundle that lands on main is in prod within minutes.
+# We need the check to fire before push, not after merge.
+#
+# Skipping: `git push --no-verify` if you must (one-off pushes that
+# touch only Python/server-side and you're 100% sure no TS changed
+# AND you can't wait 5 seconds). Almost never the right call.
+
+set -e
+
+echo "==> pre-push: rebuilding bundle to verify freshness…"
+npm run build > /tmp/gg-pre-push-build.log 2>&1 || {
+    echo "❌ pre-push: build failed. Last 20 lines:"
+    tail -20 /tmp/gg-pre-push-build.log
+    exit 1
+}
+
+# Only check the MAIN entry bundle. Vite content-hashes chunk + asset
+# filenames, so identical source can produce different chunk file
+# NAMES on consecutive builds (rolldown sometimes re-orders chunks
+# in ways that change the hashes without changing the actual code
+# you'd ship). The main `app.bundle.js` is the stable entry point —
+# if its content diff is zero, the source/bundle pair is consistent
+# enough that PA serves the right code.
+ENTRY_BUNDLE="frontend/static/js/app.bundle.js"
+
+if ! git diff --quiet -- "$ENTRY_BUNDLE"; then
+    echo ""
+    echo "❌ pre-push: app.bundle.js differs after rebuild — bundle is STALE."
+    echo ""
+    echo "   That means a TypeScript source change you committed never made"
+    echo "   it into the deployed bundle. PA serves the committed bundle as-is,"
+    echo "   so pushing now would put stale frontend code into prod."
+    echo ""
+    echo "   To fix — pick ONE:"
+    echo ""
+    echo "   (a) Amend the last commit to include the fresh bundle + chunks:"
+    echo "         git add -A && git commit --amend --no-edit && git push"
+    echo ""
+    echo "   (b) Create a 'rebuild bundle' commit then push:"
+    echo "         git add -A && git commit -m 'chore: rebuild bundle' && git push"
+    exit 1
+fi
+
+# Chunk hash drift WITHOUT main-bundle drift = vite non-determinism on
+# chunk filenames. Stash those diffs so the push goes through clean
+# (they're cosmetic — the entry references chunks by exact filename,
+# so a stale chunk reference would surface as the entry diffing too).
+if ! git diff --quiet -- frontend/static/js/chunks/ frontend/static/js/assets/; then
+    echo "==> pre-push: chunk/asset hash drift detected (entry bundle is clean) — reverting noise."
+    git checkout -- frontend/static/js/chunks/ frontend/static/js/assets/ 2>/dev/null || true
+fi
+
+echo "==> pre-push: bundle is up to date. Push proceeding."
