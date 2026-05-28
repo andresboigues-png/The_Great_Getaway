@@ -226,7 +226,7 @@ def upload_file():
         pass
     if ext in {'.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'}:
         try:
-            from PIL import Image
+            from PIL import Image, ImageOps
             # R4-B3: the MAX_IMAGE_PIXELS cap + DecompressionBombWarning
             # → Error conversion now live at module top (see lines ~45-58)
             # so they don't leak process-wide state on every request.
@@ -235,6 +235,17 @@ def upload_file():
             # Trigger decode validation early so DecompressionBomb
             # fires before the save (which buffers pixel data).
             img.load()
+            # R10-B6a MA1: bake EXIF Orientation into the pixel data
+            # BEFORE we strip the EXIF dict on save. iPhone photos
+            # taken in portrait carry the rotation as an EXIF
+            # Orientation tag (1=normal, 3=180°, 6=CW90, 8=CCW90);
+            # browsers + the PDF builder honour the tag, so the pre-
+            # strip render looked correct. Once we drop EXIF on save
+            # the tag is gone — every portrait photo then displayed
+            # sideways. `exif_transpose` rotates/flips the pixel
+            # buffer to match the tag, after which the saved file
+            # has no orientation ambiguity left to lose.
+            img = ImageOps.exif_transpose(img)
             # Re-save WITHOUT the EXIF dict. PIL's save() drops EXIF
             # by default unless explicitly passed; the `exif=b""`
             # argument makes the strip explicit + future-proof if

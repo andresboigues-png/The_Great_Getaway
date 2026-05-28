@@ -19,6 +19,7 @@ from validators import (
     clean_text,
     validate_currency,
     validate_money,
+    validate_splits,
     validate_upload_url,
 )
 
@@ -99,29 +100,18 @@ def upsert_expense():
             e.get("receiptUrl"), user_id=user_id,
             field_name="receiptUrl", allow_empty=True,
         )
+        # R10-B6a F2: shape-check splits via the shared helper. Pre-fix
+        # the validation lived inline here AND was missing entirely
+        # from /api/sync's bulk loops (data.py). The helper lives in
+        # validators.py now so both write paths enforce the same
+        # `{str → number in [0,100]}` contract.
+        splits_clean = validate_splits(e.get('splits'))
     except ValidationError as ve:
         return jsonify({"error": str(ve)}), 400
-
-    # Audit fix: validate the splits map shape before hitting the DB.
-    # Must be a dict of `str → number in [0, 100]`. Non-dict values
-    # (lists, strings), out-of-range percentages, and NaN/Inf are all
-    # rejected with 400 rather than silently coerced. `None` and
-    # missing keep the legacy equal-share fallback.
-    splits_raw = e.get('splits')
-    if splits_raw is not None and splits_raw != "":
-        if not isinstance(splits_raw, dict):
-            return jsonify({"error": "splits must be an object"}), 400
-        for k, v in splits_raw.items():
-            if not isinstance(k, str) or not k.strip():
-                return jsonify({"error": "split keys must be non-empty strings"}), 400
-            try:
-                pct = float(v)
-            except (TypeError, ValueError):
-                return jsonify({"error": "split values must be numeric"}), 400
-            if pct != pct or pct in (float("inf"), float("-inf")):
-                return jsonify({"error": "split values must be finite"}), 400
-            if pct < 0 or pct > 100:
-                return jsonify({"error": "split values must be in [0, 100]"}), 400
+    # `splits_raw` retained below as the source-of-truth dict to
+    # serialise (helper returns it normalised; identical keys/values
+    # for the legitimate path, just with garbage rejected upstream).
+    splits_raw = splits_clean
 
     with get_db() as conn:
         cursor = conn.cursor()

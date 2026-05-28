@@ -36,10 +36,12 @@ from validators import (
     clean_text,
     validate_currency,
     validate_money,
+    validate_splits,
+    validate_upload_url,
 )
 
 
-def _validate_sync_expense(e: dict) -> dict | None:
+def _validate_sync_expense(e: dict, user_id: str) -> dict | None:
     """R3-Fix #11 + #6: per-row validation for /api/sync expense
     loops. Pre-fix both loops took every field verbatim — NaN/Inf
     values, unknown currencies, 10 MB labels, and client-trusted
@@ -49,6 +51,17 @@ def _validate_sync_expense(e: dict) -> dict | None:
     Returns a validated dict ready for INSERT, OR None when any
     field fails validation (caller should skip the row — bulk paths
     can't 400 the whole batch over one bad row).
+
+    R10-B6a F1: now also validates `receiptUrl` ownership (must
+    point at this user's own upload subdir, mirroring the per-row
+    /api/expenses gate) — pre-fix the bulk sync path stored receipt
+    URLs verbatim, so a curl-built payload could point an expense
+    at another user's upload and exfiltrate it via the row.
+
+    R10-B6a F2: now also validates `splits` shape via the shared
+    `validate_splits` helper. Pre-fix the bulk loop stored splits
+    verbatim, so {"sara": "infinity"} or [1, 2, 3] would land in
+    the DB and crash the balance reducer on every subsequent read.
     """
     try:
         # R10-B2 P1-8: allow_zero=False matches the per-row /api/expenses
@@ -85,6 +98,17 @@ def _validate_sync_expense(e: dict) -> dict | None:
             e.get('date', '') or '', max_len=32, allow_newlines=False,
             field_name="date",
         )
+        # R10-B6a F1: gate receiptUrl ownership before it lands in
+        # the receipt_url column. Bad URL (not owned, not the
+        # accepted prefix shape, non-string) drops the whole row
+        # rather than 400'ing the batch — matches the silent-skip
+        # contract documented above.
+        receipt_url = validate_upload_url(
+            e.get('receiptUrl'), user_id=user_id,
+            field_name="receiptUrl", allow_empty=True,
+        )
+        # R10-B6a F2: gate splits map shape via shared helper.
+        splits_clean = validate_splits(e.get('splits'))
     except ValidationError:
         return None
     return {
@@ -96,6 +120,8 @@ def _validate_sync_expense(e: dict) -> dict | None:
         'country': country,
         'category_id': category_id,
         'date': date,
+        'receipt_url': receipt_url,
+        'splits': splits_clean,
     }
 
 
@@ -440,20 +466,25 @@ def sync_data():
                     # pre-fix can_edit_trip semantics here).
                     if gate_trip_id not in editable_trip_ids:
                         continue
-                    # R3-Fix #11 + #6: validate every field + recompute
-                    # euro_value server-side. Pre-fix this loop took the
-                    # client's values verbatim — NaN/Inf, unknown
-                    # currencies, 10MB labels, and client-trusted euroValue
-                    # all flowed through. Bad rows are silently skipped
-                    # (bulk paths can't 400 the whole batch).
-                    cleaned = _validate_sync_expense(e)
+                    # R3-Fix #11 + #6 + R10-B6a F1/F2: validate every
+                    # field + recompute euro_value server-side. Now
+                    # also validates receiptUrl ownership + splits
+                    # shape via the shared helpers. Pre-fix this loop
+                    # took the client's values verbatim — NaN/Inf,
+                    # unknown currencies, 10MB labels, client-trusted
+                    # euroValue, foreign-user receipt URLs, and
+                    # malformed splits maps all flowed through. Bad
+                    # rows are silently skipped (bulk paths can't 400
+                    # the whole batch).
+                    cleaned = _validate_sync_expense(e, user_id)
                     if cleaned is None:
                         continue
                     # 2026-05-25 (audit S1): persist splits + is_settlement.
-                    splits_raw = e.get('splits')
-                    if isinstance(splits_raw, dict) and splits_raw:
+                    # R10-B6a F2: splits now arrive pre-validated.
+                    splits_clean = cleaned['splits']
+                    if splits_clean:
                         import json as _json
-                        splits_json = _json.dumps(splits_raw)
+                        splits_json = _json.dumps(splits_clean)
                     else:
                         splits_json = None
                     is_settlement = 1 if e.get('isSettlement') else 0
@@ -491,7 +522,7 @@ def sync_data():
                     ''', (e['id'], gate_trip_id, cleaned['who'], cleaned['category_id'],
                           cleaned['label'], cleaned['date'], cleaned['country'],
                           cleaned['value'], cleaned['currency'], cleaned['euro_value'],
-                          e.get('receiptUrl'), splits_json, is_settlement))
+                          cleaned['receipt_url'], splits_json, is_settlement))
 
         # Commit archived-trips section (plus the inline archived
         # expenses) before moving to active expenses.
@@ -519,17 +550,20 @@ def sync_data():
             # call. Expense writes allow planners + budgeteers.
             if gate_trip_id not in expense_writable_trip_ids:
                 continue
-            # R3-Fix #11 + #6: validate every field + recompute euro_value
-            # server-side. Silently skip rows that fail validation.
-            cleaned = _validate_sync_expense(e)
+            # R3-Fix #11 + #6 + R10-B6a F1/F2: validate every field +
+            # recompute euro_value server-side, validate receiptUrl
+            # ownership, validate splits shape. Silently skip rows
+            # that fail validation.
+            cleaned = _validate_sync_expense(e, user_id)
             if cleaned is None:
                 continue
             # 2026-05-25 (audit S1): persist splits + is_settlement here too,
             # so a bulk-sync path doesn't silently strip them.
-            splits_raw = e.get('splits')
-            if isinstance(splits_raw, dict) and splits_raw:
+            # R10-B6a F2: splits now arrive pre-validated.
+            splits_clean = cleaned['splits']
+            if splits_clean:
                 import json as _json
-                splits_json = _json.dumps(splits_raw)
+                splits_json = _json.dumps(splits_clean)
             else:
                 splits_json = None
             is_settlement = 1 if e.get('isSettlement') else 0
@@ -558,7 +592,7 @@ def sync_data():
             ''', (e['id'], e['tripId'], cleaned['who'], cleaned['category_id'],
                   cleaned['label'], cleaned['date'], cleaned['country'],
                   cleaned['value'], cleaned['currency'], cleaned['euro_value'],
-                  e.get('receiptUrl'), splits_json, is_settlement))
+                  cleaned['receipt_url'], splits_json, is_settlement))
 
         # Commit active-expenses section before categories.
         conn.commit()

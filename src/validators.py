@@ -166,6 +166,45 @@ def validate_money(value, *, field_name: str = "value",
     return f
 
 
+def validate_splits(value, *, field_name: str = "splits") -> Optional[dict]:
+    """Validate an expense `splits` map. Returns:
+      - None when value is None / "" / {} (caller falls back to the
+        legacy equal-share path).
+      - A cleaned `{str → float}` dict otherwise.
+
+    Raises ValidationError on shape failures (non-dict, empty key,
+    non-numeric value, NaN/Inf, value outside [0, 100]).
+
+    R10-B6a F2: lifted from routes/expenses.py:110-124 so /api/sync's
+    bulk-write loops (data.py) get the same gate. Pre-fix the bulk
+    sync path stored arbitrary garbage in the splits column — a
+    curl-driven payload of `{"sara": "infinity"}` would land verbatim
+    and crash the balance reducer on every subsequent read.
+    """
+    if value is None or value == "":
+        return None
+    if not isinstance(value, dict):
+        raise ValidationError(f"{field_name} must be an object")
+    cleaned: dict[str, float] = {}
+    for k, v in value.items():
+        if not isinstance(k, str) or not k.strip():
+            raise ValidationError(
+                f"{field_name} keys must be non-empty strings",
+            )
+        try:
+            pct = float(v)
+        except (TypeError, ValueError):
+            raise ValidationError(f"{field_name} values must be numeric")
+        if not math.isfinite(pct):
+            raise ValidationError(f"{field_name} values must be finite")
+        if pct < 0 or pct > 100:
+            raise ValidationError(
+                f"{field_name} values must be in [0, 100]",
+            )
+        cleaned[k] = pct
+    return cleaned or None
+
+
 def validate_currency(value) -> str:
     """Coerce to an uppercased ISO 4217 code we recognise. Raises
     ValidationError on unknown codes."""
