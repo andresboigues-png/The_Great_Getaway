@@ -323,6 +323,16 @@ export const fr: Translations = {
         logOut: 'Se déconnecter',
         setStatus: 'Définir un statut…',
         addBio: 'Ajoute une bio…',
+        // R11-B4 i18n: liste déroulante du statut de voyage.
+        statusAriaLabel: 'Définis ton statut de voyage',
+        statusSet: 'Définir un statut...',
+        statusDefault: 'Voyageur actif',
+        statusDeliberating: '🤔 Réfléchit au prochain voyage',
+        statusPreparing: '🎒 Prépare un voyage actuellement',
+        statusExploring: '🌍 Explore le monde',
+        statusResting: '🏠 Au repos à la maison',
+        statusHunting: '✈️ Chasse les bonnes affaires de vols',
+        bioPlaceholder: 'Ajoute une bio...',
         noBioYet: 'Pas encore de bio.',
         homeCurrencyLabel: 'Devise principale — celle dans laquelle tu verras totaux et analyses',
         publicTripsLabel: {
@@ -743,6 +753,14 @@ export const fr: Translations = {
         findFriendsTitle: '🔍 Trouver des utilisateurs',
         searchByEmailLabel: 'Rechercher par email',
         sendRequestBtn: '➕ Suivre',
+        // R11-B4 i18n: chaînes de statut de la carte de recherche.
+        searchPlaceholder: "E-mail de l'ami que tu veux ajouter…",
+        searchButton: 'Rechercher',
+        searching: 'Recherche…',
+        searchEmpty: "Utilisateur introuvable. Demande-lui de se connecter à GG d'abord.",
+        searchAllKnown: '✓ Tu es déjà connecté à toutes les personnes correspondant à cette recherche.',
+        searchSent: '✓ Tu suis maintenant.',
+        searchError: 'La recherche a échoué — réessaie.',
         followersOnlyTitle: '👋 Abonnés',
         followersOnlyHint: 'Personnes qui te suivent. Touche une ligne pour voir le profil ou suivre en retour.',
         followersOnlyEmptyTitle: 'Aucun abonné pour l\'instant',
@@ -970,6 +988,9 @@ export const fr: Translations = {
         },
     },
     companions: {
+        // R11-B4 UX-1: confirmer avant de retirer un compagnon lié.
+        removeConfirmTitle: 'Retirer ce compagnon ?',
+        removeConfirmBody: '{name} sera retiré du voyage et perdra l\'accès. Les soldes réglés sont conservés ; tu peux le réinviter plus tard.',
         pickerTitle: 'Compagnons de Voyage',
         pickerIntro: "Ajoute qui vient sur <strong>{trip}</strong>. Les amis reçoivent une invitation (Détendu par défaut — tu peux changer à chaque choix) ; les compagnons simples sont juste des étiquettes pour les voyageurs hors-app.",
         pickerEmpty: "Pas encore de compagnons sur ce voyage. Ajoute un ami ou tape un nom ci-dessous.",

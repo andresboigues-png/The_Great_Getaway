@@ -926,18 +926,23 @@ function BioBlock({
                         <select
                             ref={statusRef}
                             className="brand-select pt-0.5 pr-6 pb-0.5 pl-2.5 text-[length:var(--font-base)]"
-                            aria-label="Set your travel status"
+                            aria-label={t('profile.statusAriaLabel')}
                             defaultValue={user.status || ''}
                             onChange={() => setDirty(true)}
                         >
                             <option value="" disabled>
-                                Set status...
+                                {t('profile.statusSet')}
                             </option>
-                            <option value="Deliberating next trip">🤔 Deliberating next trip</option>
-                            <option value="Preparing a trip right now">🎒 Preparing a trip right now</option>
-                            <option value="Exploring the world">🌍 Exploring the world</option>
-                            <option value="Resting at home base">🏠 Resting at home base</option>
-                            <option value="Hunting for flight deals">✈️ Hunting for flight deals</option>
+                            {/* R11-B4 i18n: the `value` stays English
+                                because that's what gets stored in
+                                users.status — translating values would
+                                orphan every existing user's stored
+                                status. Display labels are translated. */}
+                            <option value="Deliberating next trip">{t('profile.statusDeliberating')}</option>
+                            <option value="Preparing a trip right now">{t('profile.statusPreparing')}</option>
+                            <option value="Exploring the world">{t('profile.statusExploring')}</option>
+                            <option value="Resting at home base">{t('profile.statusResting')}</option>
+                            <option value="Hunting for flight deals">{t('profile.statusHunting')}</option>
                         </select>
                         <div className="brand-select-chevron right-2">
                             ▼
@@ -947,7 +952,21 @@ function BioBlock({
                     <div
                         className="bg-[rgba(0,_113,_227,_0.05)] text-[#005bb8] rounded-[var(--radius-md)] py-1 px-3 text-[length:var(--font-base)] font-bold inline-block"
                     >
-                        {user.status || 'Active Traveler'}
+                        {(() => {
+                            // R11-B4: translate well-known stored statuses
+                            // for display. Unknown statuses (custom edits
+                            // via direct DB or future server fields) pass
+                            // through unchanged so we don't lose data.
+                            if (!user.status) return t('profile.statusDefault');
+                            const lookup: Record<string, string> = {
+                                'Deliberating next trip': t('profile.statusDeliberating'),
+                                'Preparing a trip right now': t('profile.statusPreparing'),
+                                'Exploring the world': t('profile.statusExploring'),
+                                'Resting at home base': t('profile.statusResting'),
+                                'Hunting for flight deals': t('profile.statusHunting'),
+                            };
+                            return lookup[user.status] || user.status;
+                        })()}
                     </div>
                 )}
             </div>
@@ -957,7 +976,7 @@ function BioBlock({
                     <textarea
                         ref={bioRef}
                         className="bio-input"
-                        placeholder="Add a bio..."
+                        placeholder={t('profile.bioPlaceholder')}
                         defaultValue={user.bio || ''}
                         onInput={() => setDirty(true)}
                     />

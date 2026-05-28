@@ -15,7 +15,7 @@
 
 import { STATE, emit } from '../state.js';
 import { t } from '../i18n.js';
-import { showLiquidAlert, q, esc } from '../utils.js';
+import { showLiquidAlert, showConfirmModal, q, esc } from '../utils.js';
 import {
     upsertTrip,
     fetchAcceptedFriends,
@@ -269,13 +269,34 @@ export const openCompanionPickerModal = (tripId: string) => {
             const name = removeBtn.dataset.name;
             const companion = findTripCompanion(trip, name);
             if (!companion) return;
-            removeTripCompanion(trip, name);
-            emit('state:changed');
-            upsertTrip(trip);
+            // R11-B4 UX-1: confirm before silently kicking. Pre-fix
+            // clicking the ✕ next to an accepted linked member fired
+            // removeTripMember immediately — no warning, no undo. The
+            // 🔒 lock icon only protects against orphaning balance math;
+            // it didn't protect against accidental tap removal. Show
+            // a confirm for the linked-member case (real social
+            // consequences); unlinked entries skip the confirm (they're
+            // pure-local renames and the cost of a wrong-click is
+            // minimal).
+            const removeIt = () => {
+                removeTripCompanion(trip, name);
+                emit('state:changed');
+                upsertTrip(trip);
+                if (companion.linkedUserId) {
+                    removeTripMember(trip.id, companion.linkedUserId);
+                }
+                refreshList();
+            };
             if (companion.linkedUserId) {
-                await removeTripMember(trip.id, companion.linkedUserId);
+                showConfirmModal({
+                    title: t('companions.removeConfirmTitle'),
+                    message: t('companions.removeConfirmBody', { name }),
+                    confirmText: t('common.remove'),
+                    onConfirm: removeIt,
+                });
+            } else {
+                removeIt();
             }
-            refreshList();
             return;
         }
 

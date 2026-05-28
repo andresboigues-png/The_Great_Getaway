@@ -407,6 +407,19 @@ export const en = {
         logOut: 'Log Out',
         setStatus: 'Set status…',
         addBio: 'Add a bio…',
+        // R11-B4 i18n: travel-status dropdown. The `value=` strings stay
+        // English in the DB (translating them would orphan every
+        // existing user's stored status); these keys drive only the
+        // VISIBLE option labels + the read-only display.
+        statusAriaLabel: 'Set your travel status',
+        statusSet: 'Set status...',
+        statusDefault: 'Active Traveler',
+        statusDeliberating: '🤔 Deliberating next trip',
+        statusPreparing: '🎒 Preparing a trip right now',
+        statusExploring: '🌍 Exploring the world',
+        statusResting: '🏠 Resting at home base',
+        statusHunting: '✈️ Hunting for flight deals',
+        bioPlaceholder: 'Add a bio...',
         // R3-Round 3: shown on a public profile when the user hasn't
         // written one. Pre-fix the fallback "No bio yet." was
         // hardcoded English in Profile.tsx.
@@ -953,6 +966,16 @@ export const en = {
         findFriendsTitle: '🔍 Find users',
         searchByEmailLabel: 'Search by email',
         sendRequestBtn: '➕ Follow',
+        // R11-B4 i18n: search-card status strings. Pre-fix all 6 were
+        // hardcoded English on the React component — non-EN users saw
+        // English at the most attention-grabbing moment of the page.
+        searchPlaceholder: 'Email of the friend you want to add…',
+        searchButton: 'Search',
+        searching: 'Searching…',
+        searchEmpty: 'No user found. Ask them to log in to GG first!',
+        searchAllKnown: '✓ Already connected with everyone matching that search.',
+        searchSent: '✓ Now following.',
+        searchError: 'Search failed — try again.',
         // Section: people who follow the user but the user isn't
         // following back.
         followersOnlyTitle: '👋 Followers',
@@ -1261,6 +1284,11 @@ export const en = {
     },
     // Trip-companions roster (modals/companions.ts).
     companions: {
+        // R11-B4 UX-1: confirm shown when removing a linked companion
+        // (kicks them off the trip). Unlinked companions skip the
+        // confirm since they're pure-local renames.
+        removeConfirmTitle: 'Remove this companion?',
+        removeConfirmBody: '{name} will be removed from the trip and lose access. Their settled balances are kept; you can re-invite them later.',
         // openCompanionPickerModal — owner-side roster manager.
         pickerTitle: 'Trip Companions',
         pickerIntro: "Add who's coming on <strong>{trip}</strong>. Friends get a trip invitation (Relaxer by default — you can override per pick); plain companions are just labels for non-app travellers.",

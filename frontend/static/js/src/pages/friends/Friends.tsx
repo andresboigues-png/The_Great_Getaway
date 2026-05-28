@@ -348,7 +348,7 @@ export function Friends() {
                             onKeyUp={(e) => {
                                 if (e.key === 'Enter') searchForUsers();
                             }}
-                            placeholder="Email of the friend you want to add…"
+                            placeholder={t('friends.searchPlaceholder')}
                             className="w-full box-border pt-2.5 pr-3 pb-2.5 pl-9 border border-[var(--border-subtle)] rounded-full text-[0.9rem] bg-card font-semibold text-brand-navy outline-0"
                         />
                     </div>
@@ -357,7 +357,7 @@ export function Friends() {
                         onClick={searchForUsers}
                         className="bg-accent-blue text-white border-0 py-2.5 px-[22px] rounded-full font-extrabold text-[0.85rem] cursor-pointer shadow-[0_4px_12px_rgba(0,113,227,0.22)]"
                     >
-                        Search
+                        {t('friends.searchButton')}
                     </button>
                 </div>
                 <div className="mt-[14px]">
@@ -365,35 +365,35 @@ export function Friends() {
                         <p
                             className="text-center p-3.5 text-[0.85rem] text-secondary font-semibold"
                         >
-                            Searching…
+                            {t('friends.searching')}
                         </p>
                     )}
                     {searchStatus.kind === 'empty' && (
                         <div
                             className="text-center p-[18px] text-[0.85rem] text-secondary bg-[rgba(0,0,0,0.02)] rounded-[14px] border border-dashed border-[rgba(0,0,0,0.08)]"
                         >
-                            No user found. Ask them to log in to GG first!
+                            {t('friends.searchEmpty')}
                         </div>
                     )}
                     {searchStatus.kind === 'all_known' && (
                         <div
                             className="text-center p-[18px] text-[0.85rem] text-secondary bg-[rgba(52,199,89,0.04)] rounded-[14px] border border-[rgba(52,199,89,0.18)]"
                         >
-                            ✓ Already connected with everyone matching that search.
+                            {t('friends.searchAllKnown')}
                         </div>
                     )}
                     {searchStatus.kind === 'sent' && (
                         <div
                             className="text-center p-3.5 text-[0.85rem] text-[#1a6b3c] font-extrabold bg-[rgba(52,199,89,0.08)] rounded-[14px] border border-[rgba(52,199,89,0.22)]"
                         >
-                            ✓ Now following.
+                            {t('friends.searchSent')}
                         </div>
                     )}
                     {searchStatus.kind === 'error' && (
                         <p
                             className="text-[#ff3b30] p-[14px] text-center font-bold"
                         >
-                            Search failed — try again.
+                            {t('friends.searchError')}
                         </p>
                     )}
                     {searchStatus.kind === 'results' && (

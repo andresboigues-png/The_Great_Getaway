@@ -322,6 +322,16 @@ export const pt: Translations = {
         logOut: 'Terminar sessão',
         setStatus: 'Definir estado…',
         addBio: 'Adiciona uma biografia…',
+        // R11-B4 i18n: lista pendente do estado de viagem.
+        statusAriaLabel: 'Define o teu estado de viagem',
+        statusSet: 'Definir estado...',
+        statusDefault: 'Viajante ativo',
+        statusDeliberating: '🤔 A pensar na próxima viagem',
+        statusPreparing: '🎒 A preparar uma viagem agora',
+        statusExploring: '🌍 A explorar o mundo',
+        statusResting: '🏠 A descansar em casa',
+        statusHunting: '✈️ À caça de ofertas de voos',
+        bioPlaceholder: 'Adiciona uma biografia...',
         noBioYet: 'Sem biografia ainda.',
         homeCurrencyLabel: 'Moeda de origem — em que verás totais e análises',
         publicTripsLabel: {
@@ -742,6 +752,14 @@ export const pt: Translations = {
         findFriendsTitle: '🔍 Encontrar utilizadores',
         searchByEmailLabel: 'Pesquisar por email',
         sendRequestBtn: '➕ Seguir',
+        // R11-B4 i18n: cadeias de estado do cartão de pesquisa.
+        searchPlaceholder: 'E-mail do amigo que queres adicionar…',
+        searchButton: 'Pesquisar',
+        searching: 'A pesquisar…',
+        searchEmpty: 'Utilizador não encontrado. Pede-lhe para iniciar sessão no GG primeiro.',
+        searchAllKnown: '✓ Já estás ligado a toda a gente que corresponde a essa pesquisa.',
+        searchSent: '✓ Agora estás a seguir.',
+        searchError: 'A pesquisa falhou — tenta de novo.',
         followersOnlyTitle: '👋 Seguidores',
         followersOnlyHint: 'Pessoas que te seguem. Toca numa linha para ver o perfil ou seguir de volta.',
         followersOnlyEmptyTitle: 'Sem seguidores ainda',
@@ -969,6 +987,9 @@ export const pt: Translations = {
         },
     },
     companions: {
+        // R11-B4 UX-1: confirmar antes de remover um companheiro ligado.
+        removeConfirmTitle: 'Remover este companheiro?',
+        removeConfirmBody: '{name} será removido da viagem e perderá o acesso. Os saldos liquidados são mantidos; podes voltar a convidá-lo mais tarde.',
         pickerTitle: 'Companheiros de Viagem',
         pickerIntro: 'Adiciona quem vem em <strong>{trip}</strong>. Os amigos recebem um convite (Descansador por defeito — podes alterar por escolha); companheiros simples são apenas etiquetas para viajantes fora da app.',
         pickerEmpty: 'Ainda sem companheiros nesta viagem. Adiciona um amigo ou escreve um nome abaixo.',
