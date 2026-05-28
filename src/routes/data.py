@@ -51,7 +51,12 @@ def _validate_sync_expense(e: dict) -> dict | None:
     can't 400 the whole batch over one bad row).
     """
     try:
-        value = validate_money(e.get('value', 0), field_name="value")
+        # R10-B2 P1-8: allow_zero=False matches the per-row /api/expenses
+        # gate at routes/expenses.py:61. Pre-fix the bulk-sync path used
+        # the default allow_zero=True → a curl-driven CSV import (or a
+        # buggy client) could land €0 ghost expense rows. The single-row
+        # POST path always rejected those; this sibling missed it.
+        value = validate_money(e.get('value', 0), field_name="value", allow_zero=False)
         currency = validate_currency(e.get('currency'))
         # R3-Fix #6: server-side euro_value derivation.
         client_euro_value = validate_money(
