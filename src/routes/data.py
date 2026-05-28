@@ -163,12 +163,50 @@ def sync_data():
     the full payload on every 15s tick, so any rolled-back
     section reconciles on the next poll. retry_on_lock wraps the
     whole handler as a belt-and-braces safety net in case any
-    individual section still contends past busy_timeout=30s."""
+    individual section still contends past busy_timeout=30s.
+
+    R10-B6d T3: the first-party frontend (api.ts:286) only sends
+    `categories` to this endpoint as of R8-B4 — every other table
+    (trips, expenses, days, budgets, settlements) routes through
+    its per-row delta endpoint with R8-B4's atomic updated_at
+    concurrency gate. The bulk path here is preserved for two
+    callers: (a) legacy clients on the pre-R8-B4 frontend that
+    haven't reloaded, (b) defensive re-syncs during edge cases.
+    We log a deprecation warning whenever a non-categories key
+    arrives so we can spot any unexpected caller in production,
+    and the active-expenses loop now accepts an OPTIONAL per-row
+    `clientUpdatedAt` that gates the UPDATE atomically — letting
+    any future caller opt into the same safety the delta endpoint
+    provides without breaking the legacy last-write-wins contract
+    other callers rely on."""
     data = request.json or {}
     user_id = current_user_id()
     trips = data.get("trips", [])
     expenses = data.get("expenses", [])
     archived_trips_preview = data.get("archived_trips", [])
+    # R10-B6d T3: deprecation observability. The first-party frontend
+    # only sends categories. Any payload with other top-level keys is
+    # either a legacy client OR an unexpected third-party caller —
+    # log a warning (rate-limited via the noisy_keys frozenset so
+    # multi-key payloads count as one log line) so we can see who's
+    # still using the bulk path. Doesn't change behavior; observability
+    # only.
+    noisy_keys = {
+        k for k in data.keys()
+        if k not in ("categories",) and data.get(k)
+    }
+    if noisy_keys:
+        try:
+            from observability import get_logger
+            get_logger(__name__).info(
+                "deprecated /api/sync bulk-write keys present user=%s keys=%s",
+                user_id, sorted(noisy_keys),
+            )
+        except Exception:
+            # Logging failure must never fail the request — the bulk
+            # path is the catch-up channel for older clients and they
+            # depend on it succeeding.
+            pass
 
     # FIXING_ROADMAP §2.6: reject duplicates across `trips` and
     # `archived_trips` BEFORE writing anything. Pre-fix, a confused
@@ -571,6 +609,25 @@ def sync_data():
             # a peer device's queued state can't resurrect an expense
             # another device deleted. Same shape as routes/expenses.py
             # single-row upsert.
+            # R10-B6d T3: OPTIONAL atomic concurrency gate. Pre-fix the
+            # bulk /api/sync path was the sibling that bypassed the
+            # R8-B4 atomic updated_at WHERE clause (the per-row
+            # /api/expenses endpoint has had it since R8-B4 shipped).
+            # Two tabs writing the same expense via /api/sync still
+            # last-write-wins silently — no 409, no toast.
+            #
+            # Fix is OPT-IN to preserve the legacy contract: if the
+            # client supplies clientUpdatedAt on the row, the UPDATE
+            # only fires when the stored updated_at still matches.
+            # Tests that don't supply clientUpdatedAt see no behavior
+            # change (the `? IS NULL` short-circuit makes the gate a
+            # no-op). Future clients that DO supply it get the same
+            # safety the per-row endpoint provides. Stale writes
+            # silently skip (vs the per-row 409) because /api/sync's
+            # contract is "best-effort batch" — we can't 400 the whole
+            # batch over one stale row, and the offline outbox replay
+            # at the per-row endpoint will catch up cleanly.
+            client_updated_at = e.get('clientUpdatedAt')
             cursor.execute('''
                 INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits, is_settlement)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -589,10 +646,12 @@ def sync_data():
                     -- R4-B1: see archived-expenses block above for rationale.
                     updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
                 WHERE expenses.deleted_at IS NULL
+                  AND (? IS NULL OR expenses.updated_at = ?)
             ''', (e['id'], e['tripId'], cleaned['who'], cleaned['category_id'],
                   cleaned['label'], cleaned['date'], cleaned['country'],
                   cleaned['value'], cleaned['currency'], cleaned['euro_value'],
-                  cleaned['receipt_url'], splits_json, is_settlement))
+                  cleaned['receipt_url'], splits_json, is_settlement,
+                  client_updated_at, client_updated_at))
 
         # Commit active-expenses section before categories.
         conn.commit()

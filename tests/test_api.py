@@ -1620,6 +1620,68 @@ def test_sync_bumps_updated_at_so_subsequent_post_sees_advancement(
     )
 
 
+def test_sync_optional_client_updated_at_gates_stale_writes(
+    client, seed_user, auth_headers,
+):
+    """R10-B6d T3 regression: the bulk /api/sync active-expenses loop
+    now honors an OPTIONAL per-row `clientUpdatedAt`. When supplied,
+    a stale value skips the UPDATE (matching the atomic gate the
+    per-row /api/expenses endpoint has had since R8-B4). When omitted,
+    the row writes through as before (preserves the legacy contract).
+    """
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-sync-gate")
+    # Seed an expense via the per-row endpoint to capture a known
+    # updatedAt stamp.
+    res = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-sync-gate", "tripId": trip_id, "who": "Me",
+            "value": 10, "currency": "EUR", "euroValue": 10,
+            "label": "original", "date": "2026-05-12",
+        },
+    })
+    assert res.status_code == 200
+    live_updated_at = res.get_json()["updatedAt"]
+
+    # 1) Bulk-sync the SAME row with a STALE clientUpdatedAt. The opt-in
+    # gate should make the UPDATE a no-op. The row's label/value stay
+    # at "original"/10.
+    stale_payload = {
+        "expenses": [{
+            "id": "exp-sync-gate", "tripId": trip_id, "who": "Me",
+            "value": 99, "currency": "EUR", "euroValue": 99,
+            "label": "stale-write", "date": "2026-05-12",
+            "clientUpdatedAt": "1970-01-01 00:00:00.000",
+        }],
+    }
+    stale_res = client.post("/api/sync", headers=auth_headers, json=stale_payload)
+    assert stale_res.status_code in (200, 204)
+    pull = client.get("/api/data", headers=auth_headers).get_json()
+    found = next(e for e in pull["expenses"] if e["id"] == "exp-sync-gate")
+    assert found["label"] == "original", (
+        "stale clientUpdatedAt must gate out the UPDATE — pre-R10-B6d "
+        "the bulk path silently overwrote the live row"
+    )
+    assert found["value"] == 10
+
+    # 2) Bulk-sync WITH the live updated_at — should land.
+    fresh_payload = {
+        "expenses": [{
+            "id": "exp-sync-gate", "tripId": trip_id, "who": "Me",
+            "value": 22, "currency": "EUR", "euroValue": 22,
+            "label": "fresh-write", "date": "2026-05-12",
+            "clientUpdatedAt": live_updated_at,
+        }],
+    }
+    fresh_res = client.post("/api/sync", headers=auth_headers, json=fresh_payload)
+    assert fresh_res.status_code in (200, 204)
+    pull2 = client.get("/api/data", headers=auth_headers).get_json()
+    found2 = next(e for e in pull2["expenses"] if e["id"] == "exp-sync-gate")
+    assert found2["label"] == "fresh-write", (
+        "matching clientUpdatedAt should still allow the UPDATE through"
+    )
+    assert found2["value"] == 22
+
+
 def test_expense_euro_value_recomputed_server_side(
     client, seed_user, auth_headers,
 ):
