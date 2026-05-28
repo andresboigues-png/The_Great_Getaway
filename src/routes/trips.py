@@ -82,6 +82,19 @@ def upsert_trip():
         existing = cursor.fetchone()
         if existing and not can_edit_trip(cursor, t["id"], user_id):
             return jsonify({"error": "Forbidden"}), 403
+        # R11-B5: per-user daily trip-CREATE cap. Edits don't count
+        # (an existing row → just upsert). Pre-fix `Limiter` keyed on
+        # IP gave a logged-in spammer 60 new trips/min indefinitely
+        # — useful for quickly filling the friend feed with garbage.
+        # 50/day is generous (~10x normal heavy-user baseline) but
+        # caps the spam vector cleanly.
+        if not existing:
+            from helpers import user_daily_count
+            if user_daily_count("trip_create", user_id) >= 50:
+                return jsonify({
+                    "error": "Daily new-trip cap reached — try again tomorrow.",
+                    "userCapHit": True,
+                }), 429
 
         # R3-Round 5: optimistic-concurrency gate. Same pattern as the
         # /api/expenses route (see that file for the full rationale).
@@ -234,6 +247,12 @@ def upsert_trip():
         new_row = cursor.fetchone()
         new_updated_at = new_row['updated_at'] if new_row else None
         conn.commit()
+    # R11-B5: bump the per-user trip-create counter AFTER the row
+    # lands so a failed insert doesn't consume the day's quota.
+    # Only counts ON CREATE; edits (existing row) are unbounded.
+    if not existing:
+        from helpers import user_daily_increment
+        user_daily_increment("trip_create", user_id)
     return jsonify({"status": "ok", "updatedAt": new_updated_at})
 
 

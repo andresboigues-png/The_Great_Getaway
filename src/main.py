@@ -412,9 +412,14 @@ def add_security_headers(response):
     # HTTP would be ignored by the browser anyway, and we want local
     # http://localhost dev to remain reachable.
     if request.is_secure:
+        # R11-B5: added `; preload` so we're preload-eligible once tgg.app
+        # is ready and an operator submits to hstspreload.org. Until then
+        # the directive is a no-op (it doesn't affect browser HSTS
+        # caching for already-visited sites; only the first-time
+        # cold-visit downgrade window is closed by preload list inclusion).
         response.headers.setdefault(
             "Strict-Transport-Security",
-            "max-age=15768000; includeSubDomains",
+            "max-age=15768000; includeSubDomains; preload",
         )
     # Audit fix (2026-05-27, REVISED 2026-05-28): Cross-Origin-Opener-Policy.
     # `same-origin` puts the document in its own browsing context
@@ -440,6 +445,20 @@ def add_security_headers(response):
     # for sites that use OAuth-style popups.
     response.headers.setdefault(
         "Cross-Origin-Opener-Policy", "same-origin-allow-popups",
+    )
+    # R11-B5: Permissions-Policy. Even if a hypothetical XSS slips past
+    # CSP's nonce gate, the attacker still can't call sensitive browser
+    # APIs we never use — geolocation (we use Google Places for trip
+    # geocoding instead), microphone/camera (no audio/video features),
+    # payment (no Payment Request integration), USB/MIDI/HID (no
+    # hardware features). Each disabled directive shrinks the post-XSS
+    # blast radius by one capability. `=()` means "denied for all
+    # origins" including self.
+    response.headers.setdefault(
+        "Permissions-Policy",
+        "geolocation=(), microphone=(), camera=(), payment=(), "
+        "usb=(), midi=(), hid=(), accelerometer=(), gyroscope=(), "
+        "magnetometer=()",
     )
     return response
 

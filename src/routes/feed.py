@@ -1057,6 +1057,18 @@ def add_feed_comment(event_id):
     if not body:
         return jsonify({"error": "Empty comment"}), 400
     body = body[:500]
+    # R11-B5: per-user daily comment cap. Pre-fix `Limiter` keyed on
+    # get_remote_address — a logged-in user on a residential IP had no
+    # per-account ceiling on comment writes (60/min/event indefinitely,
+    # across as many events as they wanted). 200/day is generous for
+    # any legitimate user (Diego-scale heavy commenter ~30/day in
+    # measured usage); a spammer or a buggy retry loop hits this gate.
+    from helpers import user_daily_count, user_daily_increment
+    if user_daily_count("feed_comment", user_id) >= 200:
+        return jsonify({
+            "error": "Daily comment cap reached — try again tomorrow.",
+            "userCapHit": True,
+        }), 429
     with get_db() as conn:
         cursor = conn.cursor()
         if not _caller_can_see_event(cursor, event_id, user_id):
@@ -1076,6 +1088,10 @@ def add_feed_comment(event_id):
         owner_id = _post_owner_for_event(cursor, event_id)
         _fire_engagement_notification(cursor, owner_id, user_id, "share_commented", _post_id_for_event(event_id))
         conn.commit()
+    # R11-B5: bump the per-user counter AFTER the row lands so a failed
+    # POST (network drop mid-commit, gate fires, etc.) doesn't consume
+    # the user's quota.
+    user_daily_increment("feed_comment", user_id)
     return jsonify({
         "status": "ok",
         "comment": {

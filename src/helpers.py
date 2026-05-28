@@ -496,3 +496,59 @@ def serialize_expense_row(row):
     # writes so a stale tab can't blind-overwrite.
     e['updatedAt'] = e.pop('updated_at', None)
     return e
+
+
+# ── R11-B5: per-user daily caps ──────────────────────────────────────
+# Shared in-memory counter for "user X has done action Y N times today"
+# patterns. The same shape powers the R6-B1 AI per-user cap; lifting it
+# here so feed-comment-cap and trip-create-cap (R11-B5) don't each have
+# to re-implement the same dict + day-ord + LRU eviction.
+#
+# Per-process accounting (resets on worker restart). PA's free tier is
+# single-worker so a counter survives the full UTC day until either
+# the worker restarts or the daily reset fires. Bounded by an LRU
+# cap to keep memory tight on a long-running worker.
+
+_USER_DAILY_BUCKETS: dict[str, dict[str, tuple[int, int]]] = {}
+_USER_DAILY_LRU_MAX = 4096
+
+
+def user_daily_count(bucket: str, user_id: str) -> int:
+    """Today's count for `user_id` in the named `bucket`. Returns 0
+    when the user has no entry OR the entry is from a previous day.
+    Caller compares against the bucket's cap + 429s on overflow."""
+    from datetime import date
+    today_ord = date.today().toordinal()
+    bkt = _USER_DAILY_BUCKETS.get(bucket)
+    if bkt is None:
+        return 0
+    entry = bkt.get(user_id)
+    if entry is None or entry[1] != today_ord:
+        return 0
+    return entry[0]
+
+
+def user_daily_increment(bucket: str, user_id: str) -> None:
+    """Bump the user's count for `bucket` today. Caller should fire
+    this AFTER the gated action has succeeded so a failed POST doesn't
+    consume the day's quota. LRU-evicts the oldest entry when the
+    per-bucket dict grows past the cap (so a viral campaign that
+    touches millions of user_ids doesn't OOM the worker)."""
+    from datetime import date
+    today_ord = date.today().toordinal()
+    bkt = _USER_DAILY_BUCKETS.setdefault(bucket, {})
+    entry = bkt.get(user_id)
+    if entry is None or entry[1] != today_ord:
+        bkt[user_id] = (1, today_ord)
+    else:
+        bkt[user_id] = (entry[0] + 1, today_ord)
+    if len(bkt) > _USER_DAILY_LRU_MAX:
+        # Evict the oldest day_ord; if multiple share the oldest, pick
+        # one deterministically by id. Skip the current writer.
+        oldest = min(
+            (k for k in bkt if k != user_id),
+            key=lambda k: bkt[k][1],
+            default=None,
+        )
+        if oldest is not None:
+            del bkt[oldest]

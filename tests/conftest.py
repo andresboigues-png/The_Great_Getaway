@@ -72,6 +72,15 @@ def client(temp_db):
         # Failure here just means we fall back to the per-request
         # disable above, which is enough for the test_client.
         pass
+    # R11-B5: reset the per-user daily counters (feed_comment, trip_create)
+    # so a long test suite doesn't accumulate into the cap. The module-level
+    # dict persists across tests within the same process; cumulative state
+    # would silently 429 the ~50th test that creates a trip.
+    try:
+        from helpers import _USER_DAILY_BUCKETS
+        _USER_DAILY_BUCKETS.clear()
+    except Exception:
+        pass
     try:
         with app.test_client() as client:
             yield client
