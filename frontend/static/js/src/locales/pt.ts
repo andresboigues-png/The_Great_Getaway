@@ -45,6 +45,9 @@ export const pt: Translations = {
         coverPhoto: 'Foto de capa',
         chooseCover: 'Escolher capa',
         coverPreviewAlt: 'Pré-visualização da capa',
+        // USER-BUG-1: confirmação ao encurtar a viagem (apaga dias fora do intervalo).
+        shortenConfirmTitle: 'Encurtar esta viagem?',
+        shortenConfirmBody: 'Isto irá apagar {count} dia(s) fora do novo intervalo de datas. Notas, fotos e dados desses dias serão perdidos. Continuar?',
     },
     confirmModal: {
         defaultTitle: 'Tens a certeza?',

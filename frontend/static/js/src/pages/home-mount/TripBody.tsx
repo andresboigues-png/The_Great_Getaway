@@ -386,11 +386,18 @@ export function TripBody({ activeTrip }: TripBodyProps) {
             activeTrip.actionsHidden = wasSilenced;
             applySilenceBtnVisual(silenceBtn, wasSilenced);
             emit('state:changed');
-            showLiquidAlert(
-                result?.status === 403
-                    ? 'Only the trip owner can silence trip actions.'
-                    : "Couldn't update — try again in a moment.",
-            );
+            // USER-BUG-2 (2026-05-28): 404 means the trip row isn't on the
+            // server yet (race between trip-create POST and silence click).
+            // The pre-fix wording always claimed "not the owner" even when
+            // the user had just created the trip and clearly IS the owner.
+            // 403 is the real not-owner case. 5xx / network → generic copy.
+            let msg = "Couldn't update — try again in a moment.";
+            if (result?.status === 404) {
+                msg = "Trip is still saving — try again in a moment.";
+            } else if (result?.status === 403) {
+                msg = 'Only the trip owner can silence trip actions.';
+            }
+            showLiquidAlert(msg);
             return;
         }
         showLiquidAlert(

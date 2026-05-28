@@ -45,6 +45,9 @@ export const es: Translations = {
         coverPhoto: 'Foto de portada',
         chooseCover: 'Elegir portada',
         coverPreviewAlt: 'Vista previa de la portada',
+        // USER-BUG-1: confirm al acortar el viaje (elimina días fuera del rango).
+        shortenConfirmTitle: '¿Acortar este viaje?',
+        shortenConfirmBody: 'Esto eliminará {count} día(s) que quedan fuera del nuevo rango de fechas. Se perderán las notas, fotos y datos de esos días. ¿Continuar?',
     },
     confirmModal: {
         defaultTitle: '¿Estás seguro?',

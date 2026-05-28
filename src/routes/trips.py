@@ -436,7 +436,19 @@ def silence_trip_actions(trip_id):
     hidden = bool(payload.get("hidden", True))
     with get_db() as conn:
         cursor = conn.cursor()
-        if not is_trip_owner(cursor, trip_id, user_id):
+        # USER-BUG-2 (2026-05-28): differentiate trip-missing from caller-not-
+        # owner. Pre-fix is_trip_owner returned False for BOTH cases, so the
+        # frontend's 403 handler always said "Only the trip owner can silence
+        # trip actions" — even when the user just created the trip and the
+        # silence call beat the upsert race (the trip row didn't exist on the
+        # server yet). Now: SELECT first, return 404 for missing, 403 only for
+        # the real not-owner case. Frontend can toast "Trip is still saving,
+        # try again in a moment" for the 404 race instead of misleading.
+        cursor.execute("SELECT user_id FROM trips WHERE id = ?", (trip_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Not found"}), 404
+        if row["user_id"] != user_id:
             return jsonify({"error": "Forbidden"}), 403
         cursor.execute(
             "UPDATE trips SET actions_hidden = ?, "

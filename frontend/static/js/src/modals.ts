@@ -8,6 +8,7 @@ import { generateId, showLiquidAlert, q, esc } from './utils.js';
 import {
     upsertTrip,
     upsertDay,
+    deleteDayOnServer,
     respondTripInvite,
     pullFromServer,
     uploadMedia,
@@ -17,6 +18,7 @@ import { navigate } from './router.js';
 import { ROLE_PLANNER } from './permissions.js';
 import { showModal } from './components/Modal.js';
 import { t, tn } from './i18n.js';
+import { showConfirmModal } from './utils.js';
 import { localizeNotificationMessage } from './bootstrap/notifications.js';
 
 // Trip-roster modals moved to ./modals/companions.ts in the B1 split.
@@ -630,56 +632,154 @@ export const openEditTripModal = (trip: any) => {
             }
         }
 
-        // Date sync — three branches:
-        //  a. No numbered days yet AND user filled dates → scaffold
-        //     one empty day per calendar date.
-        //  b. Numbered days exist AND user changed the start date →
-        //     rebase each existing day's date to startDate +
-        //     (dayNumber - 1) so the day count is preserved and the
-        //     trip just shifts on the calendar. End-date input is
-        //     informational here; we don't add/remove days.
-        //  c. No date change → no-op.
+        // USER-BUG-1 (2026-05-28): date sync — full lifecycle of the
+        // day rows when the user edits start/end dates. Pre-fix only
+        // start-date changes triggered a rebase; end-date changes were
+        // SILENTLY IGNORED, leaving the original day count intact when
+        // the user shortened the trip (40-day trip → user changes end
+        // date 30 days earlier → 40 day rows remain → "where's my
+        // edit?"). Now we handle all four cases:
+        //
+        //   a. No numbered days yet + dates filled → scaffold (was already correct)
+        //   b. Numbered days exist + start shifted (length unchanged) → rebase
+        //      each day's date by the delta (was already correct)
+        //   c. Numbered days exist + range LENGTHENED → add empty days for
+        //      the extension (new case)
+        //   d. Numbered days exist + range SHORTENED → confirm with the user,
+        //      then delete the days outside the new range. Confirm matters
+        //      because those days may have non-trivial user content (notes,
+        //      photos, expenses linked by date) and silent deletion would
+        //      surprise them.
         let scaffolded = ([] as import('./types').TripDay[]);
         const rebased = ([] as import('./types').TripDay[]);
+        const newDayIds: string[] = [];        // ids of days that should be added
+        let daysToDelete: import('./types').TripDay[] = [];
+
+        // Tiny date-arithmetic helpers — UTC throughout to avoid the
+        // R3-Fix #10 DST/TZ bug shape.
+        const parseUTC = (iso: string): Date | null => {
+            if (!iso) return null;
+            const d = new Date(iso + 'T00:00:00Z');
+            return isNaN(d.getTime()) ? null : d;
+        };
+        const formatUTC = (d: Date): string => d.toISOString().split('T')[0] ?? '';
+
         if (numberedDays.length === 0) {
+            // Case (a) — fresh trip, scaffold from scratch.
             scaffolded = _scaffoldTripDays(trip.id, startInput.value, endInput.value, 1);
             if (scaffolded.length > 0) STATE.tripDays.push(...scaffolded);
         } else {
-            const newStart = startInput.value;
-            const oldStart = numberedDays[0]!.date || '';
-            if (newStart && newStart !== oldStart) {
-                // R3-Fix #10: same UTC-everywhere fix as _scaffoldTripDays.
-                // Pre-fix the local-parse + UTC-emit pattern silently
-                // shifted every day's stored date by the user's TZ
-                // offset on a rebase.
-                const start = new Date(newStart + 'T00:00:00Z');
-                if (!isNaN(start.getTime())) {
-                    for (const day of numberedDays) {
-                        const d = new Date(start);
-                        d.setUTCDate(d.getUTCDate() + (day.dayNumber - 1));
-                        const newDate = d.toISOString().split('T')[0] ?? '';
-                        if (day.date !== newDate) {
-                            day.date = newDate;
-                            rebased.push(day);
-                        }
+            const newStartIso = startInput.value;
+            const newEndIso = endInput.value;
+            const newStart = parseUTC(newStartIso);
+            const newEnd = parseUTC(newEndIso);
+            const oldFirst = parseUTC(numberedDays[0]!.date || '');
+            const oldLast = parseUTC(numberedDays[numberedDays.length - 1]!.date || '');
+
+            // Compute targets WITHOUT committing yet — gives us a clean
+            // place to fork between cases.
+            const startChanged =
+                newStart && oldFirst && newStart.getTime() !== oldFirst.getTime();
+            const endChanged =
+                newEnd && oldLast && newEnd.getTime() !== oldLast.getTime();
+
+            // Step 1 — rebase if start changed (preserves the OLD length
+            // shifted to the new start). Same logic as before.
+            if (startChanged && newStart) {
+                for (const day of numberedDays) {
+                    const d = new Date(newStart);
+                    d.setUTCDate(d.getUTCDate() + (day.dayNumber - 1));
+                    const newDate = formatUTC(d);
+                    if (day.date !== newDate) {
+                        day.date = newDate;
+                        rebased.push(day);
                     }
                 }
             }
+
+            // After (optional) rebase, recompute the effective last day's
+            // date so end-change detection compares like-for-like.
+            const effectiveStart = newStart || oldFirst;
+            const effectiveLast = effectiveStart
+                ? (() => {
+                    const d = new Date(effectiveStart);
+                    d.setUTCDate(
+                        d.getUTCDate() + (numberedDays.length - 1),
+                    );
+                    return d;
+                })()
+                : null;
+
+            // Step 2 — extend or shorten based on the END date.
+            if (endChanged && newEnd && effectiveStart && effectiveLast) {
+                if (newEnd > effectiveLast) {
+                    // Case (c) — LENGTHEN. Scaffold the extension only.
+                    const lengthenStart = new Date(effectiveLast);
+                    lengthenStart.setUTCDate(lengthenStart.getUTCDate() + 1);
+                    const lengthenStartIso = formatUTC(lengthenStart);
+                    const lengthenEndIso = formatUTC(newEnd);
+                    const nextDayNum = numberedDays.length + 1;
+                    const extra = _scaffoldTripDays(
+                        trip.id, lengthenStartIso, lengthenEndIso, nextDayNum,
+                    );
+                    if (extra.length > 0) {
+                        STATE.tripDays.push(...extra);
+                        scaffolded.push(...extra);
+                        extra.forEach(d => newDayIds.push(d.id));
+                    }
+                } else if (newEnd < effectiveLast) {
+                    // Case (d) — SHORTEN. Collect days whose date is past
+                    // the new end. Delete only AFTER the user confirms below.
+                    daysToDelete = (STATE.tripDays || []).filter((d) =>
+                        d.tripId === trip.id
+                        && d.dayNumber > 0
+                        && (() => {
+                            const dd = parseUTC(d.date || '');
+                            return dd ? dd > newEnd : false;
+                        })(),
+                    );
+                }
+            }
         }
-        // Mirror onto trip.dateFrom / trip.dateTo so the AI planner
-        // and any future date-aware surface can read trip-level
-        // dates without re-deriving from tripDays. Trip-level dates
-        // are kept in sync with the day range above.
-        if (startInput.value) trip.dateFrom = startInput.value;
-        if (endInput.value) trip.dateTo = endInput.value;
 
-        emit('state:changed');
-        upsertTrip(trip);
-        scaffolded.forEach(d => upsertDay(d));
-        rebased.forEach(d => upsertDay(d));
+        // Branch on whether we need a delete-confirm.
+        const finalizeAndClose = () => {
+            // Mirror onto trip.dateFrom / trip.dateTo so the AI planner
+            // and any future date-aware surface can read trip-level
+            // dates without re-deriving from tripDays.
+            if (startInput.value) trip.dateFrom = startInput.value;
+            if (endInput.value) trip.dateTo = endInput.value;
+            emit('state:changed');
+            upsertTrip(trip);
+            scaffolded.forEach(d => upsertDay(d));
+            rebased.forEach(d => upsertDay(d));
+            close();
+            navigate('home', null, true);
+        };
 
-        close();
-        navigate('home', null, true);
+        if (daysToDelete.length > 0) {
+            const count = daysToDelete.length;
+            // Hold the modal open until the user decides. If they cancel
+            // we DON'T mutate STATE / write to server — the entire edit
+            // is treated as cancelled so they can re-open + adjust.
+            showConfirmModal({
+                title: t('editTrip.shortenConfirmTitle'),
+                message: t('editTrip.shortenConfirmBody', { count }),
+                confirmText: t('common.delete'),
+                onConfirm: () => {
+                    // Remove from STATE first so the UI updates immediately.
+                    const doomedIds = new Set(daysToDelete.map(d => d.id));
+                    STATE.tripDays = (STATE.tripDays || []).filter(
+                        d => !doomedIds.has(d.id),
+                    );
+                    // Then fire delete-on-server for each (idempotent + outbox-replayable).
+                    daysToDelete.forEach((d) => deleteDayOnServer(d.id));
+                    finalizeAndClose();
+                },
+            });
+        } else {
+            finalizeAndClose();
+        }
     };
 };
 

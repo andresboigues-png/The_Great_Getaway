@@ -50,6 +50,9 @@ export const fr: Translations = {
         coverPhoto: 'Photo de couverture',
         chooseCover: 'Choisir la couverture',
         coverPreviewAlt: 'Aperçu de la couverture',
+        // USER-BUG-1: confirmation lors du raccourcissement du voyage.
+        shortenConfirmTitle: 'Raccourcir ce voyage ?',
+        shortenConfirmBody: 'Cela supprimera {count} jour(s) en dehors de la nouvelle plage de dates. Les notes, photos et données de ces jours seront perdues. Continuer ?',
     },
     confirmModal: {
         defaultTitle: 'Es-tu sûr ?',

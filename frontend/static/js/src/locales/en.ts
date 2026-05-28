@@ -50,6 +50,13 @@ export const en = {
         coverPhoto: 'Cover photo',
         chooseCover: 'Choose cover',
         coverPreviewAlt: 'Cover preview',
+        // USER-BUG-1 (2026-05-28): confirm shown when the user's
+        // end-date edit shortens the trip past existing day rows.
+        // Pre-fix end-date changes were silently ignored; now we
+        // delete out-of-range days after confirm so the day count
+        // tracks the new range. Plural-aware via {count}.
+        shortenConfirmTitle: 'Shorten this trip?',
+        shortenConfirmBody: 'This will delete {count} day(s) that fall outside the new date range. Notes, photos, and per-day data on those days will be lost. Continue?',
     },
     // Default copy for the shared ConfirmModal component. Used when a
     // caller omits the corresponding option — pre-2026-05-18 the
