@@ -562,6 +562,18 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
 
         setGenerating(true);
         setGenerationError(null);
+        // R10-B6b MA2: lift the per-user-cap signal into a closure
+        // variable so the catch block can branch on the BACKEND'S
+        // explicit `d.userCapHit` flag (and/or HTTP 429) before
+        // falling back to regex-on-message detection. Pre-fix the
+        // catch tested `/quota|...|429|.../i.test(rawMsg)` against
+        // the thrown Error's message — fragile, miss-prone, and
+        // ambiguous (an upstream Google "quota" error mixes with
+        // our own per-user cap). The backend already ships
+        // `{userCapHit: true}` on the per-user-cap 429 (see
+        // src/routes/integrations.py:679). Source-of-truth wins.
+        let serverUserCapHit = false;
+        let serverStatus = 0;
         try {
             const r = await apiFetch('/api/generate_itinerary', {
                 method: 'POST',
@@ -576,7 +588,13 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                     gemini_key: (STATE.geminiApiKey || '').trim(),
                 }),
             });
+            serverStatus = r.status;
             const d = await r.json();
+            // R10-B6b MA2: capture the explicit per-user-cap signal
+            // before we throw — the catch needs both this and
+            // `serverStatus === 429` to make the routing decision
+            // without depending on regex-against-error-string.
+            if (d && d.userCapHit === true) serverUserCapHit = true;
             // Backend rides the latest pool snapshot in both success
             // and error responses (see src/routes/integrations.py).
             // Update the bar BEFORE the throw so the user sees the
@@ -597,7 +615,16 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
             const rawMsg = (e as Error).message || '';
             let msg = t('ai.errorGeneric');
             let hint = '';
-            if (/UNAVAILABLE|503|overloaded/i.test(rawMsg)) {
+            // R10-B6b MA2: explicit-signal branch wins over the regex
+            // tree. Backend tells us directly when the user has hit
+            // their per-account daily cap (vs. a pool-wide drain, an
+            // upstream Google overload, or a BYO-key auth issue); we
+            // should not be regex-guessing that from the error text.
+            if (serverUserCapHit || (serverStatus === 429 && /you've|cap|user/i.test(rawMsg))) {
+                msg = t('ai.errorQuota');
+                hint = t('ai.errorQuotaHint');
+                setShowByoCard(true);
+            } else if (/UNAVAILABLE|503|overloaded/i.test(rawMsg)) {
                 msg = t('ai.errorOverloaded');
                 hint = t('ai.errorOverloadedHint');
             } else if (/quota|limit|RESOURCE_EXHAUSTED|429|fully booked/i.test(rawMsg)) {

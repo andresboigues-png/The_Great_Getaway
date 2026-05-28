@@ -6,8 +6,8 @@
 // cleanly).
 
 import { STATE, emit } from '../../state.js';
-import { CONVERSION_RATES, EVENTS } from '../../constants.js';
-import { convertCurrency, getSupportedCurrencies } from '../../utils/currency.js';
+import { EVENTS } from '../../constants.js';
+import { convertCurrency, getSupportedCurrencies, hasRate } from '../../utils/currency.js';
 import {
     generateId,
     q,
@@ -231,8 +231,14 @@ export const openCreateBudgetModal = () => {
             return;
         }
         const curr = (q(root, '#newBudCurr') as HTMLSelectElement).value;
-        const rate = CONVERSION_RATES[curr];
-        if (rate === undefined) {
+        // R10-B6b F3: live-rate-aware gate. Pre-fix this used the bare
+        // `CONVERSION_RATES[curr]` truthy check, which sees only the
+        // 17-entry static fallback table — a user picking THB (or any
+        // code outside the static table) hit the "unknown currency"
+        // toast even though Frankfurter's live rate had already been
+        // fetched and cached. `hasRate` consults EUR + live cache +
+        // static table, matching pages/expenses/ManualTab.tsx:344.
+        if (!hasRate(curr)) {
             statusEl.textContent = t('budgets.createUnknownCurrency', { curr });
             statusEl.style.color = '#ff3b30';
             return;

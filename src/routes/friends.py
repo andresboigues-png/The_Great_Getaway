@@ -295,6 +295,7 @@ def remove_friend():
 
 
 @bp.route("/api/friends/list", methods=["GET"])
+@limiter.limit("30/minute")
 @require_auth
 def list_friends():
     """Returns the user's MUTUALS — the Model B equivalent of "friends".
@@ -304,7 +305,18 @@ def list_friends():
 
     Single-query implementation: the join self-references `follows`
     on the reciprocal edge, then joins `users` once for the display
-    fields."""
+    fields.
+
+    R10-B6b S4: rate-limited at 30/minute + emails masked through
+    `_mask_email`. Pre-fix this endpoint shipped raw `users.email`
+    for every mutual and was uncapped — an enumeration script could
+    scrape an entire social-graph slice (one polled call gives N
+    contact addresses; with no cap a worker could chain calls every
+    second). The display surfaces (Friends tab, settlement payer
+    picker) never render the email; the value lands in STATE and
+    is only consumed for the "matches my contact's email?" hint.
+    Mask matches the same shape we already use for /api/users/search
+    + /api/follows responses, so the truthy-prefix hint still works."""
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
@@ -318,7 +330,15 @@ def list_friends():
             WHERE f1.follower_id = ?
             ORDER BY u.name
         ''', (user_id,))
-        friends = [dict(row) for row in cursor.fetchall()]
+        friends = [
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "email": _mask_email(row["email"]),
+                "picture": row["picture"],
+            }
+            for row in cursor.fetchall()
+        ]
     return jsonify(friends)
 
 

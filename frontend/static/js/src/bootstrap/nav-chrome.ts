@@ -258,6 +258,20 @@ export function wireNavChrome(): void {
             // Close any open notification dropdown — only one navbar
             // popover can be visible at a time. Both copies handled.
             closeOtherDropdowns();
+            // R10-B6b M1: move focus into the popover on open so
+            // keyboard users land on actionable content. The sister
+            // notification dropdown (handled by closeOtherDropdowns)
+            // already does this; tripControlsPopover was the lone
+            // sibling that opened with focus stuck on the trigger.
+            // queueMicrotask gives the browser one tick to compute
+            // the `display: block` layout — focusing before that
+            // throws on Chrome if the element is still display:none.
+            queueMicrotask(() => {
+                const first = tripControlsPopover.querySelector<HTMLElement>(
+                    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+                );
+                first?.focus();
+            });
         }
     };
     tripControlsBtn?.addEventListener('click', togglePopover);

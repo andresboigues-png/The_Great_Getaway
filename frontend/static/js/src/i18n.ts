@@ -378,12 +378,23 @@ export function formatCurrency(amount: number, currency: string): string {
 
 /** Format a Date as a short, human-readable string in the active
  *  locale. Used by formatDayDate in utils.ts. Example: 'Apr 6'
- *  (en-US) / '6 abr.' (pt-PT) / '6 abr.' (es-ES) / '6 avr.' (fr-FR). */
+ *  (en-US) / '6 abr.' (pt-PT) / '6 abr.' (es-ES) / '6 avr.' (fr-FR).
+ *
+ *  R10-B6b T2: forced UTC. Day dates ship from the server as bare
+ *  ISO dates ("2026-04-06") and we materialise them with
+ *  `new Date(iso + 'T00:00:00Z')`. Without `timeZone: 'UTC'` here,
+ *  Intl renders them in the browser's local timezone — UTC-04 then
+ *  shows "Apr 5" for a server-side "Apr 6" date, which mismatches
+ *  the day's own header label and (worse) confuses anyone walking
+ *  through a multi-day itinerary near the date boundary. Forcing
+ *  UTC keeps the calendar-day identity stable regardless of where
+ *  the user is opening the trip from. */
 export function formatDateShort(date: Date): string {
     try {
         return new Intl.DateTimeFormat(getIntlLocale(), {
             month: 'short',
             day: 'numeric',
+            timeZone: 'UTC',
         }).format(date);
     } catch {
         // Fallback to ISO date string slice if Intl is unavailable.

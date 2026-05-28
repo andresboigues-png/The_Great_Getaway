@@ -60,6 +60,24 @@ const REPLAYABLE_PREFIXES = [
 // would need explicit per-route audits to confirm idempotency.
 const REPLAYABLE_METHODS = new Set(['POST', 'DELETE']);
 
+// R10-B6b M3: per-prefix exclusion list — paths that LOOK like row
+// writes but are actually one-shot social operations whose replay
+// would either duplicate side effects (notifications, achievements,
+// FK rewrites) OR re-issue a state-changing call against a target
+// the user may have already changed their mind about during the
+// offline window. Match shape: regex against the path (no query
+// string). Conservative: anything that fires user-visible side
+// effects on the OTHER party (invites, kicks, share-link generation,
+// clone) lives here. Editing-your-own-row paths (expenses, days,
+// budgets, settlements) stay in the replayable set because the
+// updated_at gate at the server makes them safe to re-fire.
+const NON_REPLAYABLE_PATTERNS: RegExp[] = [
+    /^\/api\/trips\/invite$/,            // sends invitation notification
+    /^\/api\/trips\/clone\/.+$/,         // creates a whole new trip
+    /^\/api\/trips\/[^/]+\/share$/,      // generates a share token + flips is_public
+    /^\/api\/trips\/members\/remove$/,   // kicks a user — notification + role rewrite
+];
+
 export interface OutboxItem {
     id: string;
     url: string;
@@ -80,6 +98,13 @@ export function isReplayable(url: string, method: string): boolean {
         ? new URL(url).pathname
         : (url.split('?')[0] ?? url);
     if (!REPLAYABLE_METHODS.has(method.toUpperCase())) return false;
+    // R10-B6b M3: check the exclusion list FIRST. Some social-write
+    // paths (/api/trips/invite, /api/trips/.+/share, /api/trips/clone/.+,
+    // /api/trips/members/remove) live under the /api/trips prefix and
+    // would otherwise be enqueued for replay. Replaying them produces
+    // duplicate notifications or rewires state the user may have
+    // changed during the offline window — not what they expect.
+    if (NON_REPLAYABLE_PATTERNS.some(re => re.test(path))) return false;
     return REPLAYABLE_PREFIXES.some(p =>
         path === p || path.startsWith(p + '/'),
     );

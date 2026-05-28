@@ -377,8 +377,23 @@ export function computeGlobalBalances() {
     }
     for (const s of allSettlements) {
         const trip = tripsById.get(s.tripId);
-        if (!trip) continue;
-        applySettlementToBalances(globalBalances, s, trip);
+        // R10-B6b F4: don't silently drop settlements whose trip
+        // isn't in the local cache. Pre-fix this `if (!trip) continue;`
+        // dropped any settlement whose trip hadn't been hydrated
+        // (post-logout flush, new install before /api/data lands, or
+        // an old archived trip that fell off the snapshot). The user
+        // saw their global balance silently UNDER-count their debts —
+        // a payment they'd received was missing entirely, not even
+        // shown with a "pending" hint. applySettlementToBalances
+        // tolerates a null trip when the row carries fromName/toName
+        // snapshots (every post-§4.5 server-written row does), so
+        // hand it null and let the snapshot path win. The function's
+        // own `if (!fromName || !toName) return;` guard still catches
+        // the legacy unbackfilled-snapshot edge case without crashing.
+        if (!trip) {
+            console.warn('[balances] settlement', s.id, 'trip', s.tripId, 'not in local cache — using snapshot names');
+        }
+        applySettlementToBalances(globalBalances, s, trip || null);
     }
 
     return globalBalances;

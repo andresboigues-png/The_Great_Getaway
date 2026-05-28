@@ -164,6 +164,16 @@ export function deleteActiveTrip(): void {
             STATE.trips = STATE.trips.filter(t => t.id !== trip.id);
             STATE.expenses = STATE.expenses.filter(e => e.tripId !== trip.id);
             STATE.tripDays = STATE.tripDays.filter(d => d.tripId !== trip.id);
+            // R10-B6b L1: sweep settlements + budgets too. Pre-fix
+            // these stayed in STATE after delete — Trip Switcher still
+            // computed Global Balances using the dead trip's
+            // settlements (which then 404'd when the user clicked
+            // through), and the Budgets page showed line items for a
+            // trip that no longer existed. The archive flow already
+            // does this same sweep (archiveActiveTrip); permanent
+            // delete was the missed sibling.
+            STATE.settlements = (STATE.settlements || []).filter(s => s.tripId !== trip.id);
+            STATE.budgets = (STATE.budgets || []).filter(b => b.tripId !== trip.id);
             STATE.activeTripId = STATE.trips.length > 0 ? STATE.trips[0]!.id : null;
 
             emit('state:changed');               // saveState + updateTripSelector via subscriber

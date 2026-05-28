@@ -1220,6 +1220,27 @@ def delete_user_data():
         cursor.execute(
             "DELETE FROM feed_bookmarks WHERE user_id = ?", (user_id,),
         )
+        # R10-B6b S2: snapshot post_ids before the feed_posts DELETE so
+        # we can sweep notifications keyed on those posts. Pre-fix the
+        # post rows vanished but `notifications.related_id =
+        # <deleted-post-id>` rows for types like `feed_liked`,
+        # `feed_commented`, `feed_reposted` lingered in OTHER users'
+        # bells — clicking them navigated to /feed/<dead-post-id>
+        # which 404'd silently. The trip-delete + post-delete paths
+        # already sweep their own scope (see trips.py:339-344 +
+        # feed.py post-delete); the factory-reset bulk path was the
+        # missed sibling.
+        cursor.execute(
+            "SELECT id FROM feed_posts WHERE user_id = ?", (user_id,),
+        )
+        doomed_post_ids = [row["id"] for row in cursor.fetchall()]
+        if doomed_post_ids:
+            ph = ",".join(["?"] * len(doomed_post_ids))
+            cursor.execute(
+                f"DELETE FROM notifications WHERE related_id IN ({ph}) "
+                f"AND type IN ('feed_liked', 'feed_commented', 'feed_reposted', 'feed_bookmarked')",
+                doomed_post_ids,
+            )
         # feed_posts CASCADE-deletes reposts (FK on repost_of_post_id).
         # The user may have reposts of OTHER users' originals — those
         # are also `user_id = ?` so the same DELETE catches them.

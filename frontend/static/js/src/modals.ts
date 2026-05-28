@@ -890,8 +890,16 @@ export const openAddDayModal = () => {
     if (tripDays.length > 0) {
         const lastDay = tripDays[tripDays.length - 1]!;
         if (lastDay.date) {
-            const d = new Date(lastDay.date);
-            d.setDate(d.getDate() + 1);
+            // R10-B6b T1: anchor in UTC. Pre-fix this used
+            // `new Date(iso)` (parses as local midnight) + setDate +
+            // toISOString. On any timezone west of UTC the local-
+            // midnight parse drops a day before the +1, so on a DST
+            // spring-forward Sunday the suggested next-day date
+            // landed on the SAME day as `lastDay.date`. Forcing
+            // `T00:00:00Z` + setUTCDate keeps the arithmetic on a
+            // single timeline regardless of where the user is.
+            const d = new Date(lastDay.date + 'T00:00:00Z');
+            d.setUTCDate(d.getUTCDate() + 1);
             suggestedDate = d.toISOString().split('T')[0] ?? '';
         }
     }
