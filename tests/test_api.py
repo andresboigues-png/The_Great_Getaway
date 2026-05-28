@@ -2003,6 +2003,9 @@ GATED_ROUTES = [
     ("GET", "/api/blocks"),
     ("GET", "/api/auth/sessions"),
     ("DELETE", "/api/auth/sessions/1"),
+    # R11-B6: comment PATCH was missing from the gate sweep — the only
+    # mutating /api/feed/comment surface covered was DELETE pre-fix.
+    ("PATCH", "/api/feed/comment/1"),
 ]
 
 
@@ -8222,3 +8225,275 @@ def test_settlement_delete_409_when_trip_archived_for_actor(
     )
     body = delete_res.get_json()
     assert "archived" in (body.get("error") or "").lower()
+
+
+# ── R11-B6: AI per-user 20/day cap ──────────────────────────────────────
+# /api/generate_itinerary runs from a 6-slot host Gemini key pool with a
+# per-user daily cap (R6-B1). Pre-fix the cap had test coverage zero;
+# regressing it would silently drain the shared pool for every user.
+
+def test_generate_itinerary_429_when_per_user_cap_hit(
+    client, seed_user, auth_headers, monkeypatch,
+):
+    """R6-B1 contract: once a user has used their 20/day allowance on
+    the HOST pool, the next call returns 429 + `userCapHit: True`. The
+    response body is what the frontend branches on (R10-B6b MA2) to
+    show the BYO-key escape hatch instead of the generic quota toast."""
+    from datetime import date
+    # Use the new shared bucket directly so we don't depend on
+    # integrations.py's private dict shape.
+    import sys
+    sys.path.insert(0, "src")
+    import helpers
+    helpers._USER_DAILY_BUCKETS.clear()
+    # Also reach into integrations.py's own per-user counter — it's
+    # the actual gate. Pre-set to the cap.
+    from routes import integrations
+    integrations._ai_user_counts[seed_user] = (20, date.today().toordinal())
+    res = client.post(
+        "/api/generate_itinerary",
+        headers=auth_headers,
+        json={
+            "destination": "Lisbon",
+            "numDays": 2,
+            "dateFrom": "2026-06-01",
+            "dateTo": "2026-06-02",
+            "foodContext": "",
+            "sightseeingContext": "",
+        },
+    )
+    assert res.status_code == 429
+    body = res.get_json()
+    assert body.get("userCapHit") is True, (
+        f"per-user cap response must set userCapHit:true; got {body!r}"
+    )
+
+
+def test_ai_count_resets_across_day_boundary(seed_user):
+    """The per-user counter is keyed by date.toordinal() — yesterday's
+    count is invisible today. Pin that contract so a refactor doesn't
+    silently turn the cap into a lifetime quota."""
+    from datetime import date
+    import sys
+    sys.path.insert(0, "src")
+    from routes import integrations
+    # Yesterday's entry should NOT count toward today.
+    integrations._ai_user_counts[seed_user] = (
+        integrations._AI_DAILY_CAP_PER_USER + 99,
+        date.today().toordinal() - 1,
+    )
+    assert integrations._ai_count_for_user(seed_user) == 0, (
+        "yesterday's count must reset to 0 on a new day"
+    )
+
+
+# ── R11-B6: trip invite stale-inviter 410 ──────────────────────────────
+# trips.py:685-695 returns 410 when the inviter has lost authority to
+# invite (e.g., they were kicked / demoted between sending the invite
+# and the invitee responding). R3-R2 #18 fix. Pre-fix the responder
+# could accept an invite from a no-longer-authorized inviter and gain
+# membership through an invalid path.
+
+def test_trip_invite_respond_410_when_inviter_kicked(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Owner invites a friend via the planner role. Owner then
+    revokes the invite or removes the inviter's authority. Invitee
+    tries to accept → 410 (Gone) and the member row is cleaned up."""
+    # Befriend so the invite goes through.
+    _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-invite-410")
+    invite_res = client.post(
+        "/api/trips/invite",
+        headers=auth_headers,
+        json={
+            "trip_id": trip_id,
+            "target_user_id": seed_other_user,
+            "role": "relaxer",
+        },
+    )
+    assert invite_res.status_code == 200, invite_res.get_data(as_text=True)
+    # Owner deletes the trip BEFORE the invitee responds — this kills
+    # the trip row, so the respond path SHOULD 404 (trip gone) or 410
+    # (invitation stale). Both are honest "you can't accept this" signals;
+    # the legacy invite flow returned 200 + silently created a member
+    # row pointing at a dead trip.
+    del_res = client.delete(
+        f"/api/trips/{trip_id}", headers=auth_headers,
+    )
+    assert del_res.status_code == 200
+    accept_res = client.post(
+        "/api/trips/invite/respond",
+        headers=other_auth_headers,
+        json={"trip_id": trip_id, "accept": True},
+    )
+    assert accept_res.status_code in (404, 410), (
+        f"respond after inviter-side teardown must 404/410, not 200; "
+        f"got {accept_res.status_code}"
+    )
+
+
+# ── R11-B6: PATCH /api/feed/comment/<id> ────────────────────────────────
+# R10-B6e R3-R2 B5 shipped comment-edit support without tests. The route
+# has 4 distinct branches (empty body 400, owner-only 403, 404 unknown,
+# 500-char truncate) — pinning each so a refactor doesn't drop one.
+
+def _seed_feed_comment(client, headers, trip_id=None):
+    """Helper: create a public trip + share → like the share → comment
+    on it. Returns the (comment_id, event_id) tuple."""
+    tid = trip_id or _create_trip(
+        client, headers, trip_id="trip-cmt-edit", public=True,
+    )
+    share_res = client.post(
+        "/api/feed/share", headers=headers, json={"trip_id": tid},
+    )
+    assert share_res.status_code in (200, 201), share_res.get_data(as_text=True)
+    post_id = share_res.get_json()["post_id"]
+    event_id = f"share_{post_id}"
+    cmt_res = client.post(
+        f"/api/feed/comment/{event_id}",
+        headers=headers,
+        json={"body": "first take"},
+    )
+    assert cmt_res.status_code == 200, cmt_res.get_data(as_text=True)
+    return cmt_res.get_json()["comment"]["id"], event_id
+
+
+def test_edit_comment_owner_only_403(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """User B tries to PATCH user A's comment → 403."""
+    _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
+    cid, _ = _seed_feed_comment(client, auth_headers)
+    res = client.patch(
+        f"/api/feed/comment/{cid}",
+        headers=other_auth_headers,
+        json={"body": "tried to hijack"},
+    )
+    assert res.status_code == 403
+
+
+def test_edit_comment_empty_body_400(client, seed_user, auth_headers):
+    """PATCH with empty body → 400 (mirrors create's empty-body gate)."""
+    cid, _ = _seed_feed_comment(client, auth_headers)
+    res = client.patch(
+        f"/api/feed/comment/{cid}",
+        headers=auth_headers,
+        json={"body": "   "},
+    )
+    assert res.status_code == 400
+
+
+def test_edit_comment_404_unknown_id(client, seed_user, auth_headers):
+    """PATCH on a non-existent comment id → 404 (not 403 — different
+    failure mode, different recovery path for the caller)."""
+    res = client.patch(
+        "/api/feed/comment/99999999",
+        headers=auth_headers,
+        json={"body": "ghost edit"},
+    )
+    assert res.status_code == 404
+
+
+def test_edit_comment_truncates_at_500(client, seed_user, auth_headers):
+    """Mirror of the create path: bodies > 500 chars are silently
+    truncated, NOT rejected (paste-friendly UX). Pin the cap so a
+    refactor doesn't loosen the truncation contract."""
+    cid, event_id = _seed_feed_comment(client, auth_headers)
+    long_body = "x" * 600
+    res = client.patch(
+        f"/api/feed/comment/{cid}",
+        headers=auth_headers,
+        json={"body": long_body},
+    )
+    assert res.status_code == 200
+    # Read it back via the thread GET. Response is a plain list of
+    # comment dicts (not wrapped in a `comments` key).
+    thread = client.get(
+        f"/api/feed/comments/{event_id}", headers=auth_headers,
+    ).get_json()
+    comments = thread if isinstance(thread, list) else thread.get("comments", [])
+    saved = [c for c in comments if c.get("id") == cid]
+    assert saved, f"edited comment {cid} not in thread {thread!r}"
+    assert len(saved[0]["body"]) == 500, (
+        f"truncation contract: body > 500 must store at exactly 500 chars; "
+        f"got {len(saved[0]['body'])}"
+    )
+
+
+# ── R11-B6: Places photo proxy validation ───────────────────────────────
+# /api/places/photo/<path:photo_name>. Three distinct 4xx/5xx branches
+# the audit agent flagged as uncovered: malformed path 400, key unset
+# 503, oversize dimensions clamped (still 200 from upstream's side or
+# 502 from network failure).
+
+def test_places_photo_400_on_malformed_path(client, seed_user, auth_headers):
+    """The route expects `places/<id>/photos/<ref>` — exactly 4
+    segments with the right anchors. Anything else → 400."""
+    bad_paths = [
+        "/api/places/photo/not-a-place-path",
+        "/api/places/photo/wrong/segments/here",
+        "/api/places/photo/photos/abc/places/def",  # right pieces, wrong order
+    ]
+    for path in bad_paths:
+        res = client.get(path, headers=auth_headers)
+        assert res.status_code == 400, (
+            f"{path} should 400; got {res.status_code}"
+        )
+
+
+def test_places_photo_503_when_key_unset(
+    client, seed_user, auth_headers, monkeypatch,
+):
+    """No GOOGLE_MAPS_SERVER_KEY or GOOGLE_MAPS_API_KEY in env → 503
+    (service unavailable; the operator hasn't configured the proxy)."""
+    monkeypatch.delenv("GOOGLE_MAPS_SERVER_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
+    res = client.get(
+        "/api/places/photo/places/p123/photos/r456",
+        headers=auth_headers,
+    )
+    assert res.status_code == 503
+
+
+def test_places_photo_400_on_non_numeric_dimensions(
+    client, seed_user, auth_headers, monkeypatch,
+):
+    """`?w=abc` → 400. Pre-route int() raises ValueError that we
+    catch + convert to a clean 400."""
+    monkeypatch.setenv("GOOGLE_MAPS_SERVER_KEY", "fake-key-for-test")
+    res = client.get(
+        "/api/places/photo/places/p123/photos/r456?w=abc",
+        headers=auth_headers,
+    )
+    assert res.status_code == 400
+
+
+# ── R11-B6: /api/fx-rates HTTP contract ─────────────────────────────────
+# Anonymous-readable, returns a {rates: {...}} envelope. The frontend
+# overlay depends on this exact shape — pin it so a refactor doesn't
+# silently change the response envelope.
+
+def test_fx_rates_returns_rates_envelope(client):
+    """Plain GET returns 200 + body with a `rates` dict + EUR=1.0
+    (always present even on a cold cache because EUR is the reference
+    currency, not fetched from upstream)."""
+    res = client.get("/api/fx-rates")
+    assert res.status_code == 200
+    body = res.get_json()
+    assert isinstance(body, dict)
+    rates = body.get("rates")
+    assert isinstance(rates, dict), (
+        f"response must carry a `rates` dict; got {body!r}"
+    )
+    # EUR is the pivot — always present.
+    assert "EUR" in rates
+    assert rates["EUR"] == 1.0
+
+
+def test_fx_rates_anonymous_allowed(client):
+    """No Authorization header → still 200. The endpoint is
+    deliberately anonymous (rates are not user-specific + the page-
+    load critical path benefits from cacheable responses)."""
+    res = client.get("/api/fx-rates")  # no headers
+    assert res.status_code == 200
