@@ -46,6 +46,9 @@ export const en = {
         destinationHint: 'Pick a new suggestion to change the location, or just rename.',
         startDate: 'Start date',
         endDate: 'End date',
+        // USER-FEAT-3: single-calendar range picker for the Edit Trip modal.
+        dates: 'Trip dates',
+        dateRangePlaceholder: 'Pick start and end dates',
         optional: 'optional',
         coverPhoto: 'Cover photo',
         chooseCover: 'Choose cover',
@@ -1625,6 +1628,12 @@ export const en = {
         newTripDestHint: 'Pick a suggestion to confirm the location.',
         newTripLabelStart: 'Start date',
         newTripLabelEnd: 'End date',
+        // USER-FEAT-3: single-calendar range picker label + placeholder.
+        // The 2 inputs (start/end) are now hidden mirrors driven by a
+        // flatpickr range calendar; this label/placeholder rides on the
+        // single visible input the user clicks.
+        newTripLabelDates: 'Trip dates',
+        newTripDateRangePlaceholder: 'Pick start and end dates',
         newTripDateOptional: '(optional)',
         newTripDatesHint: "If you fill these in, we'll create one empty Path day per date — you can pin places later.",
         newTripCreateBtn: 'Create Trip',

@@ -19,6 +19,7 @@ import { ROLE_PLANNER } from './permissions.js';
 import { showModal } from './components/Modal.js';
 import { t, tn } from './i18n.js';
 import { showConfirmModal } from './utils.js';
+import { mountDateRangePicker } from './utils/dateRangePicker.js';
 import { localizeNotificationMessage } from './bootstrap/notifications.js';
 
 // Trip-roster modals moved to ./modals/companions.ts in the B1 split.
@@ -274,15 +275,16 @@ export const openNewTripModal = () => {
                     <input type="text" id="tripPlaceInput" class="glass-input-modal" placeholder="${esc(t('modals.newTripPlaceholderDest'))}" autocomplete="off">
                     <p id="tripPlaceHint" class="form-hint">${esc(t('modals.newTripDestHint'))}</p>
                 </div>
-                <div class="form-row-split mdl-field-row">
-                    <div class="flex-1">
-                        <label class="form-label">${esc(t('modals.newTripLabelStart'))} <span class="opacity-50 font-medium">${esc(t('modals.newTripDateOptional'))}</span></label>
-                        <input type="date" id="tripStartDate" class="glass-input-modal">
-                    </div>
-                    <div class="flex-1">
-                        <label class="form-label">${esc(t('modals.newTripLabelEnd'))} <span class="opacity-50 font-medium">${esc(t('modals.newTripDateOptional'))}</span></label>
-                        <input type="date" id="tripEndDate" class="glass-input-modal">
-                    </div>
+                <!-- USER-FEAT-3: single range calendar replaces the
+                     two-input pattern. The hidden start/end inputs are
+                     the source of truth that the submit handler reads;
+                     the visible #tripDateRange input is the flatpickr-
+                     bound surface the user actually clicks. -->
+                <div class="w-full mb-4">
+                    <label class="form-label" for="tripDateRange">${esc(t('modals.newTripLabelDates'))} <span class="opacity-50 font-medium">${esc(t('modals.newTripDateOptional'))}</span></label>
+                    <input type="text" id="tripDateRange" class="glass-input-modal" readonly placeholder="${esc(t('modals.newTripDateRangePlaceholder'))}" autocomplete="off">
+                    <input type="hidden" id="tripStartDate">
+                    <input type="hidden" id="tripEndDate">
                 </div>
                 <p class="form-hint" id="tripDateHint" class="w-full mb-4">${esc(t('modals.newTripDatesHint'))}</p>
                 <div class="mdl-btn-row">
@@ -299,6 +301,15 @@ export const openNewTripModal = () => {
 
     const { getPicked } = _wirePlacePicker({ placeInput, hint, submitBtn });
 
+    // USER-FEAT-3: flatpickr range calendar drives the hidden inputs.
+    // The original two visible date fields are gone; the validation
+    // helper still wires onto the hidden inputs since we dispatch
+    // synthetic `input` events from the picker's onChange hook.
+    mountDateRangePicker({
+        visibleInput: q(root, '#tripDateRange') as HTMLInputElement,
+        startMirror: q(root, '#tripStartDate') as HTMLInputElement,
+        endMirror: q(root, '#tripEndDate') as HTMLInputElement,
+    });
     _wireDateRangeValidation(root, 'tripStartDate', 'tripEndDate', 'tripDateHint');
 
     (q(root, '#cancelTripBtn') as HTMLButtonElement).onclick = () => close();
@@ -425,15 +436,13 @@ export const openEditTripModal = (trip: any) => {
                     <input type="text" id="editTripPlaceInput" class="glass-input-modal" placeholder="${esc(t('editTrip.destinationPlaceholder'))}" autocomplete="off">
                     <p id="editTripPlaceHint" class="form-hint">${esc(t('editTrip.destinationHint'))}</p>
                 </div>
-                <div class="form-row-split mdl-field-row">
-                    <div class="flex-1">
-                        <label class="form-label">${esc(t('editTrip.startDate'))} <span class="opacity-50 font-medium">(${esc(t('editTrip.optional'))})</span></label>
-                        <input type="date" id="editTripStartDate" class="glass-input-modal">
-                    </div>
-                    <div class="flex-1">
-                        <label class="form-label">${esc(t('editTrip.endDate'))} <span class="opacity-50 font-medium">(${esc(t('editTrip.optional'))})</span></label>
-                        <input type="date" id="editTripEndDate" class="glass-input-modal">
-                    </div>
+                <!-- USER-FEAT-3: single range calendar replaces the
+                     two-input pattern. Same shape as the New Trip modal. -->
+                <div class="w-full mb-4">
+                    <label class="form-label" for="editTripDateRange">${esc(t('editTrip.dates'))} <span class="opacity-50 font-medium">(${esc(t('editTrip.optional'))})</span></label>
+                    <input type="text" id="editTripDateRange" class="glass-input-modal" readonly placeholder="${esc(t('editTrip.dateRangePlaceholder'))}" autocomplete="off">
+                    <input type="hidden" id="editTripStartDate">
+                    <input type="hidden" id="editTripEndDate">
                 </div>
                 <p id="editTripDateHint" class="form-hint w-full mb-4"></p>
 
@@ -510,6 +519,16 @@ export const openEditTripModal = (trip: any) => {
 
     const { getPicked } = _wirePlacePicker({ placeInput, hint, submitBtn, initialPlace });
 
+    // USER-FEAT-3: flatpickr range calendar drives the hidden inputs.
+    // Pre-fill with the trip's existing first/last day dates so the
+    // calendar opens already showing the trip's range.
+    mountDateRangePicker({
+        visibleInput: q(root, '#editTripDateRange') as HTMLInputElement,
+        startMirror: startInput,
+        endMirror: endInput,
+        initialStart: startInput.value,
+        initialEnd: endInput.value,
+    });
     // Round 4 audit fix — same date-range validation as the New Trip
     // modal. Important here too because Edit Trip pre-fills both
     // dates, so the user dragging the start past the end would land
