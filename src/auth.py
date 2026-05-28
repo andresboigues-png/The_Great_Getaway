@@ -304,9 +304,24 @@ def verify_token(token: str) -> Optional[str]:
                 return None
             # Touch last_seen_at so the /api/auth/sessions UI can
             # show "last active N min ago".
+            #
+            # R10-B6c S3: throttle the write to once per 60s per
+            # session. Pre-fix this UPDATE fired on EVERY authed
+            # request — for an active user that's dozens of write
+            # transactions per minute per session, each with a
+            # commit + page-cache invalidation cost. The Sessions
+            # UI's per-row precision is "last active N min ago" so
+            # 60-second resolution is plenty; pushing finer-grained
+            # mostly just burns IO. Gate lives INSIDE the UPDATE's
+            # WHERE clause so it's atomic — no SELECT-then-write
+            # race window where two parallel requests on the same
+            # session both decide to write.
             cursor.execute(
-                "UPDATE auth_sessions SET last_seen_at = CURRENT_TIMESTAMP "
-                "WHERE id = ?",
+                "UPDATE auth_sessions "
+                "SET last_seen_at = CURRENT_TIMESTAMP "
+                "WHERE id = ? "
+                "AND (last_seen_at IS NULL "
+                "     OR last_seen_at < datetime('now', '-60 seconds'))",
                 (session_row["id"],),
             )
             conn.commit()

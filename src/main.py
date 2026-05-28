@@ -730,7 +730,12 @@ def home():
 @app.route("/share/<token>")
 @limiter.limit("60/minute")
 def share_page(token):
-    payload = fetch_share_payload(token)
+    # R10-B6c S1: thread the (possibly None) caller_id so a signed-in
+    # viewer who's mutually blocked with the trip owner sees the
+    # same friendly empty page as a wrong/revoked token. Anonymous
+    # hits (caller_id=None) fall through; share URLs are designed to
+    # work for logged-out recipients by definition.
+    payload = fetch_share_payload(token, caller_id=current_user_id())
     if not payload:
         # Wrong / revoked token. Render a friendly empty page instead
         # of leaking "this trip used to exist" vs "this trip never

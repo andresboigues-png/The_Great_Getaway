@@ -96,6 +96,24 @@ def get_public_trip(trip_id):
         is_public = bool(trip.get('is_public'))
         owner_id = trip.get('user_id')
 
+        # R10-B6c S1: block-aware response when the caller is signed
+        # in. If either side blocks the other we return 404, matching
+        # the get_public_profile gate at line 322-331 + the
+        # /api/follows/<id> response shape (never leak the block
+        # state via differential codes). Anonymous callers fall
+        # through to the normal public-trip path (blocking is between
+        # two known identities). Owner viewing their own trip
+        # bypasses the check — you can't block yourself.
+        if caller_id and owner_id and caller_id != owner_id:
+            cursor.execute(
+                "SELECT 1 FROM blocks WHERE "
+                "(blocker_id = ? AND blocked_id = ?) OR "
+                "(blocker_id = ? AND blocked_id = ?) LIMIT 1",
+                (caller_id, owner_id, owner_id, caller_id),
+            )
+            if cursor.fetchone():
+                return jsonify({"error": "Not found"}), 404
+
         # Visibility gate. Public → anyone. Private → caller must be a
         # member (owner row or accepted trip_members row). We hide
         # non-visible trips behind 404 to avoid leaking trip-id existence.
@@ -443,7 +461,7 @@ def _bucket_share_views(n: int) -> int:
     return chosen
 
 
-def fetch_share_payload(token):
+def fetch_share_payload(token, caller_id=None):
     """Look up the trip by share_token and shape the public payload.
     Shared with the /share/<token> HTML route in main.py (no point in
     duplicating the SELECT + currency aggregation across two callers).
@@ -461,6 +479,12 @@ def fetch_share_payload(token):
 
     Photos, documents, expense line items, and member identities are
     NEVER exposed regardless of toggle state.
+
+    R10-B6c S1: when `caller_id` is supplied (signed-in viewer hits
+    a share link) we now ALSO 404 on a mutual block — matches
+    get_public_profile + get_public_trip. Anonymous callers (no
+    caller_id) are unaffected; share URLs are designed to work for
+    logged-out recipients by definition.
     """
     with get_db() as conn:
         cursor = conn.cursor()
@@ -489,6 +513,23 @@ def fetch_share_payload(token):
         # by unarchiving + re-running the Share modal.
         if row["is_archived"]:
             return None
+        # R10-B6c S1: block-aware response. A signed-in caller who's
+        # mutually blocked with the trip owner sees the same "not
+        # available" branch as a wrong/revoked token (the main.py
+        # share_page template handles None-payload as a friendly
+        # empty page). Anonymous viewers fall through (no caller_id).
+        # Owner viewing their own share token bypasses (self-block
+        # is impossible by the blocks-table constraint).
+        owner_id = row["user_id"]
+        if caller_id and owner_id and caller_id != owner_id:
+            cursor.execute(
+                "SELECT 1 FROM blocks WHERE "
+                "(blocker_id = ? AND blocked_id = ?) OR "
+                "(blocker_id = ? AND blocked_id = ?) LIMIT 1",
+                (caller_id, owner_id, owner_id, caller_id),
+            )
+            if cursor.fetchone():
+                return None
         bind_trip_context(row["id"])
         trip = {
             "id": row["id"],
@@ -628,7 +669,11 @@ def get_shared_trip(token):
     counter but never incremented it, so the owner's share-views
     chip stayed at zero for visitors who only hit the API.
     """
-    payload = fetch_share_payload(token)
+    # R10-B6c S1: thread caller_id into fetch_share_payload so a
+    # mutual block between signed-in viewer + trip owner yields the
+    # same not-found shape as a wrong/revoked token. Anonymous hits
+    # (no caller_id) bypass the check by design.
+    payload = fetch_share_payload(token, caller_id=current_user_id())
     if not payload:
         return jsonify({"error": "Not found"}), 404
 
