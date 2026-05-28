@@ -259,3 +259,76 @@ def _gemini_pool_snapshot() -> dict:
         return _pool_status()
     except Exception:
         return {}
+
+
+@bp.route("/api/admin/backup-snapshot", methods=["POST"])
+@limiter.limit("4/hour")
+@require_auth
+def backup_snapshot():
+    """R11-B3: create a timestamped SQLite snapshot of the live DB so
+    the operator has a manual restore point. Admin-only — the SQLite
+    file IS the entire app state, so allowing a non-admin to dump it
+    would be a wholesale data leak.
+
+    Mechanism: `sqlite3.Connection.backup()` from the LIVE connection
+    to a fresh file. The API is online-safe (works while the source
+    has open transactions; SQLite handles the consistent snapshot
+    internally) so this can run while users are active.
+
+    Output path: `<GG_DB_PATH dir>/backups/db_YYYYMMDD_HHMMSSZ.sqlite`.
+    Defaults to the same dir as the live DB; the operator can later
+    rsync these somewhere off-PA. We DON'T expose the file content
+    over HTTP — the response just confirms the snapshot ran + reports
+    bytes. SSH/SFTP is the right channel for actually moving the file.
+
+    Rate limit (4/hour) keeps a runaway script from filling the
+    filesystem. Operator typically takes ~1 snapshot per day; 4/hour
+    is generous for ad-hoc usage."""
+    import sqlite3
+    from datetime import datetime, timezone
+
+    caller = current_user_id()
+    if not _is_admin(caller):
+        return jsonify({"error": "Forbidden"}), 403
+
+    db_path = os.getenv("GG_DB_PATH", "travel_planner.db")
+    backups_dir = os.path.join(os.path.dirname(db_path) or ".", "backups")
+    try:
+        os.makedirs(backups_dir, exist_ok=True)
+    except OSError as e:
+        logger.exception("backup_snapshot: failed to create backups dir")
+        return jsonify({
+            "error": f"Couldn't create backups dir: {e}",
+        }), 500
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%SZ")
+    out_path = os.path.join(backups_dir, f"db_{stamp}.sqlite")
+
+    try:
+        # Open the source via the standard get_db pool so we honor
+        # WAL/busy_timeout etc; backup() to a fresh dest connection.
+        with get_db() as src_conn:
+            dest_conn = sqlite3.connect(out_path)
+            try:
+                src_conn.backup(dest_conn)
+            finally:
+                dest_conn.close()
+    except sqlite3.Error as e:
+        logger.exception("backup_snapshot: sqlite backup failed")
+        return jsonify({"error": f"Snapshot failed: {e}"}), 500
+
+    try:
+        size = os.path.getsize(out_path)
+    except OSError:
+        size = 0
+
+    logger.info(
+        "admin backup snapshot created",
+        extra={"path": out_path, "bytes": size, "by": caller},
+    )
+    return jsonify({
+        "status": "ok",
+        "path": out_path,
+        "bytes": size,
+        "stampUTC": stamp,
+    })

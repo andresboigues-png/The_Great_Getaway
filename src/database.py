@@ -895,7 +895,16 @@ def init_db():
         except Exception as e:
             # Logged + swallowed — a botched migration shouldn't
             # block the rest of init_db.
-            print(f"[init_db] friends→follows migration failed: {e}")
+            # R11-B3: route through the structured logger so Sentry's
+            # LoggingIntegration captures the exception. Pre-fix this
+            # printed to stdout, which on PA goes nowhere durable + is
+            # invisible to Sentry. `exc_info=True` attaches the full
+            # traceback for offline triage.
+            logger.warning(
+                "init_db: friends→follows migration failed: %s",
+                e,
+                exc_info=True,
+            )
 
         conn.commit()
 
@@ -909,6 +918,15 @@ def init_db():
         # to start than to throw `no such column` errors on every
         # request once the user logs in.
         _assert_schema_current(cursor)
+        # R11-B3: warn if `alembic_version` is missing on a DB that has
+        # real data. Catches the deploy footgun where someone forgets
+        # `alembic upgrade head` on a fresh PA pull — init_db's
+        # CREATE TABLE IF NOT EXISTS keeps the schema usable, but the
+        # next migration thinks the DB is at no version and may apply
+        # an already-present DDL → crash. A WARN doesn't refuse to
+        # start (would block legitimate fresh-install boot) but pings
+        # the operator clearly in the error log.
+        _check_alembic_head(cursor)
 
 
 # Columns we expect on each table — sanity-check target. Update this
@@ -1035,6 +1053,46 @@ def _assert_schema_current(cursor) -> None:
             f"{joined}. Run `alembic upgrade head` to apply "
             "pending migrations before starting the app."
         )
+
+
+def _check_alembic_head(cursor) -> None:
+    """R11-B3: WARN-log when `alembic_version` is absent on a DB that
+    looks populated. Doesn't raise — a fresh install (no users yet) is
+    valid and we shouldn't refuse to start in that case.
+
+    Heuristic: if the `users` table has at least one row, this is a
+    real deployment and alembic_version SHOULD exist. If it's missing,
+    the operator very likely forgot `alembic upgrade head` on the
+    deploy chain → the next schema migration will misbehave.
+
+    Idempotent + safe — every branch swallows its own exceptions so a
+    broken check never blocks boot."""
+    try:
+        cursor.execute("SELECT COUNT(*) AS c FROM users")
+        user_count = cursor.fetchone()["c"]
+    except Exception:
+        # No users table → genuinely fresh DB → skip.
+        return
+    if user_count == 0:
+        # Fresh install — alembic_version is fine to be missing.
+        return
+    try:
+        cursor.execute(
+            "SELECT name FROM sqlite_master "
+            "WHERE type='table' AND name='alembic_version'"
+        )
+        row = cursor.fetchone()
+    except Exception:
+        return
+    if row is not None:
+        return  # alembic_version exists, all good.
+    logger.warning(
+        "init_db: alembic_version table is MISSING on a non-fresh DB "
+        "(users=%d). The next alembic migration will likely misbehave. "
+        "Run `alembic stamp head` to mark this DB as current, then "
+        "future migrations run from there.",
+        user_count,
+    )
 
 
 if __name__ == "__main__":

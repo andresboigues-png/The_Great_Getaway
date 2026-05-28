@@ -105,6 +105,15 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_SIZE
 # limiter block below. Pytest disables limits independently in conftest.
 if os.getenv("GG_E2E") == "1":
     app.config["RATELIMIT_ENABLED"] = False
+    # R11-B3: paranoia log. A misconfigured prod box that exports GG_E2E=1
+    # (e.g. copy-pasted from CI) would silently lose every per-IP rate
+    # limit — that's a security regression we'd otherwise have no chance
+    # to notice until a scraper hits us. Boot-time WARN gives an operator
+    # one clear signal to grep for in PA's error log.
+    logger.warning(
+        "GG_E2E=1 is set — ALL rate limits are DISABLED. "
+        "If you see this in production, unset GG_E2E and restart immediately."
+    )
 
 # Rate limiting. Per-IP for now; will switch to per-user once Phase G's
 # auth lands. In-memory storage is fine for single-process dev — production
@@ -433,6 +442,64 @@ def add_security_headers(response):
         "Cross-Origin-Opener-Policy", "same-origin-allow-popups",
     )
     return response
+
+
+# ── Global error handler ─────────────────────────────────────────────
+# R11-B3: catch any uncaught Exception that escapes the route handlers
+# and return a JSON envelope the frontend's apiFetch can actually parse.
+# Pre-fix, an unexpected route crash gave Flask's default HTML 500 page;
+# apiFetch would then `await res.json()` and throw on the HTML, producing
+# a generic "network error" toast instead of the real 500 signal — AND
+# the operator never saw the actual exception in Sentry because the
+# HTML page short-circuited the JSON-shaped logger chain.
+#
+# Also stops a stack trace from leaking if FLASK_DEBUG=1 ever lands
+# in prod by accident (FLASK_DEBUG renders the interactive debugger
+# page, which exposes server-side paths + environment).
+#
+# 4xx HTTPException subclasses (404, 403, etc.) pass through unchanged
+# so Flask's own JSON handlers + route-level returns keep their shape.
+
+from werkzeug.exceptions import HTTPException
+
+
+@app.errorhandler(HTTPException)
+def _handle_http_exception(e):
+    """Pass-through for routes that explicitly raise an HTTPException
+    (abort(404), abort(403), etc.). Returns the same JSON shape every
+    /api/* route uses so the frontend has one error contract."""
+    return jsonify({
+        "error": e.description or e.name,
+        "status": e.code,
+    }), (e.code or 500)
+
+
+@app.errorhandler(Exception)
+def _handle_uncaught_exception(e):
+    """Catches every Exception NOT already handled by an HTTPException
+    handler. Logs with exc_info so Sentry's LoggingIntegration captures
+    the stack; returns a generic JSON 500 with NO traceback so we don't
+    leak internals to the client.
+
+    `request_id` (when present) lets the user paste a request id back
+    to support / operator triage."""
+    from flask import g, has_request_context
+    request_id = None
+    try:
+        if has_request_context():
+            request_id = getattr(g, "request_id", None)
+    except Exception:
+        pass
+    logger.error(
+        "uncaught exception: %s",
+        e,
+        exc_info=True,
+        extra={"request_id": request_id} if request_id else None,
+    )
+    payload = {"error": "Internal server error", "status": 500}
+    if request_id:
+        payload["requestId"] = request_id
+    return jsonify(payload), 500
 
 
 # ── Background maintenance ───────────────────────────────────────────
