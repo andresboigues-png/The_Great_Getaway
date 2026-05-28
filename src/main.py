@@ -407,16 +407,30 @@ def add_security_headers(response):
             "Strict-Transport-Security",
             "max-age=15768000; includeSubDomains",
         )
-    # Audit fix (2026-05-27): Cross-Origin-Opener-Policy.
+    # Audit fix (2026-05-27, REVISED 2026-05-28): Cross-Origin-Opener-Policy.
     # `same-origin` puts the document in its own browsing context
     # group, isolating it from other tabs / popups that link back
     # via window.opener. Without this, a malicious page opened
     # from a Maps Place click could read window.name and other
-    # cross-context state. `same-origin-allow-popups` would be
-    # gentler but Google Sign-In already supports same-origin via
-    # the redirect flow we use, so we can pick the strict variant.
+    # cross-context state.
+    #
+    # ORIGINAL COMMENT WAS WRONG: claimed "Google Sign-In already
+    # supports same-origin via the redirect flow we use" — but we
+    # actually use the POPUP flow (GIS One Tap + renderButton). With
+    # COOP `same-origin`, the GSI popup at accounts.google.com tries
+    # to `window.opener.postMessage(...)` the credential back after
+    # the user picks an account; COOP severs the opener relationship
+    # and the message is lost. Symptom: popup hangs blank at
+    # `accounts.google.com/gsi/transform`, our page never receives
+    # the callback, login appears broken with no errors.
+    #
+    # Switch to `same-origin-allow-popups` — keeps the isolation from
+    # arbitrary cross-origin opens (the Maps Place click threat
+    # model still holds) while letting OUR explicitly-opened popups
+    # (Google Sign-In) talk back via postMessage. Standard choice
+    # for sites that use OAuth-style popups.
     response.headers.setdefault(
-        "Cross-Origin-Opener-Policy", "same-origin",
+        "Cross-Origin-Opener-Policy", "same-origin-allow-popups",
     )
     return response
 
