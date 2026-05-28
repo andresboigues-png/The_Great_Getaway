@@ -104,8 +104,17 @@
 
     <!-- Removed Leaflet -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <!-- R11-B2 P1: chart.js + xlsx.full.min.js previously rode here
+         synchronously (~1.1 MB parser-blocking on every cold paint).
+         Both are now lazy-loaded on demand by the pages that need
+         them: chart.js via pages/insights/Insights.tsx, xlsx via
+         pages/upload.ts. The injection helper lives at
+         frontend/static/js/src/utils/loadGlobalScript.ts and caches
+         the inflight + resolved global so concurrent callers share
+         one network request. Result: ~1.1 MB removed from the
+         critical-path LCP cost on every route that isn't /insights
+         or /upload. -->
+
     <!-- Phase D2 — early theme application to avoid flash-of-light-
          content. The bundle's initThemeManager runs after JS load
          (async/defer), which is after the browser's first paint.

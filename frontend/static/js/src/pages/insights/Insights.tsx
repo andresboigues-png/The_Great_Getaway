@@ -26,12 +26,17 @@ import { convertCurrency } from '../../utils/currency.js';
 import { fetchHistoricalRates } from '../../api.js';
 import { getIntlLocale } from '../../i18n.js';
 import { getHomeCurrency, currencySymbol } from '../../utils.js';
+import { loadChart } from '../../utils/loadGlobalScript.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Expense, Category } from '../../types';
 import { t } from '../../i18n.js';
 
-// Chart is loaded via CDN in index.html and declared as a global in types.d.ts
-declare const Chart: any;
+// R11-B2: Chart.js is now lazy-loaded via `loadChart()` (see
+// utils/loadGlobalScript.ts) — pre-fix it rode as a synchronous CDN
+// script in index.html (~190KB parser-blocking on every cold paint).
+// The constructor flows through `await loadChart()` inside each
+// useEffect below; the `declare const Chart: any` global is no
+// longer referenced from this module.
 
 interface ConvertedExpense {
     id: string;
@@ -275,19 +280,35 @@ export function Insights() {
 
     useEffect(() => {
         if (!pieCanvasRef.current || pieData.length === 0) return;
-        const chart = new Chart(pieCanvasRef.current, {
-            type: 'doughnut',
-            data: {
-                labels: pieLabels,
-                datasets: [{ data: pieData, backgroundColor: pieColors, borderWidth: 0 }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { position: 'right' } },
-            },
+        // R11-B2: chart.js is lazy-loaded on first /insights visit (was
+        // synchronous parser-blocking in index.html). The async load
+        // means the chart instance becomes available a tick after this
+        // effect runs — guard with `cancelled` so a re-run / unmount
+        // before resolve doesn't construct an orphan chart on a stale
+        // canvas. Same shape on the timeline chart below.
+        let chart: any = null;
+        let cancelled = false;
+        loadChart().then((ChartCtor: any) => {
+            if (cancelled || !pieCanvasRef.current) return;
+            chart = new ChartCtor(pieCanvasRef.current, {
+                type: 'doughnut',
+                data: {
+                    labels: pieLabels,
+                    datasets: [{ data: pieData, backgroundColor: pieColors, borderWidth: 0 }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'right' } },
+                },
+            });
+        }).catch((e) => {
+            console.warn('[insights] chart.js load failed', e);
         });
-        return () => chart.destroy();
+        return () => {
+            cancelled = true;
+            if (chart && typeof chart.destroy === 'function') chart.destroy();
+        };
     }, [pieData.join('|'), pieLabels.join('|'), pieColors.join('|')]);
 
     useEffect(() => {
@@ -302,45 +323,56 @@ export function Insights() {
                 return d;
             }
         });
-        const chart = new Chart(timeCanvasRef.current, {
-            type: 'line',
-            data: {
-                labels: chartLabels,
-                datasets: [
-                    {
-                        label: targetCurr + ' Spent',
-                        data: timeData,
-                        borderColor: '#0071e3',
-                        backgroundColor: 'rgba(0, 113, 227, 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 4,
-                        pointBackgroundColor: '#0071e3',
-                        borderWidth: 3,
-                    },
-                ],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: {
-                        grid: { display: false },
-                        ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 7 },
-                    },
-                    y: {
-                        beginAtZero: true,
-                        grid: { color: 'rgba(255,255,255,0.05)' },
-                        ticks: {
-                            maxTicksLimit: 5,
-                            callback: (value: number | string) => targetSym + value,
+        // R11-B2: see lazy-load rationale on the pie effect above.
+        let chart: any = null;
+        let cancelled = false;
+        loadChart().then((ChartCtor: any) => {
+            if (cancelled || !timeCanvasRef.current) return;
+            chart = new ChartCtor(timeCanvasRef.current, {
+                type: 'line',
+                data: {
+                    labels: chartLabels,
+                    datasets: [
+                        {
+                            label: targetCurr + ' Spent',
+                            data: timeData,
+                            borderColor: '#0071e3',
+                            backgroundColor: 'rgba(0, 113, 227, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#0071e3',
+                            borderWidth: 3,
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 7 },
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: {
+                                maxTicksLimit: 5,
+                                callback: (value: number | string) => targetSym + value,
+                            },
                         },
                     },
                 },
-            },
+            });
+        }).catch((e) => {
+            console.warn('[insights] chart.js load failed', e);
         });
-        return () => chart.destroy();
+        return () => {
+            cancelled = true;
+            if (chart && typeof chart.destroy === 'function') chart.destroy();
+        };
     }, [dateTotals, targetCurr, targetSym, tripExps.length]);
 
     // ── Mutation handlers ─────────────────────────────────────────────────

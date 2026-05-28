@@ -1731,6 +1731,10 @@ export const en = {
         modeManualHint: 'Type a single expense by hand',
         modeBatchLabel: 'From a spreadsheet',
         modeBatchHint: 'Import multiple expenses from a CSV/XLSX file',
+        // R11-B2: shown when SheetJS (lazy-loaded on first /upload
+        // visit) fails to fetch from the CDN — captive portals,
+        // strict CSP, network blip.
+        xlsxLoadFailed: "Couldn't load the spreadsheet parser. Check your connection and try again.",
         pageTitle: 'Upload Data',
         sectionHeading: 'Excel Upload',
         labelImportFormat: 'Import Format',

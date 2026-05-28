@@ -1367,6 +1367,8 @@ export const fr: Translations = {
         modeManualHint: 'Saisis une seule dépense à la main',
         modeBatchLabel: "Depuis une feuille de calcul",
         modeBatchHint: 'Importe plusieurs dépenses depuis un fichier CSV/XLSX',
+        // R11-B2 SheetJS lazy-load failure toast.
+        xlsxLoadFailed: "Impossible de charger l'analyseur de feuilles de calcul. Vérifie ta connexion et réessaie.",
         pageTitle: 'Téléverser des données',
         sectionHeading: 'Téléversement Excel',
         labelImportFormat: "Format d'import",

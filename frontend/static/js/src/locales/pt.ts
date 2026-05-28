@@ -1366,6 +1366,8 @@ export const pt: Translations = {
         modeManualHint: 'Escreve uma única despesa à mão',
         modeBatchLabel: 'De uma folha de cálculo',
         modeBatchHint: 'Importa várias despesas de um ficheiro CSV/XLSX',
+        // R11-B2 SheetJS lazy-load failure toast.
+        xlsxLoadFailed: 'Não foi possível carregar o leitor de folhas de cálculo. Verifica a tua ligação e tenta de novo.',
         pageTitle: 'Carregar Dados',
         sectionHeading: 'Carregamento Excel',
         labelImportFormat: 'Formato de importação',
