@@ -106,7 +106,12 @@ function _showBanner(variant: 'chrome' | 'ios'): void {
     const banner = document.createElement('div');
     banner.id = 'ggInstallBanner';
     banner.setAttribute('role', 'dialog');
-    banner.setAttribute('aria-label', 'Install The Great Getaway');
+    // R10-B6e M2: route through t() so screen-reader users on
+    // PT/ES/FR don't hear English at the most attention-grabbing
+    // moment. `install.title` already exists in all four shipped
+    // locales (see locales/en.ts:184) — was just missed when R7-F5
+    // wired the rest of the banner copy through i18n.
+    banner.setAttribute('aria-label', t(isIOS ? 'install.titleIOS' : 'install.title'));
     banner.style.cssText = [
         'position: fixed',
         'left: 50%',

@@ -710,6 +710,16 @@ def get_shared_trip(token):
             payload["trip"]["views"] = payload["trip"].get("views", 0) + 1
 
     response = make_response(jsonify(payload))
+    # R10-B6e MA3: stamp Cache-Control: private so shared HTTP caches
+    # (corporate proxies, ISP transparent caches) don't store a copy
+    # of the shareable payload and serve it to other users behind the
+    # same proxy. The HTML route at /share/<token> in main.py already
+    # has this; the JSON sibling was the missed mirror. The payload
+    # is intentionally narrow (no auth-gated data, but per-visitor
+    # share-views + the trip-name + cover-url) so private caching is
+    # the right semantic — same as the cookie's Secure+httponly
+    # treatment a few lines down.
+    response.headers["Cache-Control"] = "private, max-age=0, no-store"
     if incremented:
         response.set_cookie(
             cookie_name, "1",

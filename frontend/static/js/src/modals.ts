@@ -812,7 +812,25 @@ export const openPdfExportModal = (trip: any) => {
                     body: JSON.stringify(options),
                 });
                 if (!res.ok) {
-                    showLiquidAlert(t('modals.pdfErrorBuild'));
+                    // R10-B6e MA4: surface the server's JSON error
+                    // body when present. R9-B1 M3 made the PDF
+                    // builder envelope its server-side errors as
+                    // {"error": "..."} JSON; pre-fix the frontend
+                    // swallowed that and toasted the generic
+                    // pdfErrorBuild copy regardless. Now: try to
+                    // parse the body, fall back to the generic
+                    // string if parsing fails (older deploys that
+                    // still return text/html).
+                    let serverMsg = '';
+                    try {
+                        const body = await res.json();
+                        if (body && typeof body.error === 'string') {
+                            serverMsg = body.error;
+                        }
+                    } catch {
+                        // Not JSON — generic toast is the right fallback.
+                    }
+                    showLiquidAlert(serverMsg || t('modals.pdfErrorBuild'));
                     return;
                 }
                 const blob = await res.blob();

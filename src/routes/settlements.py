@@ -434,6 +434,20 @@ def delete_settlement(settlement_id):
         owner_id = _trip_owner_id(cursor, row["trip_id"])
         if user_id != owner_id and user_id != row["from_user_id"]:
             return jsonify({"error": "Forbidden"}), 403
+        # R10-B6e F5: archive write gate. Deleting a settlement on an
+        # archived trip would resurface the original debt + fire a
+        # settled_up_reverted notification, both of which "reopen" a
+        # trip the caller already considered done. Mirrors the create
+        # path at line 236 (and the expense + day write gates) — if
+        # the caller wants to delete a settlement on an archived
+        # trip, they must unarchive first. Owner-side per-user
+        # archive applies (not the legacy column), same as the create
+        # gate, so two members on different archive states resolve
+        # independently.
+        if is_trip_archived_for(cursor, row["trip_id"], user_id):
+            return jsonify({
+                "error": "Trip is archived — unarchive to delete settlements",
+            }), 409
 
         cursor.execute("DELETE FROM settlements WHERE id = ?", (settlement_id,))
 

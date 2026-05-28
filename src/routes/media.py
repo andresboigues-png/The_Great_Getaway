@@ -306,6 +306,48 @@ def upload_file():
         except Exception:
             file.stream.seek(0)
             file.save(out_path)
+    elif ext == '.gif':
+        # R10-B6e MA5: GIF decompression-bomb gate. Pre-fix GIFs
+        # skipped the PIL decode branch above (we don't want to
+        # re-encode them; that drops animation frames) and fell
+        # through to the bytes-verbatim `file.save()` below, so
+        # the MAX_IMAGE_PIXELS / DecompressionBombWarning cap that
+        # module-load applies to PIL never ran. A crafted
+        # 50000×50000 GIF (single tiny stored block, billions of
+        # logical pixels) would land on disk and OOM any downstream
+        # consumer (PDF builder, thumbnail decoder) that tries to
+        # decode it.
+        #
+        # Fix: open with PIL to trigger the bomb check, then save
+        # the ORIGINAL bytes — not the re-encoded ones — so we
+        # preserve animation. PIL's GIF decoder honors the same
+        # MAX_IMAGE_PIXELS cap (set at module top) so the bomb is
+        # caught before the bytes touch disk.
+        try:
+            from PIL import Image
+            file.stream.seek(0)
+            img = Image.open(file.stream)
+            img.load()  # triggers DecompressionBombError if bomb
+            # Decode passed — write the original bytes verbatim so
+            # animation + transparency survive.
+            file.stream.seek(0)
+            file.save(out_path)
+        except Image.DecompressionBombError:
+            from observability import get_logger
+            get_logger(__name__).warning(
+                "upload rejected: decompression bomb from user=%s file=%r ext=%s",
+                user_id, getattr(file, 'filename', '?'), ext,
+            )
+            return jsonify({
+                "error": "Image dimensions too large to process",
+            }), 413
+        except Exception:
+            # PIL couldn't open it (corrupted GIF, unsupported
+            # variant). Fall back to bytes-verbatim — same shape as
+            # the JPEG/PNG fallback above. The magic-number sniff
+            # at line 162 already vetted the file structurally.
+            file.stream.seek(0)
+            file.save(out_path)
     else:
         file.save(out_path)
 

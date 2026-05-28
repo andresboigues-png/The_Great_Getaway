@@ -109,7 +109,29 @@ function renderSlotItem(item: any): string {
         // Use mapsUrl from the server when present (the canonical short
         // URL); fall back to the search-by-place-id deep link, which
         // works even when mapsUrl is missing.
-        const href = v.mapsUrl || `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(v.placeId)}`;
+        //
+        // R10-B6e MA6: validate the upstream-supplied mapsUrl is
+        // actually a Google Maps URL before trusting it as an
+        // outbound href. The value flows from Google Places API
+        // (integrations.py:248 `p.get("googleMapsUri")`) into the
+        // server response without any host check — if Google ever
+        // returns a non-google URL (regression, API change,
+        // attacker-influenced response if a transport gets MITM'd)
+        // we'd render an attacker-controlled href under our own
+        // domain's trust context. Tighten to https://www.google.com/maps/
+        // or https://maps.google.com/ only; anything else falls
+        // through to the safe place-id deep link.
+        const isGoogleMapsHref = (u: string | undefined): boolean => {
+            if (!u) return false;
+            return (
+                u.startsWith('https://www.google.com/maps/')
+                || u.startsWith('https://maps.google.com/')
+                || u.startsWith('https://goo.gl/maps/')
+                || u.startsWith('https://maps.app.goo.gl/')
+            );
+        };
+        const safeMapsUrl = isGoogleMapsHref(v.mapsUrl) ? v.mapsUrl : undefined;
+        const href = safeMapsUrl || `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(v.placeId)}`;
         const displayName = v.verifiedName || text;
         return `
             <li class="ai-plan-block__item ai-plan-block__item--card">

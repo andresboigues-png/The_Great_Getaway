@@ -767,6 +767,14 @@ def build_feed_context(cursor, user_id: str) -> FeedContext:
     blocked user from the pool entirely, so their feed events
     don't appear at all.
     """
+    # R10-B6e S5: filter BOTH directions of the block edge. Pre-fix
+    # this only excluded users the caller blocked — but a user who
+    # blocked the caller could still appear in the caller's feed
+    # actor pool (because the caller follows them, the caller didn't
+    # do the blocking, and the half-block filter missed the
+    # incoming direction). Now we add a second NOT IN that excludes
+    # blockers of the caller too. Matches the bidirectional shape
+    # used by get_public_profile / get_public_trip / fetch_share_payload.
     cursor.execute('''
         SELECT u.id, u.name, u.picture
         FROM users u
@@ -775,7 +783,10 @@ def build_feed_context(cursor, user_id: str) -> FeedContext:
           AND u.id NOT IN (
               SELECT blocked_id FROM blocks WHERE blocker_id = ?
           )
-    ''', (user_id, user_id))
+          AND u.id NOT IN (
+              SELECT blocker_id FROM blocks WHERE blocked_id = ?
+          )
+    ''', (user_id, user_id, user_id))
     followed_rows = [dict(r) for r in cursor.fetchall()]
     followed_ids = [f["id"] for f in followed_rows]
     followed_lookup = {f["id"]: f for f in followed_rows}
