@@ -79,9 +79,19 @@ export function SessionsView() {
     const onRevoke = useCallback(
         (s: AuthSession) => {
             const isCurrent = s.isCurrent;
+            // R10-B1 P0-4: be honest about revoke latency. Sessions
+            // use stateless JWTs validated per-request — when the
+            // server-side token_jti rotates (which `revokeAuthSession`
+            // triggers), the revoked device only learns it's been
+            // signed out on its NEXT request (≈15s on the standard
+            // poll cadence, sooner if the user actively taps). The
+            // device doesn't get a push. Pre-fix the modal copy was
+            // vague ("They'll need to log back in"); a user might
+            // think the kick was instant + walk away assuming the
+            // other device is locked out RIGHT NOW. Tell the truth.
             const message = isCurrent
                 ? "This will sign you out on this device. You'll need to log back in."
-                : `Sign out the "${_deviceLabel(s.deviceLabel)}" device? They'll need to log back in.`;
+                : `Sign out the "${_deviceLabel(s.deviceLabel)}" device? It'll be signed out within ~15 seconds (when it next polls the server).`;
             showConfirmModal({
                 title: isCurrent ? 'Sign out here?' : 'Sign out that device?',
                 message,

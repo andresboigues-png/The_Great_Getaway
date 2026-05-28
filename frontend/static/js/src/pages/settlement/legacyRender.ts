@@ -28,7 +28,7 @@ import {
     findTripCompanion,
     findTripCompanionByLinkedUser,
 } from '../../companions.js';
-import { createSettlement, deleteSettlementOnServer } from '../../api.js';
+import { createSettlement, deleteSettlementOnServer, upsertExpense } from '../../api.js';
 import { showModal } from '../../components/Modal.js';
 import {
     computeTripBalances,
@@ -783,6 +783,13 @@ export async function settleDebt(
     };
     STATE.expenses.push(settlementExp);
     emit(EVENTS.STATE_CHANGED);
+    // R10-B1 P0-2: POST the new fake-expense row to /api/expenses
+    // immediately. Pre-fix the legacy name-only path only pushed
+    // into STATE.expenses; the ship-to-server depended on the
+    // next /api/sync poll firing AND succeeding. A tab close in
+    // that window lost the settlement. Same outbox-safe pattern
+    // as the edit path above.
+    upsertExpense(settlementExp);
     showLiquidAlert(`Recorded ${formatHome(euroValue, 'EUR')} ${from} → ${to}`);
 }
 
@@ -1011,6 +1018,15 @@ export function openEditSettlementModal(id: string): void {
         s.date = date;
         s.label = t('settlement.settlementLabel', { from, to });
         emit(EVENTS.STATE_CHANGED);
+        // R10-B1 P0-1: POST the edit to /api/expenses (these legacy
+        // settlement rows live as is_settlement=1 expenses, so the
+        // existing upsert path handles them — splits + is_settlement
+        // persist server-side per R3-Fix #18). Pre-fix the mutation
+        // landed ONLY in STATE and waited for the next /api/sync poll
+        // to ship; a tab close before that poll lost the edit
+        // entirely. upsertExpense is fire-and-forget — the offline
+        // outbox (R7-F1) catches network failures.
+        upsertExpense(s);
         close();
     };
 }
