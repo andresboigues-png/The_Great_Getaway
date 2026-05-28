@@ -30,7 +30,7 @@ import { STATE, emit } from '../../state.js';
 import { showConfirmModal, formatHome, getHomeCurrency } from '../../utils.js';
 import { deleteExpenseOnServer } from '../../api.js';
 import { navigate } from '../../router.js';
-import { t, tn } from '../../i18n.js';
+import { t, tn, getIntlLocale } from '../../i18n.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import { openEditExpenseModal, deleteExpense } from '../expenses.js';
 import {
@@ -348,7 +348,14 @@ export function HistoryTab() {
                                     ) : null}
                                     <div className="text-right">
                                         <div className="expense-row__amount">
-                                            {e.value.toLocaleString(undefined, {
+                                            {/* R11-B7: app locale, not browser locale.
+                                                Pre-fix `toLocaleString(undefined, …)` used the
+                                                browser default — a French user with
+                                                `navigator.language=en-US` saw `1,234.56`
+                                                while every other money string nearby used
+                                                `formatHome` which honors `getIntlLocale()`.
+                                                The two displays disagreed on the same row. */}
+                                            {e.value.toLocaleString(getIntlLocale(), {
                                                 minimumFractionDigits: 2,
                                                 maximumFractionDigits: 2,
                                             })}{' '}

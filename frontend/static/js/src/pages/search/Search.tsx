@@ -23,7 +23,7 @@ import { EVENTS } from '../../constants.js';
 import { setSelectedDay } from '../home/pathSelection.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Trip, TripDay, Expense } from '../../types';
-import { t, tn } from '../../i18n.js';
+import { t, tn, getIntlLocale } from '../../i18n.js';
 
 // ── Tunables ────────────────────────────────────────────────────────
 // Per-section visible cap before the user has to click "Show all".
@@ -535,7 +535,13 @@ function ResultRow({
  *  this is just enough context for the user to pick the right hit. */
 function formatAmount(value: number | undefined, currency: string | undefined): string {
     if (typeof value !== 'number') return currency || '';
-    const num = value.toLocaleString(undefined, {
+    // R11-B7: pass an explicit locale tag (es-ES / fr-FR / pt-PT / en-GB) so
+    // numbers in search hits format the way the user expects in their UI
+    // language — `undefined` would defer to the browser's system locale,
+    // which on shared / institutional devices is usually English even when
+    // the app is set to Spanish, producing "1,234.56" inside an otherwise
+    // Spanish UI. Same fix pattern as HistoryTab.tsx.
+    const num = value.toLocaleString(getIntlLocale(), {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     });

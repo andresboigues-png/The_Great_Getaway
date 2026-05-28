@@ -16,6 +16,7 @@ import { STATE } from '../../state.js';
 import { showModal } from '../../components/Modal.js';
 import { esc, q, formatDayDate } from '../../utils.js';
 import { openPdfPreview, looksLikePdfUrl } from './lightbox.js';
+import { t } from '../../i18n.js';
 
 
 /** Open the read-only day view. Pulls photos and documents
@@ -68,7 +69,7 @@ export const openDayView = (day: any): void => {
                     </div>
                     <h2 style="font-size: 2.5rem; color: #002d5b; font-weight: 800; letter-spacing: -0.04em; margin: 0;">${esc(day.name || `Day ${day.dayNumber}`)}</h2>
                 </div>
-                <button id="closeViewBtn" class="close-x-btn" aria-label="Close">✕</button>
+                <button id="closeViewBtn" class="close-x-btn" aria-label="${t('common.close')}">✕</button>
             </div>
             <div class="dvm-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-10);">
                 <div class="flex flex-col gap-6">

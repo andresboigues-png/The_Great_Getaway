@@ -20,6 +20,7 @@ import { upsertTrip } from '../../api.js';
 import { canEdit } from '../../permissions.js';
 import { showModal } from '../../components/Modal.js';
 import { esc, generateId } from '../../utils.js';
+import { t } from '../../i18n.js';
 
 
 type ChecklistItem = {
@@ -62,9 +63,9 @@ export const openTripChecklistModal = (trip: any): void => {
                 style="flex:1; min-width:0; text-align:left; padding:0; background:transparent; border:0; cursor:${editable ? 'pointer' : 'default'}; font-size:0.92rem; line-height:1.45; color:#002d5b; ${done ? 'color:rgba(0,45,91,0.4); text-decoration:line-through;' : ''}">${esc(item.body || '')}</button>`;
         const actionsHtml = editable
             ? (item._editing
-                ? `<button type="button" class="checklist-save-btn" data-item-id="${id}" title="Save" aria-label="Save"
-                       style="background:rgba(212,160,23,0.12); border:1px solid rgba(212,160,23,0.32); color:#8b6e0c; border-radius:8px; padding:4px 10px; font-size:0.78rem; font-weight:800; cursor:pointer; flex-shrink:0;">Save</button>`
-                : `<button type="button" class="checklist-delete-btn" data-item-id="${id}" title="Delete" aria-label="Delete"
+                ? `<button type="button" class="checklist-save-btn" data-item-id="${id}" title="${t('common.save')}" aria-label="${t('common.save')}"
+                       style="background:rgba(212,160,23,0.12); border:1px solid rgba(212,160,23,0.32); color:#8b6e0c; border-radius:8px; padding:4px 10px; font-size:0.78rem; font-weight:800; cursor:pointer; flex-shrink:0;">${t('common.save')}</button>`
+                : `<button type="button" class="checklist-delete-btn" data-item-id="${id}" title="${t('common.delete')}" aria-label="${t('common.delete')}"
                        style="background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.22); color:#ff3b30; border-radius:8px; padding:4px 10px; font-size:0.78rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>`)
             : '';
         return `
@@ -91,7 +92,7 @@ export const openTripChecklistModal = (trip: any): void => {
                     <h2 style="margin:0 0 4px; font-size:1.5rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">📝 Trip checklist</h2>
                     <p style="margin:0; color:var(--text-secondary); font-size:0.85rem;">${esc(trip.name)} · packing, errands, anything to tick off</p>
                 </div>
-                <button id="checklistModalClose" class="close-x-btn" aria-label="Close">✕</button>
+                <button id="checklistModalClose" class="close-x-btn" aria-label="${t('common.close')}">✕</button>
             </div>
             ${editable ? `
                 <form id="checklistAddForm" style="display:flex; gap:8px; margin-bottom:14px;">

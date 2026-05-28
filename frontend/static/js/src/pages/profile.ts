@@ -237,7 +237,7 @@ export function openFriendsListModal(friends: ProfileFriend[]) {
         innerHTML: `
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 14px;">
                 <h2 style="margin:0; font-size:1.4rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Your friends <span style="background:rgba(0,113,227,0.1); color:#005bb8; padding:2px 10px; border-radius:999px; font-size:0.78rem; font-weight:800; margin-left:6px; vertical-align:2px;">${friends.length}</span></h2>
-                <button id="friendsListClose" class="close-x-btn" aria-label="Close">✕</button>
+                <button id="friendsListClose" class="close-x-btn" aria-label="${t('common.close')}">✕</button>
             </div>
             <div style="overflow-y:auto; display:flex; flex-direction:column; gap:4px; min-height:0;">
                 ${friends.map(rowHtml).join('')}

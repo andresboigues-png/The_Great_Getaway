@@ -19,6 +19,7 @@
 
 import { showModal } from '../../components/Modal.js';
 import { esc } from '../../utils.js';
+import { t } from '../../i18n.js';
 
 
 /** Flip the Silence-trip button between outline and filled
@@ -121,7 +122,7 @@ export function openShareToFeedModal(
                     <h2 style="margin:0 0 4px; font-size:1.5rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Share to your feed</h2>
                     <p style="margin:0; color:var(--text-secondary); font-size:0.85rem;">${esc(trip.name)}${trip.country ? ` · ${esc(trip.country)}` : ''}</p>
                 </div>
-                <button id="shareModalClose" class="close-x-btn" aria-label="Close">✕</button>
+                <button id="shareModalClose" class="close-x-btn" aria-label="${t('common.close')}">✕</button>
             </div>
             <label style="display:block; font-size:0.78rem; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Add a caption (optional)</label>
             <textarea id="shareCaptionInput" maxlength="280" placeholder="e.g. Adding Lisbon for Easter — anyone been?"

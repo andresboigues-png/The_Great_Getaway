@@ -19,6 +19,7 @@
 
 import { showModal } from '../../components/Modal.js';
 import { esc, q } from '../../utils.js';
+import { t } from '../../i18n.js';
 
 // §0.4 follow-up — the visual rules for this widget live in
 // `frontend/static/css/index.css` under the `/* §4.9 — photo
@@ -114,16 +115,16 @@ export function openPhotoLightbox(arg: string | string[], startIndex: number = 0
                      base .lb-nav-btn class) so clicks reach them
                      despite the modal-overlay click handler below.
                      Hidden via lb-nav-btn--hidden when at an edge. -->
-                <button id="lbPrev" type="button" aria-label="Previous photo"
+                <button id="lbPrev" type="button" aria-label="${t('tripMedia.lightboxPrevAria')}"
                     class="lb-nav-btn lb-nav-btn--prev${prevHiddenClass}">‹</button>
-                <button id="lbNext" type="button" aria-label="Next photo"
+                <button id="lbNext" type="button" aria-label="${t('tripMedia.lightboxNextAria')}"
                     class="lb-nav-btn lb-nav-btn--next${nextHiddenClass}">›</button>
             ` : ''}
             <!-- Close button — always present so the user has a
                  reliable dismiss affordance even when the click-the-
                  backdrop heuristic gets confused by an in-flight
                  swipe. -->
-            <button id="lbClose" type="button" aria-label="Close"
+            <button id="lbClose" type="button" aria-label="${t('common.close')}"
                 class="lb-nav-btn lb-nav-btn--close">✕</button>
         `,
     });
@@ -281,7 +282,7 @@ export const openPdfPreview = (url: string, name?: string): void => {
                     title="Open this PDF in a new browser tab">
                     Open in new tab ↗
                 </a>
-                <button id="closePdfPreviewBtn" type="button" aria-label="Close"
+                <button id="closePdfPreviewBtn" type="button" aria-label="${t('common.close')}"
                     class="pdf-preview-header__close-btn">✕</button>
             </div>
             <!-- Body — iframe fills the rest. The #toolbar=0

@@ -1172,6 +1172,12 @@ export const en = {
         // Avatar button a11y.
         avatarBtnTitle: 'View {name}',
         avatarBtnAriaLabel: "View {name}'s profile",
+        // R11-B7: comment edit/delete affordances on a comment row.
+        // Pre-fix these were hardcoded English in feed/render.ts.
+        commentEditTitle: 'Edit your comment',
+        commentEditAria: 'Edit comment',
+        commentDeleteTitle: 'Delete your comment',
+        commentDeleteAria: 'Delete comment',
     },
     home: {
         // Pre-trip empty-state hero (welcomeCard.ts buildEmptyStateHtml).
@@ -1586,6 +1592,10 @@ export const en = {
         photosDragTitle: 'Drag to reorder',
         photosDragAria: 'Drag to reorder',
         closeAria: 'Close',
+        // R11-B7: lightbox photo navigation chevrons. Previously
+        // hardcoded English in lightbox.ts.
+        lightboxPrevAria: 'Previous photo',
+        lightboxNextAria: 'Next photo',
         // ── Photo upload progress / toasts ──
         photoUploadingOne: 'Uploading {count} photo…',
         photoUploadingOther: 'Uploading {count} photos…',
