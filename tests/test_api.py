@@ -2145,6 +2145,113 @@ def test_feed_returns_envelope_for_logged_in_user(client, seed_user, auth_header
     assert isinstance(body, (list, dict))
 
 
+def test_feed_legacy_shape_when_no_pagination_params(client, seed_user, auth_headers):
+    """R9-F1 backwards-compat: with no `cursor` or `limit` query param,
+    the response is the legacy bare array (pre-R9-F1 shape). Any
+    third-party caller or pre-deploy frontend still works."""
+    res = client.get("/api/feed", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert isinstance(body, list), (
+        "no-pagination-params hit must return a bare array — the "
+        "pre-R9-F1 frontend / SW depends on this shape"
+    )
+
+
+def test_feed_paginated_shape_when_limit_supplied(client, seed_user, auth_headers):
+    """R9-F1: any pagination param (cursor OR limit) flips the response
+    to the new envelope shape `{events: [...], nextCursor: str|null}`."""
+    res = client.get("/api/feed?limit=5", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert isinstance(body, dict), (
+        "limit query param must select the paginated envelope shape"
+    )
+    assert "events" in body and isinstance(body["events"], list)
+    assert "nextCursor" in body
+    # nextCursor can be None on an empty/short feed; the key must
+    # exist so the frontend can branch on it.
+
+
+def test_feed_pagination_walks_through_pages(client, seed_user, auth_headers):
+    """R9-F1: page through a multi-event feed using `nextCursor`,
+    asserting no duplication and full coverage. Uses trip-share events
+    which we can mint via /api/feed/share (the most testable builder)."""
+    # Seed enough trips to land >limit feed events. Each share emits
+    # one new_post + the trip itself emits a new_trip + new_country.
+    # A handful of trips fills a few pages comfortably.
+    trip_ids = [f"trip-feed-page-{i}" for i in range(5)]
+    for tid in trip_ids:
+        _create_trip(client, auth_headers, trip_id=tid, public=True)
+        client.post("/api/feed/share", headers=auth_headers, json={
+            "trip_id": tid, "caption": f"Share {tid}",
+        })
+
+    # Walk pages of size 2 — collect every id, assert no dupes, assert
+    # the bare-array first page matches the union of paginated pages
+    # (modulo ordering edge cases, we just confirm coverage).
+    seen_ids = []
+    cursor = None
+    for _ in range(20):  # guard against infinite loops
+        path = "/api/feed?limit=2"
+        if cursor:
+            path += f"&cursor={cursor}"
+        res = client.get(path, headers=auth_headers)
+        assert res.status_code == 200
+        body = res.get_json()
+        assert isinstance(body, dict)
+        page = body["events"]
+        assert isinstance(page, list)
+        # No event should appear twice across pages.
+        for ev in page:
+            assert ev["id"] not in seen_ids, (
+                f"event {ev['id']} appeared on two pages — cursor "
+                "tie-break must be strict-less-than"
+            )
+            seen_ids.append(ev["id"])
+        cursor = body.get("nextCursor")
+        if cursor is None:
+            break
+    else:
+        raise AssertionError("pagination did not terminate within 20 pages")
+
+    # The legacy-shape response (no pagination) should contain at
+    # least every event we collected via pagination.
+    legacy = client.get("/api/feed", headers=auth_headers).get_json()
+    assert isinstance(legacy, list)
+    legacy_ids = {e["id"] for e in legacy}
+    for sid in seen_ids:
+        assert sid in legacy_ids, (
+            f"paginated event {sid} missing from legacy bare-array path"
+        )
+
+
+def test_feed_cursor_malformed_falls_back_to_first_page(client, seed_user, auth_headers):
+    """R9-F1: a stale/garbled cursor (old tab, base64 corruption, schema
+    rev) should NOT 400 — fall back to "start from the top" so the user
+    just sees the latest events again instead of an error toast."""
+    res = client.get(
+        "/api/feed?cursor=not-a-real-cursor&limit=5", headers=auth_headers,
+    )
+    assert res.status_code == 200
+    body = res.get_json()
+    assert isinstance(body, dict)
+    assert "events" in body
+
+
+def test_feed_limit_caps_at_max(client, seed_user, auth_headers):
+    """R9-F1: limit query param is bounded at 50 server-side so a
+    malicious caller can't ask for 10k events per page."""
+    res = client.get("/api/feed?limit=99999", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert isinstance(body, dict)
+    # Empty feed for a fresh user still satisfies the bound; we're
+    # testing that limit=99999 doesn't error and that the envelope
+    # holds, not the exact event count.
+    assert len(body["events"]) <= 50
+
+
 def test_feed_share_creates_post(client, seed_user, auth_headers):
     """Sharing a trip mints a post row + returns its post_id. Idempotent
     server-side — re-sharing the same trip returns the same post_id with

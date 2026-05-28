@@ -187,14 +187,94 @@ def _attach_engagement_counts(cursor, events: list, user_id: str) -> None:
         e['comment_count'] = comments_count.get(e['id'], 0)
 
 
+# R9-F1: opaque cursor codec. The cursor is a (when, id) tuple — when
+# is the event's ISO timestamp (primary sort key) and id is the event's
+# stable string identifier (tie-breaker so two events sharing a ms-
+# precision timestamp don't shuffle on consecutive page loads).
+# Encoded as urlsafe base64 of a JSON object so it stays opaque to
+# the client. Decoding tolerates malformed/legacy values (returns
+# None → "ignore the cursor, start from the top") rather than 400-ing
+# the request — a stale cursor on an old tab shouldn't break the feed.
+import base64 as _b64
+import json as _json
+
+
+def _encode_feed_cursor(when_iso: str, event_id: str) -> str:
+    payload = _json.dumps({"w": when_iso, "i": event_id},
+                          separators=(",", ":")).encode("utf-8")
+    return _b64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
+
+
+def _decode_feed_cursor(token: str | None):
+    if not token:
+        return None
+    try:
+        padded = token + "=" * (-len(token) % 4)
+        payload = _b64.urlsafe_b64decode(padded.encode("ascii"))
+        data = _json.loads(payload)
+        w = data.get("w")
+        i = data.get("i")
+        if not isinstance(w, str) or not isinstance(i, str):
+            return None
+        return (w, i)
+    except Exception:
+        return None
+
+
+# Page size bounds. 20 is the default page size — comfortably more
+# than fits a single mobile viewport (so the IntersectionObserver
+# sentinel doesn't have to fire on every event), small enough that
+# the round-trip stays sub-200ms even on a slow connection. The 50
+# cap prevents a malicious caller from asking for thousands of
+# events per page. Total reachable list still bounded by the
+# per-builder window/cap settings.
+_FEED_DEFAULT_LIMIT = 20
+_FEED_MAX_LIMIT = 50
+# Total unified-list cap before slicing. Pre-R9-F1 was 100; bumped
+# to 200 to give the cursor-paginated path enough headroom to cover
+# multiple pages without re-running the full builder set per page.
+# A user paginating past 200 events is realistically scrolling
+# through a month+ of activity — fine to cut at that point; the
+# alternative is repeat-running every builder on every page which
+# costs much more total.
+_FEED_TOTAL_CAP = 200
+
+
 @bp.route("/api/feed", methods=["GET"])
 @require_auth
 @limiter.limit("60/minute")
 def get_feed():
     """Activity feed — friends + own. Iterates the FEED_EVENT_BUILDERS
     registry; each builder owns one event type. See module docstring
-    for the full event-type list and window/cap rules."""
+    for the full event-type list and window/cap rules.
+
+    R9-F1: cursor-paginated. The response shape depends on whether
+    pagination params are present:
+      - No `?cursor` AND no `?limit` query param → bare array (legacy
+        shape, capped at 100 events). Preserved so anyone still on
+        the pre-R9-F1 frontend or a third-party caller doesn't break.
+      - `?cursor` OR `?limit` present → `{events: [...], nextCursor:
+        str|null}`. The frontend's infinite-scroll path passes
+        cursor=<token returned in the previous page's nextCursor>;
+        nextCursor=null signals "you've reached the end."
+
+    Cursor codec is opaque (urlsafe base64 of a small JSON object).
+    Malformed cursors fall back to "start from the top" rather than
+    400-ing — a stale cursor on an old tab shouldn't break the feed.
+    """
     user_id = current_user_id()
+    # R9-F1: query params. The presence of EITHER cursor or limit
+    # selects the paginated response shape (see docstring above).
+    raw_cursor = request.args.get("cursor")
+    raw_limit = request.args.get("limit")
+    paginated = (raw_cursor is not None) or (raw_limit is not None)
+    cursor_tuple = _decode_feed_cursor(raw_cursor)
+    try:
+        limit = int(raw_limit) if raw_limit else _FEED_DEFAULT_LIMIT
+    except (TypeError, ValueError):
+        limit = _FEED_DEFAULT_LIMIT
+    limit = max(1, min(limit, _FEED_MAX_LIMIT))
+
     events: list = []
     with get_db() as conn:
         cursor = conn.cursor()
@@ -222,12 +302,48 @@ def get_feed():
         # SQL because the registry intentionally lets each builder choose
         # its own ORDER BY / window — the final ordering is the unified
         # sort here.
-        events.sort(key=lambda e: e.get("when") or "", reverse=True)
-        events = events[:100]
+        # R9-F1: secondary sort by id so events sharing a ms-precision
+        # timestamp don't shuffle between consecutive page loads. The
+        # cursor's tie-breaker depends on this being stable.
+        events.sort(
+            key=lambda e: (e.get("when") or "", e.get("id") or ""),
+            reverse=True,
+        )
 
-        _attach_engagement_counts(cursor, events, user_id)
+        if not paginated:
+            # Legacy bare-array shape, pre-R9-F1 cap.
+            events = events[:100]
+            _attach_engagement_counts(cursor, events, user_id)
+            return jsonify(events)
 
-    return jsonify(events)
+        # R9-F1 paginated path: bound the unified list before slicing.
+        events = events[:_FEED_TOTAL_CAP]
+
+        # Apply cursor — keep only events strictly older than the
+        # cursor's (when, id) tuple. Tuple comparison gives us the
+        # right total ordering: same `when` falls back to `id`, which
+        # matches the secondary sort above.
+        if cursor_tuple:
+            cw, ci = cursor_tuple
+            events = [
+                e for e in events
+                if (e.get("when") or "", e.get("id") or "") < (cw, ci)
+            ]
+
+        page = events[:limit]
+        _attach_engagement_counts(cursor, page, user_id)
+
+        # Compute next cursor from the LAST event in the page. If the
+        # full filtered list fits in this page, there's nothing more —
+        # signal "end" with nextCursor=null.
+        next_cursor = None
+        if len(events) > limit and page:
+            last = page[-1]
+            next_cursor = _encode_feed_cursor(
+                last.get("when") or "", last.get("id") or "",
+            )
+
+    return jsonify({"events": page, "nextCursor": next_cursor})
 
 
 # ── §4.2 Explore — cold-start fix ────────────────────────────────────

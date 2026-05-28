@@ -1056,6 +1056,11 @@ export const en = {
         bookmarkToggleLabel: '🔖 Bookmarked',
         // Initial loader before first /api/feed response lands.
         loading: 'Loading the feed…',
+        // R9-F1: tail hint shown when the IntersectionObserver-driven
+        // infinite scroll has exhausted the paginated feed (server
+        // returned nextCursor=null). Without this the user wonders
+        // why scrolling stopped doing anything.
+        endOfFeed: "You're all caught up.",
         // Empty states (3 distinct branches).
         emptyBookmarkedPostsTitle: 'No bookmarked posts yet',
         emptyBookmarkedActionsTitle: 'No bookmarked actions yet',

@@ -821,6 +821,8 @@ export const es: Translations = {
         tabActions: 'Actividad',
         bookmarkToggleLabel: '🔖 Guardados',
         loading: 'Cargando el feed…',
+        // R9-F1 infinite-scroll tail hint.
+        endOfFeed: 'Ya estás al día.',
         emptyBookmarkedPostsTitle: 'Sin publicaciones guardadas',
         emptyBookmarkedActionsTitle: 'Sin actividad guardada',
         emptyBookmarkedBody: 'Toca 🔖 en cualquier tarjeta para guardarla — los marcadores son privados y no caducan.',

@@ -826,6 +826,8 @@ export const fr: Translations = {
         tabActions: 'Activité',
         bookmarkToggleLabel: '🔖 Marqués',
         loading: 'Chargement du fil…',
+        // R9-F1 infinite-scroll tail hint.
+        endOfFeed: 'Tu es à jour.',
         emptyBookmarkedPostsTitle: 'Aucune publication marquée',
         emptyBookmarkedActionsTitle: 'Aucune activité marquée',
         emptyBookmarkedBody: 'Touche 🔖 sur n\'importe quelle carte pour la sauvegarder — les marque-pages sont privés et ne périment jamais.',

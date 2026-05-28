@@ -38,7 +38,7 @@
 //     inside the thread) — caught via .feed-comment-delete-btn
 //     listener inside CommentThread
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { STATE } from '../../state.js';
 import {
     apiFetch,
@@ -124,7 +124,16 @@ export function Feed() {
     const [threads, setThreads] = useState<Record<string, FeedComment[]>>({});
     const [threadLoading, setThreadLoading] = useState<Record<string, boolean>>({});
 
+    // R9-F1 infinite-scroll state. `nextCursor` is the opaque server
+    // token for the next page (null = no more pages). `loadingMore`
+    // gates the IntersectionObserver so we don't fire parallel
+    // requests when the sentinel briefly disappears + re-appears
+    // during a layout reflow.
+    const [nextCursor, setNextCursor] = useState<string | null>(null);
+    const [loadingMore, setLoadingMore] = useState(false);
+
     const rootRef = useRef<HTMLDivElement | null>(null);
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
 
     // ── Initial paint from cache + background refresh ────────────
     useEffect(() => {
@@ -134,12 +143,37 @@ export function Feed() {
                 return;
             }
             try {
-                const res = await apiFetch('/api/feed');
+                // R9-F1: paginated shape with limit=30. 30 events
+                // comfortably fills any viewport's "above the fold"
+                // — desktop monitors and the iPhone-15-Pro both — so
+                // first paint is fast AND the user has scroll-room
+                // before the IntersectionObserver fires for more.
+                // The envelope `{events, nextCursor}` lets us track
+                // the pagination position without a separate API
+                // call. Backwards-compat: the server still returns
+                // the legacy bare array when no params present (see
+                // routes/feed.py docstring), so a service-worker
+                // cached pre-R9-F1 response stays valid until next
+                // poll.
+                const res = await apiFetch('/api/feed?limit=30');
                 if (!res.ok) return;
                 const data = await res.json();
+                // Defensive: tolerate both legacy bare-array AND
+                // paginated envelope shapes. A SW-cached response
+                // from a pre-R9-F1 build might still land here on
+                // the user's first paint after deploy.
                 if (Array.isArray(data)) {
                     setCachedEvents(data);
                     setEvents(data);
+                    setNextCursor(null);  // legacy → no pagination
+                } else if (data && Array.isArray(data.events)) {
+                    setCachedEvents(data.events);
+                    setEvents(data.events);
+                    setNextCursor(
+                        typeof data.nextCursor === 'string'
+                            ? data.nextCursor
+                            : null,
+                    );
                 }
             } catch (e) {
                 console.error('Feed refresh failed:', e);
@@ -176,6 +210,77 @@ export function Feed() {
         root.addEventListener('click', onClick);
         return () => root.removeEventListener('click', onClick);
     }, []);
+
+    // ── R9-F1 Infinite scroll ────────────────────────────────────
+    // loadMore: fetch the next page via cursor, dedupe by id (so a
+    // race between an optimistic local insert + the server's view
+    // doesn't surface a duplicate row), append to events, update
+    // cursor. Guarded against parallel fires via loadingMore.
+    const loadMore = useCallback(async () => {
+        if (loadingMore) return;
+        if (!nextCursor) return;
+        setLoadingMore(true);
+        try {
+            const res = await apiFetch(
+                `/api/feed?limit=20&cursor=${encodeURIComponent(nextCursor)}`,
+            );
+            if (!res.ok) return;
+            const data = await res.json();
+            if (!data || !Array.isArray(data.events)) return;
+            const newEvents = data.events as FeedEvent[];
+            setEvents((prev) => {
+                // Dedupe by id — the cursor pagination is strict-
+                // less-than on (when, id), so the server can't ship
+                // an event we already have… UNLESS the row's `when`
+                // got updated server-side between page loads (e.g.
+                // an edit). Defensive set-based dedupe absorbs that.
+                const seen = new Set(prev.map((e) => e.id));
+                const merged = [...prev];
+                for (const ev of newEvents) {
+                    if (!seen.has(ev.id)) {
+                        merged.push(ev);
+                        seen.add(ev.id);
+                    }
+                }
+                // Cache only the first page worth of events — caching
+                // the full deep-paginated list bloats localStorage
+                // and the user re-pages from scratch on next visit
+                // anyway (cache is hint, not source of truth).
+                if (prev.length === 0) {
+                    setCachedEvents(merged.slice(0, 30));
+                }
+                return merged;
+            });
+            setNextCursor(
+                typeof data.nextCursor === 'string' ? data.nextCursor : null,
+            );
+        } catch (e) {
+            console.error('Feed loadMore failed:', e);
+        } finally {
+            setLoadingMore(false);
+        }
+    }, [nextCursor, loadingMore]);
+
+    useEffect(() => {
+        const sentinel = sentinelRef.current;
+        if (!sentinel) return;
+        if (!nextCursor) return;  // no more pages → no observer
+        // rootMargin pre-fetches the next page ~250px before the
+        // sentinel is fully in view, so a fast scroller doesn't see
+        // a "loading" flash at the seam between pages.
+        const obs = new IntersectionObserver(
+            (entries) => {
+                for (const entry of entries) {
+                    if (entry.isIntersecting) {
+                        loadMore();
+                    }
+                }
+            },
+            { rootMargin: '250px 0px 250px 0px' },
+        );
+        obs.observe(sentinel);
+        return () => obs.disconnect();
+    }, [nextCursor, loadMore]);
 
     // ── Tab switch ──────────────────────────────────────────────
     const onSwitchTab = (tab: FeedTab) => {
@@ -401,12 +506,26 @@ export function Feed() {
                     return;
                 }
                 try {
-                    const res = await apiFetch('/api/feed');
+                    // R9-F1: post-unshare refresh resets pagination
+                    // to the top. The user's mental model is "remove
+                    // this and show me the fresh top of feed" — they
+                    // don't want to be left at page-7 of the old
+                    // pagination after a delete.
+                    const res = await apiFetch('/api/feed?limit=30');
                     if (res.ok) {
                         const data = await res.json();
                         if (Array.isArray(data)) {
                             setCachedEvents(data);
                             setEvents(data);
+                            setNextCursor(null);
+                        } else if (data && Array.isArray(data.events)) {
+                            setCachedEvents(data.events);
+                            setEvents(data.events);
+                            setNextCursor(
+                                typeof data.nextCursor === 'string'
+                                    ? data.nextCursor
+                                    : null,
+                            );
                         }
                     }
                 } catch (e) {
@@ -547,6 +666,9 @@ export function Feed() {
                         onCommentEdit={onCommentEdit}
                         onUnshare={onUnshare}
                         onRepost={onRepost}
+                        sentinelRef={sentinelRef}
+                        loadingMore={loadingMore}
+                        hasMore={nextCursor !== null}
                     />
                 </div>
             </div>
@@ -580,6 +702,17 @@ interface FeedListBodyProps {
     onCommentEdit: (eventId: string, commentId: number, body: string) => void;
     onUnshare: (postId: number) => void;
     onRepost: (postId: number, btn: HTMLButtonElement) => void;
+    /** R9-F1: ref the IntersectionObserver attaches to. Mounted at
+     *  the bottom of the rendered list; visibility triggers loadMore. */
+    sentinelRef: React.RefObject<HTMLDivElement | null>;
+    /** R9-F1: true while a page is in-flight. Renders the "Loading
+     *  more…" spinner in place of the sentinel so the user has
+     *  visual feedback that scrolling is doing something. */
+    loadingMore: boolean;
+    /** R9-F1: false → no more pages, render "You're all caught up"
+     *  hint INSTEAD of mounting the sentinel so the observer doesn't
+     *  fire pointless requests. */
+    hasMore: boolean;
 }
 
 
@@ -606,6 +739,9 @@ function FeedListBody(props: FeedListBodyProps) {
         onCommentEdit,
         onUnshare,
         onRepost,
+        sentinelRef,
+        loadingMore,
+        hasMore,
     } = props;
 
     // Explore tab — separate render path (its own loader + cards).
@@ -829,6 +965,44 @@ function FeedListBody(props: FeedListBodyProps) {
                     />
                 );
             })}
+            {/* R9-F1: infinite-scroll sentinel + state hints.
+                When `hasMore` is true the empty <div ref=...> is what
+                the IntersectionObserver watches; on intersection the
+                parent's loadMore fires. While a page is in-flight we
+                show a small spinner so the user has visual feedback.
+                When `hasMore` is false we render an "end of feed"
+                hint instead so the user knows they're caught up
+                rather than wondering why scrolling stopped doing
+                anything. */}
+            {hasMore ? (
+                <div
+                    ref={sentinelRef}
+                    aria-hidden="true"
+                    className="flex justify-center items-center py-4"
+                    style={{ minHeight: 48 }}
+                >
+                    {loadingMore && (
+                        <div
+                            className="spinner-ring"
+                            style={{
+                                width: 22,
+                                height: 22,
+                                border: '2.5px solid rgba(155,89,182,0.18)',
+                                borderTopColor: '#7c3a9e',
+                                borderRadius: '50%',
+                                animation: 'spin 1s linear infinite',
+                            }}
+                        />
+                    )}
+                </div>
+            ) : (
+                <div
+                    className="text-center text-secondary py-4 text-[0.82rem] opacity-70"
+                    style={{ minHeight: 40 }}
+                >
+                    {t('feed.endOfFeed')}
+                </div>
+            )}
         </>
     );
 }
