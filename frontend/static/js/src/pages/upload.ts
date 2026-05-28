@@ -6,7 +6,6 @@ import { navigate } from '../router.js';
 import { showSettingsTab } from './settings.js';
 import { addTripCompanion, getTripCompanionNames } from '../companions.js';
 import { t } from '../i18n.js';
-import { loadXLSX } from '../utils/loadGlobalScript.js';
 
 // Pad number to 2 digits.
 const _pad2 = (n: number): string => String(n).padStart(2, '0');
@@ -379,20 +378,8 @@ export function renderUpload() {
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = async function (evt) {
+            reader.onload = function (evt) {
                 try {
-                    // R11-B2: SheetJS (~900 KB) is now lazy-loaded on
-                    // first /upload visit instead of riding synchronously
-                    // in index.html. Catch a load failure and toast it
-                    // before the parse code so the user knows the issue
-                    // isn't with their file.
-                    try {
-                        await loadXLSX();
-                    } catch (loadErr) {
-                        console.error('[upload] xlsx load failed:', loadErr);
-                        showLiquidAlert(t('upload.xlsxLoadFailed'));
-                        return;
-                    }
                     const data = new Uint8Array((evt.target?.result as ArrayBuffer));
                     // cellDates: true tells SheetJS to convert XLSX-typed
                     // date cells into JS Date objects instead of returning

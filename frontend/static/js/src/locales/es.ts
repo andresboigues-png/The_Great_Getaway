@@ -1362,8 +1362,6 @@ export const es: Translations = {
         modeManualHint: 'Escribe un único gasto a mano',
         modeBatchLabel: 'Desde una hoja de cálculo',
         modeBatchHint: 'Importa varios gastos desde un archivo CSV/XLSX',
-        // R11-B2 SheetJS lazy-load failure toast.
-        xlsxLoadFailed: 'No se pudo cargar el analizador de hojas de cálculo. Comprueba tu conexión e inténtalo de nuevo.',
         pageTitle: 'Subir Datos',
         sectionHeading: 'Subida de Excel',
         labelImportFormat: 'Formato de importación',
