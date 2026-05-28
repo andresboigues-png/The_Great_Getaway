@@ -100,6 +100,43 @@ async function handleGoogleLogin(response: { credential?: string; [key: string]:
 // @ts-ignore
 window.handleGoogleLogin = handleGoogleLogin;
 
+// R11-EMERGENCY: GSI initialize guard. Pre-fix BOTH this module's
+// `initGoogleLogin()` AND `pages/profile.ts`'s login-wall renderer
+// called `google.accounts.id.initialize(...)` on their own paths.
+// The original comment in profile.ts claimed "calling initialize
+// multiple times is safe (it's a configuration call)" — but per
+// Google's own console warning ("google.accounts.id.initialize()
+// is called multiple times. ... only the last initialized instance
+// will be used"), the SECOND init OVERWRITES the first. If
+// profile.ts's call resolved `window.handleGoogleLogin` to
+// `() => {}` (the fallback when the global wasn't yet set during
+// any timing race), every subsequent account selection dispatched
+// to the no-op and the user saw a "blank" screen with no /api/auth/google
+// POST in the network log. Symptom: pick account → nothing happens.
+//
+// Fix: single module-level idempotent helper. The first caller
+// wires the real callback; subsequent callers no-op. profile.ts
+// imports + calls this before renderButton, so the GSI button
+// always has a working callback regardless of which boot path
+// reached it first.
+let _gsiInitialized = false;
+
+/** Idempotent GSI initialize. Returns true if GSI was already (or is
+ *  now) initialized; false if the GSI script hasn't loaded yet so the
+ *  caller should retry. */
+export function ensureGsiInitialized(): boolean {
+    if (_gsiInitialized) return true;
+    if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
+        return false;
+    }
+    google.accounts.id.initialize({
+        client_id: window.globalGoogleClientId,
+        callback: handleGoogleLogin,
+    });
+    _gsiInitialized = true;
+    return true;
+}
+
 export function initGoogleLogin() {
     // The GIS script is loaded `async defer`, so on a cold page-load
     // `google.accounts` often isn't defined yet by the time init() runs.
@@ -109,16 +146,13 @@ export function initGoogleLogin() {
     // callback wasn't wired. After a refresh the SDK was cached and ready
     // immediately, which is why "refresh and it works" was the symptom.
     //
-    // Now we poll briefly until the SDK loads, then call initialize once.
-    // 250ms x 40 = 10s upper bound — plenty for any realistic load time
-    // without spinning forever if the script never arrives.
+    // Now we poll briefly until the SDK loads, then call initialize once
+    // via the shared `ensureGsiInitialized` helper. 250ms x 40 = 10s
+    // upper bound — plenty for any realistic load time without spinning
+    // forever if the script never arrives.
     let attempts = 0;
     const tryInit = () => {
-        if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
-            google.accounts.id.initialize({
-                client_id: window.globalGoogleClientId,
-                callback: handleGoogleLogin
-            });
+        if (ensureGsiInitialized()) {
             const container = document.getElementById("googleBtnContainer");
             if (container) {
                 google.accounts.id.renderButton(container, { theme: "outline", size: "large", shape: "pill" });

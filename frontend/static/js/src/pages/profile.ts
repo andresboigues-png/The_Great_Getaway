@@ -38,6 +38,11 @@ import { navigate } from '../router.js';
 import { showModal } from '../components/Modal.js';
 import { t } from '../i18n.js';
 import { clearOutbox } from '../outbox.js';
+// R11-EMERGENCY: shared, idempotent GSI initialize helper. The circular
+// import (bootstrap/auth.ts imports updateUserUI from this file) is safe
+// because both sides only reference each other's exports from inside
+// functions — module-eval time is decoupled.
+import { ensureGsiInitialized } from '../bootstrap/auth.js';
 
 
 export interface ProfileFriend {
@@ -160,19 +165,33 @@ export function renderLoginWall() {
 
     // Google's button renderer needs a real DOM target, so do it after the
     // wall is mounted. Retries briefly if the GIS script hasn't loaded yet.
-    // We also (re-)call initialize here to wire the callback in case
-    // main.js's initGoogleLogin hadn't reached its own retry yet — calling
-    // initialize multiple times is safe (it's a configuration call) and
-    // guarantees the button has a working callback the moment it renders.
+    //
+    // R11-EMERGENCY: previously this re-called `google.accounts.id.initialize(...)`
+    // with `window.handleGoogleLogin || (() => {})` as the callback. The
+    // comment claimed multiple initialize calls were safe, but per Google's
+    // own console warning ("only the last initialized instance will be
+    // used"), the second init overwrites the first. If a timing race left
+    // `window.handleGoogleLogin` undefined at the moment this evaluated,
+    // the last initialize wired `() => {}` — every subsequent account
+    // selection dispatched to a no-op, producing the "click account → blank
+    // page, no /api/auth/google in the network log" symptom we shipped to
+    // prod.
+    //
+    // Fix: route through the shared, idempotent `ensureGsiInitialized()`
+    // helper from bootstrap/auth.ts. First caller wires the real
+    // handleGoogleLogin from import scope (no `window.` lookup race);
+    // subsequent callers no-op. This module only calls renderButton, not
+    // initialize, so we can never overwrite the callback to a stale one.
     const renderButton = () => {
         const target = div.querySelector('#loginWallBtnContainer');
         if (!target) return;
         if (window.google && window.google.accounts && window.globalGoogleClientId) {
+            if (!ensureGsiInitialized()) {
+                // GSI not yet ready inside the helper — try again.
+                setTimeout(renderButton, 250);
+                return;
+            }
             target.innerHTML = '';
-            window.google.accounts.id.initialize({
-                client_id: window.globalGoogleClientId,
-                callback: window.handleGoogleLogin || (() => {}),
-            });
             window.google.accounts.id.renderButton(
                 target,
                 { theme: 'outline', size: 'large', width: 280, shape: 'pill' }
