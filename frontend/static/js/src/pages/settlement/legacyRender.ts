@@ -744,16 +744,20 @@ export async function settleDebt(
         if (result.settlement) {
             STATE.settlements.push(result.settlement);
             emit(EVENTS.STATE_CHANGED);
-            showLiquidAlert(`Recorded ${formatHome(euroValue, 'EUR')} ${from} → ${to} · notified ${to}`);
+            showLiquidAlert(t('settlement.toastRecordedNotified', {
+                amount: formatHome(euroValue, 'EUR'),
+                from,
+                to,
+            }));
         } else {
             // Log + toast. We deliberately don't fall back to the
             // fake-expense pattern here — keeping the data layer
             // clean is worth the user-visible failure mode.
             // Sentry catches via §3.8's structured logging.
             console.warn('[settlement] /api/settlements failed:', result.error);
-            showLiquidAlert(
-                `Settlement failed: ${result.error || 'Network error'}`,
-            );
+            showLiquidAlert(t('settlement.toastSettlementFailed', {
+                error: result.error || t('settlement.toastSettlementFailedNetwork'),
+            }));
             // 2026-05-25 (audit S3): emit STATE_CHANGED so the Settle
             // button re-renders out of its disabled "Recording…" state.
             // Without this, the button stayed permanently disabled on
@@ -790,7 +794,11 @@ export async function settleDebt(
     // that window lost the settlement. Same outbox-safe pattern
     // as the edit path above.
     upsertExpense(settlementExp);
-    showLiquidAlert(`Recorded ${formatHome(euroValue, 'EUR')} ${from} → ${to}`);
+    showLiquidAlert(t('settlement.toastRecorded', {
+        amount: formatHome(euroValue, 'EUR'),
+        from,
+        to,
+    }));
 }
 
 /** Undo a recorded settlement. Routes by source:

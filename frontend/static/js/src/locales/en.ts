@@ -495,6 +495,15 @@ export const en = {
         toastUnsettleConfirmTitle: 'Unsettle this payment?',
         toastUnsettleConfirmMessage: 'The settlement record is removed and balances revert.',
         toastUnsettleConfirmBtn: 'Unsettle',
+        // R11-B7: settle-now success/failure toasts. Pre-fix these were
+        // English template literals in pages/settlement/legacyRender.ts;
+        // the modal lives behind the Trip-tab "Settle up" CTA, hit a
+        // few times per trip per group, fully visible to FR/ES/PT
+        // users. `{amount}` is pre-formatted with formatHome().
+        toastRecordedNotified: 'Recorded {amount} {from} → {to} · notified {to}',
+        toastRecorded: 'Recorded {amount} {from} → {to}',
+        toastSettlementFailed: 'Settlement failed: {error}',
+        toastSettlementFailedNetwork: 'Network error',
         // Manual settlement modal.
         manualTitle: 'Manual settlement',
         manualSubtitle: 'Record a payment that already happened off-app.',
@@ -1178,6 +1187,14 @@ export const en = {
         commentEditAria: 'Edit comment',
         commentDeleteTitle: 'Delete your comment',
         commentDeleteAria: 'Delete comment',
+        // R11-B7: confirm dialog shown when the user clicks the ✕ on a
+        // comment they own. Pre-fix the click fired delete immediately —
+        // a single misclick wiped a thoughtful reply with no undo. The
+        // optimistic-UI rollback only triggers if the SERVER rejects;
+        // user intent has no second chance otherwise.
+        commentDeleteConfirmTitle: 'Delete this comment?',
+        commentDeleteConfirmBody: 'This will permanently remove your comment from the thread. This can\'t be undone.',
+        commentDeleteConfirmBtn: 'Delete',
     },
     home: {
         // Pre-trip empty-state hero (welcomeCard.ts buildEmptyStateHtml).

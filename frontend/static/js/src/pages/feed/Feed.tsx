@@ -437,7 +437,21 @@ export function Feed() {
         input.focus();
     };
 
-    const onCommentDelete = async (eventId: string, commentId: number) => {
+    const onCommentDelete = (eventId: string, commentId: number) => {
+        // R11-B7: confirm before the optimistic delete fires. Pre-fix
+        // the ✕ on a comment row hard-deleted on first click with no
+        // dialog — a single misclick wiped a thoughtful reply.
+        // Optimistic rollback only catches server REJECTIONS; user
+        // intent ("did I mean to do that") had no second chance.
+        showConfirmModal({
+            title: t('feed.commentDeleteConfirmTitle'),
+            message: t('feed.commentDeleteConfirmBody'),
+            confirmText: t('feed.commentDeleteConfirmBtn'),
+            onConfirm: () => { void performCommentDelete(eventId, commentId); },
+        });
+    };
+
+    const performCommentDelete = async (eventId: string, commentId: number) => {
         // R2 audit fix: rollback on failure. Pre-fix the toast fired
         // on failure but the local removal stuck — user thought delete
         // worked, comment "magically reappeared" on the next /api/feed

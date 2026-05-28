@@ -212,9 +212,12 @@ attach_request_context(app, current_user_id)
 #     - accounts.google.com: token exchange / signing
 #     - api.frankfurter.app: currency rates
 #     - *.sentry.io / *.ingest.sentry.io: Sentry telemetry endpoint
-#     - images.unsplash.com / raw.githubusercontent.com: facts/quotes
-#       feeds (only the JSON metadata; the images themselves go
-#       through img-src above)
+#     - raw.githubusercontent.com: natural-earth GeoJSON country
+#       outlines for the FootprintMap on the profile (fetched once
+#       at module load). CSP doesn't support path-prefix scoping,
+#       so the origin grant is as tight as the spec allows.
+#     - (Unsplash images load via <img src=...> which is governed by
+#       img-src above, NOT connect-src, so no entry needed here.)
 #   frame-src
 #     - accounts.google.com: Google Sign-In renders a sign-in iframe
 #       on some platforms; without this it falls back to popup
@@ -381,11 +384,23 @@ def add_security_headers(response):
             "img-src 'self' data: blob: https:",
             "font-src 'self' data: https://fonts.gstatic.com",
             (
+                # R11-B7 (P3): tightened connect-src. Removed
+                # `images.unsplash.com` — Unsplash photos are loaded via
+                # <img src=...> tags (img-src 'https:' covers them); no
+                # JS fetch() ever hits that origin, so the connect-src
+                # entry was dead permission. Kept `raw.githubusercontent.com`
+                # — FootprintMap pulls the natural-earth GeoJSON country
+                # outlines from `/nvkelso/natural-earth-vector/master/`
+                # at module load. CSP can't narrow to a path prefix
+                # (origin granularity only), so the origin grant stays;
+                # the JSON parse itself is safe (no eval, structured
+                # GeoJSON consumed by maplibre-gl). If we ever vendor
+                # the GeoJSON into our static assets, this entry can
+                # come out entirely.
                 "connect-src 'self' "
                 "https://accounts.google.com "
                 "https://*.googleapis.com "
                 "https://api.frankfurter.app "
-                "https://images.unsplash.com "
                 "https://raw.githubusercontent.com "
                 "https://*.sentry.io "
                 "https://*.ingest.sentry.io"
