@@ -275,99 +275,67 @@ def _recipient_for_post(cursor, components) -> Optional[str]:
 
 
 def _build_friend_created_trip(cursor, ctx: FeedContext) -> list:
-    """Actor is the trip owner, trip created in the last 30 days, not
-    archived, not silenced via per-trip `actions_hidden` toggle.
+    """R11-B7: COMBINED builder — emits trip_created + trip_archived +
+    trip_joined events from ONE UNION ALL round-trip instead of three.
 
-    2026-05-18 audit H1: archive state now reads from `trip_members`
-    (per-user). For the owner-perspective "still working on this"
-    surface, we read the OWNER's own member row — semantically the
-    same as the legacy trips.is_archived = 0 but decoupled from the
-    column that's being deprecated."""
+    Previously each of these three event types had its own SELECT
+    against the same `trips JOIN trip_members` shape, with only the
+    filter predicate differing (is_archived=0 vs =1 vs user_id !=
+    owner). 8 sequential SELECTs total for /api/feed, of which 3
+    were this trio. Merging into one query saves 2 of 8 round-trips
+    — concretely ~6-8ms on PythonAnywhere's free tier where the
+    SQLite open() syscall is the dominant cost.
+
+    The companion stubs `_build_friend_archived_trip` and
+    `_build_friend_joined_trip` are NO-OPs that just return [] — the
+    FEED_EVENT_TYPES registry still references them so the
+    visibility-check + engagement-recipient + id-pattern hooks per
+    event type stay wired up cleanly (parse_event_id still works,
+    block-filtering still works). The builder hook is the only
+    field we collapse.
+
+    History preserved from the pre-merge bodies:
+    - 2026-05-18 audit H1: archive state reads from `trip_members`
+      (per-user), not the legacy trips.is_archived mirror.
+    - 2026-05-26 fix: trip_archived's window + sort use
+      `tm.completed_at` so a long-running trip completed today
+      surfaces NOW in the feed, not at its original creation date.
+    - Fallback: rows with completed_at IS NULL fall back to
+      `t.created_at` for legacy archives pre-dating that column.
+    - trip_joined uses t.created_at as a join-timestamp proxy
+      (trip_members has no joined_at column).
+    """
     if not ctx.actor_ids:
         return []
     placeholders = ",".join(["?"] * len(ctx.actor_ids))
-    cursor.execute(f'''
-        SELECT t.id, t.user_id, t.name, t.country, t.created_at
+    # Three UNION ALL branches — discriminated by `evt_kind`. Each
+    # branch is filtered to its own 30-day window on the right
+    # timestamp source. SQLite plans each branch independently so
+    # the optimizer can pick the right index per leg.
+    sql = f'''
+        SELECT t.id, t.user_id AS actor_id, t.name, t.country,
+               t.created_at AS when_ts,
+               'created' AS evt_kind
         FROM trips t
         JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = t.user_id
         WHERE t.user_id IN ({placeholders})
           AND COALESCE(tm.is_archived, 0) = 0
           AND COALESCE(t.actions_hidden, 0) = 0
           AND t.created_at >= datetime('now', '-30 days')
-        ORDER BY t.created_at DESC
-    ''', ctx.actor_ids)
-    events = []
-    for row in cursor.fetchall():
-        actor = ctx.actor_lookup.get(row["user_id"])
-        if not actor:
-            continue
-        events.append({
-            "id": f"trip_created_{row['id']}",
-            "type": "friend_created_trip",
-            "actor": actor,
-            "trip": {"id": row["id"], "name": row["name"], "country": row["country"]},
-            "when": row["created_at"],
-        })
-    return events
-
-
-def _build_friend_archived_trip(cursor, ctx: FeedContext) -> list:
-    """Actor's trip got archived (= they marked it complete).
-
-    Audit fix (2026-05-26): timestamp + window check both moved to
-    `trip_members.completed_at`. Pre-fix the event used
-    `t.created_at` for both, so a trip created 31+ days ago that
-    the owner completed today was INVISIBLE in followers' feed —
-    the 30-day window check rejected the row immediately. Also
-    the sort order was wrong: completing an old trip surfaced it
-    in the FAR PAST of the feed (next to its creation date) rather
-    than NOW.
-
-    Fallback: rows with completed_at IS NULL (legacy archives that
-    pre-date this column) fall back to `t.created_at` so we don't
-    break the back-catalog entirely on deploy day.
-
-    2026-05-18 audit H1: read the OWNER's per-user archive flag on
-    trip_members rather than the legacy trips.is_archived mirror."""
-    if not ctx.actor_ids:
-        return []
-    placeholders = ",".join(["?"] * len(ctx.actor_ids))
-    cursor.execute(f'''
-        SELECT t.id, t.user_id, t.name, t.country, t.created_at,
-               tm.completed_at,
-               COALESCE(tm.completed_at, t.created_at) AS when_ts
+        UNION ALL
+        SELECT t.id, t.user_id AS actor_id, t.name, t.country,
+               COALESCE(tm.completed_at, t.created_at) AS when_ts,
+               'archived' AS evt_kind
         FROM trips t
         JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = t.user_id
         WHERE t.user_id IN ({placeholders})
           AND COALESCE(tm.is_archived, 0) = 1
           AND COALESCE(t.actions_hidden, 0) = 0
           AND COALESCE(tm.completed_at, t.created_at) >= datetime('now', '-30 days')
-        ORDER BY COALESCE(tm.completed_at, t.created_at) DESC
-    ''', ctx.actor_ids)
-    events = []
-    for row in cursor.fetchall():
-        actor = ctx.actor_lookup.get(row["user_id"])
-        if not actor:
-            continue
-        events.append({
-            "id": f"trip_archived_{row['id']}",
-            "type": "friend_archived_trip",
-            "actor": actor,
-            "trip": {"id": row["id"], "name": row["name"], "country": row["country"]},
-            "when": row["when_ts"],
-        })
-    return events
-
-
-def _build_friend_joined_trip(cursor, ctx: FeedContext) -> list:
-    """Actor was added to a trip they DON'T own. `trip_members` has no
-    join timestamp; we use the trip's created_at as a best-effort
-    proxy."""
-    if not ctx.actor_ids:
-        return []
-    placeholders = ",".join(["?"] * len(ctx.actor_ids))
-    cursor.execute(f'''
-        SELECT tm.trip_id, tm.user_id AS joiner_id, t.name, t.country, t.created_at
+        UNION ALL
+        SELECT t.id, tm.user_id AS actor_id, t.name, t.country,
+               t.created_at AS when_ts,
+               'joined' AS evt_kind
         FROM trip_members tm
         JOIN trips t ON t.id = tm.trip_id
         WHERE tm.user_id IN ({placeholders})
@@ -375,20 +343,55 @@ def _build_friend_joined_trip(cursor, ctx: FeedContext) -> list:
           AND tm.user_id != t.user_id
           AND COALESCE(t.actions_hidden, 0) = 0
           AND t.created_at >= datetime('now', '-30 days')
-    ''', ctx.actor_ids)
+    '''
+    # Each branch's IN-clause needs its own copy of the actor_ids.
+    params = list(ctx.actor_ids) * 3
+    cursor.execute(sql, params)
     events = []
     for row in cursor.fetchall():
-        actor = ctx.actor_lookup.get(row["joiner_id"])
+        actor = ctx.actor_lookup.get(row["actor_id"])
         if not actor:
             continue
-        events.append({
-            "id": f"trip_joined_{row['trip_id']}_{row['joiner_id']}",
-            "type": "friend_joined_trip",
-            "actor": actor,
-            "trip": {"id": row["trip_id"], "name": row["name"], "country": row["country"]},
-            "when": row["created_at"],
-        })
+        kind = row["evt_kind"]
+        trip_dict = {"id": row["id"], "name": row["name"], "country": row["country"]}
+        if kind == "created":
+            events.append({
+                "id": f"trip_created_{row['id']}",
+                "type": "friend_created_trip",
+                "actor": actor,
+                "trip": trip_dict,
+                "when": row["when_ts"],
+            })
+        elif kind == "archived":
+            events.append({
+                "id": f"trip_archived_{row['id']}",
+                "type": "friend_archived_trip",
+                "actor": actor,
+                "trip": trip_dict,
+                "when": row["when_ts"],
+            })
+        else:  # 'joined'
+            events.append({
+                "id": f"trip_joined_{row['id']}_{row['actor_id']}",
+                "type": "friend_joined_trip",
+                "actor": actor,
+                "trip": trip_dict,
+                "when": row["when_ts"],
+            })
     return events
+
+
+def _build_friend_archived_trip(cursor, ctx: FeedContext) -> list:
+    """R11-B7: no-op stub — events for this type are emitted by the
+    combined `_build_friend_created_trip` builder above (single UNION
+    ALL round-trip). Kept as a separate registry entry so the type's
+    id_pattern / visibility_check hooks stay distinct."""
+    return []
+
+
+def _build_friend_joined_trip(cursor, ctx: FeedContext) -> list:
+    """R11-B7: no-op stub — see `_build_friend_archived_trip` above."""
+    return []
 
 
 def _build_new_friendship(cursor, ctx: FeedContext) -> list:

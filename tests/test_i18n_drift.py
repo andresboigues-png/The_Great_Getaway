@@ -165,6 +165,14 @@ _INTENTIONAL_ENGLISH = {
     'modals.addDayLabelDate':       'fr: identical "Date"',
     'modals.newTripLabelDest':      'fr: identical "Destination"',
     'modals.pdfOptBudgets':         'fr: identical "Budgets"',
+
+    # ── R11-B7: dayView labels (Latin cognate sweep) ───────────────
+    # 'Photos', 'Documents', 'Document' all spelled identically in FR.
+    # PT/ES use the same loanwords in travel-app context (mirrors the
+    # existing pathTab/tripMedia entries above).
+    'dayView.photos':            'fr: identical "Photos"',
+    'dayView.documents':         'fr: identical "Documents"',
+    'dayView.documentFallback':  'fr: identical "Document"',
 }
 
 

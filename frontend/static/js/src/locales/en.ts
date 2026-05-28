@@ -1288,6 +1288,36 @@ export const en = {
             other: '{count} days planned',
         },
     },
+    // R11-B7: dayViewModal.ts — the read-only day-plan modal shown
+    // to non-planners and on archived trips. Pre-fix every label and
+    // empty-state body was hardcoded English in the template literal.
+    dayView: {
+        photosTripWide: 'Trip-wide photos',
+        photos: 'Photos',
+        photosEmptyTripWide: 'No trip-wide photos yet — add some from the Photos tab.',
+        photosEmpty: 'No photos for this day.',
+        photosMoreCount: '+{count} more',
+        documentsTripWide: 'Trip-wide documents',
+        documents: 'Documents',
+        documentsEmptyTripWide: 'No trip-wide docs yet — add passports, hotels, return flights from the Documents tab.',
+        documentsEmpty: 'No documents for this day.',
+        documentFallback: 'Document',
+        expertTip: 'Expert Tip',
+        expertTipDefault: 'Always keep a portable charger and a small bottle of water in your bag for long exploration days.',
+    },
+    // R11-B7: tripChecklistModal.ts — packing/errand list. Every
+    // template-literal label and inline-string fallback now via t().
+    checklist: {
+        modalTitle: '📝 Trip checklist',
+        modalSubtitle: '{name} · packing, errands, anything to tick off',
+        addPlaceholder: 'Add a task — e.g. Charge power bank',
+        addBtn: 'Add',
+        emptySummary: 'No tasks yet — add the first one below.',
+        emptyRow: 'No tasks yet — your first one goes above.',
+        summary: '{remaining} of {total} left',
+        markDone: 'Mark done',
+        markNotDone: 'Mark not done',
+    },
     // Trip-companions roster (modals/companions.ts).
     companions: {
         // R11-B4 UX-1: confirm shown when removing a linked companion
@@ -1412,6 +1442,14 @@ export const en = {
         uploadTooLarge: 'File too large.',
         // Sync.
         syncFailed: "Couldn't sync your changes. Working offline.",
+        // R11-B7: badge unlock pulse fired from api.ts after a poll
+        // surfaces newly-earned achievements. `{emoji}` is the badge's
+        // icon (defaulted to 🏅 if the row lacks one) and `{label}` is
+        // the human-readable name. Pre-fix both fragments were hardcoded
+        // English literals; FR/ES/PT users saw "Unlocked: Bronze
+        // Adventurer" mid-Spanish UI.
+        badgeUnlocked: '{emoji} Unlocked: {label}',
+        badgeUnlockedFallback: 'New badge',
     },
     validation: {
         // Common input-validation messages reused across pages.

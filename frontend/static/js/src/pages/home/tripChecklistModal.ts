@@ -70,7 +70,7 @@ export const openTripChecklistModal = (trip: any): void => {
             : '';
         return `
             <div class="checklist-row${editingMarker}" data-item-id="${id}" style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:white; border:1px solid rgba(0,45,91,0.06); border-radius:12px;">
-                <button type="button" class="checklist-toggle-btn" data-item-id="${id}" ${editable ? '' : 'disabled'} aria-pressed="${done}" title="${done ? 'Mark not done' : 'Mark done'}"
+                <button type="button" class="checklist-toggle-btn" data-item-id="${id}" ${editable ? '' : 'disabled'} aria-pressed="${done}" title="${done ? t('checklist.markNotDone') : t('checklist.markDone')}"
                     style="flex-shrink:0; width:22px; height:22px; border-radius:50%; border:2px solid ${done ? '#8b6e0c' : 'rgba(0,113,227,0.3)'}; background:${done ? 'var(--gradient-anchor-deep)' : 'white'}; color:white; cursor:${editable ? 'pointer' : 'default'}; display:inline-flex; align-items:center; justify-content:center; padding:0;">
                     ${done ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>` : ''}
                 </button>
@@ -84,26 +84,26 @@ export const openTripChecklistModal = (trip: any): void => {
         const items: ChecklistItem[] = trip.checklist;
         const remaining = items.filter(i => !i.done).length;
         const summary = items.length === 0
-            ? 'No tasks yet — add the first one below.'
-            : `${remaining} of ${items.length} left`;
+            ? t('checklist.emptySummary')
+            : t('checklist.summary', { remaining, total: items.length });
         return `
             <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 16px;">
                 <div>
-                    <h2 style="margin:0 0 4px; font-size:1.5rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">📝 Trip checklist</h2>
-                    <p style="margin:0; color:var(--text-secondary); font-size:0.85rem;">${esc(trip.name)} · packing, errands, anything to tick off</p>
+                    <h2 style="margin:0 0 4px; font-size:1.5rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">${t('checklist.modalTitle')}</h2>
+                    <p style="margin:0; color:var(--text-secondary); font-size:0.85rem;">${t('checklist.modalSubtitle', { name: esc(trip.name) })}</p>
                 </div>
                 <button id="checklistModalClose" class="close-x-btn" aria-label="${t('common.close')}">✕</button>
             </div>
             ${editable ? `
                 <form id="checklistAddForm" style="display:flex; gap:8px; margin-bottom:14px;">
-                    <input id="checklistAddInput" type="text" placeholder="Add a task — e.g. Charge power bank" maxlength="200" autocomplete="off"
+                    <input id="checklistAddInput" type="text" placeholder="${t('checklist.addPlaceholder')}" maxlength="200" autocomplete="off"
                         style="flex:1; min-width:0; padding:10px 14px; border:1px solid rgba(0,45,91,0.12); border-radius:999px; font-size:0.92rem; font-family:inherit; background:rgba(0,113,227,0.04); color:#002d5b;">
-                    <button type="submit" class="btn-primary" style="padding:10px 18px; border-radius:999px; font-size:0.85rem;">Add</button>
+                    <button type="submit" class="btn-primary" style="padding:10px 18px; border-radius:999px; font-size:0.85rem;">${t('checklist.addBtn')}</button>
                 </form>
             ` : ''}
             <div id="checklistRows" style="display:flex; flex-direction:column; gap:8px;">
                 ${items.length === 0
-                    ? `<div style="font-size:0.85rem; color:var(--text-secondary); padding:20px; text-align:center; background:rgba(212,160,23,0.04); border:1.5px dashed rgba(212,160,23,0.32); border-radius:14px;">No tasks yet — your first one goes above.</div>`
+                    ? `<div style="font-size:0.85rem; color:var(--text-secondary); padding:20px; text-align:center; background:rgba(212,160,23,0.04); border:1.5px dashed rgba(212,160,23,0.32); border-radius:14px;">${t('checklist.emptyRow')}</div>`
                     : items.map(renderItemRow).join('')}
             </div>
             <div style="margin-top:14px; font-size:0.78rem; color:var(--text-secondary); font-weight:700; text-transform:uppercase; letter-spacing:0.06em; text-align:center;">${esc(summary)}</div>

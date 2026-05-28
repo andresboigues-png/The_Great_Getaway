@@ -62,7 +62,10 @@ export async function attemptPendingClone(): Promise<void> {
         navigate(PAGES.HOME);
     } catch (e) {
         console.error('Pending clone failed:', e);
-        showLiquidAlert("Couldn't clone that trip. Try again from Collections.");
+        // R11-B7: reuse the existing key from errors namespace —
+        // identical copy already used by the inline Collections clone
+        // path, so the FR/ES/PT translation is already maintained.
+        showLiquidAlert(t('errors.cloneFailedFromCollections'));
         try { sessionStorage.removeItem(CLONE_INTENT_KEY); } catch { /* ignored */ }
     }
 }

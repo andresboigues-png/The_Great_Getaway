@@ -398,7 +398,14 @@ export async function pullFromServer() {
             // so back-to-back polls that somehow surface the same unlock
             // twice (race between the insert and a parallel poll) won't
             // spam the user.
-            showLiquidAlert(`${b.emoji || '🏅'} Unlocked: ${b.label || 'New badge'}`);
+            // R11-B7: i18n-fied. `{emoji}` and `{label}` placeholders
+            // live in the translation; FR/ES/PT users get a localized
+            // "Débloqué" / "¡Desbloqueado!" / "Desbloqueado" toast
+            // instead of an English "Unlocked: …" string mid-Spanish UI.
+            showLiquidAlert(t('toasts.badgeUnlocked', {
+                emoji: b.emoji || '🏅',
+                label: b.label || t('toasts.badgeUnlockedFallback'),
+            }));
         }
         // Account-level companions (data.companions) is no longer used —
         // companions live per-trip on `trip.companions`.

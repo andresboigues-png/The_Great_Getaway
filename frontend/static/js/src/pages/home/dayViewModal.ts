@@ -99,25 +99,25 @@ export const openDayView = (day: any): void => {
                          pulls trip.photos+documents filtered by this
                          day's id, plus any legacy day.photos/tickets. -->
                     <div style="background: rgba(52,199,89,0.04); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(52,199,89,0.15);">
-                        <h4 class="text-tag" style="--accent: 52,199,89;">${Number(day.dayNumber) === 0 ? 'Trip-wide photos' : 'Photos'}${photoSrcs.length > 0 ? ` (${photoSrcs.length})` : ''}</h4>
+                        <h4 class="text-tag" style="--accent: 52,199,89;">${Number(day.dayNumber) === 0 ? t('dayView.photosTripWide') : t('dayView.photos')}${photoSrcs.length > 0 ? ` (${photoSrcs.length})` : ''}</h4>
                         ${photoSrcs.length > 0 ? `
                             <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px;">
                                 ${photoSrcs.slice(0, 9).map(src => `<div style="aspect-ratio:1; background-image:url(${esc(src)}); background-size:cover; background-position:center; border-radius:10px;"></div>`).join('')}
                             </div>
-                            ${photoSrcs.length > 9 ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:6px;">+${photoSrcs.length - 9} more</div>` : ''}
-                        ` : `<p class="dvm-italic-muted-sub">${Number(day.dayNumber) === 0 ? 'No trip-wide photos yet — add some from the Photos tab.' : 'No photos for this day.'}</p>`}
+                            ${photoSrcs.length > 9 ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:6px;">${t('dayView.photosMoreCount', { count: photoSrcs.length - 9 })}</div>` : ''}
+                        ` : `<p class="dvm-italic-muted-sub">${Number(day.dayNumber) === 0 ? t('dayView.photosEmptyTripWide') : t('dayView.photosEmpty')}</p>`}
                     </div>
                     <div style="background: rgba(88,86,214,0.04); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(88,86,214,0.15);">
-                        <h4 class="text-tag" style="--accent: 88,86,214;">${Number(day.dayNumber) === 0 ? 'Trip-wide documents' : 'Documents'}${docs.length > 0 ? ` (${docs.length})` : ''}</h4>
+                        <h4 class="text-tag" style="--accent: 88,86,214;">${Number(day.dayNumber) === 0 ? t('dayView.documentsTripWide') : t('dayView.documents')}${docs.length > 0 ? ` (${docs.length})` : ''}</h4>
                         ${docs.length > 0 ? `
                             <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
-                                ${docs.map(d => `<a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" style="font-size:0.85rem; color:#005bb8; font-weight:700; text-decoration:none;">📎 ${esc(d.name || 'Document')}</a>`).join('')}
+                                ${docs.map(d => `<a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" style="font-size:0.85rem; color:#005bb8; font-weight:700; text-decoration:none;">📎 ${esc(d.name || t('dayView.documentFallback'))}</a>`).join('')}
                             </div>
-                        ` : `<p class="dvm-italic-muted-sub">${Number(day.dayNumber) === 0 ? 'No trip-wide docs yet — add passports, hotels, return flights from the Documents tab.' : 'No documents for this day.'}</p>`}
+                        ` : `<p class="dvm-italic-muted-sub">${Number(day.dayNumber) === 0 ? t('dayView.documentsEmptyTripWide') : t('dayView.documentsEmpty')}</p>`}
                     </div>
                     <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
-                        <h4 class="text-tag" style="--accent: 52,199,89;">Expert Tip</h4>
-                        <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${esc(day.tip || 'Always keep a portable charger and a small bottle of water in your bag for long exploration days.')}</p>
+                        <h4 class="text-tag" style="--accent: 52,199,89;">${t('dayView.expertTip')}</h4>
+                        <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${esc(day.tip || t('dayView.expertTipDefault'))}</p>
                     </div>
                 </div>
             </div>
@@ -137,6 +137,6 @@ export const openDayView = (day: any): void => {
         const me = (ev as MouseEvent);
         if (me.metaKey || me.ctrlKey || me.shiftKey || me.button === 1) return;
         me.preventDefault();
-        openPdfPreview(a.href, a.textContent?.trim().replace(/^📎\s*/, '') || 'Document');
+        openPdfPreview(a.href, a.textContent?.trim().replace(/^📎\s*/, '') || t('dayView.documentFallback'));
     });
 };
