@@ -3155,6 +3155,20 @@ body.is-signed-out .trip-controls-popover {
    page chrome, loaded with the Collections JS bundle in a future
    slice. ~30 lines.) */
 @media (max-width: 720px) {
+    /* R10-B4 P1-15: bump small icon-button tap targets to 44×44 on
+       mobile only (HIG minimum). Desktop keeps the 32-36px visual
+       weight that's appropriate for cursor input. On touch devices
+       these are the trip-card / expense-row Edit/Delete/PDF/Pin
+       actions — pre-fix they were sub-HIG and required deliberate
+       aim. Visual icon stays sized via the SVG inside; box grows
+       around it so the strike zone is reachable without zoom. */
+    .icon-x-btn,
+    .icon-btn-circle,
+    .icon-action-btn {
+        min-width: var(--tap-min);
+        min-height: var(--tap-min);
+    }
+
     /* Collections row card — desktop is a single horizontal row with
        cover thumb / name / Public toggle / Restore + Delete buttons
        all side-by-side. On mobile that overflows the viewport (the
