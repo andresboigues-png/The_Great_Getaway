@@ -919,6 +919,44 @@ function FeedListBody(props: FeedListBodyProps) {
     }
 
     if (renderedItems.length === 0) {
+        // R9-F1.1: when the bookmark filter strips every event in the
+        // current loaded batch but the server says there's more, we
+        // need to keep paginating to find bookmarks deeper in the
+        // feed. Pre-fix the EmptyState rendered here with no sentinel
+        // — so a user with 1 bookmark sitting at page-3 would just
+        // see "no bookmarks" forever, since loadMore never fired.
+        // Now: if hasMore + bookmarkedOnly, render the sentinel
+        // explicitly so the IntersectionObserver fires and walks
+        // deeper. EmptyState still wins when nextCursor is null
+        // (genuinely no bookmarks anywhere) or when the filter is
+        // off (the empty feed is the real signal).
+        if (hasMore && bookmarkedOnly) {
+            return (
+                <div
+                    ref={sentinelRef}
+                    aria-live="polite"
+                    className="card glass p-6 rounded-xl text-center"
+                >
+                    <div
+                        className="spinner-ring"
+                        style={{
+                            width: 22,
+                            height: 22,
+                            border: '2.5px solid rgba(155,89,182,0.18)',
+                            borderTopColor: '#7c3a9e',
+                            borderRadius: '50%',
+                            animation: 'spin 1s linear infinite',
+                            margin: '0 auto 10px',
+                        }}
+                    />
+                    <div
+                        className="text-secondary text-[0.85rem] font-semibold"
+                    >
+                        {t('feed.searchingBookmarks')}
+                    </div>
+                </div>
+            );
+        }
         return (
             <EmptyState
                 activeTab={activeTab}

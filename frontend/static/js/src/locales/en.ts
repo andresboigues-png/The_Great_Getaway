@@ -1061,6 +1061,13 @@ export const en = {
         // returned nextCursor=null). Without this the user wonders
         // why scrolling stopped doing anything.
         endOfFeed: "You're all caught up.",
+        // R9-F1.1: shown when the bookmark filter strips every event
+        // in the current loaded batch but more pages exist on the
+        // server. Without this the user sees the "no bookmarks"
+        // EmptyState even though their bookmarks live deeper in the
+        // feed; the spinner signals "still looking" while the
+        // IntersectionObserver fires loadMore.
+        searchingBookmarks: 'Searching for bookmarked items deeper in the feed…',
         // Empty states (3 distinct branches).
         emptyBookmarkedPostsTitle: 'No bookmarked posts yet',
         emptyBookmarkedActionsTitle: 'No bookmarked actions yet',

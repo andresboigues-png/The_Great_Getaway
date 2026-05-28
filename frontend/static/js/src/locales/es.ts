@@ -823,6 +823,8 @@ export const es: Translations = {
         loading: 'Cargando el feed…',
         // R9-F1 infinite-scroll tail hint.
         endOfFeed: 'Ya estás al día.',
+        // R9-F1.1: bookmark filter loading deeper pages.
+        searchingBookmarks: 'Buscando elementos guardados más abajo en el feed…',
         emptyBookmarkedPostsTitle: 'Sin publicaciones guardadas',
         emptyBookmarkedActionsTitle: 'Sin actividad guardada',
         emptyBookmarkedBody: 'Toca 🔖 en cualquier tarjeta para guardarla — los marcadores son privados y no caducan.',

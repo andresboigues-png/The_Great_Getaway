@@ -828,6 +828,8 @@ export const fr: Translations = {
         loading: 'Chargement du fil…',
         // R9-F1 infinite-scroll tail hint.
         endOfFeed: 'Tu es à jour.',
+        // R9-F1.1: bookmark filter loading deeper pages.
+        searchingBookmarks: 'Recherche de favoris plus profonds dans le fil…',
         emptyBookmarkedPostsTitle: 'Aucune publication marquée',
         emptyBookmarkedActionsTitle: 'Aucune activité marquée',
         emptyBookmarkedBody: 'Touche 🔖 sur n\'importe quelle carte pour la sauvegarder — les marque-pages sont privés et ne périment jamais.',
