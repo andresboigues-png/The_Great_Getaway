@@ -796,6 +796,31 @@ def _start_cleanup_thread():
     werkzeug_run_main = os.getenv("WERKZEUG_RUN_MAIN")
     if werkzeug_run_main is not None and werkzeug_run_main != "true":
         return
+    # R12-B5: single-worker gate. The WERKZEUG_RUN_MAIN check above only
+    # handles the dev reloader's parent/child double-fire — under
+    # gunicorn with N>1 workers (PA paid plans) the var is unset in
+    # every worker, so each one spun up its own 24h cleanup loop →
+    # concurrent DELETE storms once a day. Harmless (the queries are
+    # idempotent) but wasteful. An advisory file lock elects ONE worker:
+    # the first to grab the exclusive non-blocking lock keeps it for the
+    # process lifetime + runs the loop; the rest skip. fcntl.flock is
+    # POSIX (PA is Linux); on a non-POSIX host we fall through and run
+    # unconditionally — still correct because the cleanup is idempotent.
+    # Tradeoff: if the elected worker dies mid-life the cleanup pauses
+    # until a full app restart re-elects one — acceptable for a daily
+    # janitor (worst case: one missed 24h cycle).
+    global _CLEANUP_LOCK_FD
+    try:
+        import fcntl
+        import tempfile as _tempfile
+        _lock_path = os.path.join(_tempfile.gettempdir(), "gg_feed_cleanup.lock")
+        _CLEANUP_LOCK_FD = open(_lock_path, "w")  # noqa: SIM115 — held for process life
+        fcntl.flock(_CLEANUP_LOCK_FD.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except ImportError:
+        pass  # non-POSIX — run unconditionally (idempotent)
+    except (OSError, BlockingIOError):
+        # Another worker holds the lock → it owns the cleanup. Skip.
+        return
     import threading
     import time
     def loop():
@@ -806,6 +831,10 @@ def _start_cleanup_thread():
     t.start()
 
 
+# Module-level so the advisory-lock fd survives for the process
+# lifetime — closing it (or letting it GC) would release the flock and
+# let a second worker elect itself on its next boot attempt.
+_CLEANUP_LOCK_FD = None
 _start_cleanup_thread()
 
 def _asset_version(rel_path: str) -> str:

@@ -1132,4 +1132,7 @@ def _check_alembic_head(cursor) -> None:
 
 if __name__ == "__main__":
     init_db()
-    print("Database initialized!")
+    # R12-B5: logger, not print() — keeps the module consistent with
+    # observability.py's "no print for diagnostics" rule even on the
+    # __main__ path (a dev running `python database.py` directly).
+    logger.info("Database initialized")

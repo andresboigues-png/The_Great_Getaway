@@ -6066,6 +6066,66 @@ def test_feed_union_builder_emits_all_three_types_in_one_call(
     assert ("friend_joined_trip", "union-joined") in by_type_trip
 
 
+def test_feed_joined_event_hidden_when_trip_owner_blocked_viewer(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R12-B5 (P2 block-bypass): a friend_joined_trip card must NOT
+    surface to a viewer the trip OWNER has blocked. The joiner
+    (seed_other) is the actor and IS in the viewer's follow pool, but
+    the trip is owned by a THIRD party (owner-3) who never went
+    through build_feed_context's actor-pool block filter. Pre-fix the
+    joined branch leaked owner-3's trip name+country to a viewer
+    owner-3 blocked. Baseline (no block) → surfaces; after owner-3
+    blocks the viewer → gone."""
+    from database import get_db
+    owner_id = "owner-blocker-3"
+    trip_id = "trip-joined-blocked"
+    _make_friends(seed_user, seed_other_user)  # viewer follows the joiner
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            (owner_id, "owner3@example.com", "Owner Three"),
+        )
+        conn.execute(
+            "INSERT INTO trips (id, user_id, name, country, created_at) "
+            "VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)",
+            (trip_id, owner_id, "Secret Trip", "Japan"),
+        )
+        # joiner is an accepted member, NOT the owner → joined event.
+        conn.execute(
+            "INSERT INTO trip_members "
+            "(trip_id, user_id, role, is_archived, invitation_status, invited_by) "
+            "VALUES (?, ?, 'relaxer', 0, 'accepted', ?)",
+            (trip_id, seed_other_user, owner_id),
+        )
+        conn.commit()
+
+    # Baseline: no block → joined event surfaces.
+    events = client.get("/api/feed", headers=auth_headers).get_json()
+    joined = [
+        e for e in events
+        if e.get("type") == "friend_joined_trip"
+        and e.get("trip", {}).get("id") == trip_id
+    ]
+    assert len(joined) == 1, "baseline: joined event surfaces without a block"
+
+    # Owner blocks the viewer → the card must disappear.
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO blocks (blocker_id, blocked_id) VALUES (?, ?)",
+            (owner_id, seed_user),
+        )
+        conn.commit()
+    events2 = client.get("/api/feed", headers=auth_headers).get_json()
+    joined2 = [
+        e for e in events2
+        if e.get("type") == "friend_joined_trip"
+        and e.get("trip", {}).get("id") == trip_id
+    ]
+    assert len(joined2) == 0, \
+        "owner-blocked viewer must NOT see the joined card (P2 block-bypass)"
+
+
 def test_trip_media_works_for_archived_trip(
     client, seed_user, auth_headers,
 ):

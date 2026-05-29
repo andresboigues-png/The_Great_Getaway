@@ -524,7 +524,7 @@ def unarchive_trip(trip_id):
 
 
 @bp.route("/api/trips/<trip_id>/media", methods=["GET"])
-@limiter.limit("60 per minute")
+@limiter.limit("20 per minute")
 @require_auth
 def get_trip_media(trip_id):
     """R11-B2-followup Phase 1A: per-trip heavy-JSON fetch.
@@ -546,16 +546,22 @@ def get_trip_media(trip_id):
     when the column is NULL or contains malformed JSON, so a
     corrupt row doesn't 500 the whole open-trip flow.
 
-    60/min rate limit: matches /api/data. Trip-open is interactive,
-    not polled, but a multi-tab user clicking through trips needs
-    some headroom.
+    R12-B5: 20/min rate limit (was 60). Trip-open is interactive,
+    not polled — even a multi-tab user clicking through trips won't
+    exceed ~a few/min. The endpoint reads ALL 4 heavy JSON columns
+    per call, so a tighter cap blunts the egress-amplification a
+    leaked token could drive against the writer thread.
     """
-    bind_trip_context(trip_id)
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         if trip_member_role(cursor, trip_id, user_id) is None:
             return jsonify({"error": "Forbidden"}), 403
+        # R12-B5: bind the observability context AFTER the auth gate so
+        # a 403 probe doesn't tag the request (+ Sentry scope) with an
+        # attacker-supplied trip_id. Authorized requests still get the
+        # trip bound for the rest of the handler.
+        bind_trip_context(trip_id)
         cursor.execute(
             "SELECT photos_json, documents_json, "
             "       marked_places_json, checklist_json, updated_at "

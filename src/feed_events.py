@@ -343,9 +343,28 @@ def _build_friend_created_trip(cursor, ctx: FeedContext) -> list:
           AND tm.user_id != t.user_id
           AND COALESCE(t.actions_hidden, 0) = 0
           AND t.created_at >= datetime('now', '-30 days')
+          -- R12-B5 (P2 block-bypass): the created + archived branches
+          -- are owner-perspective (actor IS the trip owner, already
+          -- block-filtered out of the actor pool by build_feed_context).
+          -- The joined branch is different: the actor is the JOINER, but
+          -- the trip is owned by a THIRD party who is NOT in the actor
+          -- pool and so never went through the block filter. Without
+          -- this, "Friend joined X's trip" leaks X's trip name + country
+          -- to a viewer X blocked (the engagement gate stops likes/
+          -- comments but the card still rendered). Exclude trips whose
+          -- OWNER is on either side of a block edge with the viewer —
+          -- bidirectional, matching build_feed_context's actor-pool rule.
+          AND t.user_id NOT IN (
+              SELECT blocked_id FROM blocks WHERE blocker_id = ?
+          )
+          AND t.user_id NOT IN (
+              SELECT blocker_id FROM blocks WHERE blocked_id = ?
+          )
     '''
-    # Each branch's IN-clause needs its own copy of the actor_ids.
-    params = list(ctx.actor_ids) * 3
+    # First three placeholder groups are the per-branch actor_ids IN
+    # clauses; the trailing two are the viewer id for the joined
+    # branch's owner-block subqueries (see the comment above).
+    params = list(ctx.actor_ids) * 3 + [ctx.user_id, ctx.user_id]
     cursor.execute(sql, params)
     events = []
     for row in cursor.fetchall():
