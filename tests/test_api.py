@@ -257,6 +257,43 @@ def test_trip_cover_url_optional(client, seed_user, auth_headers):
     assert trip["coverUrl"] is None
 
 
+def test_api_data_omits_heavy_json_fields_phase2(client, seed_user, auth_headers):
+    """R12-B4 Phase 2: /api/data must NOT ship the 4 heavy media fields
+    (photos / documents / markedPlaces / checklist) — they load via
+    GET /api/trips/<id>/media. Pins the contract: the keys are ABSENT
+    (not just empty) so the frontend merge's `=== undefined` check can
+    reliably detect 'server didn't ship this' and preserve in-memory
+    media. Seeds the columns via the dedicated write path, confirms
+    /api/data omits them, and confirms /media still returns them.
+
+    This is the Phase-2 perf win, made SAFE by Phase 1's write
+    isolation (upsert_trip ignores media) + the frontend's
+    _mediaLoadedTrips gate. A previous attempt (reverted d428b3e)
+    shipped the strip WITHOUT that isolation and caused a data-loss
+    P0; this test + the test_upsert_trip_cannot_touch_media guard
+    together lock the safe shape."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-phase2-strip")
+    client.post(f"/api/trips/{trip_id}/media", headers=auth_headers, json={
+        "photos": [{"id": "p1"}],
+        "documents": [{"id": "d1"}],
+        "markedPlaces": [{"id": "m1"}],
+        "checklist": [{"id": "c1"}],
+    })
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in data["trips"] if t["id"] == trip_id)
+    assert "photos" not in trip
+    assert "documents" not in trip
+    assert "markedPlaces" not in trip
+    assert "checklist" not in trip
+    # Non-heavy fields still ship (the strip is surgical, not a wipe).
+    assert "companions" in trip
+    assert "coverUrl" in trip
+    # The media IS reachable via the dedicated endpoint.
+    media = client.get(f"/api/trips/{trip_id}/media", headers=auth_headers).get_json()
+    assert media["photos"] == [{"id": "p1"}]
+    assert media["checklist"] == [{"id": "c1"}]
+
+
 # ── /api/expenses ────────────────────────────────────────────────────────────
 
 def test_upsert_expense_happy_path(client, seed_user, auth_headers):

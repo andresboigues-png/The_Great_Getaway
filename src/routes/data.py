@@ -950,6 +950,22 @@ def get_data():
             # deliberately NOT in the helper; they are appended here
             # because /api/public-trip must NOT expose them.
             t = serialize_trip_row(r)
+            # R12-B4 Phase 2: strip the 4 heavy per-trip JSON fields from
+            # the /api/data poll response. They now load on-demand via
+            # GET /api/trips/<id>/media (fetched on trip-open) and write
+            # via POST /api/trips/<id>/media — fully decoupled from this
+            # endpoint. For a 50-trip user with active media this is the
+            # difference between a ~500KB and a ~50KB poll fired every
+            # 15s. SAFE this time (unlike the reverted Phase 1B) because:
+            #   (a) upsert_trip server-side IGNORES these columns, so a
+            #       metadata write can't carry a []-placeholder into them;
+            #   (b) the frontend gates persistTripMedia on a per-trip
+            #       _mediaLoadedTrips set, so an unhydrated trip never
+            #       ships [] to the media endpoint either.
+            # The frontend's pullFromServer MERGES incoming trips with
+            # existing STATE to preserve already-loaded media across polls.
+            for _heavy_key in ('photos', 'documents', 'markedPlaces', 'checklist'):
+                t.pop(_heavy_key, None)
             # Privacy flag — read at trip scope (one bool per trip,
             # set by the owner). Owner-only field; not in the public
             # shaper.

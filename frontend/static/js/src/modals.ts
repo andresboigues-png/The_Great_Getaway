@@ -13,6 +13,7 @@ import {
     pullFromServer,
     uploadMedia,
     apiFetch,
+    markTripMediaLoaded,
 } from './api.js';
 import { navigate } from './router.js';
 import { ROLE_PLANNER } from './permissions.js';
@@ -387,6 +388,12 @@ export const openNewTripModal = () => {
 
         STATE.trips.push(newTrip);
         STATE.activeTripId = id;
+        // R12-B4 Phase 2: a brand-new trip's media is authoritatively
+        // empty (we just built it client-side), so mark it loaded — that
+        // lets the first photo/checklist/marked write on this trip go
+        // through persistTripMedia's hydration gate without waiting for a
+        // GET /media round-trip that would only return [].
+        markTripMediaLoaded(id);
 
         // Optional: auto-create one empty Path day per date in the
         // user-supplied range. Each scaffolded day has no pin yet

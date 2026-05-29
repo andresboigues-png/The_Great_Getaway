@@ -356,6 +356,25 @@ export async function pullFromServer() {
                 trip.companions.unshift({ name: myFirstName, linkedUserId: me.id });
             }
         }
+        // R12-B4 Phase 2: /api/data no longer ships the 4 heavy media
+        // fields. MERGE each incoming trip with its existing STATE copy
+        // so media already loaded by fetchTripMedia survives the poll.
+        // Trips never opened default to [] (placeholder); they hydrate
+        // on first open. The 90+ consumers of trip.photos/etc. keep
+        // reading from STATE.trips unchanged — hydration is transparent.
+        const _existingById = new Map<string, Record<string, unknown>>();
+        for (const t of (STATE.trips || [])) _existingById.set(t.id, t as unknown as Record<string, unknown>);
+        for (const t of (STATE.archivedTrips || [])) _existingById.set(t.id, t as unknown as Record<string, unknown>);
+        for (const trip of allTrips) {
+            const tt = trip as unknown as Record<string, unknown>;
+            const existing = _existingById.get(trip.id);
+            // Prefer a server value if a future revision re-adds it;
+            // else the in-memory loaded copy; else [] cold default.
+            if (tt.photos === undefined) tt.photos = existing?.photos ?? [];
+            if (tt.documents === undefined) tt.documents = existing?.documents ?? [];
+            if (tt.markedPlaces === undefined) tt.markedPlaces = existing?.markedPlaces ?? [];
+            if (tt.checklist === undefined) tt.checklist = existing?.checklist ?? [];
+        }
         STATE.trips = allTrips.filter(t => !t.isArchived);
         STATE.archivedTrips = allTrips.filter(t => t.isArchived);
 
@@ -475,6 +494,16 @@ export async function pullFromServer() {
         }
 
         emit(EVENTS.STATE_CHANGED);          // saveState + updateTripSelector via subscriber
+
+        // R12-B4 Phase 2: hydrate the ACTIVE trip's media if it hasn't
+        // loaded yet (cold start / first paint after login). Cheap +
+        // dedupe-guarded — fires at most once per trip until loaded, so
+        // the 15s poll doesn't refetch a trip whose media is already in
+        // memory. Fire-and-forget; fetchTripMedia emits its own
+        // STATE_CHANGED when the arrays land.
+        if (STATE.activeTripId && !_mediaLoadedTrips.has(STATE.activeTripId)) {
+            fetchTripMedia(STATE.activeTripId).catch(() => { /* best-effort */ });
+        }
 
         await fetchNotifications(); // already emits 'notifications:changed'
 
@@ -685,6 +714,64 @@ export function upsertTrip(trip: any) {
     return metaResult;
 }
 
+/** R12-B4 Phase 2: per-trip "media is hydrated" set. A trip is only
+ *  marked loaded once GET /api/trips/<id>/media has populated its real
+ *  arrays into STATE (or it was created client-side with authoritative
+ *  empty media). persistTripMedia REFUSES to write for a trip not in
+ *  this set — the belt-and-braces guard that makes the /api/data strip
+ *  (Phase 2) safe: an unhydrated trip carries []-placeholders, and we
+ *  must never POST those over the server's real media. Combined with
+ *  the server-side upsert_trip-ignores-media rule, this closes the
+ *  Phase-1B data-loss class from both ends. */
+const _mediaLoadedTrips = new Set<string>();
+
+/** Mark a trip's media as authoritative in this tab (e.g. right after
+ *  creating it client-side, where empty media IS the truth). Lets the
+ *  first media write on a brand-new trip go through without waiting for
+ *  a GET /media round-trip. */
+export function markTripMediaLoaded(tripId: string): void {
+    if (tripId) _mediaLoadedTrips.add(tripId);
+}
+
+/** R12-B4 Phase 2: fetch the four heavy media fields for one trip and
+ *  splice them into STATE.trips / STATE.archivedTrips, then mark the
+ *  trip loaded. Called on trip-open (post-pull + trip-switch) so the
+ *  active trip's media is hydrated before the user can edit it. Inflight
+ *  dedupe via `_mediaInflight` so racing callers don't double-fetch. */
+const _mediaInflight = new Set<string>();
+export async function fetchTripMedia(tripId: string): Promise<void> {
+    if (!tripId || !STATE.user) return;
+    if (_mediaInflight.has(tripId)) return;
+    _mediaInflight.add(tripId);
+    try {
+        const res = await apiFetch(`/api/trips/${encodeURIComponent(tripId)}/media`);
+        if (!res.ok) return;
+        const media = await res.json() as {
+            photos?: unknown[]; documents?: unknown[];
+            markedPlaces?: unknown[]; checklist?: unknown[];
+        };
+        const target = STATE.trips.find(t => t.id === tripId)
+            || STATE.archivedTrips.find(t => t.id === tripId);
+        if (target) {
+            const tt = target as unknown as Record<string, unknown>;
+            tt.photos = media.photos ?? [];
+            tt.documents = media.documents ?? [];
+            tt.markedPlaces = media.markedPlaces ?? [];
+            tt.checklist = media.checklist ?? [];
+        }
+        // Mark loaded even if the trip isn't in STATE yet (rare race) —
+        // the set is keyed by id, and a subsequent merge will carry the
+        // arrays. The point is: the server's media for this trip is now
+        // known to this tab, so writes are safe.
+        _mediaLoadedTrips.add(tripId);
+        emit(EVENTS.STATE_CHANGED);
+    } catch (err) {
+        console.warn('fetchTripMedia failed for', tripId, err);
+    } finally {
+        _mediaInflight.delete(tripId);
+    }
+}
+
 /** R12-B4: write the four heavy per-trip JSON fields (photos,
  *  documents, markedPlaces, checklist) via their dedicated endpoint
  *  (POST /api/trips/<id>/media), decoupled from the trip-metadata
@@ -693,9 +780,21 @@ export function upsertTrip(trip: any) {
  *  repeated writes to the latest complete snapshot without dropping a
  *  sibling field on replay. POST (not PATCH) so it's on the outbox's
  *  replayable-method allowlist. Fire-and-forget; `_post` swallows the
- *  rejection after apiFetch has already enqueued it offline. */
+ *  rejection after apiFetch has already enqueued it offline.
+ *
+ *  Phase 2 GUARD: refuses to write when the trip's media isn't hydrated
+ *  (`_mediaLoadedTrips`). Since /api/data no longer ships media, an
+ *  un-opened trip carries []-placeholders; POSTing those would wipe the
+ *  server's real media. Skipping is safe — upsert_trip ignores media
+ *  server-side, so the column is simply left untouched until the trip
+ *  is opened (fetchTripMedia) and a real write follows. */
 export function persistTripMedia(trip: any) {
     if (!STATE.user || !trip?.id) return;
+    if (!_mediaLoadedTrips.has(trip.id)) {
+        // Not hydrated → don't risk clobbering real server media with a
+        // cold []-placeholder. The trip's media stays as-is server-side.
+        return;
+    }
     return _post(`/api/trips/${encodeURIComponent(trip.id)}/media`, {
         photos: Array.isArray(trip.photos) ? trip.photos : [],
         documents: Array.isArray(trip.documents) ? trip.documents : [],

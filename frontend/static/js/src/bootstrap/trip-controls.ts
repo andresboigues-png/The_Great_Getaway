@@ -6,7 +6,7 @@
 // is easy to swap out per surface.
 
 import { STATE, emit } from '../state.js';
-import { archiveTripOnServer, deleteTrip, notifyTripPublic } from '../api.js';
+import { archiveTripOnServer, deleteTrip, notifyTripPublic, fetchTripMedia } from '../api.js';
 import { navigate } from '../router.js';
 import { showConfirmModal, esc } from '../utils.js';
 import { t } from '../i18n.js';
@@ -69,6 +69,10 @@ export function updateTripSelector() {
             if (!target) return;
             STATE.activeTripId = target.value;
             emit(EVENTS.STATE_CHANGED);          // saveState + updateTripSelector via subscriber (re-syncs the sibling selector)
+            // R12-B4 Phase 2: hydrate the newly-selected trip's media
+            // immediately so its Photos/Docs/Checklist/Marked surfaces
+            // aren't empty until the next 15s poll. Dedupe-guarded.
+            fetchTripMedia(target.value).catch(() => { /* best-effort */ });
             navigate(PAGES.HOME);
         };
     }

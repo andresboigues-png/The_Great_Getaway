@@ -21,7 +21,7 @@
 //     normal navigate() flow.
 
 import { STATE } from '../state.js';
-import { apiFetch } from '../api.js';
+import { apiFetch, fetchTripMedia } from '../api.js';
 import { t } from '../i18n.js';
 import { renderArchivedTripDetail } from './collections/archivedDetail.js';
 
@@ -53,6 +53,13 @@ export const viewArchivedDetails = async (id: string) => {
     const local = STATE.archivedTrips.find(t => t.id === id)
         || STATE.trips.find(t => t.id === id);
     if (local) {
+        // R12-B4 Phase 2: /api/data no longer ships media, so a local
+        // archived/active trip the user hasn't opened this session has
+        // empty photos/documents/markedPlaces/checklist. Hydrate before
+        // rendering so the detail page's hero + counts aren't blank.
+        // fetchTripMedia splices into the same STATE object `local`
+        // references + is dedupe-guarded, so a repeat view is free.
+        await fetchTripMedia(id);
         content.innerHTML = '';
         content.appendChild(renderArchivedTripDetail(local));
         return;
