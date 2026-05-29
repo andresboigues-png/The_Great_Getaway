@@ -211,13 +211,37 @@ def _visible_to_friendship_party(cursor, components, user_id) -> bool:
 
 
 def _visible_to_post_friends(cursor, components, user_id) -> bool:
-    """Used by share / repost. The viewer sees the event iff they're
-    friends with the post's author (or the author themselves)."""
+    """Used by share / repost. The viewer sees/engages the event iff
+    they're friends with the post's author (or the author themselves) —
+    AND the underlying trip is still public.
+
+    4.8 audit SOCIAL-3: a trip turned private after sharing must stop
+    being engageable (like/comment), not just hidden from the feed
+    builders. If the trip is no longer public, only the author and
+    accepted trip members may still engage; friendship alone isn't
+    enough."""
     post_id = int(components[0])
-    cursor.execute("SELECT user_id FROM feed_posts WHERE id = ? LIMIT 1", (post_id,))
+    cursor.execute("SELECT user_id, trip_id FROM feed_posts WHERE id = ? LIMIT 1", (post_id,))
     row = cursor.fetchone()
     if not row:
         return False
+    cursor.execute(
+        "SELECT COALESCE(is_public, 0) AS pub FROM trips WHERE id = ? LIMIT 1",
+        (row["trip_id"],),
+    )
+    trip = cursor.fetchone()
+    if not trip:
+        return False
+    if not trip["pub"]:
+        # Private now — author + accepted members only.
+        if user_id == row["user_id"]:
+            return True
+        cursor.execute(
+            "SELECT 1 FROM trip_members WHERE trip_id = ? AND user_id = ? "
+            "AND invitation_status = 'accepted' LIMIT 1",
+            (row["trip_id"], user_id),
+        )
+        return cursor.fetchone() is not None
     return is_friend_of(cursor, user_id, row["user_id"])
 
 
@@ -244,8 +268,10 @@ def _visible_to_achievement_friends(cursor, components, user_id) -> bool:
     may engage. Same rule as trip_created etc. — achievements are
     deliberately a public-facing social event."""
     achievement_id = int(components[0])
+    # 4.8 audit SOCIAL-4: don't let a revoked badge stay engageable.
     cursor.execute(
-        "SELECT user_id FROM user_achievements WHERE id = ? LIMIT 1",
+        "SELECT user_id FROM user_achievements "
+        "WHERE id = ? AND revoked_at IS NULL LIMIT 1",
         (achievement_id,),
     )
     row = cursor.fetchone()
@@ -462,6 +488,12 @@ def _build_friend_shared_trip(cursor, ctx: FeedContext) -> list:
         WHERE fp.user_id IN ({placeholders})
           AND fp.repost_of_post_id IS NULL
           AND fp.created_at >= datetime('now', '-30 days')
+          -- 4.8 audit SOCIAL-3: a trip turned private AFTER sharing left
+          -- its feed_posts row in place, so the share card kept leaking
+          -- the trip name/country/caption into followers' feeds. Only
+          -- surface shares whose trip is still public; if it goes public
+          -- again the card returns naturally (non-destructive).
+          AND COALESCE(t.is_public, 0) = 1
         ORDER BY fp.created_at DESC
     ''', ctx.actor_ids)
     events = []
@@ -499,8 +531,25 @@ def _build_friend_reposted_trip(cursor, ctx: FeedContext) -> list:
         WHERE fp.user_id IN ({placeholders})
           AND fp.repost_of_post_id IS NOT NULL
           AND fp.created_at >= datetime('now', '-30 days')
+          -- 4.8 audit SOCIAL-1 (P0 block bypass): the reposter is in the
+          -- actor pool (already block-filtered), but the ORIGINAL SHARER
+          -- is a third party who never went through that filter. Without
+          -- this, a repost by a mutual friend leaks the original sharer's
+          -- name/picture/caption (and lists them as original_sharer) to a
+          -- viewer they've blocked / who blocked them. Exclude reposts
+          -- whose original sharer is on either side of a block edge with
+          -- the viewer — bidirectional, matching the joined-branch rule.
+          AND orig.user_id NOT IN (
+              SELECT blocked_id FROM blocks WHERE blocker_id = ?
+          )
+          AND orig.user_id NOT IN (
+              SELECT blocker_id FROM blocks WHERE blocked_id = ?
+          )
+          -- 4.8 audit SOCIAL-3: drop reposts of a trip that's no longer
+          -- public (same rationale as the share builder above).
+          AND COALESCE(t.is_public, 0) = 1
         ORDER BY fp.created_at DESC
-    ''', ctx.actor_ids)
+    ''', list(ctx.actor_ids) + [ctx.user_id, ctx.user_id])
     events = []
     for row in cursor.fetchall():
         events.append({
@@ -595,6 +644,11 @@ def _build_achievement_unlocked(cursor, ctx: FeedContext) -> list:
         f"FROM user_achievements ua "
         f"WHERE ua.user_id IN ({placeholders}) "
         f"  AND ua.earned_at >= datetime('now', '-30 days') "
+        # 4.8 audit SOCIAL-4: a soft-revoked badge (rule no longer
+        # passes — e.g. un-archived trips dropped below a threshold) is
+        # hidden from the profile but kept leaking into followers' feeds
+        # for 30 days, and stayed likeable. Exclude revoked rows here.
+        f"  AND ua.revoked_at IS NULL "
         f"ORDER BY ua.earned_at DESC",
         ctx.actor_ids,
     )

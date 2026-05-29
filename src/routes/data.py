@@ -360,10 +360,19 @@ def sync_data():
                   t.get('countryCode'),
                   countries_json,
                   json.dumps(_cleaned_companions_for_sync(cursor, t.get('id'), t.get('companions'))) if isinstance(t.get('companions'), list) else None,
-                  json.dumps(t['markedPlaces']) if isinstance(t.get('markedPlaces'), list) else None,
-                  json.dumps(t['documents']) if isinstance(t.get('documents'), list) else None,
-                  json.dumps(t['photos']) if isinstance(t.get('photos'), list) else None,
-                  json.dumps(t['checklist']) if isinstance(t.get('checklist'), list) else None,
+                  # 4.8 audit TRIP-3: /api/sync MUST NOT write the 4 heavy
+                  # media columns — they have a dedicated write path
+                  # (POST /api/trips/<id>/media). Pass None so COALESCE
+                  # preserves existing media on UPDATE and starts NULL (=[])
+                  # on INSERT, even if a legacy/defensive client still ships
+                  # these keys with a stale/empty array. Mirrors upsert_trip
+                  # and makes the media-isolation invariant structural here
+                  # too, rather than depending on the client never sending
+                  # the key.
+                  None,  # marked_places_json — see POST /api/trips/<id>/media
+                  None,  # documents_json
+                  None,  # photos_json
+                  None,  # checklist_json
                   t.get('coverUrl')))
             ensure_owner_member_row(cursor, t['id'], user_id)
             # R5-B4: the trip just landed (insert OR planner-allowed
@@ -459,9 +468,13 @@ def sync_data():
                   t.get('countryCode'),
                   arch_countries_json,
                   json.dumps(_cleaned_companions_for_sync(cursor, t.get('id'), t.get('companions'))) if isinstance(t.get('companions'), list) else None,
-                  json.dumps(t['markedPlaces']) if isinstance(t.get('markedPlaces'), list) else None,
-                  json.dumps(t['documents']) if isinstance(t.get('documents'), list) else None,
-                  json.dumps(t['photos']) if isinstance(t.get('photos'), list) else None,
+                  # 4.8 audit TRIP-3: media columns are write-isolated to
+                  # POST /api/trips/<id>/media — pass None here so a sync
+                  # poll can never clobber them (mirrors the active loop +
+                  # upsert_trip).
+                  None,  # marked_places_json
+                  None,  # documents_json
+                  None,  # photos_json
                   t.get('coverUrl')))
             ensure_owner_member_row(cursor, t['id'], user_id)
             # R5-B4: same ACL-set top-up as the active loop, so a
@@ -1054,22 +1067,28 @@ def get_data():
         # routes/settlements.py's serialize_settlement_row to keep the
         # two paths in lockstep.
         #
-        # Privacy: a settlement reveals who paid whom for what amount.
-        # Per the feed gate (`_visible_to_settlement_parties` in
-        # feed_events.py), only the two parties see the event card —
-        # other trip members can know a settlement happened but not
-        # the participants. /api/data has to honour the same rule, so
-        # we filter the SELECT to settlements WHERE caller is from or
-        # to. A separate broadcast that the settlement happened is
-        # carried by the feed event itself. Fix shipped 2026-05-18.
+        # 4.8 audit MONEY-3: ship ALL settlements for trips the caller is
+        # a member of (`trip_ids` is already scoped to the caller's
+        # accepted-member trips above). Pre-fix this filtered to
+        # settlements WHERE the caller is `from`/`to` for privacy — but
+        # the client balance math (balances.ts) applies settlements to a
+        # shared per-person balance map across ALL members, reading ONLY
+        # `STATE.settlements` (populated only from /api/data). So a member
+        # who wasn't a party never subtracted a settlement between two
+        # OTHER members and kept showing an already-paid debt + a wrong
+        # suggested-payment graph that contradicted what the parties saw.
+        # Members already see every EXPENSE on the trip, so surfacing the
+        # settlements (who paid whom) is consistent with that visibility.
+        # (The feed "settled up" CARD stays party-only via
+        # _visible_to_settlement_parties — that's a separate social
+        # surface, not the balance data.)
         settlements = []
         if trip_ids:
             placeholders = ','.join(['?'] * len(trip_ids))
             cursor.execute(
                 f"SELECT * FROM settlements WHERE trip_id IN ({placeholders}) "
-                f"AND (from_user_id = ? OR to_user_id = ?) "
                 f"ORDER BY created_at DESC",
-                trip_ids + [user_id, user_id],
+                trip_ids,
             )
             from routes.settlements import serialize_settlement_row
             settlements = [serialize_settlement_row(row) for row in cursor.fetchall()]

@@ -1755,7 +1755,16 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 if d_lat is None or d_lng is None:
                     continue
                 d_num = day.get("day_number")
-                label = str(d_num) if (d_num is not None and 1 <= int(d_num) <= 9) else ""
+                # 4.8 audit PLAT-7: guard int() — a non-numeric / garbage
+                # day_number (legacy or corrupt row) raised here, and the
+                # surrounding handler only catches RuntimeError, so the
+                # WHOLE PDF export 500'd instead of just skipping one pin
+                # label. Degrade to an empty label on bad input.
+                try:
+                    d_num_int = int(d_num) if d_num is not None else None
+                except (TypeError, ValueError):
+                    d_num_int = None
+                label = str(d_num_int) if (d_num_int is not None and 1 <= d_num_int <= 9) else ""
                 pins.append((d_lat, d_lng, label))
             if pins:
                 overview_png = _fetch_overview_pins_map(

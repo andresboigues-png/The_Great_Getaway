@@ -865,6 +865,28 @@ def repost_feed_post(post_id):
         # success that disappears on next poll.
         if not original['trip_exists']:
             return jsonify({"error": "Trip no longer available"}), 410
+        # 4.8 audit SOCIAL-2: block check. Pre-fix the public-trip branch
+        # below let ANYONE repost — including a user the author blocked
+        # (or who blocked the author) — re-amplifying the blocker's
+        # content into the blocked party's followers. Resolve the TRUE
+        # content author (the root original when reposting a repost) and
+        # refuse on a block edge in EITHER direction. 404 matches the
+        # route's anti-enumeration posture.
+        from routes.blocks import is_blocked
+        content_author = original['user_id']
+        if original['repost_of_post_id'] is not None:
+            cursor.execute(
+                "SELECT user_id FROM feed_posts WHERE id = ?",
+                (original['repost_of_post_id'],),
+            )
+            _root = cursor.fetchone()
+            if _root:
+                content_author = _root['user_id']
+        if content_author != user_id and (
+            is_blocked(cursor, content_author, user_id)
+            or is_blocked(cursor, user_id, content_author)
+        ):
+            return jsonify({"error": "Unknown or unauthorised event"}), 404
         if not original['is_public']:
             # Private trip — fall back to the canonical friend-of-
             # author visibility check used by like / comment.

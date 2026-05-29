@@ -122,12 +122,38 @@ def upsert_budget():
             return jsonify({
                 "error": "Trip is archived — unarchive to edit",
             }), 409
+        # 4.8 audit MONEY-1: enforce one budget per
+        # (user_id, trip_id, category_id, owner_name) scope, regardless
+        # of NULLs. SQLite's UNIQUE treats NULL as DISTINCT, so the table
+        # constraint + the all-NULL partial index miss the half-scoped
+        # shapes — `(category set, owner NULL)` and `(owner set, category
+        # NULL)` could be duplicated with a fresh id, and `spentForBudget`
+        # then counted the same expenses under each card (fake overspend).
+        # A NULL-safe `IS` comparison covers every NULL pattern uniformly
+        # (including trip_id NULL, which can't use a sentinel — it's an FK
+        # column). Editing a row (same id) is excluded so legitimate edits
+        # don't false-positive. This also turns the fully-scoped duplicate
+        # case (MONEY-2) into a clean 409 instead of a 500.
+        cursor.execute(
+            "SELECT id FROM budgets WHERE user_id = ? "
+            "AND trip_id IS ? AND category_id IS ? AND owner_name IS ? "
+            "AND id != ?",
+            (user_id, trip_id, category_id, owner_name, budget_id),
+        )
+        scope_dup = cursor.fetchone()
+        if scope_dup:
+            return jsonify({
+                "error": "A budget with this scope already exists",
+                "existingId": scope_dup["id"],
+            }), 409
         # R3-Round 5: optimistic-concurrency gate. R8-B4 atomicity:
         # the staleness check now lives INSIDE the ON CONFLICT
         # UPDATE's WHERE clause below. See trips.py / expenses.py
         # for the full TOCTOU rationale.
         client_updated_at = b.get('clientUpdatedAt')
-        cursor.execute('''
+        import sqlite3 as _sqlite3
+        try:
+            cursor.execute('''
             INSERT INTO budgets (id, user_id, trip_id, label, amount, currency,
                                  category_id, owner_name, original_amount, original_currency, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
@@ -151,6 +177,13 @@ def upsert_budget():
               amount, currency,
               category_id, owner_name, original_amount, original_currency,
               user_id, client_updated_at, client_updated_at))
+        except _sqlite3.IntegrityError:
+            # 4.8 audit MONEY-2: a fully-scoped duplicate that slips past
+            # the pre-check under a rare concurrent race hits the base
+            # UNIQUE(user_id, trip_id, category_id, owner_name). Return a
+            # clean 409 instead of the unhandled 500 (retry_on_lock only
+            # catches OperationalError, not IntegrityError).
+            return jsonify({"error": "A budget with this scope already exists"}), 409
         # R8-B4: existing + rowcount==0 = stale or IDOR (user_id
         # mismatch). The IDOR case was already pre-blocked by the
         # SELECT above (we return 403 before reaching here when

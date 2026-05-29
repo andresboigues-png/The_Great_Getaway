@@ -150,7 +150,15 @@ def upsert_day():
             # a fresh day_number; the alternative would be a
             # confused user seeing "internal error" on a routine
             # multi-tab/multi-planner edit.
-            if "idx_trip_days_trip_day_number" in str(exc):
+            #
+            # 4.8 audit DAY-1 fix: SQLite's IntegrityError message names
+            # the COLUMNS ("UNIQUE constraint failed: trip_days.trip_id,
+            # trip_days.day_number"), NOT the index — so the original
+            # `idx_trip_days_trip_day_number` substring NEVER matched and
+            # every collision fell through to a raw 500. Match the column
+            # name (keep the index-name check as belt-and-braces).
+            _exc_s = str(exc)
+            if "trip_days.day_number" in _exc_s or "idx_trip_days_trip_day_number" in _exc_s:
                 return jsonify({
                     "error": "A day with that day_number already exists on this trip",
                 }), 409

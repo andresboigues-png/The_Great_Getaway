@@ -181,7 +181,16 @@ def upsert_trip():
                 photos_json=COALESCE(excluded.photos_json, photos_json),
                 checklist_json=COALESCE(excluded.checklist_json, checklist_json),
                 trip_countries_json=COALESCE(excluded.trip_countries_json, trip_countries_json),
-                cover_url=excluded.cover_url,
+                -- 4.8 audit TRIP-6: distinguish "coverUrl absent from the
+                -- payload" (preserve the stored cover) from "coverUrl
+                -- present and null" (the Edit-Trip "Remove cover" action —
+                -- must actually clear it). A plain COALESCE would preserve
+                -- in BOTH cases and silently break cover removal; the raw
+                -- `excluded.cover_url` NULLs the cover on any partial
+                -- payload that omits the key. The CASE keeps both: the
+                -- trailing `?` is 1 when the key is absent (preserve), 0
+                -- when present (write the provided value, including null).
+                cover_url=CASE WHEN ? = 1 THEN cover_url ELSE excluded.cover_url END,
                 updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
             -- R8-B4 atomic staleness gate. When client_updated_at
             -- is supplied AND non-null, the UPDATE only fires if
@@ -223,6 +232,10 @@ def upsert_trip():
               None,  # checklist_json
               countries_payload,
               t.get('coverUrl'),
+              # 4.8 audit TRIP-6: preserve-flag for the cover_url CASE
+              # above — 1 = key absent (keep stored cover), 0 = key present
+              # (write the provided value, incl. the Remove-cover null).
+              1 if 'coverUrl' not in t else 0,
               client_updated_at, client_updated_at))
         # R8-B4: existing row + UPDATE filtered out = stale edit.
         # INSERT path always returns rowcount=1; an UPDATE with the

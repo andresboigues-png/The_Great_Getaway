@@ -1221,29 +1221,66 @@ def serve_upload(relpath: str):
     # the user_id string (NOT a dict — `payload.get("sub")` would have
     # AttributeError'd too).
     caller_id = current_user_id()
-
-    if caller_id:
-        return send_from_directory(UPLOAD_FOLDER, relpath)
-
-    # Anonymous branch — allow when at least one trip with PUBLIC reach
-    # references the file. "Public reach" = is_public=1 (Explore feed
-    # surface) OR share_token IS NOT NULL (share-link surface).
-    #
-    # R3-Fix #13: pre-fix this only checked is_public=1. Share-only
-    # trips (share_token set but is_public=0 — "send a link to my
-    # friends without listing me in Explore") rendered as broken
-    # images to every recipient because the cover_url + per-day
-    # photos all 404'd through the SW.
-    #
-    # R3-Fix #22: LIKE pattern is anchored so a malicious owner who
-    # plants `"https://attacker.example/static/uploads/<victim>/<file>"`
-    # in their public trip's photos_json can no longer match.
-    #   - cover_url: exact-equality (single string column).
-    #   - photos_json / documents_json: require the path wrapped in
-    #     JSON-string quotes — `"/static/uploads/<relpath>"` — so a
-    #     scheme-prefixed pollution string no longer matches the LIKE.
     needle_exact = f"/static/uploads/{relpath}"
     from database import get_db
+
+    if caller_id:
+        # 4.8 audit PLAT-3: gate authenticated reads by ownership +
+        # membership. Pre-fix ANY signed-in user could read ANY upload —
+        # including expense RECEIPTS — just by holding the URL (harvested
+        # from an /api/data or /api/public-trip payload, browser history,
+        # or a log), and a removed/declined trip member kept that access
+        # FOREVER (files are only deleted when the whole trip/day is).
+        # Now:
+        #   1. Owner fast-path — the first path segment is the uploader's
+        #      secure_filename(user_id); no DB hit for your own files.
+        #   2. Else allow only if the caller is an ACCEPTED member of a
+        #      trip referencing the file (cover / photos / documents) or
+        #      an expense receipt on such a trip.
+        #   3. Else fall through to the public-cover check below, so an
+        #      authenticated non-member can still render a PUBLIC trip's
+        #      cover (same surface an anonymous viewer gets).
+        owner_dir = relpath.split('/', 1)[0]
+        if owner_dir == secure_filename(caller_id):
+            return send_from_directory(UPLOAD_FOLDER, relpath)
+        # Anchored JSON-string match, same shape as the anon cover check.
+        _like = f'%"{needle_exact}"%'
+        with get_db() as conn:
+            c = conn.cursor()
+            c.execute(
+                "SELECT 1 FROM trips t "
+                "JOIN trip_members tm ON tm.trip_id = t.id "
+                "WHERE tm.user_id = ? AND tm.invitation_status = 'accepted' "
+                "  AND (t.cover_url = ? OR t.photos_json LIKE ? OR t.documents_json LIKE ?) "
+                "LIMIT 1",
+                (caller_id, needle_exact, _like, _like),
+            )
+            if c.fetchone():
+                return send_from_directory(UPLOAD_FOLDER, relpath)
+            c.execute(
+                "SELECT 1 FROM expenses e "
+                "JOIN trip_members tm ON tm.trip_id = e.trip_id "
+                "WHERE tm.user_id = ? AND tm.invitation_status = 'accepted' "
+                "  AND e.receipt_url = ? LIMIT 1",
+                (caller_id, needle_exact),
+            )
+            if c.fetchone():
+                return send_from_directory(UPLOAD_FOLDER, relpath)
+        # Not owner, not a member of any referencing trip → fall through
+        # to the public-cover check (a public trip's cover is readable by
+        # anyone, authenticated or not). Don't 404 yet.
+
+    # Anonymous (or authenticated-non-member) branch — allow when at
+    # least one trip with PUBLIC reach references the file as its cover.
+    # "Public reach" = is_public=1 (Explore feed) OR share_token IS NOT
+    # NULL (share-link surface).
+    #
+    # R3-Fix #13: pre-fix this only checked is_public=1. Share-only
+    # trips (share_token set but is_public=0) rendered as broken images
+    # to every recipient because the cover_url all 404'd through the SW.
+    #
+    # R3-Fix #22: cover_url is matched by exact-equality so a malicious
+    # owner who plants a scheme-prefixed pollution string can't match.
     with get_db() as conn:
         cursor = conn.cursor()
         # R5-B1: anonymous viewers can ONLY fetch a trip's cover_url

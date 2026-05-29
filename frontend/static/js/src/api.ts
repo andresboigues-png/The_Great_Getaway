@@ -733,6 +733,43 @@ export function markTripMediaLoaded(tripId: string): void {
     if (tripId) _mediaLoadedTrips.add(tripId);
 }
 
+/** 4.8 audit TRIP-1: media writes attempted before a trip's media is
+ *  hydrated were silently DROPPED (and the in-memory edit then
+ *  overwritten by fetchTripMedia) — a silent loss of user-authored
+ *  checklist items / marked places / photos in the cold-load /
+ *  trip-switch window. We now PARK the attempted write here and flush it
+ *  once hydration lands, merging it onto the server-true arrays by item
+ *  key (union: local additions win, server items are never dropped).
+ *  During a cold window the only possible edit is an ADD — nothing is
+ *  loaded yet to delete — so union-by-key is loss-free and can't
+ *  resurrect a peer device's delete. */
+const _pendingMedia = new Map<
+    string,
+    { photos: any[]; documents: any[]; markedPlaces: any[]; checklist: any[] }
+>();
+
+function _mediaKey(item: any): string {
+    if (item && typeof item === 'object') {
+        return String(item.id ?? item.url ?? item.name ?? JSON.stringify(item));
+    }
+    return String(item);
+}
+
+/** Union server + parked-local items by key: server items first, then
+ *  any parked item whose key the server doesn't already have. */
+function _mergeMediaField(serverItems: any[], pendingItems: any[]): any[] {
+    const out = Array.isArray(serverItems) ? [...serverItems] : [];
+    const seen = new Set(out.map(_mediaKey));
+    for (const it of Array.isArray(pendingItems) ? pendingItems : []) {
+        const k = _mediaKey(it);
+        if (!seen.has(k)) {
+            out.push(it);
+            seen.add(k);
+        }
+    }
+    return out;
+}
+
 /** R12-B4 Phase 2: fetch the four heavy media fields for one trip and
  *  splice them into STATE.trips / STATE.archivedTrips, then mark the
  *  trip loaded. Called on trip-open (post-pull + trip-switch) so the
@@ -754,10 +791,39 @@ export async function fetchTripMedia(tripId: string): Promise<void> {
             || STATE.archivedTrips.find(t => t.id === tripId);
         if (target) {
             const tt = target as unknown as Record<string, unknown>;
-            tt.photos = media.photos ?? [];
-            tt.documents = media.documents ?? [];
-            tt.markedPlaces = media.markedPlaces ?? [];
-            tt.checklist = media.checklist ?? [];
+            const serverMedia = {
+                photos: (media.photos ?? []) as any[],
+                documents: (media.documents ?? []) as any[],
+                markedPlaces: (media.markedPlaces ?? []) as any[],
+                checklist: (media.checklist ?? []) as any[],
+            };
+            const pending = _pendingMedia.get(tripId);
+            if (pending) {
+                // 4.8 audit TRIP-1: a media write was attempted during the
+                // cold window. Merge the parked local additions onto the
+                // server-true arrays (union by item key) so neither side
+                // is lost, then flush the merged result to the server.
+                _pendingMedia.delete(tripId);
+                const merged = {
+                    photos: _mergeMediaField(serverMedia.photos, pending.photos),
+                    documents: _mergeMediaField(serverMedia.documents, pending.documents),
+                    markedPlaces: _mergeMediaField(serverMedia.markedPlaces, pending.markedPlaces),
+                    checklist: _mergeMediaField(serverMedia.checklist, pending.checklist),
+                };
+                tt.photos = merged.photos;
+                tt.documents = merged.documents;
+                tt.markedPlaces = merged.markedPlaces;
+                tt.checklist = merged.checklist;
+                _mediaLoadedTrips.add(tripId);
+                // Flush directly (bypass persistTripMedia's hydration
+                // gate — we've just established the merged truth).
+                _post(`/api/trips/${encodeURIComponent(tripId)}/media`, merged);
+            } else {
+                tt.photos = serverMedia.photos;
+                tt.documents = serverMedia.documents;
+                tt.markedPlaces = serverMedia.markedPlaces;
+                tt.checklist = serverMedia.checklist;
+            }
         }
         // Mark loaded even if the trip isn't in STATE yet (rare race) —
         // the set is keyed by id, and a subsequent merge will carry the
@@ -790,17 +856,26 @@ export async function fetchTripMedia(tripId: string): Promise<void> {
  *  is opened (fetchTripMedia) and a real write follows. */
 export function persistTripMedia(trip: any) {
     if (!STATE.user || !trip?.id) return;
-    if (!_mediaLoadedTrips.has(trip.id)) {
-        // Not hydrated → don't risk clobbering real server media with a
-        // cold []-placeholder. The trip's media stays as-is server-side.
-        return;
-    }
-    return _post(`/api/trips/${encodeURIComponent(trip.id)}/media`, {
+    const snapshot = {
         photos: Array.isArray(trip.photos) ? trip.photos : [],
         documents: Array.isArray(trip.documents) ? trip.documents : [],
         markedPlaces: Array.isArray(trip.markedPlaces) ? trip.markedPlaces : [],
         checklist: Array.isArray(trip.checklist) ? trip.checklist : [],
-    });
+    };
+    if (!_mediaLoadedTrips.has(trip.id)) {
+        // 4.8 audit TRIP-1: do NOT silently drop the write (pre-fix this
+        // returned here, and fetchTripMedia then overwrote the in-memory
+        // edit too → silent loss of a checklist item / marked place /
+        // photo added in the cold-load or trip-switch window). Park the
+        // attempted write and ensure hydration runs; fetchTripMedia
+        // merges it onto the server-true arrays (union by item key) and
+        // flushes — so the edit is neither lost nor allowed to clobber
+        // un-edited (cold-[]) fields.
+        _pendingMedia.set(trip.id, snapshot);
+        fetchTripMedia(trip.id).catch(() => { /* best-effort; retried on next hydration */ });
+        return;
+    }
+    return _post(`/api/trips/${encodeURIComponent(trip.id)}/media`, snapshot);
 }
 
 /** Permanently delete a trip and its expenses from the server. */

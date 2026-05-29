@@ -294,6 +294,61 @@ def test_api_data_omits_heavy_json_fields_phase2(client, seed_user, auth_headers
     assert media["checklist"] == [{"id": "c1"}]
 
 
+def test_sync_cannot_clobber_trip_media(client, seed_user, auth_headers):
+    """4.8 audit TRIP-3: /api/sync must NOT write the 4 heavy media
+    columns. A legacy/defensive client posting a trip with empty media
+    arrays must NOT wipe server media (written via the dedicated path)."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-sync-media")
+    client.post(f"/api/trips/{trip_id}/media", headers=auth_headers, json={
+        "photos": [{"id": "p1"}], "documents": [{"id": "d1"}],
+        "markedPlaces": [{"id": "m1"}], "checklist": [{"id": "c1"}],
+    })
+    # Adversarial sync: the trip payload carries EMPTY media arrays.
+    res = client.post("/api/sync", headers=auth_headers, json={
+        "trips": [{
+            "id": trip_id, "name": "Synced", "country": "FR",
+            "photos": [], "documents": [], "markedPlaces": [], "checklist": [],
+        }],
+    })
+    assert res.status_code == 200
+    media = client.get(f"/api/trips/{trip_id}/media", headers=auth_headers).get_json()
+    assert media["photos"] == [{"id": "p1"}], "sync must not wipe photos (TRIP-3)"
+    assert media["documents"] == [{"id": "d1"}]
+    assert media["markedPlaces"] == [{"id": "m1"}]
+    assert media["checklist"] == [{"id": "c1"}]
+
+
+def test_upsert_trip_preserves_cover_when_payload_omits_it(client, seed_user, auth_headers):
+    """4.8 audit TRIP-6: a partial trip edit that OMITS coverUrl must
+    preserve the stored cover, not NULL it."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-cov", "name": "T", "country": "FR",
+                 "coverUrl": "/static/uploads/u/c.jpg"},
+    })
+    # Edit WITHOUT the coverUrl key.
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-cov", "name": "Renamed", "country": "FR"},
+    })
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in data["trips"] if t["id"] == "trip-cov")
+    assert trip["coverUrl"] == "/static/uploads/u/c.jpg", "omitted coverUrl must preserve (TRIP-6)"
+
+
+def test_upsert_trip_clears_cover_on_explicit_null(client, seed_user, auth_headers):
+    """TRIP-6 must not over-preserve: the Edit-Trip 'Remove cover' action
+    sends coverUrl:null and MUST clear the stored cover."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-cov2", "name": "T", "country": "FR",
+                 "coverUrl": "/static/uploads/u/c.jpg"},
+    })
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-cov2", "name": "T", "country": "FR", "coverUrl": None},
+    })
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in data["trips"] if t["id"] == "trip-cov2")
+    assert trip["coverUrl"] is None, "explicit null coverUrl must clear the cover (TRIP-6)"
+
+
 # ── /api/expenses ────────────────────────────────────────────────────────────
 
 def test_upsert_expense_happy_path(client, seed_user, auth_headers):
@@ -617,6 +672,46 @@ def test_delete_day_rejects_non_planner(
     assert res.status_code == 403
 
 
+def test_duplicate_day_number_returns_409_not_500(client, seed_user, auth_headers):
+    """4.8 audit DAY-1: a second day with an existing day_number must
+    return a clean 409, NOT a raw 500. Pre-fix the IntegrityError handler
+    matched the index NAME, which never appears in SQLite's message
+    (it names the columns), so every collision fell through to a 500."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "Tuscany"},
+    })
+    r1 = client.post("/api/days", headers=auth_headers, json={
+        "day": {"id": "day-1", "tripId": "trip-1", "dayNumber": 1, "name": "A"},
+    })
+    assert r1.status_code == 200
+    r2 = client.post("/api/days", headers=auth_headers, json={
+        "day": {"id": "day-2", "tripId": "trip-1", "dayNumber": 1, "name": "B"},
+    })
+    assert r2.status_code == 409, r2.get_data(as_text=True)
+    assert "day_number" in r2.get_json()["error"].lower() or "already exists" in r2.get_json()["error"].lower()
+
+
+def test_renumber_into_deleted_day_slot_succeeds(client, seed_user, auth_headers):
+    """4.8 audit TRIP-2: after a day is deleted (tombstoned), renumbering
+    a survivor INTO the freed (trip_id, day_number) slot must succeed.
+    Pre-fix the tombstone still occupied the unique index → collision →
+    500 (and a misleading 'stale edit' toast)."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "Tuscany"},
+    })
+    for n in (1, 2, 3):
+        client.post("/api/days", headers=auth_headers, json={
+            "day": {"id": f"day-{n}", "tripId": "trip-1", "dayNumber": n, "name": f"D{n}"},
+        })
+    # Delete day #2 (tombstoned, keeps day_number=2).
+    assert client.delete("/api/days/day-2", headers=auth_headers).status_code == 200
+    # Renumber day #3 INTO the freed slot #2.
+    res = client.post("/api/days", headers=auth_headers, json={
+        "day": {"id": "day-3", "tripId": "trip-1", "dayNumber": 2, "name": "D3->2"},
+    })
+    assert res.status_code == 200, res.get_data(as_text=True)
+
+
 # ── /api/budgets ─────────────────────────────────────────────────────────────
 # Budgets are per-user (not per-trip), so the gate is "caller owns this
 # budget row". The audit fix replaced the previous "delete by id alone"
@@ -638,6 +733,64 @@ def test_upsert_budget_happy_path(client, seed_user, auth_headers):
         },
     })
     assert res.status_code == 200
+
+
+def test_budget_category_scoped_duplicate_rejected(client, seed_user, auth_headers):
+    """4.8 audit MONEY-1: a second budget with the SAME (trip, category,
+    owner=None) scope but a different id must be rejected (409), not
+    silently duplicated — pre-fix SQLite's NULL-distinct UNIQUE let the
+    half-scoped shape through and spend double-counted."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "T", "country": "FR"},
+    })
+    base = {"tripId": "trip-1", "label": "Food", "amount": 200, "currency": "EUR", "categoryId": "food"}
+    r1 = client.post("/api/budgets", headers=auth_headers, json={"budget": {**base, "id": "b1"}})
+    assert r1.status_code == 200
+    r2 = client.post("/api/budgets", headers=auth_headers, json={"budget": {**base, "id": "b2"}})
+    assert r2.status_code == 409, r2.get_data(as_text=True)
+
+
+def test_budget_owner_scoped_duplicate_rejected(client, seed_user, auth_headers):
+    """MONEY-1: same for the owner-scoped shape (owner set, category None)."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "T", "country": "FR"},
+    })
+    base = {"tripId": "trip-1", "label": "Sara's", "amount": 100, "currency": "EUR", "user": "Sara"}
+    assert client.post("/api/budgets", headers=auth_headers, json={"budget": {**base, "id": "b1"}}).status_code == 200
+    r2 = client.post("/api/budgets", headers=auth_headers, json={"budget": {**base, "id": "b2"}})
+    assert r2.status_code == 409, r2.get_data(as_text=True)
+
+
+def test_budget_fully_scoped_duplicate_returns_409_not_500(client, seed_user, auth_headers):
+    """4.8 audit MONEY-2: the fully-scoped duplicate used to throw an
+    unhandled IntegrityError → 500. Now a clean 409."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "T", "country": "FR"},
+    })
+    base = {"tripId": "trip-1", "label": "Food/Sara", "amount": 50, "currency": "EUR", "categoryId": "food", "user": "Sara"}
+    assert client.post("/api/budgets", headers=auth_headers, json={"budget": {**base, "id": "b1"}}).status_code == 200
+    r2 = client.post("/api/budgets", headers=auth_headers, json={"budget": {**base, "id": "b2"}})
+    assert r2.status_code == 409, r2.get_data(as_text=True)
+
+
+def test_budget_distinct_scopes_both_allowed(client, seed_user, auth_headers):
+    """MONEY-1 must not over-reject: budgets with DIFFERENT scopes (and
+    editing the same budget by id) are still allowed."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "T", "country": "FR"},
+    })
+    r1 = client.post("/api/budgets", headers=auth_headers, json={
+        "budget": {"id": "b1", "tripId": "trip-1", "label": "Food", "amount": 100, "currency": "EUR", "categoryId": "food"},
+    })
+    r2 = client.post("/api/budgets", headers=auth_headers, json={
+        "budget": {"id": "b2", "tripId": "trip-1", "label": "Transport", "amount": 80, "currency": "EUR", "categoryId": "transport"},
+    })
+    assert r1.status_code == 200 and r2.status_code == 200
+    # Editing b1 (same id, same scope) must not trip the dup check.
+    r3 = client.post("/api/budgets", headers=auth_headers, json={
+        "budget": {"id": "b1", "tripId": "trip-1", "label": "Food", "amount": 150, "currency": "EUR", "categoryId": "food"},
+    })
+    assert r3.status_code == 200, r3.get_data(as_text=True)
 
 
 def test_upsert_budget_missing_payload(client, auth_headers):
@@ -1099,6 +1252,66 @@ def test_uploads_anonymous_fetch_allowed_for_public_trip_cover(
         "anonymous fetch of a cover from a public trip must succeed; "
         "got %s — public sharing renders covers via <img> with no auth" % res.status_code
     )
+
+
+def test_uploads_owner_reads_but_authed_nonmember_404s(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers, tmp_path, monkeypatch,
+):
+    """4.8 audit PLAT-3 (core fix): the owner reads their own upload, but
+    a signed-in user who is NOT the owner and NOT a member of any trip
+    referencing the file gets 404. Pre-fix ANY authenticated user could
+    read ANY upload (incl. expense receipts) just by holding the URL."""
+    import main as main_module
+    monkeypatch.setitem(main_module.app.config, 'UPLOAD_FOLDER', str(tmp_path))
+    monkeypatch.setattr(main_module, 'UPLOAD_FOLDER', str(tmp_path))
+    up = client.post("/api/upload", headers=auth_headers, data={
+        "file": (io.BytesIO(b"\xff\xd8\xff\xe0secret"), "secret.jpg"),
+    })
+    url = up.get_json()["url"]
+    assert client.get(url, headers=auth_headers).status_code == 200, "owner must read own upload"
+    res = client.get(url, headers=other_auth_headers)
+    assert res.status_code == 404, "authed non-member must not read a private upload (PLAT-3)"
+
+
+def test_uploads_authed_member_can_read_trip_cover(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers, tmp_path, monkeypatch,
+):
+    """PLAT-3 must not over-restrict: an accepted member of a trip that
+    references the file CAN read it."""
+    import main as main_module
+    monkeypatch.setitem(main_module.app.config, 'UPLOAD_FOLDER', str(tmp_path))
+    monkeypatch.setattr(main_module, 'UPLOAD_FOLDER', str(tmp_path))
+    up = client.post("/api/upload", headers=auth_headers, data={
+        "file": (io.BytesIO(b"\xff\xd8\xff\xe0cover"), "cover.jpg"),
+    })
+    url = up.get_json()["url"]
+    trip_id = "trip-plat3-member"
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": trip_id, "name": "T", "coverUrl": url},
+    })
+    _seed_member(trip_id, seed_other_user, role="relaxer")
+    res = client.get(url, headers=other_auth_headers)
+    assert res.status_code == 200, "accepted member must read the trip's cover (PLAT-3)"
+
+
+def test_uploads_authed_nonmember_can_read_public_trip_cover(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers, tmp_path, monkeypatch,
+):
+    """PLAT-3 must not break public covers: an authenticated NON-member
+    still reads a PUBLIC trip's cover (falls through to the public check,
+    same surface an anonymous viewer gets)."""
+    import main as main_module
+    monkeypatch.setitem(main_module.app.config, 'UPLOAD_FOLDER', str(tmp_path))
+    monkeypatch.setattr(main_module, 'UPLOAD_FOLDER', str(tmp_path))
+    up = client.post("/api/upload", headers=auth_headers, data={
+        "file": (io.BytesIO(b"\xff\xd8\xff\xe0pubcover"), "pub.jpg"),
+    })
+    url = up.get_json()["url"]
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-plat3-public", "name": "Pub", "isPublic": True, "coverUrl": url},
+    })
+    res = client.get(url, headers=other_auth_headers)
+    assert res.status_code == 200, "authed non-member must read a public trip's cover (PLAT-3 no regression)"
 
 
 # ── /api/data ────────────────────────────────────────────────────────────────
@@ -2479,6 +2692,37 @@ def test_feed_repost_succeeds_for_other_users_post(
     post_id = res.get_json()["post_id"]
     res = client.post(f"/api/feed/repost/{post_id}", headers=auth_headers)
     assert res.status_code == 200
+
+
+def test_blocked_user_cannot_repost_blockers_public_post(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """4.8 audit SOCIAL-2 (P0): the PUBLIC-trip repost branch had NO block
+    check, so a user the author blocked could still repost (amplify) the
+    author's content into their own followers' feed. Now refused (404)."""
+    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-block-repost", public=True)
+    post_id = client.post("/api/feed/share", headers=other_auth_headers, json={
+        "trip_id": trip_id,
+    }).get_json()["post_id"]
+    # Author (other_user) blocks the would-be reposter (seed_user).
+    assert client.post(f"/api/blocks/{seed_user}", headers=other_auth_headers).status_code == 200
+    res = client.post(f"/api/feed/repost/{post_id}", headers=auth_headers)
+    assert res.status_code == 404, res.get_data(as_text=True)
+
+
+def test_reposter_who_blocked_author_cannot_repost(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """SOCIAL-2 symmetric: if the would-be reposter blocked the author,
+    they also can't repost the author's public post (block is two-way)."""
+    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-block-repost-2", public=True)
+    post_id = client.post("/api/feed/share", headers=other_auth_headers, json={
+        "trip_id": trip_id,
+    }).get_json()["post_id"]
+    # Reposter (seed_user) blocks the author (other_user).
+    assert client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers).status_code == 200
+    res = client.post(f"/api/feed/repost/{post_id}", headers=auth_headers)
+    assert res.status_code == 404, res.get_data(as_text=True)
 
 
 def test_block_user_idempotent_and_lists(
@@ -6268,6 +6512,134 @@ def test_feed_joined_event_hidden_when_trip_owner_blocked_viewer(
         "owner-blocked viewer must NOT see the joined card (P2 block-bypass)"
 
 
+def test_feed_repost_hidden_when_original_sharer_blocked_viewer(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """4.8 audit SOCIAL-1 (P0 block-bypass): a friend_reposted_trip card
+    must NOT surface to a viewer the ORIGINAL SHARER has blocked. The
+    reposter (seed_other) is in the viewer's pool, but the original
+    sharer (sharer-3) is a third party who never went through
+    build_feed_context's actor-pool block filter. Pre-fix the repost
+    card leaked sharer-3's name/picture/caption (+ listed them as
+    original_sharer). Baseline → surfaces; after sharer-3 blocks the
+    viewer → gone."""
+    from database import get_db
+    sharer_id = "sharer-blocker-3"
+    trip_id = "trip-repost-blocked"
+    _make_friends(seed_user, seed_other_user)  # viewer is friends with the reposter
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            (sharer_id, "sharer3@example.com", "Sharer Three"),
+        )
+        c.execute(
+            "INSERT INTO trips (id, user_id, name, country, is_public, created_at) "
+            "VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)",
+            (trip_id, sharer_id, "Amalfi Coast", "Italy"),
+        )
+        # Original share by sharer-3, then a repost by the viewer's friend.
+        c.execute(
+            "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id, caption, created_at) "
+            "VALUES (?, ?, NULL, ?, CURRENT_TIMESTAMP)",
+            (sharer_id, trip_id, "Original caption"),
+        )
+        orig_id = c.lastrowid
+        c.execute(
+            "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id, created_at) "
+            "VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+            (seed_other_user, trip_id, orig_id),
+        )
+        conn.commit()
+
+    events = client.get("/api/feed", headers=auth_headers).get_json()
+    reposts = [
+        e for e in events
+        if e.get("type") == "friend_reposted_trip" and e.get("trip", {}).get("id") == trip_id
+    ]
+    assert len(reposts) == 1, "baseline: repost card surfaces before any block"
+
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO blocks (blocker_id, blocked_id) VALUES (?, ?)",
+            (sharer_id, seed_user),
+        )
+        conn.commit()
+    events2 = client.get("/api/feed", headers=auth_headers).get_json()
+    reposts2 = [
+        e for e in events2
+        if e.get("type") == "friend_reposted_trip" and e.get("trip", {}).get("id") == trip_id
+    ]
+    assert len(reposts2) == 0, \
+        "original-sharer-blocked viewer must NOT see the repost card (SOCIAL-1)"
+
+
+def test_share_card_disappears_when_trip_turned_private(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """4.8 audit SOCIAL-3: a trip turned private AFTER sharing must stop
+    appearing in followers' feeds, and its share must stop being
+    engageable (like/comment). Pre-fix the feed_posts row lingered and
+    kept leaking the trip name/country/caption + stayed likeable."""
+    _make_friends(seed_user, seed_other_user)
+    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-priv-flip", public=True)
+    post_id = client.post("/api/feed/share", headers=other_auth_headers, json={
+        "trip_id": trip_id,
+    }).get_json()["post_id"]
+
+    # Baseline: the friend sees the share card.
+    events = client.get("/api/feed", headers=auth_headers).get_json()
+    assert any(
+        e.get("type") == "friend_shared_trip" and e.get("trip", {}).get("id") == trip_id
+        for e in events
+    ), "baseline: friend sees the share while public"
+
+    # Owner turns the trip private.
+    from database import get_db
+    with get_db() as conn:
+        conn.execute("UPDATE trips SET is_public = 0 WHERE id = ?", (trip_id,))
+        conn.commit()
+
+    events2 = client.get("/api/feed", headers=auth_headers).get_json()
+    assert not any(
+        e.get("type") == "friend_shared_trip" and e.get("trip", {}).get("id") == trip_id
+        for e in events2
+    ), "share card must vanish when the trip is turned private (SOCIAL-3)"
+
+    # Engagement on the now-private share is blocked for a non-member friend.
+    like = client.post(f"/api/feed/like/share_{post_id}", headers=auth_headers)
+    assert like.status_code == 404, like.get_data(as_text=True)
+
+
+def test_revoked_achievement_hidden_from_feed(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """4.8 audit SOCIAL-4: a soft-revoked achievement must not surface in
+    friends' feeds (it's already hidden from the user's own profile)."""
+    _make_friends(seed_user, seed_other_user)
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO user_achievements (user_id, badge_id, earned_at) "
+            "VALUES (?, 'first_trip', CURRENT_TIMESTAMP)",
+            (seed_other_user,),
+        )
+        conn.commit()
+    events = client.get("/api/feed", headers=auth_headers).get_json()
+    assert any(e.get("type") == "achievement_unlocked" for e in events), \
+        "baseline: a (non-revoked) achievement surfaces"
+
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE user_achievements SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = ?",
+            (seed_other_user,),
+        )
+        conn.commit()
+    events2 = client.get("/api/feed", headers=auth_headers).get_json()
+    assert not any(e.get("type") == "achievement_unlocked" for e in events2), \
+        "revoked achievement must not surface in the feed (SOCIAL-4)"
+
+
 def test_trip_media_works_for_archived_trip(
     client, seed_user, auth_headers,
 ):
@@ -6446,6 +6818,40 @@ def test_settle_up_happy_path(
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     assert any(x["id"] == s["id"] for x in data["settlements"])
+
+
+def test_member_sees_settlement_between_other_members_in_data(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """4.8 audit MONEY-3: a trip member who is NOT a party to a settlement
+    must still receive it in /api/data so their balance subtracts it.
+    Pre-fix /api/data filtered settlements to the caller's own (from/to),
+    so a third member kept showing the already-paid debt + a wrong
+    suggested-payment graph."""
+    from auth import issue_token
+    from database import get_db
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-money3")
+    _seed_member(trip_id, seed_other_user, role="planner")
+    user_c = "test-user-c"
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            (user_c, "c@example.com", "Cee"),
+        )
+        conn.commit()
+    _seed_member(trip_id, user_c, role="planner")
+    headers_c = {"Authorization": f"Bearer {issue_token(user_c)}"}
+    # A records that B paid A — C is neither party.
+    res = client.post("/api/settlements", headers=auth_headers, json={
+        "tripId": trip_id, "fromUserId": seed_other_user, "toUserId": seed_user,
+        "amount": 30.0, "currency": "EUR", "euroValue": 30.0,
+    })
+    assert res.status_code == 201
+    sid = res.get_json()["settlement"]["id"]
+    # C (accepted member, non-party) MUST receive the settlement.
+    data_c = client.get("/api/data", headers=headers_c).get_json()
+    assert any(x["id"] == sid for x in data_c["settlements"]), \
+        "non-party member must receive the settlement for a correct balance (MONEY-3)"
 
 
 def test_settle_up_rejects_non_member(

@@ -913,9 +913,18 @@ def init_db():
             # day_numbers (shouldn't happen, but if they do) don't
             # collide. Migration b1d2e3f4c5a7 cleans pre-existing
             # duplicates on prod DBs before adding the index.
+            #
+            # 4.8 audit TRIP-2 fix: the index now also excludes
+            # tombstoned rows (`deleted_at IS NULL`). Pre-fix a
+            # soft-deleted day kept occupying its (trip_id, day_number)
+            # slot, so the client's renumber-after-delete collided with
+            # the tombstone and 500'd (see DAY-1). Excluding tombstones
+            # frees the slot the moment a day is deleted. Migration
+            # c9d0e1f2a3b4 rebuilds the index on prod DBs.
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_trip_days_trip_day_number "
             "ON trip_days(trip_id, day_number) "
-            "WHERE trip_id IS NOT NULL AND day_number IS NOT NULL",
+            "WHERE trip_id IS NOT NULL AND day_number IS NOT NULL "
+            "  AND deleted_at IS NULL",
         ):
             cursor.execute(ddl)
 

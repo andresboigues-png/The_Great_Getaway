@@ -384,6 +384,30 @@ def _is_secure_request() -> bool:
     return request.is_secure
 
 
+def _cookie_secure_flag() -> bool:
+    """4.8 audit PLAT-2: the session cookie's Secure flag must NOT hinge
+    solely on `request.is_secure` (true only when ProxyFix translated a
+    trusted `X-Forwarded-Proto: https`). If that header is ever absent,
+    or the real proxy hop count differs from GG_TRUSTED_PROXIES, the
+    30-day JWT cookie would be minted WITHOUT Secure and could leak over
+    a plain-HTTP downgrade — defeating the whole point of the §0.4-v2
+    HttpOnly-cookie move.
+
+    In any non-dev environment, force Secure=True unconditionally. Only a
+    genuine local-dev context (where the request also isn't secure) is
+    allowed to omit it, so Chrome still saves the cookie over http://localhost.
+    """
+    is_dev = (
+        os.getenv("FLASK_ENV") == "development"
+        or os.getenv("FLASK_DEBUG") == "1"
+        or os.getenv("GG_ALLOW_TEST_LOGIN") == "1"
+        or os.getenv("PYTEST_CURRENT_TEST") is not None
+    )
+    if not is_dev:
+        return True
+    return _is_secure_request()
+
+
 def set_auth_cookie(response, token: str) -> None:
     """Attach the session cookie to a response. Flagged HttpOnly (JS
     can't read it — that's the whole point of the §0.4 v2 migration),
@@ -402,7 +426,7 @@ def set_auth_cookie(response, token: str) -> None:
         token,
         max_age=AUTH_COOKIE_MAX_AGE,
         httponly=True,
-        secure=_is_secure_request(),
+        secure=_cookie_secure_flag(),
         samesite="Lax",
         path="/",
     )
@@ -420,7 +444,7 @@ def clear_auth_cookie(response) -> None:
         "",
         max_age=0,
         httponly=True,
-        secure=_is_secure_request(),
+        secure=_cookie_secure_flag(),
         samesite="Lax",
         path="/",
     )
