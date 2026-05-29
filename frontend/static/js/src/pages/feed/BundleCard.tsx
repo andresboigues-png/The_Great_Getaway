@@ -22,6 +22,7 @@ import {
     ACTION_ACCENTS,
 } from './render.js';
 import { t } from '../../i18n.js';
+import { iconSvg } from '../../icons.js';
 
 
 export interface BundleCardProps {
@@ -68,7 +69,11 @@ export function BundleCard({ bundle, isExpanded, onToggleExpand, onBookmark }: B
                     <div
                         className="text-[0.95rem] leading-[1.4] text-secondary"
                     >
-                        <span className="mr-1.5">{accent.icon}</span>
+                        <span
+                            className="mr-1.5"
+                            style={{ color: accent.color }}
+                            dangerouslySetInnerHTML={{ __html: iconSvg(accent.iconName, { size: 15 }) }}
+                        />
                         <span dangerouslySetInnerHTML={{ __html: bundleLine(bundle) }} />
                     </div>
                     {time ? (

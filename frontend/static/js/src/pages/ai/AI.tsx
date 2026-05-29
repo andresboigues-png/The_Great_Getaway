@@ -66,6 +66,7 @@ import {
     isFoodSightsSchema,
 } from './slots.js';
 import { t, tn } from '../../i18n.js';
+import { stripEmoji } from '../../icons.js';
 import type { Trip } from '../../types';
 // Shared category helpers — same source-of-truth as Todo.tsx so the
 // AI plan's marked-place list groups + filters by the canonical
@@ -152,7 +153,7 @@ function EmptyTripView() {
                 <h1
                     className="mt-0 mx-0 mb-1.5 text-[2.8rem] font-extrabold tracking-[-0.04em] [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
                 >
-                    {t('ai.title')}
+                    {stripEmoji(t('ai.title'))}
                 </h1>
                 <p className="ai-subtitle">
                     Your AI-powered travel planner
@@ -777,7 +778,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                     <h1
                         className="m-0 text-[2.8rem] font-extrabold tracking-[-0.04em] [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
                     >
-                        {t('ai.title')}
+                        {stripEmoji(t('ai.title'))}
                     </h1>
                 </div>
                 <p

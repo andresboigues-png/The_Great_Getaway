@@ -44,6 +44,47 @@ export const ICON_PATHS: Record<string, string> = {
     trash:
         '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>' +
         '<line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+    // calendar — dates (📅)
+    calendar:
+        '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/>' +
+        '<path d="M3 10h18"/>',
+    // pin (filled-ish location) — "pin this day" (📌)
+    pinned:
+        '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1Z"/>',
+    // megaphone — "shared a trip" (📣)
+    megaphone:
+        '<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
+    // map — trip card (🗺️)
+    map:
+        '<path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/>' +
+        '<path d="M15 5.764v15"/><path d="M9 3.236v15"/>',
+    // flag — trip archived / finished (🏁)
+    flag:
+        '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>' +
+        '<line x1="4" x2="4" y1="22" y2="15"/>',
+    // users — someone joined a trip (👥)
+    users:
+        '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>' +
+        '<path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    // user-plus — new friendship (🤝)
+    userPlus:
+        '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>' +
+        '<line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>',
+    // repeat — reposted a trip (🔁)
+    repost:
+        '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>' +
+        '<polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
+    // award — achievement unlocked (🏅)
+    award:
+        '<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>',
+    // handshake — settled up (🤝, money)
+    handshake:
+        '<path d="m11 17 2 2a1 1 0 1 0 3-3"/>' +
+        '<path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/>' +
+        '<path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/>',
+    // sparkles — generic/default feed event (✨)
+    sparkles:
+        '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>',
 };
 
 /** Leading-emoji stripper — removes a run of pictographic glyphs (+
@@ -54,6 +95,21 @@ export const ICON_PATHS: Record<string, string> = {
 export function stripLeadingEmoji(label: string): string {
     if (!label) return label;
     return label.replace(/^[\p{Extended_Pictographic}️‍\s]+/u, '');
+}
+
+/** Remove ALL emoji / decorative pictographs from a string (leading,
+ *  trailing, or mid) and tidy whitespace. Used for page TITLES, which go
+ *  text-only + sharp (no icon) — e.g. "Search 🔍" → "Search", "Plan with
+ *  AI ✦" → "Plan with AI". Covers Extended_Pictographic + the misc-
+ *  symbols/dingbats range (✦ ✨ ⚖️) + variation selectors / ZWJ / keycaps.
+ *  The Arrows block (→ in "Configure →") is outside these ranges, so CTA
+ *  arrows are preserved. */
+export function stripEmoji(label: string): string {
+    if (!label) return label;
+    return label
+        .replace(/[\p{Extended_Pictographic}☀-➿️‍⃣]/gu, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
 }
 
 /** Inline-SVG icon as an HTML string for vanilla-TS template surfaces.

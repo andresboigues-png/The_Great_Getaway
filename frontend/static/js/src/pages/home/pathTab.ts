@@ -153,12 +153,12 @@ function buildDayCardBody(
         const photos = (activeTrip.photos || []).filter((p: any) => p.dayId === day.id);
         const totalDocs = docs.length + (day.tickets || []).length;
         const totalPhotos = photos.length + (day.photos || []).length;
-        if (totalPhotos) subtitleParts.push(`<span style="background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">📸 ${totalPhotos}</span>`);
-        if (totalDocs) subtitleParts.push(`<span style="background:rgba(88,86,214,0.12); color:#5856d6; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">📎 ${totalDocs}</span>`);
+        if (totalPhotos) subtitleParts.push(`<span style="display:inline-flex; align-items:center; gap:4px; background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">${iconSvg('photo', { size: 13 })}${totalPhotos}</span>`);
+        if (totalDocs) subtitleParts.push(`<span style="display:inline-flex; align-items:center; gap:4px; background:rgba(88,86,214,0.12); color:#5856d6; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">${iconSvg('document', { size: 13 })}${totalDocs}</span>`);
     } else {
-        subtitleParts.push(`📅 ${formatDayDate(day.date) || t('pathTab.setDatePlaceholder')}`);
+        subtitleParts.push(`<span style="display:inline-flex; align-items:center; gap:5px;">${iconSvg('calendar', { size: 14 })}${formatDayDate(day.date) || t('pathTab.setDatePlaceholder')}</span>`);
         if (day.lat) subtitleParts.push(`<span style="color: #005bb8;">${esc(t('pathTab.locationSet'))}</span>`);
-        else subtitleParts.push(`<span class="day-card__pin-hint">${esc(t('pathTab.pinThisDay'))}</span>`);
+        else subtitleParts.push(`<span class="day-card__pin-hint" style="display:inline-flex; align-items:center; gap:4px;">${iconSvg('pinned', { size: 13 })}${esc(stripLeadingEmoji(t('pathTab.pinThisDay')))}</span>`);
         // Weather slot — populated async by applyWeatherChips() after
         // the trip's forecast lands. Empty by default so days that have
         // no forecast (past dates, beyond the API's 10-day window) just

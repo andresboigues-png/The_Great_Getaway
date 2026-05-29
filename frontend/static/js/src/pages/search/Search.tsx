@@ -24,6 +24,7 @@ import { setSelectedDay } from '../home/pathSelection.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Trip, TripDay, Expense } from '../../types';
 import { t, tn, getIntlLocale } from '../../i18n.js';
+import { stripEmoji } from '../../icons.js';
 
 // ── Tunables ────────────────────────────────────────────────────────
 // Per-section visible cap before the user has to click "Show all".
@@ -292,7 +293,7 @@ export function Search() {
     return (
         <div className="max-w-[760px] my-0 mx-auto py-0 px-4">
             <div className="pt-8 px-0 pb-[18px] text-center">
-                <h1 style={titleH1Style}>{t('search.title')}</h1>
+                <h1 style={titleH1Style}>{stripEmoji(t('search.title'))}</h1>
                 <p className="m-0 text-secondary text-base">
                     {t('search.subtitle')}
                 </p>

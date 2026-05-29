@@ -52,6 +52,7 @@ import {
     buildGmailTripSearchUrl,
 } from '../../tripMedia.js';
 import { openPdfPreview, looksLikePdfUrl, openPhotoLightbox } from './lightbox.js';
+import { iconSvg } from '../../icons.js';
 
 
 /** Documents popup modal — opened from Anchor option button.
@@ -126,7 +127,7 @@ export const openTripDocumentsModal = (trip: any): void => {
             return `
                 ${headerRow}
                 <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(88,86,214,0.32); background: rgba(88,86,214,0.04); text-align:center;">
-                    <div class="tmm-icon-large">📎</div>
+                    <div class="tmm-icon-large" style="color:#5856d6;">${iconSvg('document', { size: 30 })}</div>
                     <h3 style="margin:0 0 6px; color:#5856d6; font-weight:800;">${esc(t('tripMedia.docsEmptyTitle'))}</h3>
                     <p class="tmm-modal-subtext">${t('tripMedia.docsEmptyBody')}</p>
                 </div>
@@ -147,7 +148,7 @@ export const openTripDocumentsModal = (trip: any): void => {
                             <div style="display:flex; flex-direction:column; gap:8px;">
                                 ${items.map(d => `
                                     <div class="trip-doc-card" data-doc-id="${esc(d.id)}" style="display:flex; align-items:center; gap:12px; background:white; border:1px solid rgba(0,0,0,0.07); border-radius:14px; padding:12px 14px; box-shadow: 0 2px 8px rgba(0,45,91,0.04);">
-                                        <span style="font-size:1.3rem; line-height:1; flex-shrink:0;">📎</span>
+                                        <span style="line-height:1; flex-shrink:0; display:inline-flex; color:#5856d6;">${iconSvg('document', { size: 20 })}</span>
                                         <div style="flex:1; min-width:0;">
                                             <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
                                                 <a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" class="trip-doc-link" style="font-weight:800; color:#002d5b; font-size:0.92rem; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.name || t('tripMedia.docsFallbackName'))}</a>
@@ -184,7 +185,7 @@ export const openTripDocumentsModal = (trip: any): void => {
         innerHTML: `
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 18px;">
                 <h2 class="tmm-modal-title">
-                    <span class="tmm-icon-medium">📎</span> ${esc(t('tripMedia.docsTitle'))}
+                    <span class="tmm-icon-medium" style="display:inline-flex; vertical-align:middle; color:#5856d6;">${iconSvg('document', { size: 20 })}</span> ${esc(t('tripMedia.docsTitle'))}
                 </h2>
                 <button id="closeDocsModalBtn" class="close-x-btn" aria-label="${esc(t('tripMedia.closeAria'))}">✕</button>
             </div>
@@ -314,7 +315,7 @@ export const openTripPhotosModal = (trip: any): void => {
             return `
                 ${headerRow}
                 <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(52,199,89,0.32); background: rgba(52,199,89,0.04); text-align:center;">
-                    <div class="tmm-icon-large">📸</div>
+                    <div class="tmm-icon-large" style="color:#1a6b3c;">${iconSvg('photo', { size: 30 })}</div>
                     <h3 style="margin:0 0 6px; color:#1a6b3c; font-weight:800;">${esc(t('tripMedia.photosEmptyTitle'))}</h3>
                     <p class="tmm-modal-subtext">${t('tripMedia.photosEmptyBody')}</p>
                 </div>
@@ -385,7 +386,7 @@ export const openTripPhotosModal = (trip: any): void => {
         innerHTML: `
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 18px;">
                 <h2 class="tmm-modal-title">
-                    <span class="tmm-icon-medium">📸</span> ${esc(t('tripMedia.photosTitle'))}
+                    <span class="tmm-icon-medium" style="display:inline-flex; vertical-align:middle; color:#1a6b3c;">${iconSvg('photo', { size: 20 })}</span> ${esc(t('tripMedia.photosTitle'))}
                 </h2>
                 <button id="closePhotosModalBtn" class="close-x-btn" aria-label="${esc(t('tripMedia.closeAria'))}">✕</button>
             </div>

@@ -33,6 +33,7 @@ import { t } from '../../i18n.js';
 import { navigate } from '../../router.js';
 import { openTripChecklistModal } from './tripChecklistModal.js';
 import { openDayView } from './dayViewModal.js';
+import { iconSvg } from '../../icons.js';
 
 
 /** What home tabs a Anchor quick-link can navigate to. Matches
@@ -194,7 +195,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     const shortlistSectionHtml = `
         <div class="day-shortlist-section" style="margin-top: var(--space-10); padding: var(--space-6); background: rgba(155, 89, 182, 0.04); border: 1px solid rgba(155, 89, 182, 0.2); border-radius: 24px;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
-                <span style="font-size: 1.2rem;">📋</span>
+                <span style="color:#7c3a9e; display:inline-flex; align-items:center;">${iconSvg('checklist', { size: 19 })}</span>
                 <h4 style="margin:0; color:#7c3a9e; font-weight:800; letter-spacing:-0.01em;">${esc(t('dayDetail.shortlistHeading'))}</h4>
                 <span class="day-shortlist-count" style="background: rgba(155,89,182,0.12); color:#7c3a9e; padding: 2px 10px; border-radius:999px; font-size:0.72rem; font-weight:800;">${allShortlist.length}</span>
                 ${allShortlist.length > 6 ? `
@@ -371,7 +372,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 ? `<div class="day-plan-place__why">${esc(p.why)}</div>`
                 : '';
             const factHtml = p.fact
-                ? `<div class="day-plan-place__fact">✨ ${esc(p.fact)}</div>`
+                ? `<div class="day-plan-place__fact" style="display:flex; align-items:flex-start; gap:5px;">${iconSvg('sparkles', { size: 13 })}<span>${esc(p.fact)}</span></div>`
                 : '';
             const href = p.mapsUrl
                 || (p.placeId

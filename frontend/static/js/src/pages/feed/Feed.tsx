@@ -57,6 +57,7 @@ import { countryCodeToFlag } from '../../utils/place-names.js';
 import { navigate } from '../../router.js';
 import { t } from '../../i18n.js';
 import { viewArchivedDetails } from '../collections.js';
+import { iconSvg } from '../../icons.js';
 import {
     LIKE_COUNT_THRESHOLD,
     POSTS_EVENT_TYPES,
@@ -1193,7 +1194,11 @@ function EventCard(props: EventCardProps) {
                     <div
                         className="text-[0.95rem] leading-[1.4] text-secondary"
                     >
-                        <span className="mr-[6px]">{accent.icon}</span>
+                        <span
+                            className="mr-[6px]"
+                            style={{ color: accent.color }}
+                            dangerouslySetInnerHTML={{ __html: iconSvg(accent.iconName, { size: 15 }) }}
+                        />
                         <span dangerouslySetInnerHTML={{ __html: eventLine(ev) }} />
                     </div>
                     {time ? (
@@ -1244,7 +1249,10 @@ function EventCard(props: EventCardProps) {
                     data-trip-id={ev.trip.id}
                     onClick={() => viewArchivedDetails(ev.trip!.id)}
                 >
-                    <span className="text-[1.6rem] leading-none shrink-0">🗺️</span>
+                    <span
+                        className="shrink-0 text-[#5856d6] inline-flex"
+                        dangerouslySetInnerHTML={{ __html: iconSvg('map', { size: 24 }) }}
+                    />
                     <div className="flex-1 min-w-0">
                         <div
                             className="font-extrabold text-brand-navy text-[0.98rem] leading-[1.25] overflow-hidden overflow-ellipsis whitespace-nowrap"
@@ -1255,7 +1263,11 @@ function EventCard(props: EventCardProps) {
                             <div
                                 className="text-[0.78rem] text-secondary font-semibold mt-0.5 overflow-hidden overflow-ellipsis whitespace-nowrap"
                             >
-                                📍 {ev.trip.country}
+                                <span
+                                    className="inline-flex align-[-2px] mr-1"
+                                    dangerouslySetInnerHTML={{ __html: iconSvg('pin', { size: 13 }) }}
+                                />
+                                {ev.trip.country}
                             </div>
                         ) : null}
                     </div>

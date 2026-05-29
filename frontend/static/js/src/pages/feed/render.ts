@@ -337,20 +337,21 @@ export function eventLine(ev: any) {
     }
 }
 
-/** Per-event accent — picks a tint and emoji per type. Keeps cards
- *  visually grouped so a busy feed reads at a glance instead of a wall
- *  of identical glass blocks. */
+/** Per-event accent — picks a tint and a sharp line-icon per type. Keeps
+ *  cards visually grouped so a busy feed reads at a glance instead of a
+ *  wall of identical glass blocks. `iconName` resolves through ICON_PATHS
+ *  (see icons.ts) to an inline-SVG that inherits the accent colour. */
 export function eventAccent(type: string) {
     switch (type) {
-        case 'friend_created_trip':   return { color: '#0071e3', icon: '🗺️' };
-        case 'friend_archived_trip':  return { color: '#34c759', icon: '🏁' };
-        case 'friend_joined_trip':    return { color: '#ff9500', icon: '👥' };
-        case 'new_friendship':        return { color: '#9b59b6', icon: '🤝' };
-        case 'friend_shared_trip':    return { color: '#5856d6', icon: '📣' };
-        case 'friend_reposted_trip':  return { color: '#5856d6', icon: '🔁' };
-        case 'achievement_unlocked':  return { color: '#ffd60a', icon: '🏅' };
-        case 'settled_up':            return { color: '#34c759', icon: '🤝' };
-        default:                      return { color: '#8e8e93', icon: '✨' };
+        case 'friend_created_trip':   return { color: '#0071e3', iconName: 'map' };
+        case 'friend_archived_trip':  return { color: '#34c759', iconName: 'flag' };
+        case 'friend_joined_trip':    return { color: '#ff9500', iconName: 'users' };
+        case 'new_friendship':        return { color: '#9b59b6', iconName: 'userPlus' };
+        case 'friend_shared_trip':    return { color: '#5856d6', iconName: 'megaphone' };
+        case 'friend_reposted_trip':  return { color: '#5856d6', iconName: 'repost' };
+        case 'achievement_unlocked':  return { color: '#ffd60a', iconName: 'award' };
+        case 'settled_up':            return { color: '#34c759', iconName: 'handshake' };
+        default:                      return { color: '#8e8e93', iconName: 'sparkles' };
     }
 }
 

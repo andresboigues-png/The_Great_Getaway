@@ -43,6 +43,7 @@ import { openNewTripModal } from '../../modals.js';
 import { showConfirmModal, showLiquidAlert } from '../../utils.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import { t, tn } from '../../i18n.js';
+import { stripEmoji } from '../../icons.js';
 // Page-scoped CSS — only the .todo-mark-all-btn hover/focus styles
 // for now; Vite chunks it alongside the Todo mount module so the
 // rules ship on Todo page navigations only. FIXING_ROADMAP §3.1
@@ -374,7 +375,7 @@ export function Todo() {
         return (
             <div className="td-content-cap">
                 <div className="td-page-header">
-                    <h1 style={titleH1Style}>{t('todo.title')}</h1>
+                    <h1 style={titleH1Style}>{stripEmoji(t('todo.title'))}</h1>
                     <p className="td-subtitle">
                         {t('todo.subtitleNoTrip')}
                     </p>
@@ -441,7 +442,7 @@ export function Todo() {
         return (
             <div className="td-content-cap">
                 <div className="td-page-header">
-                    <h1 style={titleH1Style}>{t('todo.title')}</h1>
+                    <h1 style={titleH1Style}>{stripEmoji(t('todo.title'))}</h1>
                     <p
                         className="td-subtitle"
                         // Subtitle has inline <strong> markup with the trip
@@ -584,7 +585,7 @@ export function Todo() {
     return (
         <div className="td-content-cap">
             <div className="td-page-header">
-                <h1 style={titleH1Style}>{t('todo.title')}</h1>
+                <h1 style={titleH1Style}>{stripEmoji(t('todo.title'))}</h1>
                 <p
                     className="td-subtitle"
                     dangerouslySetInnerHTML={{
