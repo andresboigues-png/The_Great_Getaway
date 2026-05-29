@@ -26,6 +26,7 @@ import {
 import { findTripCompanion, addTripCompanion, removeTripCompanion } from '../companions.js';
 import { ROLE_PLANNER, ROLE_BUDGETEER, ROLE_RELAXER, canManageRoster } from '../permissions.js';
 import { showModal } from '../components/Modal.js';
+import { iconSvg } from '../icons.js';
 
 /**
  * Trip-companions picker — the single hub for managing who's on a trip.
@@ -105,7 +106,7 @@ export const openCompanionPickerModal = (tripId: string) => {
             : '';
 
         const removeBtn = isLocked
-            ? `<span class="companion-row__lock" title="${esc(t('companions.rowLockTitle'))}">🔒</span>`
+            ? `<span class="companion-row__lock" title="${esc(t('companions.rowLockTitle'))}" style="display:inline-flex; align-items:center;">${iconSvg('lock', { size: 14 })}</span>`
             : `<button type="button" class="btn-x-bare picker-remove-btn" data-name="${esc(c.name)}" title="${esc(t('companions.rowRemoveTitle'))}">✕</button>`;
 
         return `
@@ -152,7 +153,7 @@ export const openCompanionPickerModal = (tripId: string) => {
                  list, so what the user sees IS the saved state. -->
             <div class="companion-picker-add-section">
                 <button type="button" id="companionPickerAddFriendBtn" class="companion-picker-add-section__friend-btn">
-                    <span style="font-size: 1rem;">👤</span>
+                    <span style="display:inline-flex; align-items:center;">${iconSvg('user', { size: 16 })}</span>
                     <span>${esc(t('companions.addFriendBtn'))}</span>
                 </button>
                 <form id="companionPickerAddForm" class="companion-picker-add-form" style="margin-bottom: 0;">

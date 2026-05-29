@@ -248,7 +248,7 @@ export function Budgets() {
                 {visibleBudgets.length === 0 ? (
                     <EmptyState
                         accent="orange"
-                        emoji="💰"
+                        iconName="wallet"
                         title={filterTrip ? t('budgets.emptyTitleFilter') : t('budgets.emptyTitleNoFilter')}
                         // Body holds inline <strong> markup; render as
                         // HTML so the bold lands. Source string is from

@@ -286,7 +286,7 @@ export function HistoryTab() {
                 {filtered.length === 0 ? (
                     <EmptyState
                         accent="orange"
-                        emoji="💸"
+                        iconName="wallet"
                         title={t('expenses.noExpensesYet')}
                         body="Add your first expense above — split with companions, attach a receipt, and the totals will roll up here."
                     />

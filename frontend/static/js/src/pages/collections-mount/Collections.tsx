@@ -27,6 +27,7 @@ import { formatHome, esc } from '../../utils.js';
 import { STATE, emit } from '../../state.js';
 import { wireRoleButtonKeys } from '../../components/Keyboard.js';
 import { t, tn } from '../../i18n.js';
+import { iconSvg } from '../../icons.js';
 import { toggleTripPrivacy, restoreTrip, deleteArchivedTrip } from '../collections/handlers.js';
 import { viewArchivedDetails } from '../collections.js';
 import {
@@ -170,7 +171,11 @@ export function Collections() {
                 <div
                     className="mt-4 bg-[rgba(0,113,227,0.06)] border border-[rgba(0,113,227,0.18)] rounded-[16px] py-3.5 px-[18px] flex gap-3 items-start"
                 >
-                    <span className="text-[1.4rem] leading-none">💡</span>
+                    <span
+                        className="leading-none inline-flex shrink-0 mt-0.5"
+                        style={{ color: 'var(--accent-blue)' }}
+                        dangerouslySetInnerHTML={{ __html: iconSvg('lightbulb', { size: 20 }) }}
+                    />
                     <div className="flex-1 min-w-0">
                         <div className="font-extrabold text-brand-navy mb-1">
                             {t('collections.hintTitle')}
@@ -324,7 +329,10 @@ export function Collections() {
                         <div
                             className="card glass col-span-full text-center py-12 px-8"
                         >
-                            <div className="text-[3rem] mb-3">🔍</div>
+                            <div
+                                className="mb-3 flex justify-center text-secondary opacity-70"
+                                dangerouslySetInnerHTML={{ __html: iconSvg('search', { size: 44 }) }}
+                            />
                             <h2 className="mt-0 mx-0 mb-1.5">
                                 {t('collections.emptyNoMatchesTitle')}
                             </h2>
@@ -402,9 +410,10 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                         <h3 className="m-0">{trip.name}</h3>
                         {dest && dest !== trip.name && (
                             <span
-                                className="bg-[rgba(0,113,227,0.08)] text-[#005bb8] py-0.5 px-2.5 rounded-full text-[0.7rem] font-extrabold uppercase tracking-[0.06em]"
+                                className="inline-flex items-center gap-1 bg-[rgba(0,113,227,0.08)] text-[#005bb8] py-0.5 px-2.5 rounded-full text-[0.7rem] font-extrabold uppercase tracking-[0.06em]"
                             >
-                                📍 {dest}
+                                <span className="inline-flex" dangerouslySetInnerHTML={{ __html: iconSvg('pin', { size: 12 }) }} />
+                                {dest}
                             </span>
                         )}
                     </div>
@@ -412,8 +421,9 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                         className="flex gap-3.5 flex-wrap mt-1.5 text-[0.8rem] text-secondary"
                     >
                         {startStr ? (
-                            <span>
-                                🗓️ {startStr}
+                            <span className="inline-flex items-center gap-1">
+                                <span className="inline-flex" dangerouslySetInnerHTML={{ __html: iconSvg('calendar', { size: 13 }) }} />
+                                {startStr}
                                 {(trip.tripDays?.length || 0) > 1
                                     ? ` · ${tn('collections.dayCount', trip.tripDays!.length)}`
                                     : ''}

@@ -5,6 +5,7 @@
 
 import { STATE, emit } from './state.js';
 import { generateId, showLiquidAlert, q, esc } from './utils.js';
+import { iconSvg } from './icons.js';
 import {
     upsertTrip,
     upsertDay,
@@ -847,7 +848,7 @@ export const openPdfExportModal = (trip: any) => {
                  top edge instead of being clipped by the card's
                  overflow:hidden + corner curve. -->
             <div style="display:flex; align-items:center; gap:14px; padding:18px 22px; background:linear-gradient(135deg, var(--accent-blue) 0%, #5856d6 100%); color:white; border-top-left-radius: var(--radius-3xl); border-top-right-radius: var(--radius-3xl);">
-                <div style="width:44px; height:44px; border-radius:12px; background:rgba(255,255,255,0.18); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.28); display:inline-flex; align-items:center; justify-content:center; font-size:1.5rem; flex-shrink:0;">📄</div>
+                <div style="width:44px; height:44px; border-radius:12px; background:rgba(255,255,255,0.18); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.28); display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;">${iconSvg('document', { size: 22 })}</div>
                 <div style="flex:1; min-width:0;">
                     <h2 style="margin:0; font-size:1.15rem; color:white; font-weight:800; letter-spacing:-0.02em; line-height:1.15;">
                         ${esc(t('modals.pdfTitle'))}

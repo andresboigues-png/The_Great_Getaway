@@ -17,6 +17,7 @@ import { showModal } from '../../components/Modal.js';
 import { esc, q, formatDayDate } from '../../utils.js';
 import { openPdfPreview, looksLikePdfUrl } from './lightbox.js';
 import { t } from '../../i18n.js';
+import { iconSvg } from '../../icons.js';
 
 
 /** Open the read-only day view. Pulls photos and documents
@@ -111,7 +112,7 @@ export const openDayView = (day: any): void => {
                         <h4 class="text-tag" style="--accent: 88,86,214;">${Number(day.dayNumber) === 0 ? t('dayView.documentsTripWide') : t('dayView.documents')}${docs.length > 0 ? ` (${docs.length})` : ''}</h4>
                         ${docs.length > 0 ? `
                             <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
-                                ${docs.map(d => `<a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" style="font-size:0.85rem; color:#005bb8; font-weight:700; text-decoration:none;">📎 ${esc(d.name || t('dayView.documentFallback'))}</a>`).join('')}
+                                ${docs.map(d => `<a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" style="font-size:0.85rem; color:#005bb8; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">${iconSvg('document', { size: 13 })}${esc(d.name || t('dayView.documentFallback'))}</a>`).join('')}
                             </div>
                         ` : `<p class="dvm-italic-muted-sub">${Number(day.dayNumber) === 0 ? t('dayView.documentsEmptyTripWide') : t('dayView.documentsEmpty')}</p>`}
                     </div>

@@ -51,6 +51,7 @@ import { upsertExpense, uploadMedia } from '../../api.js';
 import { convertCurrency, getSupportedCurrencies, hasRate } from '../../utils/currency.js';
 import { navigate } from '../../router.js';
 import { t } from '../../i18n.js';
+import { iconSvg } from '../../icons.js';
 import type { Expense } from '../../types';
 
 
@@ -476,7 +477,7 @@ export function ManualTab() {
                                 className="mt-3 text-[length:var(--font-sm)] text-[#005bb8] font-semibold cursor-pointer flex items-center gap-1.5"
                                 onClick={() => navigate('home')}
                             >
-                                <span>➕</span>{' '}
+                                <span className="inline-flex align-[-2px]" dangerouslySetInnerHTML={{ __html: iconSvg('plus', { size: 14 }) }} />{' '}
                                 <span className="underline">
                                     Add companions to this trip from Home
                                 </span>
@@ -686,7 +687,8 @@ export function ManualTab() {
                                 disabled={receiptUploading}
                                 onClick={onPickReceipt}
                             >
-                                📎 Attach receipt
+                                <span className="inline-flex align-[-2px] mr-1" dangerouslySetInnerHTML={{ __html: iconSvg('document', { size: 14 }) }} />
+                                Attach receipt
                             </button>
                             {receiptUrl ? (
                                 <div

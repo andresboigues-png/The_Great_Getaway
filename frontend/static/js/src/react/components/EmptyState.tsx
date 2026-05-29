@@ -22,6 +22,7 @@
 //   - 'blue'   (Friends, neutral / network-related)
 
 import type { ReactNode } from 'react';
+import { iconSvg } from '../../icons.js';
 
 const ACCENTS = {
     purple: {
@@ -49,8 +50,11 @@ const ACCENTS = {
 export type EmptyStateAccent = keyof typeof ACCENTS;
 
 export interface EmptyStateProps {
-    /** Big emoji at the top — the visual hook. */
-    emoji: string;
+    /** Preferred: a sharp line-icon name from ICON_PATHS (icons.ts),
+     *  rendered in the accent heading colour. Falls back to `emoji`. */
+    iconName?: string;
+    /** Legacy decorative glyph — used only when `iconName` is omitted. */
+    emoji?: string;
     /** Heading line in the accent colour. */
     title: string;
     /** Body text (rendered below the title in --text-secondary).
@@ -74,6 +78,7 @@ export interface EmptyStateProps {
 }
 
 export function EmptyState({
+    iconName,
     emoji,
     title,
     body,
@@ -90,7 +95,15 @@ export function EmptyState({
             <div
                 className="h-[60vh] flex flex-col items-center justify-center text-center text-secondary"
             >
-                <div className="text-[5rem] mb-5 opacity-50">{emoji}</div>
+                {iconName ? (
+                    <div
+                        className="mb-5 opacity-60 flex justify-center"
+                        style={{ color: a.heading }}
+                        dangerouslySetInnerHTML={{ __html: iconSvg(iconName, { size: 64 }) }}
+                    />
+                ) : (
+                    <div className="text-[5rem] mb-5 opacity-50">{emoji}</div>
+                )}
                 <h2 className="text-primary mb-2.5">{title}</h2>
                 <p className="max-w-[400px] leading-[1.5]">{body}</p>
                 {ctaLabel && onCta && (
@@ -114,7 +127,15 @@ export function EmptyState({
                 gridColumn,
             }}
         >
-            <div className="text-[2.4rem] mb-2.5">{emoji}</div>
+            {iconName ? (
+                <div
+                    className="mb-3 flex justify-center"
+                    style={{ color: a.heading }}
+                    dangerouslySetInnerHTML={{ __html: iconSvg(iconName, { size: 40 }) }}
+                />
+            ) : (
+                <div className="text-[2.4rem] mb-2.5">{emoji}</div>
+            )}
             <h3
                 style={{
                     margin: '0 0 8px',

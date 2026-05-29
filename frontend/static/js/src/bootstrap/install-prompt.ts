@@ -27,6 +27,7 @@
 
 import { esc } from '../utils.js';
 import { t } from '../i18n.js';
+import { iconSvg } from '../icons.js';
 
 
 // ── localStorage keys ───────────────────────────────────────────────
@@ -149,7 +150,7 @@ function _showBanner(variant: 'chrome' | 'ios'): void {
     const dismissLabel = t('install.dismiss');
 
     banner.innerHTML = `
-        <div style="font-size: 1.5rem; line-height: 1; flex-shrink: 0;">✈️</div>
+        <div style="line-height: 1; flex-shrink: 0; display:inline-flex; color: var(--accent-blue);">${iconSvg('plane', { size: 24 })}</div>
         <div style="flex: 1; min-width: 0;">
             <div style="font-weight: 800; font-size: 0.92rem; margin-bottom: 2px; letter-spacing: -0.01em;">${esc(title)}</div>
             <div style="font-size: 0.8rem; color: var(--text-secondary, rgba(0,0,0,0.6)); line-height: 1.35;">${esc(body)}</div>

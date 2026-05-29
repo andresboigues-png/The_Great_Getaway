@@ -24,7 +24,7 @@ import { setSelectedDay } from '../home/pathSelection.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Trip, TripDay, Expense } from '../../types';
 import { t, tn, getIntlLocale } from '../../i18n.js';
-import { stripEmoji } from '../../icons.js';
+import { stripEmoji, iconSvg } from '../../icons.js';
 
 // ── Tunables ────────────────────────────────────────────────────────
 // Per-section visible cap before the user has to click "Show all".
@@ -342,7 +342,7 @@ export function Search() {
                 <div data-testid="search-empty">
                     <EmptyState
                         accent="blue"
-                        emoji="🤷"
+                        iconName="search"
                         title={t('search.noResultsTitle', { query })}
                         body={t('search.noResultsBody')}
                     />
@@ -372,7 +372,7 @@ export function Search() {
                                 .map((hit) => (
                                     <ResultRow
                                         key={`trip-${hit.trip.id}`}
-                                        emoji="🧳"
+                                        iconName="map"
                                         title={hit.trip.name}
                                         subtitle={hit.trip.country || t('search.noCountry')}
                                         archived={hit.archived}
@@ -396,7 +396,7 @@ export function Search() {
                                 .map((hit) => (
                                     <ResultRow
                                         key={`day-${hit.day.id}`}
-                                        emoji="📅"
+                                        iconName="calendar"
                                         title={
                                             hit.day.name ||
                                             (hit.day.dayNumber
@@ -432,7 +432,7 @@ export function Search() {
                                 .map((hit) => (
                                     <ResultRow
                                         key={`expense-${hit.expense.id}`}
-                                        emoji="💸"
+                                        iconName="wallet"
                                         title={hit.expense.label || t('search.expenseNoLabel')}
                                         subtitle={`${formatAmount(
                                             hit.expense.value,
@@ -493,13 +493,13 @@ function ResultGroupSection({
 }
 
 function ResultRow({
-    emoji,
+    iconName,
     title,
     subtitle,
     archived,
     onClick,
 }: {
-    emoji: string;
+    iconName: string;
     title: string;
     subtitle: string;
     archived: boolean;
@@ -507,9 +507,12 @@ function ResultRow({
 }) {
     return (
         <button type="button" onClick={onClick} style={rowStyle} className="search-result-row">
-            <span className="text-[1.4rem] shrink-0" aria-hidden="true">
-                {emoji}
-            </span>
+            <span
+                className="shrink-0 inline-flex"
+                style={{ color: 'var(--accent-blue)' }}
+                aria-hidden="true"
+                dangerouslySetInnerHTML={{ __html: iconSvg(iconName, { size: 20 }) }}
+            />
             <div className="flex-1 min-w-0">
                 <div
                     className="font-extrabold text-[0.98rem] text-brand-navy whitespace-nowrap overflow-hidden overflow-ellipsis"

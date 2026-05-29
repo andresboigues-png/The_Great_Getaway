@@ -465,7 +465,7 @@ export function Friends() {
                     rows={followers}
                     emptyTitle={t('friends.followersOnlyEmptyTitle')}
                     emptyBody={t('friends.followersOnlyEmptyBody')}
-                    emoji="👋"
+                    iconName="users"
                     onRowClick={(u) => navigate('profile', { userId: u.id })}
                     renderRowAction={(u) => (
                         <button
@@ -489,7 +489,7 @@ export function Friends() {
                     rows={following}
                     emptyTitle={t('friends.followingOnlyEmptyTitle')}
                     emptyBody={t('friends.followingOnlyEmptyBody')}
-                    emoji="🧭"
+                    iconName="compass"
                     onRowClick={(u) => navigate('profile', { userId: u.id })}
                     renderRowAction={(u) => (
                         <UnfollowButton
@@ -506,7 +506,7 @@ export function Friends() {
                     rows={mutuals}
                     emptyTitle={t('friends.friendsEmptyTitle')}
                     emptyBody={t('friends.friendsEmptyBody')}
-                    emoji="🤝"
+                    iconName="userPlus"
                     emptyAccent="blue"
                     onRowClick={(u) => navigate('profile', { userId: u.id })}
                     renderRowAction={(u) => (
@@ -532,7 +532,7 @@ interface NetworkSectionProps {
     rows: FriendRow[];
     emptyTitle: string;
     emptyBody: string;
-    emoji: string;
+    iconName: string;
     emptyAccent?: 'blue' | 'purple' | 'orange';
     onRowClick: (u: FriendRow) => void;
     renderRowAction: (u: FriendRow) => React.ReactNode;
@@ -543,7 +543,7 @@ interface NetworkSectionProps {
  *  visual treatment as the legacy "Your friends" card so the page
  *  reads as three peers of one shape. */
 function NetworkSection({
-    title, hint, rows, emptyTitle, emptyBody, emoji,
+    title, hint, rows, emptyTitle, emptyBody, iconName,
     emptyAccent = 'blue', onRowClick, renderRowAction,
 }: NetworkSectionProps) {
     return (
@@ -568,7 +568,7 @@ function NetworkSection({
                 {rows.length === 0 ? (
                     <EmptyState
                         accent={emptyAccent}
-                        emoji={emoji}
+                        iconName={iconName}
                         title={emptyTitle}
                         body={emptyBody}
                     />

@@ -382,7 +382,7 @@ export function Todo() {
                 </div>
                 <EmptyState
                     accent="purple"
-                    emoji="🧭"
+                    iconName="compass"
                     title={t('todo.emptyNoTripTitle')}
                     body={t('todo.emptyNoTripBody')}
                     ctaLabel={t('todo.emptyNoTripCta')}
@@ -460,7 +460,7 @@ export function Todo() {
                 </div>
                 <EmptyState
                     accent="purple"
-                    emoji="📋"
+                    iconName="checklist"
                     title={t('todo.emptyNoItemsTitle')}
                     body={t('todo.emptyNoItemsBody')}
                     ctaLabel={t('todo.emptyNoItemsCta')}

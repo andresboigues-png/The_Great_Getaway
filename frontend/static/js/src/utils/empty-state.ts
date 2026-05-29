@@ -7,6 +7,7 @@
 // of those pages sees the same family of empty state.
 
 import { esc } from './dom-helpers.js';
+import { iconSvg } from '../icons.js';
 
 /** Round 3 audit fix: HTML-string twin of the React EmptyState
  *  component so imperative-DOM pages (Feed, Expenses, etc.) can
@@ -25,7 +26,13 @@ import { esc } from './dom-helpers.js';
  *  Accent colours match EmptyState.ACCENTS one-for-one. */
 export interface EmptyCardOpts {
     accent?: 'purple' | 'orange' | 'blue';
-    emoji: string;
+    /** Preferred: a sharp line-icon name from ICON_PATHS (icons.ts).
+     *  Rendered at 40px in the accent heading colour. Falls back to
+     *  `emoji` when omitted (some callers still pass a semantic glyph). */
+    iconName?: string;
+    /** Legacy decorative glyph. Kept for callers that haven't moved to
+     *  `iconName`; ignored when `iconName` is set. */
+    emoji?: string;
     /** Title text — escaped before rendering. */
     title: string;
     /** Body content.
@@ -70,9 +77,12 @@ export function buildEmptyCardHtml(opts: EmptyCardOpts): string {
     // keeps the legacy raw-HTML behaviour every existing call site
     // relies on (translation strings with <strong>/<em>).
     const bodyHtml = opts.escapeBody ? esc(opts.body) : opts.body;
+    const glyphHtml = opts.iconName
+        ? `<div style="margin-bottom: 12px; color:${palette.heading}; display:flex; justify-content:center;">${iconSvg(opts.iconName, { size: 40 })}</div>`
+        : `<div style="font-size: 2.4rem; margin-bottom: 10px;">${opts.emoji || ''}</div>`;
     return `
         <div class="card glass" style="padding: 32px; border-radius: 24px; border: 1.5px dashed ${palette.border}; background: ${palette.bg}; text-align:center;">
-            <div style="font-size: 2.4rem; margin-bottom: 10px;">${opts.emoji}</div>
+            ${glyphHtml}
             <h3 style="margin:0 0 8px; color:${palette.heading}; font-weight:800; font-size: 1.1rem;">${esc(opts.title)}</h3>
             <p style="margin:0; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5;">${bodyHtml}</p>
             ${ctaHtml}

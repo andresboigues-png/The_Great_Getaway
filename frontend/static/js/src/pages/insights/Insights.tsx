@@ -241,7 +241,7 @@ export function Insights() {
                 </h1>
                 <EmptyState
                     variant="tall"
-                    emoji="📊"
+                    iconName="barChart"
                     title={t('insights.emptyNoExpensesTitle')}
                     // Body holds inline <b> markup; render as HTML so the
                     // bold renders. Source string is from our own
