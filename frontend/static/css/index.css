@@ -221,12 +221,15 @@
        this one reads as "completed" / "permanent" rather than "primary
        gold call-out". */
     --gradient-anchor-deep: linear-gradient(135deg, #e8b923, #8b6e0c);
-    /* --gradient-title: blue→purple text gradient used on every page's
-       h1. Distinct from --gradient-day (which is the day-badge/pin
-       surface gradient) — this one terminates at #9b59b6 (a slightly
-       different purple) for the legacy title visual identity. ~15
-       inline uses across pages/* before the B3 sweep. */
-    --gradient-title: linear-gradient(135deg, var(--accent-blue), #9b59b6);
+    /* --gradient-title: page h1 fill, consumed via background-clip:text on
+       every page's title (Feed / Insights / Todo etc.).
+       4.8 design unification (DSGN-1 / DSGN-4): was a blue→purple gradient;
+       now a FLAT primary-ink fill (a one-stop gradient so the existing
+       background-clip:text call sites keep working) for a sharper,
+       Apple-like title. References --text-primary so it auto-adapts to
+       dark mode. The brand logo (.nav-brand) and the Trip Hub gold are
+       intentionally NOT affected by this. */
+    --gradient-title: linear-gradient(var(--text-primary), var(--text-primary));
 
     /* Glass surfaces — alongside the existing --glass-bg + --glass-fill-*.
        --surface-glass is the dark-frosted modal backdrop; --surface-glass-light
@@ -1254,16 +1257,15 @@ body.is-signed-out .trip-controls-popover {
     font-size: 3.5rem;
     font-weight: 800;
     letter-spacing: -0.04em;
-    /* Read --g-from/--g-to from the inline style (set per-page) so each
-       title can pick its own gradient — yellow for Settlements/Budgets,
-       green for Settings/Personalization, etc. Falls back to blue→purple
-       when the inline vars aren't set, matching the original look. The
-       previous hardcoded `var(--accent-blue), #9b59b6` was overriding
-       every page's intended colors due to selector specificity. */
-    background: linear-gradient(135deg, var(--g-from, var(--accent-blue)), var(--g-to, #9b59b6));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    /* 4.8 design unification (DSGN-1): flat, sharp primary-ink title
+       (Apple-like) instead of the per-page --g-from/--g-to rainbow
+       gradient those pages set inline. Auto-adapts to dark mode via
+       --text-primary. (This is the more-specific rule that also governs
+       .gradient-text titles inside .ai-page-header, so it must flatten
+       too.) Protected colours — .nav-brand logo, Trip Hub gold, left-rail
+       dots, profile country map — are unaffected. */
+    color: var(--text-primary);
+    -webkit-text-fill-color: var(--text-primary);
     margin: 0 0 10px 0;
 }
 
@@ -1674,10 +1676,14 @@ body.is-signed-out .trip-controls-popover {
    Insights/Personalization/Collections page titles. Each call site sets
    `--g-from` and `--g-to` for the diagonal gradient endpoints. */
 .gradient-text {
-    background: linear-gradient(135deg, var(--g-from, var(--accent-blue)), var(--g-to, #9b59b6));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    /* 4.8 design unification (DSGN-1): page titles are flat + sharp
+       (Apple-like) instead of a per-page rainbow gradient. The inline
+       --g-from/--g-to each page used to set are now intentionally ignored
+       — the title takes the primary ink colour (auto-adapts to dark mode).
+       Protected colours (the .nav-brand logo, the Trip Hub gold, the
+       left-rail dots, the profile country map) are unaffected. */
+    color: var(--text-primary);
+    -webkit-text-fill-color: var(--text-primary);
 }
 
 /* Color utilities — replace one-line inline color overrides with
