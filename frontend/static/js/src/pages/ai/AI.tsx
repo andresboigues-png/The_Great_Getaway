@@ -66,7 +66,7 @@ import {
     isFoodSightsSchema,
 } from './slots.js';
 import { t, tn } from '../../i18n.js';
-import { stripEmoji } from '../../icons.js';
+import { stripEmoji, iconSvg } from '../../icons.js';
 import type { Trip } from '../../types';
 // Shared category helpers — same source-of-truth as Todo.tsx so the
 // AI plan's marked-place list groups + filters by the canonical
@@ -170,10 +170,9 @@ function EmptyTripView() {
                         className="premium-glass-card text-center text-brand-navy p-12 max-w-[500px] bg-[rgba(255,255,255,0.6)] rounded-[36px] border border-[rgba(255,255,255,0.8)] shadow-[0_30px_60px_rgba(0,0,0,0.1),_0_10px_20px_rgba(0,0,0,0.05)]"
                     >
                         <div
-                            className="text-[4.5rem] mb-6 [filter:drop-shadow(0_10px_15px_rgba(0,0,0,0.1))]"
-                        >
-                            🧭
-                        </div>
+                            className="mb-6 flex justify-center text-accent-blue [filter:drop-shadow(0_10px_15px_rgba(0,0,0,0.1))]"
+                            dangerouslySetInnerHTML={{ __html: iconSvg('compass', { size: 64 }) }}
+                        />
                         <h2
                             className="text-[2rem] font-extrabold mb-4 tracking-[-0.03em]"
                         >
@@ -955,7 +954,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                             onClick={onResetZoom}
                             className="absolute bottom-[14px] left-[14px] z-[1000]"
                         >
-                            <span>📍</span> <span>{tripCountry}</span>
+                            <span className="inline-flex align-[-2px]" dangerouslySetInnerHTML={{ __html: iconSvg('pin', { size: 13 }) }} /> <span>{tripCountry}</span>
                         </div>
                     </div>
                 </div>
@@ -1672,7 +1671,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                     <div
                         className="ai-row-icon-label"
                     >
-                        <span className="ai-fs-12">📋</span>
+                        <span className="ai-fs-12 inline-flex text-accent-purple-deep" dangerouslySetInnerHTML={{ __html: iconSvg('checklist', { size: 16 }) }} />
                         <h3
                             className="m-0 text-accent-purple-deep font-extrabold tracking-[-0.01em]"
                         >
@@ -1689,7 +1688,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                         className="btn-primary ai-pill-btn"
                         onClick={() => navigate('todo')}
                     >
-                        {t('ai.todoPanelEmptyCta')}
+                        {stripEmoji(t('ai.todoPanelEmptyCta'))}
                     </button>
                 </div>
             </div>
@@ -1706,7 +1705,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                     <div
                         className="ai-row-icon-label"
                     >
-                        <span className="ai-fs-12">📋</span>
+                        <span className="ai-fs-12 inline-flex text-accent-purple-deep" dangerouslySetInnerHTML={{ __html: iconSvg('checklist', { size: 16 }) }} />
                         <h3
                             className="m-0 text-accent-purple-deep font-extrabold tracking-[-0.01em]"
                         >
@@ -1726,7 +1725,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                         className="btn-primary ai-pill-btn"
                         onClick={() => navigate('todo')}
                     >
-                        {t('ai.todoPanelNoneTickedCta')}
+                        {stripEmoji(t('ai.todoPanelNoneTickedCta'))}
                     </button>
                 </div>
             </div>
@@ -1742,7 +1741,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                 <div
                     className="flex items-center gap-[10px] mb-[14px] flex-wrap"
                 >
-                    <span className="ai-fs-12">📋</span>
+                    <span className="ai-fs-12 inline-flex text-accent-purple-deep" dangerouslySetInnerHTML={{ __html: iconSvg('checklist', { size: 16 }) }} />
                     <h3
                         className="m-0 text-accent-purple-deep font-extrabold tracking-[-0.01em]"
                     >

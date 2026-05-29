@@ -20,6 +20,7 @@
 //      schema. Some very old saved plans use this.
 
 import { esc } from '../../utils.js';
+import { iconSvg } from '../../icons.js';
 
 /** Phase G item shape after server-side Places verification. The
  *  legacy strings still flow through `renderSlotItem` below — they
@@ -104,7 +105,7 @@ function renderSlotItem(item: any): string {
             ? `<span class="ai-place-card__why">${esc(v.why)}</span>`
             : '';
         const factHtml = v.fact
-            ? `<span class="ai-place-card__fact">✨ ${esc(v.fact)}</span>`
+            ? `<span class="ai-place-card__fact" style="display:inline-flex; align-items:flex-start; gap:5px;">${iconSvg('sparkles', { size: 13 })}<span>${esc(v.fact)}</span></span>`
             : '';
         // Use mapsUrl from the server when present (the canonical short
         // URL); fall back to the search-by-place-id deep link, which
@@ -158,7 +159,7 @@ function renderSlotItem(item: any): string {
         ? `<span class="ai-place-card__why" style="margin-top:4px;">${esc(v.why)}</span>`
         : '';
     const unverifiedFact = v.fact
-        ? `<span class="ai-place-card__fact" style="margin-top:2px;">✨ ${esc(v.fact)}</span>`
+        ? `<span class="ai-place-card__fact" style="margin-top:2px; display:inline-flex; align-items:flex-start; gap:5px;">${iconSvg('sparkles', { size: 13 })}<span>${esc(v.fact)}</span></span>`
         : '';
     return `
         <li class="ai-plan-block__item ai-plan-block__item--unverified">
