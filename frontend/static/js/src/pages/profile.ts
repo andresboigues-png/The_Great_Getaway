@@ -43,6 +43,7 @@ import { clearOutbox } from '../outbox.js';
 // because both sides only reference each other's exports from inside
 // functions — module-eval time is decoupled.
 import { ensureGsiInitialized } from '../bootstrap/auth.js';
+import { iconSvg } from '../icons.js';
 
 
 export interface ProfileFriend {
@@ -141,15 +142,15 @@ export function renderLoginWall() {
 
                 <div class="login-wall__features">
                     <div class="login-wall__feature">
-                        <span class="login-wall__feature-icon">🗺️</span>
+                        <span class="login-wall__feature-icon" style="color: var(--accent-blue);">${iconSvg('map', { size: 24 })}</span>
                         <div><strong>${t('login.feature1Title')}</strong><span>${t('login.feature1Body')}</span></div>
                     </div>
                     <div class="login-wall__feature">
-                        <span class="login-wall__feature-icon">💸</span>
+                        <span class="login-wall__feature-icon" style="color: var(--accent-blue);">${iconSvg('wallet', { size: 24 })}</span>
                         <div><strong>${t('login.feature2Title')}</strong><span>${t('login.feature2Body')}</span></div>
                     </div>
                     <div class="login-wall__feature">
-                        <span class="login-wall__feature-icon">👥</span>
+                        <span class="login-wall__feature-icon" style="color: var(--accent-blue);">${iconSvg('users', { size: 24 })}</span>
                         <div><strong>${t('login.feature3Title')}</strong><span>${t('login.feature3Body')}</span></div>
                     </div>
                 </div>

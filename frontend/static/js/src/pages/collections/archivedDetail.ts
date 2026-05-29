@@ -22,6 +22,7 @@ import { shareTripToFeed, fetchShareStatus, unshareFeedPost, cloneTrip, pullFrom
 import { openDayView, openPdfPreview, looksLikePdfUrl, openShareToFeedModal, updateShareBtnVisualState } from '../home.js';
 import { openShareChooserModal } from '../../modals.js';
 import { restoreTrip, toggleTripPrivacy } from './handlers.js';
+import { iconSvg } from '../../icons.js';
 
 /**
  * Render a read-only archived-trip detail page.
@@ -169,15 +170,15 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                     <span style="font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.18em; color:${heroTextColor};">${esc(t('archivedDetail.heroTag'))}</span>
                 </div>
                 <h1 style="font-size: 3.2rem; margin: 0; letter-spacing: -0.04em; color: ${heroTextColor}; font-weight: 800; line-height: 1; text-shadow: 0 2px 24px rgba(0,0,0,0.2);">${esc(trip.name)}</h1>
-                ${trip.country ? `<div style="margin-top:10px; font-size:1rem; color:${heroSecondary}; font-weight:600; display:flex; align-items:center; gap:8px;">📍 ${esc(trip.country)}</div>` : ''}
+                ${trip.country ? `<div style="margin-top:10px; font-size:1rem; color:${heroSecondary}; font-weight:600; display:flex; align-items:center; gap:8px;">${iconSvg('pin', { size: 16 })}${esc(trip.country)}</div>` : ''}
             </div>
 
             <!-- Stat chip row. -->
             <div style="position:relative; z-index:1; display:flex; flex-wrap:wrap; gap:10px; margin-top:24px;">
-                ${statChip('🗓️', t('archivedDetail.statDays'), String(dayCount))}
-                ${totalPhotos > 0 ? statChip('📸', t('archivedDetail.statPhotos'), String(totalPhotos)) : ''}
-                ${totalDocs > 0 ? statChip('📎', t('archivedDetail.statDocuments'), String(totalDocs)) : ''}
-                ${expenses.length > 0 ? statChip('💰', t('archivedDetail.statSpent'), formatHome(totalSpent, 'EUR')) : ''}
+                ${statChip(iconSvg('calendar', { size: 17 }), t('archivedDetail.statDays'), String(dayCount))}
+                ${totalPhotos > 0 ? statChip(iconSvg('photo', { size: 17 }), t('archivedDetail.statPhotos'), String(totalPhotos)) : ''}
+                ${totalDocs > 0 ? statChip(iconSvg('document', { size: 17 }), t('archivedDetail.statDocuments'), String(totalDocs)) : ''}
+                ${expenses.length > 0 ? statChip(iconSvg('wallet', { size: 17 }), t('archivedDetail.statSpent'), formatHome(totalSpent, 'EUR')) : ''}
 
                 <!-- Public-trip granularity select, styled as a chip.
                      Replaces the legacy binary toggle. Three states:
@@ -247,8 +248,8 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                         <div>
                             <h3 style="margin:0; font-size:1.4rem; font-weight:800; letter-spacing:-0.02em; color:${hasBg ? '#ffffff' : '#002d5b'}; line-height:1.15; ${hasBg ? 'text-shadow: 0 2px 12px rgba(0,0,0,0.4);' : ''}">${esc(day.name || dayTitleFallback)}</h3>
                             <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;">
-                                ${totalDayPhotos > 0 ? `<span style="background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(0,113,227,0.08)'}; color:${hasBg ? '#ffffff' : 'var(--accent-blue)'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📸 ${totalDayPhotos}</span>` : ''}
-                                ${totalDayDocs > 0 ? `<span style="background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(88,86,214,0.08)'}; color:${hasBg ? '#ffffff' : '#5856d6'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📎 ${totalDayDocs}</span>` : ''}
+                                ${totalDayPhotos > 0 ? `<span style="display:inline-flex; align-items:center; gap:4px; background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(0,113,227,0.08)'}; color:${hasBg ? '#ffffff' : 'var(--accent-blue)'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">${iconSvg('photo', { size: 12 })}${totalDayPhotos}</span>` : ''}
+                                ${totalDayDocs > 0 ? `<span style="display:inline-flex; align-items:center; gap:4px; background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(88,86,214,0.08)'}; color:${hasBg ? '#ffffff' : '#5856d6'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">${iconSvg('document', { size: 12 })}${totalDayDocs}</span>` : ''}
                                 ${day.notes ? `<span style="background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(255,149,0,0.08)'}; color:${hasBg ? '#ffffff' : '#ff9500'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">${esc(t('archivedDetail.notesChip'))}</span>` : ''}
                             </div>
                         </div>
@@ -351,7 +352,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                 <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;">
                     ${allDocs.map(d => `
                         <a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" style="display:flex; align-items:center; gap:12px; background:white; border:1px solid rgba(0,0,0,0.07); border-radius:14px; padding:12px 14px; box-shadow: 0 2px 8px rgba(0,45,91,0.04); text-decoration:none; color:#002d5b;">
-                            <span style="font-size:1.3rem; line-height:1; flex-shrink:0;">📎</span>
+                            <span style="line-height:1; flex-shrink:0; display:inline-flex; color:#5856d6;">${iconSvg('document', { size: 20 })}</span>
                             <div style="flex:1; min-width:0;">
                                 <div class="flex items-center gap-2">
                                     <span style="font-weight:800; font-size:0.92rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.name)}</span>

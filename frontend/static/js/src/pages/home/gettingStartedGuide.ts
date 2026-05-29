@@ -29,12 +29,13 @@ import { openNewTripModal, openAddDayModal, openCompanionPickerModal } from '../
 import { showPersTab } from '../settings.js';
 import { t } from '../../i18n.js';
 import { esc } from '../../utils.js';
+import { iconSvg } from '../../icons.js';
 
 
 type GuideStep = {
     text: string;
     done: boolean;
-    icon: string;
+    iconName: string;
     action: () => void;
 };
 
@@ -109,13 +110,13 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
     const expenseManual = `<span data-guide-action="navigate-expenses" class="link-underline">${esc(t('home.guideStep6Manual'))}</span>`;
     const expenseBatch = `<span data-guide-action="navigate-upload" class="link-underline">${esc(t('home.guideStep6Batch'))}</span>`;
     const steps: GuideStep[] = [
-        { text: t('home.guideStep1'), done: !!STATE.guideProgress.login, icon: '🔐', action: () => navigate('profile') },
-        { text: t('home.guideStep2'), done: !!STATE.guideProgress.trip, icon: '✈️', action: () => openNewTripModal() },
+        { text: t('home.guideStep1'), done: !!STATE.guideProgress.login, iconName: 'lock', action: () => navigate('profile') },
+        { text: t('home.guideStep2'), done: !!STATE.guideProgress.trip, iconName: 'plane', action: () => openNewTripModal() },
         // Companions are per-trip now — the action opens the
         // trip-companion picker on Home (or just navigates Home
         // if there's no active trip yet, since the picker is
         // reachable from the trip header there).
-        { text: t('home.guideStep3'), done: !!STATE.guideProgress.companions, icon: '👥', action: () => {
+        { text: t('home.guideStep3'), done: !!STATE.guideProgress.companions, iconName: 'users', action: () => {
             if (activeTrip) openCompanionPickerModal(activeTrip.id);
             else navigate('home');
         } },
@@ -123,13 +124,13 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
         // #persCategories) only exists once the page has
         // rendered, so navigate first and switch the tab on the
         // next tick.
-        { text: t('home.guideStep4'), done: !!STATE.guideProgress.categories, icon: '🏷️', action: () => { navigate('personalization'); setTimeout(() => showPersTab('categories'), 50); } },
-        { text: `${t('home.guideStep5')}<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(${t('home.guideStep5Prefix')} — ${planSubLink})</span>`, done: !!STATE.guideProgress.plan, icon: '✦', action: () => navigate('ai') },
-        { text: `${t('home.guideStep6')}<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(${expenseManual} ${t('home.guideStep6Or')} ${expenseBatch})</span>`, done: !!STATE.guideProgress.expenses, icon: '💰', action: () => navigate('expenses') },
-        { text: t('home.guideStep7'), done: !!STATE.guideProgress.budgets, icon: '📊', action: () => navigate('budgets') },
-        { text: t('home.guideStep8'), done: !!STATE.guideProgress.settlement, icon: '🤝', action: () => navigate('settlement') },
-        { text: t('home.guideStep9'), done: !!STATE.guideProgress.collections, icon: '📂', action: () => navigate('collections') },
-        { text: t('home.guideStep10'), done: !!STATE.guideProgress.friends, icon: '📱', action: () => navigate('friends') },
+        { text: t('home.guideStep4'), done: !!STATE.guideProgress.categories, iconName: 'tag', action: () => { navigate('personalization'); setTimeout(() => showPersTab('categories'), 50); } },
+        { text: `${t('home.guideStep5')}<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(${t('home.guideStep5Prefix')} — ${planSubLink})</span>`, done: !!STATE.guideProgress.plan, iconName: 'sparkles', action: () => navigate('ai') },
+        { text: `${t('home.guideStep6')}<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(${expenseManual} ${t('home.guideStep6Or')} ${expenseBatch})</span>`, done: !!STATE.guideProgress.expenses, iconName: 'wallet', action: () => navigate('expenses') },
+        { text: t('home.guideStep7'), done: !!STATE.guideProgress.budgets, iconName: 'barChart', action: () => navigate('budgets') },
+        { text: t('home.guideStep8'), done: !!STATE.guideProgress.settlement, iconName: 'handshake', action: () => navigate('settlement') },
+        { text: t('home.guideStep9'), done: !!STATE.guideProgress.collections, iconName: 'folder', action: () => navigate('collections') },
+        { text: t('home.guideStep10'), done: !!STATE.guideProgress.friends, iconName: 'smartphone', action: () => navigate('friends') },
     ];
 
     const allDone = steps.every(s => s.done) || !!STATE.guideAllDone;
@@ -162,8 +163,8 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
         showBtnContainer.style.textAlign = 'center';
         showBtnContainer.style.marginTop = '40px';
         showBtnContainer.innerHTML = `
-            <button class="btn-glass-light">
-                🧭 ${esc(t('home.showQuickAccessBtn'))}
+            <button class="btn-glass-light" style="display:inline-flex; align-items:center; gap:6px;">
+                ${iconSvg('compass', { size: 16 })}${esc(t('home.showQuickAccessBtn'))}
             </button>
         `;
         const showBtn = (showBtnContainer.querySelector('button') as HTMLButtonElement | null);
@@ -186,7 +187,7 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
         <div class="card glass" style="padding: 32px; border-radius: 28px; border: 1.5px solid ${allDone ? 'var(--border-subtle)' : 'rgba(0, 122, 255, 0.25)'}; background: var(--card-bg); position: relative;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <div style="background: ${allDone ? 'var(--text-brand-navy)' : 'var(--accent-blue)'}; color: white; width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">${allDone ? '⚡️' : '🧭'}</div>
+                    <div style="background: ${allDone ? 'var(--text-brand-navy)' : 'var(--accent-blue)'}; color: white; width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">${allDone ? iconSvg('zap', { size: 18 }) : iconSvg('compass', { size: 18 })}</div>
                     <h2 style="margin: 0; font-size: 1.5rem; letter-spacing: -0.02em; color: var(--text-brand-navy);">${esc(allDone ? t('home.quickAccessTitle') : t('home.gettingStartedTitle'))}</h2>
                 </div>
                 <div style="display: flex; align-items: center; gap: 12px;">
@@ -201,10 +202,10 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
                     return `
                         <button type="button" class="card-button-reset guide-step-card" data-index="${i}" style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); background: ${showTick ? 'rgba(52, 199, 89, 0.10)' : 'var(--card-bg-elevated)'}; border-radius: var(--radius-xl); border: 1px solid ${showTick ? 'rgba(52, 199, 89, 0.25)' : 'var(--border-subtle)'}; cursor: pointer; position: relative; overflow: hidden;">
                             ${allDone ? `
-                            <div style="font-size: 1.4rem; flex-shrink: 0; line-height: 1;">${step.icon}</div>
+                            <div style="flex-shrink: 0; line-height: 1; color: var(--accent-blue); display: inline-flex;">${iconSvg(step.iconName, { size: 22 })}</div>
                             ` : `
                             <div style="width: 24px; height: 24px; border-radius: 50%; border: 2px solid ${showTick ? '#34c759' : 'var(--border-subtle)'}; display: flex; align-items: center; justify-content: center; color: ${showTick ? '#34c759' : 'var(--text-secondary)'}; font-weight: 800; font-size: 0.8rem; background: ${showTick ? 'var(--card-bg)' : 'var(--surface-subtle)'}; flex-shrink: 0;">
-                                ${showTick ? '✓' : step.icon}
+                                ${showTick ? '✓' : iconSvg(step.iconName, { size: 14 })}
                             </div>
                             `}
                             <div style="display: flex; flex-direction: column;">
