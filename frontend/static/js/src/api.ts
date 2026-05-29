@@ -770,6 +770,70 @@ function _mergeMediaField(serverItems: any[], pendingItems: any[]): any[] {
     return out;
 }
 
+/** 4.8 audit TRIP-4: the media-only optimistic-concurrency version this
+ *  tab last saw for each trip (from GET /media or the last successful
+ *  write). Echoed back as `clientMediaUpdatedAt` so two warm devices
+ *  editing the same trip's media detect the conflict instead of silently
+ *  last-write-wins. */
+const _mediaVersion = new Map<string, string>();
+
+interface MediaSnapshot { photos: any[]; documents: any[]; markedPlaces: any[]; checklist: any[]; }
+
+/** POST trip media with optimistic concurrency. On a 409 (a peer device
+ *  wrote media since our last read) the server echoes the live media +
+ *  version; we union-merge our local edit onto it (so concurrent ADDs on
+ *  both sides survive — neither is silently lost), reflect the merge into
+ *  STATE, and retry ONCE with the fresh version. A missing version (first
+ *  write) bypasses the server gate. Network failure → apiFetch has
+ *  already queued it offline (the outbox strips the token on replay, so
+ *  it lands as a force-write = the media path's pre-TRIP-4 behaviour). */
+async function _postTripMedia(tripId: string, media: MediaSnapshot): Promise<void> {
+    const url = `/api/trips/${encodeURIComponent(tripId)}/media`;
+    const send = (m: MediaSnapshot, version: string | undefined) =>
+        apiFetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...m, clientMediaUpdatedAt: version ?? null }),
+        });
+    try {
+        const res = await send(media, _mediaVersion.get(tripId));
+        if (res.status === 409) {
+            const conflict = await res.json().catch(() => null);
+            const cur = conflict && conflict.current;
+            const curVer: string | undefined = conflict && conflict.mediaUpdatedAt;
+            if (cur) {
+                const merged: MediaSnapshot = {
+                    photos: _mergeMediaField(cur.photos ?? [], media.photos ?? []),
+                    documents: _mergeMediaField(cur.documents ?? [], media.documents ?? []),
+                    markedPlaces: _mergeMediaField(cur.markedPlaces ?? [], media.markedPlaces ?? []),
+                    checklist: _mergeMediaField(cur.checklist ?? [], media.checklist ?? []),
+                };
+                // Reflect the merged truth into STATE so the UI shows both
+                // devices' additions, not just this device's.
+                const target = STATE.trips.find(t => t.id === tripId)
+                    || STATE.archivedTrips.find(t => t.id === tripId);
+                if (target) {
+                    const tt = target as unknown as Record<string, unknown>;
+                    tt.photos = merged.photos;
+                    tt.documents = merged.documents;
+                    tt.markedPlaces = merged.markedPlaces;
+                    tt.checklist = merged.checklist;
+                    emit(EVENTS.STATE_CHANGED);
+                }
+                if (curVer) _mediaVersion.set(tripId, curVer);
+                const retry = await send(merged, curVer ?? undefined);
+                const rb = await retry.json().catch(() => null);
+                if (retry.ok && rb && rb.mediaUpdatedAt) _mediaVersion.set(tripId, rb.mediaUpdatedAt);
+                return;
+            }
+        }
+        const rb = await res.json().catch(() => null);
+        if (res.ok && rb && rb.mediaUpdatedAt) _mediaVersion.set(tripId, rb.mediaUpdatedAt);
+    } catch (e) {
+        console.warn('persistTripMedia POST failed (queued offline if replayable):', e);
+    }
+}
+
 /** R12-B4 Phase 2: fetch the four heavy media fields for one trip and
  *  splice them into STATE.trips / STATE.archivedTrips, then mark the
  *  trip loaded. Called on trip-open (post-pull + trip-switch) so the
@@ -786,7 +850,11 @@ export async function fetchTripMedia(tripId: string): Promise<void> {
         const media = await res.json() as {
             photos?: unknown[]; documents?: unknown[];
             markedPlaces?: unknown[]; checklist?: unknown[];
+            mediaUpdatedAt?: string;
         };
+        // 4.8 audit TRIP-4: remember the media version this read saw so
+        // the next write echoes it back for the concurrency gate.
+        if (media.mediaUpdatedAt) _mediaVersion.set(tripId, media.mediaUpdatedAt);
         const target = STATE.trips.find(t => t.id === tripId)
             || STATE.archivedTrips.find(t => t.id === tripId);
         if (target) {
@@ -815,9 +883,11 @@ export async function fetchTripMedia(tripId: string): Promise<void> {
                 tt.markedPlaces = merged.markedPlaces;
                 tt.checklist = merged.checklist;
                 _mediaLoadedTrips.add(tripId);
-                // Flush directly (bypass persistTripMedia's hydration
-                // gate — we've just established the merged truth).
-                _post(`/api/trips/${encodeURIComponent(tripId)}/media`, merged);
+                // Flush the merged truth. _postTripMedia carries the
+                // media version we just stored, so a peer write that
+                // landed between our GET and this flush still 409-merges
+                // rather than clobbering (TRIP-4).
+                _postTripMedia(tripId, merged);
             } else {
                 tt.photos = serverMedia.photos;
                 tt.documents = serverMedia.documents;
@@ -875,7 +945,9 @@ export function persistTripMedia(trip: any) {
         fetchTripMedia(trip.id).catch(() => { /* best-effort; retried on next hydration */ });
         return;
     }
-    return _post(`/api/trips/${encodeURIComponent(trip.id)}/media`, snapshot);
+    // 4.8 audit TRIP-4: versioned write — detects + union-merges a
+    // concurrent peer media edit instead of silently last-write-wins.
+    return _postTripMedia(trip.id, snapshot);
 }
 
 /** Permanently delete a trip and its expenses from the server. */

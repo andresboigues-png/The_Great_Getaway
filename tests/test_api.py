@@ -3505,6 +3505,51 @@ def test_trip_media_post_rejects_non_member(
     assert res.status_code == 403
 
 
+def test_trip_media_version_token_concurrency(client, seed_user, auth_headers):
+    """4.8 audit TRIP-4: /media is version-gated (media_updated_at), so two
+    warm devices editing the same trip's media detect the conflict instead
+    of silently last-write-wins. GET returns mediaUpdatedAt; a write with a
+    STALE clientMediaUpdatedAt 409s with the live media + version (and does
+    NOT apply); a write with the CURRENT version — or no token at all (the
+    offline-replay / legacy force path) — succeeds."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-mediaver")
+    # First write (no token) establishes a version + returns it.
+    r1 = client.post(f"/api/trips/{trip_id}/media", headers=auth_headers, json={
+        "checklist": [{"id": "a"}],
+    })
+    assert r1.status_code == 200
+    v1 = r1.get_json()["mediaUpdatedAt"]
+    assert v1, "media write must return a version stamp"
+    # GET echoes the same version.
+    g = client.get(f"/api/trips/{trip_id}/media", headers=auth_headers).get_json()
+    assert g["mediaUpdatedAt"] == v1
+    # A write with a clearly-STALE token → 409 with live media + version,
+    # and the stale write's content is NOT applied.
+    r_stale = client.post(f"/api/trips/{trip_id}/media", headers=auth_headers, json={
+        "checklist": [{"id": "STALE"}],
+        "clientMediaUpdatedAt": "1999-01-01 00:00:00.000",
+    })
+    assert r_stale.status_code == 409, r_stale.get_data(as_text=True)
+    conflict = r_stale.get_json()
+    assert conflict["mediaUpdatedAt"] == v1
+    assert {i["id"] for i in conflict["current"]["checklist"]} == {"a"}, \
+        "409 must echo the live (un-clobbered) media"
+    # A write with the CURRENT version succeeds.
+    r_ok = client.post(f"/api/trips/{trip_id}/media", headers=auth_headers, json={
+        "checklist": [{"id": "a"}, {"id": "b"}],
+        "clientMediaUpdatedAt": v1,
+    })
+    assert r_ok.status_code == 200
+    # A write with NO token (offline replay / legacy force path) still
+    # succeeds regardless of the current version.
+    r_force = client.post(f"/api/trips/{trip_id}/media", headers=auth_headers, json={
+        "checklist": [{"id": "z"}],
+    })
+    assert r_force.status_code == 200
+    final = client.get(f"/api/trips/{trip_id}/media", headers=auth_headers).get_json()
+    assert {i["id"] for i in final["checklist"]} == {"z"}
+
+
 # ── /api/trips/invite | respond | members/remove ─────────────────────────────
 
 def _befriend(client, headers_a, headers_b, user_a, user_b):

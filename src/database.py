@@ -267,6 +267,14 @@ def init_db():
                 -- writes so a stale tab can't blind-overwrite. See
                 -- migration 1bd4e5f6a7b8.
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                -- 4.8 audit TRIP-4: media-only optimistic-concurrency
+                -- stamp, SEPARATE from updated_at (which guards metadata
+                -- — name/cover/dates). Bumped by POST /api/trips/<id>/media
+                -- so two warm devices editing photos/checklist/markedPlaces
+                -- concurrently detect the conflict (409) instead of
+                -- silently last-write-wins. NULL = no media version yet.
+                -- Migration d0e1f2a3b4c5 adds it to existing DBs.
+                media_updated_at DATETIME,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
@@ -995,6 +1003,8 @@ _EXPECTED_COLUMNS = {
         "share_show_cost", "share_show_plans", "created_at",
         # R3-Round 4: optimistic-concurrency primitive.
         "updated_at",
+        # 4.8 audit TRIP-4: media-only optimistic-concurrency stamp.
+        "media_updated_at",
     ],
     "expenses": [
         "id", "trip_id", "who", "category_id", "label", "date",

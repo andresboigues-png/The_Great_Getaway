@@ -313,12 +313,31 @@ async function _drainOutboxImpl(): Promise<{
             // Don't reuse a stale Content-Type — let fetch infer if
             // not set on the captured headers. Re-attach
             // credentials so the gg_session cookie rides along.
+            // 4.8 audit TRIP-4: media POSTs carry a `clientMediaUpdatedAt`
+            // version token for ONLINE optimistic concurrency. On offline
+            // replay that token is stale by definition and this drain
+            // can't union-merge a 409 (only the inline api.ts path does) —
+            // so strip it, making the replay a force-write, which is the
+            // media path's pre-TRIP-4 behaviour. The offline edit then
+            // still lands (last-write-wins) instead of 409-looping until
+            // MAX_ATTEMPTS silently drops it.
+            let bodyToSend = item.body;
+            const itemPath = item.url.split('?')[0] ?? item.url;
+            if (item.method === 'POST' && /\/api\/trips\/[^/]+\/media$/.test(itemPath) && item.body) {
+                try {
+                    const parsed = JSON.parse(item.body);
+                    if (parsed && typeof parsed === 'object' && 'clientMediaUpdatedAt' in parsed) {
+                        delete parsed.clientMediaUpdatedAt;
+                        bodyToSend = JSON.stringify(parsed);
+                    }
+                } catch { /* not JSON / malformed — replay as-is */ }
+            }
             const init: RequestInit = {
                 method: item.method,
                 headers: item.headers,
                 credentials: 'include',
             };
-            if (item.body) init.body = item.body;
+            if (bodyToSend) init.body = bodyToSend;
             const res = await fetch(item.url, init);
             if (res.ok) {
                 drained += 1;

@@ -587,7 +587,8 @@ def get_trip_media(trip_id):
         bind_trip_context(trip_id)
         cursor.execute(
             "SELECT photos_json, documents_json, "
-            "       marked_places_json, checklist_json, updated_at "
+            "       marked_places_json, checklist_json, updated_at, "
+            "       media_updated_at "
             "FROM trips WHERE id = ?",
             (trip_id,),
         )
@@ -608,6 +609,11 @@ def get_trip_media(trip_id):
         return jsonify({
             "tripId": trip_id,
             "updatedAt": row["updated_at"],
+            # 4.8 audit TRIP-4: the media-only version stamp the client
+            # echoes back as `clientMediaUpdatedAt` on the next write so
+            # concurrent multi-device media edits 409 instead of silently
+            # last-write-wins.
+            "mediaUpdatedAt": row["media_updated_at"],
             "photos": _safe_arr(row["photos_json"]),
             "documents": _safe_arr(row["documents_json"]),
             "markedPlaces": _safe_arr(row["marked_places_json"]),
@@ -688,14 +694,70 @@ def update_trip_media(trip_id):
         if not can_edit_trip(cursor, trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
         bind_trip_context(trip_id)
+        # 4.8 audit TRIP-4: optimistic-concurrency on the media path.
+        # Media carries its OWN version stamp (media_updated_at), separate
+        # from the metadata `updated_at` token (so a photo-add doesn't 409
+        # a slow rename in another tab). When the client echoes the version
+        # it last saw (`clientMediaUpdatedAt`) and it no longer matches,
+        # another device wrote media since — return 409 + the live media so
+        # the client union-merges the concurrent edits + retries, instead
+        # of silently last-write-wins clobbering the peer's add. A
+        # missing/NULL token (the offline outbox strips it on replay;
+        # legacy clients) bypasses the gate = the prior force-write
+        # behaviour, so offline replay is unchanged (no regression).
+        client_media_updated_at = body.get("clientMediaUpdatedAt")
         set_clause = ", ".join(f"{col} = ?" for col, _ in updates)
         params = [payload for _, payload in updates]
         params.append(trip_id)
+        params.append(client_media_updated_at)
+        params.append(client_media_updated_at)
         cursor.execute(
-            f"UPDATE trips SET {set_clause} WHERE id = ?", params
+            f"UPDATE trips SET {set_clause}, "
+            f"media_updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
+            f"WHERE id = ? "
+            f"  AND (? IS NULL OR media_updated_at IS NULL "
+            f"       OR media_updated_at = ?)",
+            params,
         )
+        if cursor.rowcount == 0:
+            # Trip exists + caller can edit (both gated above), so a zero
+            # rowcount means a STALE media version. Echo the live media +
+            # version so the client merges the concurrent edits + retries.
+            def _safe_arr(raw):
+                if not raw:
+                    return []
+                try:
+                    return json.loads(raw)
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    return []
+            cursor.execute(
+                "SELECT photos_json, documents_json, marked_places_json, "
+                "checklist_json, media_updated_at FROM trips WHERE id = ?",
+                (trip_id,),
+            )
+            live = cursor.fetchone()
+            conn.commit()
+            return jsonify({
+                "error": "Stale media — another device updated this trip's media",
+                "current": {
+                    "photos": _safe_arr(live["photos_json"]) if live else [],
+                    "documents": _safe_arr(live["documents_json"]) if live else [],
+                    "markedPlaces": _safe_arr(live["marked_places_json"]) if live else [],
+                    "checklist": _safe_arr(live["checklist_json"]) if live else [],
+                },
+                "mediaUpdatedAt": live["media_updated_at"] if live else None,
+            }), 409
+        cursor.execute(
+            "SELECT media_updated_at FROM trips WHERE id = ?", (trip_id,),
+        )
+        new_row = cursor.fetchone()
+        new_media_updated_at = new_row["media_updated_at"] if new_row else None
         conn.commit()
-    return jsonify({"status": "ok", "updated": [k for k in body if k in _MEDIA_KEY_TO_COLUMN]})
+    return jsonify({
+        "status": "ok",
+        "updated": [k for k in body if k in _MEDIA_KEY_TO_COLUMN],
+        "mediaUpdatedAt": new_media_updated_at,
+    })
 
 
 @bp.route("/api/trips/invite", methods=["POST"])
