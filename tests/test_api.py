@@ -5652,15 +5652,52 @@ def test_healthz_returns_ok_envelope(client):
     # the monitor needs to know its schema is stable.
     assert "release" in body
     assert "alembicHead" in body
+    # R12-B1: write-capability probe. On a healthy (writable) test DB
+    # both legs must be True and the overall status "ok". A SELECT-only
+    # ping returned 200 on a read-only DB pre-fix; now dbWrite catches
+    # that case (BEGIN IMMEDIATE fails on a read-only mount).
+    assert body["dbRead"] is True
+    assert body["dbWrite"] is True
     # Defensive: confirm we didn't accidentally leak any secret-
     # shaped key. Whitelist the response shape — anything else is
     # a regression that needs a human review.
-    extra_keys = set(body.keys()) - {"status", "release", "alembicHead"}
+    extra_keys = set(body.keys()) - {
+        "status", "release", "alembicHead", "dbRead", "dbWrite",
+    }
     assert not extra_keys, (
         f"healthz response shape drifted; extra keys {extra_keys}. "
         "If you're adding fields, double-check none of them carry "
         "sensitive info (this endpoint is public)."
     )
+
+
+def test_csp_report_accepts_post_and_is_csrf_exempt(client):
+    """R12-B1: the CSP violation sink must accept an uncredentialed,
+    cross-origin POST (browsers send reports without a same-origin
+    Origin/Referer) and return 204. Confirms the route is on the
+    CSRF-exempt list — otherwise the same-origin gate would 403 every
+    report and the directive would be useless."""
+    res = client.post(
+        "/api/csp-report",
+        data='{"csp-report":{"violated-directive":"script-src",'
+             '"blocked-uri":"https://evil.example/x.js"}}',
+        content_type="application/csp-report",
+        # Deliberately NO Origin/Referer — mimics the browser's report
+        # POST. If the CSRF gate weren't exempting this path, we'd 403.
+    )
+    assert res.status_code == 204
+    assert res.get_data(as_text=True) == ""
+
+
+def test_csp_report_truncates_oversized_body(client):
+    """R12-B1: an oversized report body must not crash the sink or get
+    logged in full (log-spam DoS guard). Still returns 204 — the
+    endpoint never 500s regardless of input."""
+    huge = '{"csp-report":{"blocked-uri":"' + ("A" * 10000) + '"}}'
+    res = client.post(
+        "/api/csp-report", data=huge, content_type="application/csp-report",
+    )
+    assert res.status_code == 204
 
 
 def test_main_csp_nonce_matches_inline_script_tags(client):

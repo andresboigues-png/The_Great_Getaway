@@ -124,8 +124,43 @@ if os.getenv("GG_E2E") == "1":
 # import it without a circular dependency on this module. We bind it to
 # the app via init_app (deferred-init pattern); the storage URI is read
 # from app.config (Flask-Limiter standard).
-app.config["RATELIMIT_STORAGE_URI"] = os.getenv("RATELIMIT_STORAGE_URI", "memory://")
+_ratelimit_storage_uri = os.getenv("RATELIMIT_STORAGE_URI", "memory://")
+app.config["RATELIMIT_STORAGE_URI"] = _ratelimit_storage_uri
 limiter.init_app(app)
+
+
+def _is_dev_env() -> bool:
+    """Mirror auth.py's dev-detection so the prod-only boot guards
+    below stay consistent with the JWT-secret guard. Dev/test if ANY
+    of: FLASK_ENV=development, FLASK_DEBUG=1, GG_ALLOW_TEST_LOGIN=1,
+    or running under pytest."""
+    return (
+        os.getenv("FLASK_ENV") == "development"
+        or os.getenv("FLASK_DEBUG") == "1"
+        or os.getenv("GG_ALLOW_TEST_LOGIN") == "1"
+        or os.getenv("PYTEST_CURRENT_TEST") is not None
+    )
+
+
+# R12-B1: warn loudly when running in production on the default
+# in-memory rate-limit backend. `memory://` forgets all counters on
+# every gunicorn worker restart (PA reloads on each deploy AND idles
+# after ~5 min of no traffic) AND doesn't share state across workers
+# — so R11-B5's per-user abuse caps + every per-IP limit silently
+# reset, handing a burst attacker a fresh empty bucket on each
+# restart. PA's free tier has no Redis; a file/sqlite backend
+# (RATELIMIT_STORAGE_URI=sqlite:////home/TGG/gg/ratelimits.db or
+# memory:// → file:///…) persists across reloads. Boot-time WARN
+# gives the operator one clear grep target.
+if _ratelimit_storage_uri.startswith("memory://") and not _is_dev_env():
+    logger.warning(
+        "RATELIMIT_STORAGE_URI is 'memory://' in a non-dev environment. "
+        "Rate-limit + per-user abuse-cap counters will RESET on every "
+        "worker restart and won't apply across workers. Set "
+        "RATELIMIT_STORAGE_URI to a persistent backend (e.g. "
+        "sqlite:////home/TGG/gg/ratelimits.db) so the caps survive "
+        "deploys + idle-spindown."
+    )
 
 # ── Blueprint registration ──────────────────────────────────────────────────
 # Phase B4 splits each domain (media / auth / trips / feed / ...) into its
@@ -152,6 +187,31 @@ app.register_blueprint(trips_bp)
 
 # Ensure DB is initialized
 init_db()
+
+# R12-B1: fail-fast on missing auth-critical env in production. Pre-fix
+# a deploy that lost CLIENT_ID_GOOGLE_AUTH from .env still booted — the
+# SPA rendered, but Google Sign-In silently failed to initialize (the
+# client_id went into the template as an empty string) and EVERY login
+# attempt dead-ended at a blank popup with no server error, no /healthz
+# fail, just a user-visible WTF. Mirrors auth.py's GG_JWT_SECRET guard:
+# refuse to start so the operator sees the problem at deploy time, not
+# via a confused user report hours later. GOOGLE_MAPS_API_KEY is a WARN
+# (maps degrade to the no-key watermark but the app still works), not
+# fatal. Dev/test skip the gate via _is_dev_env().
+if not _is_dev_env():
+    if not os.getenv("CLIENT_ID_GOOGLE_AUTH"):
+        raise RuntimeError(
+            "CLIENT_ID_GOOGLE_AUTH is not set. Refusing to start in "
+            "production without the Google OAuth client id — Google "
+            "Sign-In would render a blank popup and every login would "
+            "silently fail. Set it in ~/gg/.env and reload the worker."
+        )
+    if not os.getenv("GOOGLE_MAPS_API_KEY"):
+        logger.warning(
+            "GOOGLE_MAPS_API_KEY is not set in a non-dev environment. "
+            "Maps will render with the 'for development only' watermark "
+            "and Places/Routes calls will fail. Set it in ~/gg/.env."
+        )
 
 # §3.8 — wire per-request id + user context. Every request gets a
 # fresh `g.request_id` and (when Sentry is attached) sets the user
@@ -270,6 +330,12 @@ def _attach_csp_nonce():
 
 _CSRF_EXEMPT_PATHS = frozenset({
     "/api/auth/google",
+    # R12-B1: the browser POSTs CSP violation reports here WITHOUT a
+    # matching Origin/Referer (reports are sent uncredentialed, often
+    # with a `null` Origin), so the same-origin CSRF gate would 403
+    # every report. Safe to exempt: the endpoint only logs a bounded
+    # body, mutates nothing, and is rate-limited (30/min).
+    "/api/csp-report",
 })
 
 
@@ -410,6 +476,14 @@ def add_security_headers(response):
             "object-src 'none'",
             "base-uri 'self'",
             "form-action 'self'",
+            # R12-B1: report violations to our own endpoint so a blocked
+            # script / an XSS attempt / a CDN url that silently shifted
+            # produces a server-side log line instead of failing into the
+            # void. `report-uri` is the widely-supported (if deprecated)
+            # directive; `report-to` needs a companion Report-To header +
+            # endpoint group that not all targets honour yet, so we ship
+            # the simpler one. The route is same-origin + rate-limited.
+            "report-uri /api/csp-report",
         ]),
     )
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
@@ -784,6 +858,7 @@ def healthz():
     # DB ping — cheapest query that exercises the connection +
     # confirms the FD is real (not a stale PA worker socket).
     db_ok = False
+    write_ok = False
     alembic_head = None
     try:
         with get_db() as conn:
@@ -806,12 +881,80 @@ def healthz():
         # connection string fragment. Log it for operator triage.
         from observability import get_logger
         get_logger("gg.health").warning("healthz db ping failed: %s", e)
+
+    # R12-B1: write-capability probe. A SELECT-only ping returns 200
+    # even when the DB is READ-ONLY (disk full, read-only mount — PA's
+    # classic failure mode), so every POST 500s while uptime monitoring
+    # thinks we're healthy. `BEGIN IMMEDIATE` forces SQLite to acquire
+    # the RESERVED write lock immediately; on a read-only DB it raises
+    # ("attempt to write a readonly database" / "disk I/O error").
+    # ROLLBACK releases without persisting anything — no data mutated,
+    # no schema needed, no journal churn. We use a dedicated autocommit
+    # connection (isolation_level=None) so Python's sqlite3 doesn't
+    # auto-wrap our explicit BEGIN in its own transaction.
+    if db_ok:
+        import sqlite3 as _sqlite3
+        from database import _db_path, BUSY_TIMEOUT_MS
+        _probe = None
+        try:
+            _probe = _sqlite3.connect(_db_path(), isolation_level=None)
+            _probe.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
+            _probe.execute("BEGIN IMMEDIATE")
+            _probe.execute("ROLLBACK")
+            write_ok = True
+        except Exception as e:
+            from observability import get_logger
+            get_logger("gg.health").warning(
+                "healthz write probe failed (DB may be read-only): %s", e
+            )
+        finally:
+            if _probe is not None:
+                try:
+                    _probe.close()
+                except Exception:
+                    pass
+
+    healthy = db_ok and write_ok
     payload = {
-        "status": "ok" if db_ok else "degraded",
+        "status": "ok" if healthy else "degraded",
         "release": release,
         "alembicHead": alembic_head,
+        # Expose both legs so a monitor can tell "DB unreachable" from
+        # "DB reachable but read-only".
+        "dbRead": db_ok,
+        "dbWrite": write_ok,
     }
-    return jsonify(payload), (200 if db_ok else 503)
+    return jsonify(payload), (200 if healthy else 503)
+
+
+@app.route("/api/csp-report", methods=["POST"])
+@limiter.limit("30/minute")
+def csp_report():
+    """R12-B1: CSP violation sink. Browsers POST a JSON body
+    (`application/csp-report` or `application/reports+json`) here when
+    a directive blocks something. We log it as a structured WARNING so
+    a blocked script / XSS attempt / shifted-CDN url surfaces in the
+    operator log + Sentry instead of failing silently.
+
+    Defensive:
+    - Bounded body read (CSP reports are tiny; reject anything large to
+      avoid a log-spam DoS via a crafted oversized report).
+    - 30/min limit caps a misbehaving / malicious client hammering it.
+    - Always 204 (no content) regardless — the browser doesn't care
+      about the response, and we never want this endpoint to 500 and
+      pollute the 5xx rate.
+    """
+    try:
+        raw = request.get_data(cache=False, as_text=True) or ""
+        if len(raw) > 4096:
+            raw = raw[:4096] + "…(truncated)"
+        from observability import get_logger
+        get_logger("gg.csp").warning("CSP violation report: %s", raw)
+    except Exception:
+        # Never let the report sink itself error — it'd inflate the
+        # 5xx rate the CSP report was supposed to help us watch.
+        pass
+    return ("", 204)
 
 
 @app.route("/")

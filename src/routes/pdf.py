@@ -1183,7 +1183,11 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
             )
             inner.append(rl.Spacer(1, 0.25 * rl.cm))
         except Exception:
-            pass
+            # R12-B1: reportlab silently refuses bad image bytes; log
+            # so a corrupt day-map render (Static-Maps glitch / Pillow
+            # decode failure) surfaces in Sentry instead of producing a
+            # PDF with a missing map and zero trace.
+            logger.warning("PDF day-map image render failed", exc_info=True)
 
     any_slot = False
     for slot_name, slot_label in (
@@ -1643,7 +1647,8 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             except Exception:
                 # Reportlab refuses bad image bytes silently —
                 # don't let a corrupt image bomb the whole PDF.
-                pass
+                # R12-B1: log so the failure isn't invisible.
+                logger.warning("PDF overview-map image render failed", exc_info=True)
 
     if opt("includeStats"):
         # Build the summary tiles dynamically — only show what we
@@ -1777,7 +1782,8 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                         ))
                         story.append(rl.Spacer(1, 0.7 * rl.cm))
                     except Exception:
-                        pass
+                        # R12-B1: surface silent reportlab image refusal.
+                        logger.warning("PDF route-overview image render failed", exc_info=True)
 
         for day in days_renderable:
             if not isinstance(day, dict):
@@ -2050,7 +2056,8 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                     ))
                     story.append(rl.Spacer(1, 0.6 * rl.cm))
                 except Exception:
-                    pass
+                    # R12-B1: surface silent reportlab image refusal.
+                    logger.warning("PDF places-map image render failed", exc_info=True)
 
         # List with letter-labeled cards matching the map pins.
         for i, p in enumerate(marked_places):
