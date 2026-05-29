@@ -523,6 +523,69 @@ def unarchive_trip(trip_id):
     return jsonify({"status": "unarchived"})
 
 
+@bp.route("/api/trips/<trip_id>/media", methods=["GET"])
+@limiter.limit("60 per minute")
+@require_auth
+def get_trip_media(trip_id):
+    """R11-B2-followup Phase 1A: per-trip heavy-JSON fetch.
+
+    Returns the four large per-trip JSON columns — `photos`,
+    `documents`, `markedPlaces`, `checklist` — for a single trip
+    the caller has access to. Designed to be called once on trip
+    open so /api/data can eventually stop shipping these columns
+    on every 15-second poll (Phase 1B will do the strip + the
+    frontend merge wiring; this phase ships the endpoint + tests
+    backward-compatibly so /api/data still includes the fields
+    while consumers migrate).
+
+    Auth gate: any accepted member of the trip (planner / budgeteer
+    / relaxer). Same posture as the public-trip JSON path — these
+    payloads are visible to every member, not just the owner.
+
+    Defensive JSON parsing: `_safe_json` returns the default ([])
+    when the column is NULL or contains malformed JSON, so a
+    corrupt row doesn't 500 the whole open-trip flow.
+
+    60/min rate limit: matches /api/data. Trip-open is interactive,
+    not polled, but a multi-tab user clicking through trips needs
+    some headroom.
+    """
+    bind_trip_context(trip_id)
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if trip_member_role(cursor, trip_id, user_id) is None:
+            return jsonify({"error": "Forbidden"}), 403
+        cursor.execute(
+            "SELECT photos_json, documents_json, "
+            "       marked_places_json, checklist_json, updated_at "
+            "FROM trips WHERE id = ?",
+            (trip_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Not found"}), 404
+        # Mirror `_safe_json` from serialize_trip_row (inlined here
+        # because that helper is nested-scope-private to keep its
+        # call-site cohesive). Each parse falls back to [] on a NULL
+        # or malformed cell so a single corrupt row doesn't 500.
+        def _safe_arr(raw):
+            if not raw:
+                return []
+            try:
+                return json.loads(raw)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                return []
+        return jsonify({
+            "tripId": trip_id,
+            "updatedAt": row["updated_at"],
+            "photos": _safe_arr(row["photos_json"]),
+            "documents": _safe_arr(row["documents_json"]),
+            "markedPlaces": _safe_arr(row["marked_places_json"]),
+            "checklist": _safe_arr(row["checklist_json"]),
+        })
+
+
 @bp.route("/api/trips/invite", methods=["POST"])
 @limiter.limit("30 per minute")
 @require_auth

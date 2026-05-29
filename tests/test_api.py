@@ -2006,6 +2006,8 @@ GATED_ROUTES = [
     # R11-B6: comment PATCH was missing from the gate sweep — the only
     # mutating /api/feed/comment surface covered was DELETE pre-fix.
     ("PATCH", "/api/feed/comment/1"),
+    # R11-B2-followup Phase 1A: per-trip heavy-JSON fetch.
+    ("GET", "/api/trips/trip-x/media"),
 ]
 
 
@@ -3012,6 +3014,109 @@ def test_trip_silence_rejects_non_owner(
         json={"hidden": True},
     )
     assert res.status_code in (403, 404)
+
+
+# ── /api/trips/<id>/media (R11-B2-followup Phase 1A) ─────────────────────────
+
+
+def test_trip_media_returns_empty_arrays_on_fresh_trip(
+    client, seed_user, auth_headers,
+):
+    """Fresh trip — no photos/docs/marked/checklist yet → endpoint
+    returns the 4 expected keys all as empty arrays. The shape is the
+    contract Phase 1B will rely on; pinning it now prevents drift."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-media-empty")
+    res = client.get(f"/api/trips/{trip_id}/media", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["tripId"] == trip_id
+    assert body["photos"] == []
+    assert body["documents"] == []
+    assert body["markedPlaces"] == []
+    assert body["checklist"] == []
+    # updatedAt comes from the trips row — should be a non-empty
+    # ISO-ish string (the schema stores datetime strings).
+    assert isinstance(body["updatedAt"], str) and body["updatedAt"]
+
+
+def test_trip_media_returns_persisted_arrays(
+    client, seed_user, auth_headers, temp_db,
+):
+    """Seed the 4 JSON columns directly on the trips row, then verify
+    the endpoint deserializes + ships them through. Catches any future
+    refactor that drops a column from the SELECT or mis-spells a key."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-media-full")
+    # Inline-seed the heavy columns. Going through the upsertTrip
+    # route would also work but adds noise — direct UPDATE is the
+    # minimum repro of "column has data, fetch should return it".
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trips SET photos_json = ?, documents_json = ?, "
+            "marked_places_json = ?, checklist_json = ? WHERE id = ?",
+            (
+                '[{"id":"p1","url":"https://example.com/a.jpg"}]',
+                '[{"id":"d1","name":"Passport","url":"https://example.com/p.pdf"}]',
+                '[{"id":"m1","name":"Eiffel Tower","lat":48.85,"lng":2.29}]',
+                '[{"id":"c1","body":"Charge power bank","done":false}]',
+                trip_id,
+            ),
+        )
+        conn.commit()
+    res = client.get(f"/api/trips/{trip_id}/media", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert len(body["photos"]) == 1 and body["photos"][0]["id"] == "p1"
+    assert len(body["documents"]) == 1 and body["documents"][0]["name"] == "Passport"
+    assert len(body["markedPlaces"]) == 1 and body["markedPlaces"][0]["lat"] == 48.85
+    assert len(body["checklist"]) == 1 and body["checklist"][0]["body"] == "Charge power bank"
+
+
+def test_trip_media_404_on_unknown_trip(client, seed_user, auth_headers):
+    """Unknown trip id → 403 (no member row) before we even reach the
+    SELECT — keeps the same posture as other per-trip endpoints (don't
+    leak existence to non-members via 404 vs 403 distinction)."""
+    res = client.get("/api/trips/does-not-exist/media", headers=auth_headers)
+    assert res.status_code == 403
+
+
+def test_trip_media_rejects_non_member(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Stranger to the trip → 403. The auth gate is `trip_member_role
+    is not None` — anyone without an accepted member row is rejected
+    regardless of trip privacy state (same posture as the other
+    per-trip routes in trips.py)."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-media-403")
+    res = client.get(f"/api/trips/{trip_id}/media", headers=other_auth_headers)
+    assert res.status_code == 403
+
+
+def test_trip_media_null_cells_return_empty_arrays(
+    client, seed_user, auth_headers, temp_db,
+):
+    """The schema enforces `json_valid()` CHECK constraints so a
+    truly-corrupt cell can't reach disk via a normal path — but NULL
+    is permitted and is the common state for a fresh trip. The
+    endpoint's `_safe_arr` falls back to [] on NULL; if a future
+    schema change drops the constraint, the same fallback also covers
+    a corrupt cell. Pinning the NULL→[] case keeps the contract."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-media-null")
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trips SET photos_json = NULL, documents_json = NULL, "
+            "marked_places_json = NULL, checklist_json = NULL WHERE id = ?",
+            (trip_id,),
+        )
+        conn.commit()
+    res = client.get(f"/api/trips/{trip_id}/media", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["photos"] == []
+    assert body["documents"] == []
+    assert body["markedPlaces"] == []
+    assert body["checklist"] == []
 
 
 # ── /api/trips/invite | respond | members/remove ─────────────────────────────
