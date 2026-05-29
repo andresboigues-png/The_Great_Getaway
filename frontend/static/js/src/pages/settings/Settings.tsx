@@ -264,7 +264,7 @@ function MenuView() {
                 className="card-button-reset card glass management-card"
                 onClick={() => setSettingsTab('general')}
             >
-                <h2 className="card-title text-accent-blue-deep m-0">
+                <h2 className="card-title m-0">
                     {t('settings.cardGeneralTitle')}
                 </h2>
                 <p className="st-help-text">
@@ -280,13 +280,13 @@ function MenuView() {
                 className="card-button-reset card glass management-card"
                 onClick={() => setSettingsTab('format')}
             >
-                <h2 className="card-title text-[#a85d00] m-0">
+                <h2 className="card-title m-0">
                     {t('settings.cardFormatTitle')}
                 </h2>
                 <p className="st-help-text">
                     {t('settings.cardFormatBody')}
                 </p>
-                <div className="mt-5 text-[#a85d00] font-bold text-[0.85rem]">
+                <div className="mt-5 text-accent-blue-deep font-bold text-[0.85rem]">
                     {t('settings.cardConfigureCta')}
                 </div>
             </button>
@@ -301,13 +301,13 @@ function MenuView() {
                 className="card-button-reset card glass management-card"
                 onClick={() => setSettingsTab('personalization')}
             >
-                <h2 className="card-title text-[#34c759] m-0">
+                <h2 className="card-title m-0">
                     {t('settings.cardPersonalizationTitle')}
                 </h2>
                 <p className="st-help-text">
                     {t('settings.cardPersonalizationBody')}
                 </p>
-                <div className="mt-5 text-[#34c759] font-bold text-[0.85rem]">
+                <div className="mt-5 text-accent-blue-deep font-bold text-[0.85rem]">
                     {t('settings.cardConfigureCta')}
                 </div>
             </button>
@@ -322,7 +322,7 @@ function MenuView() {
                 className="card-button-reset card glass management-card"
                 onClick={() => setSettingsTab('sessions')}
             >
-                <h2 className="card-title text-accent-blue-deep m-0">
+                <h2 className="card-title m-0">
                     Active sessions
                 </h2>
                 <p className="st-help-text">
@@ -343,7 +343,7 @@ function MenuView() {
                 className="card-button-reset card glass management-card"
                 onClick={() => setSettingsTab('blocks')}
             >
-                <h2 className="card-title text-accent-blue-deep m-0">
+                <h2 className="card-title m-0">
                     Blocked users
                 </h2>
                 <p className="st-help-text">
@@ -368,13 +368,13 @@ function MenuView() {
                     className="card-button-reset card glass management-card"
                     onClick={() => setSettingsTab('developer')}
                 >
-                    <h2 className="card-title text-accent-purple-deep m-0">
+                    <h2 className="card-title m-0">
                         {t('settings.cardDeveloperTitle')}
                     </h2>
                     <p className="st-help-text">
                         {t('settings.cardDeveloperBody')}
                     </p>
-                    <div className="mt-5 text-accent-purple-deep font-bold text-[0.85rem]">
+                    <div className="mt-5 text-accent-blue-deep font-bold text-[0.85rem]">
                         {t('settings.cardConfigureCta')}
                     </div>
                 </button>
