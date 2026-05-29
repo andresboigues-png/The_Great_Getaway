@@ -25,6 +25,17 @@
 import { esc, formatDayDate, shortPlaceName } from '../../utils.js';
 import { resolveSelectedDayId } from './pathSelection.js';
 import { t, tn } from '../../i18n.js';
+// 4.8 design (DSGN-2): inline-SVG line icons replace the emoji prefixes
+// on the Trip Hub buttons. stripLeadingEmoji drops the emoji from the
+// (locale) label at render so we don't have to edit every locale file.
+import { iconSvg, stripLeadingEmoji } from '../../icons.js';
+
+// Icon + de-emoji'd label wrapped in an inline-flex span so the glyph
+// and text stay centred with a consistent gap regardless of the button's
+// own layout.
+const _btnContent = (iconName: string, label: string): string =>
+    `<span style="display:inline-flex;align-items:center;gap:6px;justify-content:center">` +
+    `${iconSvg(iconName)}${esc(stripLeadingEmoji(label))}</span>`;
 
 /** Per-day collapse state for the path-card option stacks. Persists
  *  across re-renders in localStorage so a user who's hidden a day's
@@ -225,31 +236,32 @@ function buildOptionsStack(
     // checklist takes the gold-gradient primary slot. Numbered days:
     // Open Full Plan stays the primary action.
     if (isAnchor) {
-        buttons.push(`<button class="path-primary-btn path-primary-btn--anchor path-checklist-btn" data-day-id="${esc(day.id)}">${esc(t('pathTab.btnChecklist'))}</button>`);
+        buttons.push(`<button class="path-primary-btn path-primary-btn--anchor path-checklist-btn" data-day-id="${esc(day.id)}">${_btnContent('checklist', t('pathTab.btnChecklist'))}</button>`);
     } else {
-        buttons.push(`<button class="path-primary-btn day-detail-btn" data-day-id="${esc(day.id)}">${esc(t('pathTab.btnOpenFullPlan'))}</button>`);
+        buttons.push(`<button class="path-primary-btn day-detail-btn" data-day-id="${esc(day.id)}">${_btnContent('plan', t('pathTab.btnOpenFullPlan'))}</button>`);
     }
     if (editingDayId === day.id) {
         // Mid pin-edit: present save + cancel as the next two buttons.
+        // (No emoji prefix on these transient labels, so no icon swap.)
         buttons.push(`<button class="day-action-btn day-action-btn--success day-pin-save-btn" data-day-id="${esc(day.id)}">${esc(t('pathTab.btnSavePin'))}</button>`);
         buttons.push(`<button class="day-action-btn day-action-btn--danger-fill day-pin-delete-btn" data-day-id="${esc(day.id)}">${esc(t('pathTab.btnCancelPinEdit'))}</button>`);
     } else {
         const pinLabel = day.lat
             ? (isAnchor ? t('pathTab.btnEditAnchorPin') : t('pathTab.btnEditPin'))
             : (isAnchor ? t('pathTab.btnSetAnchorPin') : t('pathTab.btnAddPin'));
-        buttons.push(`<button class="day-action-btn day-action-btn--neutral day-pin-toggle-btn" data-day-id="${esc(day.id)}"><span>${esc(pinLabel)}</span></button>`);
+        buttons.push(`<button class="day-action-btn day-action-btn--neutral day-pin-toggle-btn" data-day-id="${esc(day.id)}">${_btnContent('pin', pinLabel)}</button>`);
     }
     if (isAnchor) {
         // Documents + Photos used to be top-level trip tabs; moved here
         // so the trip tab nav stays focused on Path / Companions and
         // the trip-wide media live where they conceptually belong —
         // under the Anchor hub.
-        buttons.push(`<button class="day-action-btn day-action-btn--neutral path-documents-btn" data-day-id="${esc(day.id)}"><span>${esc(t('pathTab.btnDocuments'))}</span></button>`);
-        buttons.push(`<button class="day-action-btn day-action-btn--neutral path-photos-btn" data-day-id="${esc(day.id)}"><span>${esc(t('pathTab.btnPhotos'))}</span></button>`);
+        buttons.push(`<button class="day-action-btn day-action-btn--neutral path-documents-btn" data-day-id="${esc(day.id)}">${_btnContent('document', t('pathTab.btnDocuments'))}</button>`);
+        buttons.push(`<button class="day-action-btn day-action-btn--neutral path-photos-btn" data-day-id="${esc(day.id)}">${_btnContent('photo', t('pathTab.btnPhotos'))}</button>`);
     } else {
         // Numbered-day-only options. Journaling + Delete.
-        buttons.push(`<button class="day-action-btn day-action-btn--neutral day-journaling-btn" data-day-id="${esc(day.id)}"><span>${esc(t('pathTab.btnJournaling'))}</span></button>`);
-        buttons.push(`<button class="day-action-btn day-action-btn--danger day-delete-btn" data-day-id="${esc(day.id)}"><span>${esc(t('pathTab.btnDeleteDay'))}</span></button>`);
+        buttons.push(`<button class="day-action-btn day-action-btn--neutral day-journaling-btn" data-day-id="${esc(day.id)}">${_btnContent('journal', t('pathTab.btnJournaling'))}</button>`);
+        buttons.push(`<button class="day-action-btn day-action-btn--danger day-delete-btn" data-day-id="${esc(day.id)}">${_btnContent('trash', t('pathTab.btnDeleteDay'))}</button>`);
     }
     return `<div class="path-options-stack">${buttons.join('')}</div>`;
 }
