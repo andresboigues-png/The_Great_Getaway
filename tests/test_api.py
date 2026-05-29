@@ -5976,13 +5976,140 @@ def test_feed_surfaces_friend_archived_and_shared_trip_events(
     events = res.get_json()
     types = {e.get("type") for e in events}
     assert "friend_shared_trip" in types
-    # friend_archived_trip surfaces from a different SQL path that
-    # filters on the trips-table is_archived flag (legacy archive
-    # signal); /api/trips/<id>/archive flips the per-user flag in
-    # trip_members but doesn't touch trips.is_archived. Both behaviours
-    # are valid; pin only that the share event surfaces, since the
-    # archive code path is exercised by the same trips-table-archived
-    # flag the legacy bulk sync hits.
+    # R12-B2: assert the archive event NOW surfaces. The pre-R11-B7
+    # comment here claimed it couldn't — it argued the builder filtered
+    # on trips.is_archived (legacy mirror) while /api/trips/<id>/archive
+    # only flips trip_members.is_archived. That's stale: the R11-B7
+    # UNION ALL builder (_build_friend_created_trip in feed_events.py)
+    # reads `tm.is_archived` directly via JOIN trip_members ON
+    # tm.user_id = t.user_id, which is EXACTLY the per-user flag the
+    # archive route sets (+ completed_at = CURRENT_TIMESTAMP, inside
+    # the feed's 30-day window). So completing a trip through the API
+    # now produces a friend_archived_trip event end-to-end.
+    assert "friend_archived_trip" in types
+    archived = [
+        e for e in events
+        if e.get("type") == "friend_archived_trip"
+        and e.get("trip", {}).get("id") == "trip-to-archive"
+    ]
+    assert len(archived) == 1
+    assert archived[0]["actor"]["id"] == seed_other_user
+
+
+def test_feed_surfaces_friend_joined_trip_event(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R12-B2: the third UNION ALL branch — friend_joined_trip — had
+    ZERO integration coverage before this. seed_user owns a trip and
+    invites seed_other_user, who accepts (becomes a non-owner accepted
+    member). seed_user follows seed_other_user (mutual), so the joiner
+    is in seed_user's actor pool → "seed_other_user joined {trip}"
+    surfaces in seed_user's feed. Pins the
+    `tm.user_id != t.user_id AND invitation_status='accepted'` branch
+    of _build_friend_created_trip end-to-end."""
+    _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-joined-feed", name="Porto")
+    client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id,
+        "target_user_id": seed_other_user,
+        "role": "relaxer",
+    })
+    accept = client.post("/api/trips/invite/respond", headers=other_auth_headers, json={
+        "trip_id": trip_id,
+        "accept": True,
+    })
+    assert accept.status_code == 200
+
+    res = client.get("/api/feed", headers=auth_headers)
+    assert res.status_code == 200
+    events = res.get_json()
+    joined = [
+        e for e in events
+        if e.get("type") == "friend_joined_trip"
+        and e.get("trip", {}).get("id") == trip_id
+    ]
+    assert len(joined) == 1, "the joiner's accept should surface as friend_joined_trip"
+    # Actor is the JOINER (seed_other_user), not the trip owner.
+    assert joined[0]["actor"]["id"] == seed_other_user
+    assert joined[0]["trip"]["name"] == "Porto"
+
+
+def test_feed_union_builder_emits_all_three_types_in_one_call(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R12-B2: pin the R11-B7 UNION ALL contract — a single /api/feed
+    call surfaces created + archived + joined events together, proving
+    the merged builder didn't drop a branch. seed_other_user (followed
+    by seed_user) creates trip A (→created), creates + archives trip B
+    (→archived); seed_user invites seed_other to trip C which they
+    accept (→joined). All three must appear in seed_user's one feed
+    response."""
+    _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
+    # created: seed_other owns a fresh trip
+    _create_trip(client, other_auth_headers, trip_id="union-created", name="A")
+    # archived: seed_other owns + completes a trip
+    _create_trip(client, other_auth_headers, trip_id="union-archived", name="B")
+    client.post("/api/trips/union-archived/archive", headers=other_auth_headers)
+    # joined: seed_user owns trip C, seed_other accepts an invite
+    _create_trip(client, auth_headers, trip_id="union-joined", name="C")
+    client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": "union-joined", "target_user_id": seed_other_user, "role": "relaxer",
+    })
+    client.post("/api/trips/invite/respond", headers=other_auth_headers, json={
+        "trip_id": "union-joined", "accept": True,
+    })
+
+    events = client.get("/api/feed", headers=auth_headers).get_json()
+    by_type_trip = {(e.get("type"), e.get("trip", {}).get("id")) for e in events}
+    assert ("friend_created_trip", "union-created") in by_type_trip
+    assert ("friend_archived_trip", "union-archived") in by_type_trip
+    assert ("friend_joined_trip", "union-joined") in by_type_trip
+
+
+def test_trip_media_works_for_archived_trip(
+    client, seed_user, auth_headers,
+):
+    """R12-B2: /api/trips/<id>/media must still serve an ARCHIVED trip
+    — the auth gate is trip_member_role (which doesn't care about
+    archive state), but no test covered the archived path. Archive the
+    trip, then confirm the media endpoint still returns its persisted
+    arrays."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-media-archived")
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trips SET photos_json = ? WHERE id = ?",
+            ('[{"id":"p1","url":"https://example.com/a.jpg"}]', trip_id),
+        )
+        conn.commit()
+    client.post(f"/api/trips/{trip_id}/archive", headers=auth_headers)
+    res = client.get(f"/api/trips/{trip_id}/media", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.get_json()["photos"][0]["id"] == "p1"
+
+
+def test_trip_media_works_for_budgeteer_role(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R12-B2: the /media auth gate accepts ANY accepted member role,
+    not just planner. Pin the BUDGETEER role explicitly — seed_user
+    invites seed_other as a budgeteer, who accepts, then reads /media.
+    Previously only non-member (403) + owner (transitively planner)
+    were covered."""
+    _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-media-budgeteer")
+    client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id, "target_user_id": seed_other_user, "role": "budgeteer",
+    })
+    client.post("/api/trips/invite/respond", headers=other_auth_headers, json={
+        "trip_id": trip_id, "accept": True,
+    })
+    # Budgeteer reads media — must succeed (200), not 403.
+    res = client.get(f"/api/trips/{trip_id}/media", headers=other_auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["tripId"] == trip_id
+    assert body["photos"] == []
 
 
 def test_feed_surfaces_friend_reposted_trip_event(
@@ -6206,6 +6333,33 @@ def test_settle_up_rejects_self_pay_and_bad_amounts(client, seed_user, auth_head
         "amount": "Infinity",
     })
     assert inf_str.status_code == 400, "Infinity amount must be rejected"
+
+
+def test_settlement_failure_error_shape_is_top_level_error_key(
+    client, seed_user, auth_headers,
+):
+    """R12-B2: pin the FAILURE error shape the frontend toast depends
+    on. `legacyRender.ts` settle-now path renders
+    `t('settlement.toastSettlementFailed', { error: result.error })`.
+    If a future refactor changes the server's failure body to
+    `{message: ...}` (or nests under `{detail: ...}`), the toast would
+    interpolate `undefined` and show "Settlement failed: undefined" to
+    the user with no test catching it. Assert the rejected response
+    carries a top-level string `error` key — the contract the toast
+    reads from."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-settle-errshape")
+    res = client.post("/api/settlements", headers=auth_headers, json={
+        "tripId": trip_id,
+        "fromUserId": seed_user,
+        "toUserId": seed_user,  # self-pay → rejected
+        "amount": 10.0,
+    })
+    assert res.status_code == 400
+    body = res.get_json()
+    assert isinstance(body, dict)
+    assert "error" in body, "failure body must carry a top-level `error` key"
+    assert isinstance(body["error"], str) and body["error"], \
+        "`error` must be a non-empty string the toast can interpolate"
 
 
 def test_settle_up_notification_to_recipient(
