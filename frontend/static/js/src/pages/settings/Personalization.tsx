@@ -109,7 +109,7 @@ export function Personalization() {
                         <div
                             className="flex items-center justify-between gap-3 mb-4 flex-wrap"
                         >
-                            <h2 className="card-title text-[#005bb8] m-0">
+                            <h2 className="card-title m-0">
                                 {t('settings.categoriesTitle')}
                             </h2>
                             <span className="cat-count-chip">{categories.length}</span>

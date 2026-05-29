@@ -90,7 +90,7 @@ export function Developer() {
                 className="flex items-center justify-between mb-4 gap-3 flex-wrap"
             >
                 <h2
-                    className="card-title text-accent-purple-deep m-0"
+                    className="card-title m-0"
                 >
                     {t('settings.devTitle')}
                 </h2>

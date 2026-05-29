@@ -837,10 +837,13 @@
     margin-bottom: 16px;
 }
 
-/* Top-of-card heading in indigo brand color (used by integrations /
- * gemini-key cards). Used 3×. */
+/* Top-of-card heading, used by integrations / gemini-key cards (3×).
+ * 4.8 design unification (DSGN-1): was indigo (#5856d6); flattened to the
+ * neutral primary ink (Apple-like). Class name kept to avoid a churny
+ * rename across call sites. The sibling .st-card-title-amber below stays
+ * amber on purpose — that one marks WARNINGS (status colour). */
 .st-card-title-indigo {
-    color: #5856d6;
+    color: var(--text-primary);
     margin-top: 0;
 }
 

@@ -539,7 +539,7 @@ function GeneralPillsSection() {
         // !important elsewhere). See "Settings → General → POI
         // filters: responsive layout" in index.css.
         <div className="card glass settings-section">
-            <h2 className="text-accent-blue-deep mt-0">{t('settings.poiTitle')}</h2>
+            <h2 className="mt-0">{t('settings.poiTitle')}</h2>
             <p className="st-paragraph-mb-16">
                 {t('settings.poiIntroVisibility')}
             </p>

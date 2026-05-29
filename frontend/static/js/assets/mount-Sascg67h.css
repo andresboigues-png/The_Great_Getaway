@@ -700,7 +700,7 @@
     margin-bottom: 16px;
 }
 .st-card-title-indigo {
-    color: #5856d6;
+    color: var(--text-primary);
     margin-top: 0;
 }
 .st-card-title-amber {
