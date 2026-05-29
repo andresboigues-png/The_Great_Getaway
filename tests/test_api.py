@@ -2008,6 +2008,8 @@ GATED_ROUTES = [
     ("PATCH", "/api/feed/comment/1"),
     # R11-B2-followup Phase 1A: per-trip heavy-JSON fetch.
     ("GET", "/api/trips/trip-x/media"),
+    # R12-B4: per-trip heavy-JSON write path.
+    ("POST", "/api/trips/trip-x/media"),
 ]
 
 
@@ -3117,6 +3119,109 @@ def test_trip_media_null_cells_return_empty_arrays(
     assert body["documents"] == []
     assert body["markedPlaces"] == []
     assert body["checklist"] == []
+
+
+# ── POST /api/trips/<id>/media (R12-B4 write path) ───────────────────────────
+
+
+def test_trip_media_post_writes_each_field(client, seed_user, auth_headers):
+    """R12-B4: POST /media writes the four heavy fields; GET reads them
+    back. The round-trip is the core of the dedicated write path that
+    replaces routing media through upsert_trip."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-media-write")
+    res = client.post(f"/api/trips/{trip_id}/media", headers=auth_headers, json={
+        "photos": [{"id": "p1", "url": "https://example.com/a.jpg"}],
+        "documents": [{"id": "d1", "name": "Passport"}],
+        "markedPlaces": [{"id": "m1", "name": "Eiffel"}],
+        "checklist": [{"id": "c1", "body": "Pack", "done": False}],
+    })
+    assert res.status_code == 200
+    got = client.get(f"/api/trips/{trip_id}/media", headers=auth_headers).get_json()
+    assert got["photos"][0]["id"] == "p1"
+    assert got["documents"][0]["name"] == "Passport"
+    assert got["markedPlaces"][0]["name"] == "Eiffel"
+    assert got["checklist"][0]["body"] == "Pack"
+
+
+def test_trip_media_post_partial_leaves_other_fields_untouched(
+    client, seed_user, auth_headers,
+):
+    """R12-B4: a POST carrying only `photos` must NOT zero the other
+    three columns. This is the per-field-isolation guarantee that makes
+    the design wipe-proof — a write to one media field can't clobber a
+    sibling."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-media-partial")
+    # Seed all four.
+    client.post(f"/api/trips/{trip_id}/media", headers=auth_headers, json={
+        "photos": [{"id": "p1"}],
+        "documents": [{"id": "d1"}],
+        "markedPlaces": [{"id": "m1"}],
+        "checklist": [{"id": "c1"}],
+    })
+    # Now POST only photos (a new value).
+    client.post(f"/api/trips/{trip_id}/media", headers=auth_headers, json={
+        "photos": [{"id": "p1"}, {"id": "p2"}],
+    })
+    got = client.get(f"/api/trips/{trip_id}/media", headers=auth_headers).get_json()
+    assert len(got["photos"]) == 2, "photos updated"
+    # The other three are untouched (NOT zeroed).
+    assert got["documents"] == [{"id": "d1"}]
+    assert got["markedPlaces"] == [{"id": "m1"}]
+    assert got["checklist"] == [{"id": "c1"}]
+
+
+def test_upsert_trip_cannot_touch_media(client, seed_user, auth_headers):
+    """R12-B4 — the headline guarantee. A trip-metadata upsert via
+    /api/trips that carries media keys (as a legacy/stale client would)
+    must NOT write them. This is what makes the Phase-1B data-loss class
+    impossible: a rename can't clobber photos. Seed media via the
+    dedicated endpoint, then upsert the trip with DIFFERENT media in the
+    body + a name change — the name changes, the media does not."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-upsert-nomedia")
+    client.post(f"/api/trips/{trip_id}/media", headers=auth_headers, json={
+        "photos": [{"id": "keep-me"}],
+        "checklist": [{"id": "keep-task"}],
+    })
+    # Upsert the trip with a new name AND adversarial empty media arrays
+    # in the body (mimicking the cold-start []-placeholder that caused
+    # the original P0).
+    res = client.post("/api/trips", headers=auth_headers, json={
+        "trip": {
+            "id": trip_id, "name": "Renamed Trip", "country": "Test",
+            "photos": [], "documents": [], "markedPlaces": [], "checklist": [],
+        },
+    })
+    assert res.status_code == 200
+    # Name changed via metadata path...
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in data["trips"] if t["id"] == trip_id)
+    assert trip["name"] == "Renamed Trip"
+    # ...but media is UNTOUCHED — the []s in the upsert body were ignored.
+    media = client.get(f"/api/trips/{trip_id}/media", headers=auth_headers).get_json()
+    assert media["photos"] == [{"id": "keep-me"}], "upsert must not wipe photos"
+    assert media["checklist"] == [{"id": "keep-task"}], "upsert must not wipe checklist"
+
+
+def test_trip_media_post_rejects_non_array(client, seed_user, auth_headers):
+    """R12-B4: a non-array media field is a 400 — the column stores a
+    JSON array and the JSON1 CHECK would otherwise reject malformed
+    writes at the DB layer with a 500."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-media-badtype")
+    res = client.post(f"/api/trips/{trip_id}/media", headers=auth_headers, json={
+        "photos": "not-an-array",
+    })
+    assert res.status_code == 400
+
+
+def test_trip_media_post_rejects_non_member(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R12-B4: planner-gated write. A stranger to the trip → 403."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-media-write-403")
+    res = client.post(f"/api/trips/{trip_id}/media", headers=other_auth_headers, json={
+        "photos": [{"id": "x"}],
+    })
+    assert res.status_code == 403
 
 
 # ── /api/trips/invite | respond | members/remove ─────────────────────────────

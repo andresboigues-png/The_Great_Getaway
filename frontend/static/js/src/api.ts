@@ -667,7 +667,41 @@ async function _upsertWithUpdatedAtJson(url: string, key: string, obj: any): Pro
  *  to the user. */
 export function upsertTrip(trip: any) {
     if (!STATE.user) return;
-    return _upsertWithUpdatedAt('/api/trips', 'trip', trip);
+    // R12-B4: dual-write. Trip METADATA (name, cover, dates,
+    // companions, viewport, country list, archive flag) goes to
+    // /api/trips as before — but the server's upsert_trip now IGNORES
+    // the four heavy media columns (photos / documents / markedPlaces /
+    // checklist). Those persist through their own endpoint via
+    // persistTripMedia() below. This is the structural fix for the
+    // Phase-1B data-loss class: a metadata edit physically cannot
+    // carry — and therefore cannot clobber — media, because the two
+    // write paths are fully separate. We fire the media write on every
+    // upsertTrip (not just media edits) so no caller has to know which
+    // fields it touched — the trip object is always fully hydrated in
+    // upsertTrip contexts (it's the active trip being edited), so the
+    // media POST always carries real arrays, never an empty placeholder.
+    const metaResult = _upsertWithUpdatedAt('/api/trips', 'trip', trip);
+    persistTripMedia(trip);
+    return metaResult;
+}
+
+/** R12-B4: write the four heavy per-trip JSON fields (photos,
+ *  documents, markedPlaces, checklist) via their dedicated endpoint
+ *  (POST /api/trips/<id>/media), decoupled from the trip-metadata
+ *  upsert. Sends the FULL current media set so the offline outbox —
+ *  which dedupes queued mutations by (method, url) — collapses
+ *  repeated writes to the latest complete snapshot without dropping a
+ *  sibling field on replay. POST (not PATCH) so it's on the outbox's
+ *  replayable-method allowlist. Fire-and-forget; `_post` swallows the
+ *  rejection after apiFetch has already enqueued it offline. */
+export function persistTripMedia(trip: any) {
+    if (!STATE.user || !trip?.id) return;
+    return _post(`/api/trips/${encodeURIComponent(trip.id)}/media`, {
+        photos: Array.isArray(trip.photos) ? trip.photos : [],
+        documents: Array.isArray(trip.documents) ? trip.documents : [],
+        markedPlaces: Array.isArray(trip.markedPlaces) ? trip.markedPlaces : [],
+        checklist: Array.isArray(trip.checklist) ? trip.checklist : [],
+    });
 }
 
 /** Permanently delete a trip and its expenses from the server. */

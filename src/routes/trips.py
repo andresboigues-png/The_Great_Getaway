@@ -207,10 +207,20 @@ def upsert_trip():
               json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
               t.get('countryCode'),
               json.dumps(_cleaned_companions(cursor, t.get('id'), t.get('companions'))) if isinstance(t.get('companions'), list) else None,
-              json.dumps(t['markedPlaces']) if isinstance(t.get('markedPlaces'), list) else None,
-              json.dumps(t['documents']) if isinstance(t.get('documents'), list) else None,
-              json.dumps(t['photos']) if isinstance(t.get('photos'), list) else None,
-              json.dumps(t['checklist']) if isinstance(t.get('checklist'), list) else None,
+              # R12-B4: upsert_trip NO LONGER writes the four heavy media
+              # columns. They have a dedicated write path now
+              # (POST /api/trips/<id>/media). Passing None means
+              # COALESCE(NULL, existing) preserves them on UPDATE and they
+              # start NULL (= []) on a fresh INSERT. This is the structural
+              # guarantee that a trip-metadata edit (rename / cover / dates)
+              # can never clobber photos/documents/markedPlaces/checklist —
+              # the bug class that bit Phase 1B. Even a legacy/stale client
+              # that still sends these keys in a /api/trips payload has them
+              # silently ignored here.
+              None,  # marked_places_json — see POST /api/trips/<id>/media
+              None,  # documents_json
+              None,  # photos_json
+              None,  # checklist_json
               countries_payload,
               t.get('coverUrl'),
               client_updated_at, client_updated_at))
@@ -590,6 +600,89 @@ def get_trip_media(trip_id):
             "markedPlaces": _safe_arr(row["marked_places_json"]),
             "checklist": _safe_arr(row["checklist_json"]),
         })
+
+
+# R12-B4: the heavy per-trip JSON columns now have their OWN write path,
+# decoupled from /api/trips (upsert_trip). This is the structural fix for
+# the Phase-1B data-loss class: a trip-metadata edit (rename, cover, dates)
+# can no longer carry — and therefore can no longer clobber — photos /
+# documents / markedPlaces / checklist, because upsert_trip stops writing
+# those columns entirely (see below) and they only ever change through
+# this endpoint. POST (not PATCH) so it rides the offline outbox, which
+# only replays POST/DELETE. Body may carry any subset of the four keys;
+# only the keys present are written (a missing key is left untouched).
+_MEDIA_KEY_TO_COLUMN = {
+    "photos": "photos_json",
+    "documents": "documents_json",
+    "markedPlaces": "marked_places_json",
+    "checklist": "checklist_json",
+}
+# Per-field JSON size cap. A single trip's photo/doc list is a few KB of
+# URLs + metadata in normal use; 512KB is ~50x headroom while blocking a
+# client from stuffing megabytes into one column (the JSON1 CHECK keeps
+# it valid, this keeps it bounded).
+_MEDIA_FIELD_MAX_BYTES = 512 * 1024
+
+
+@bp.route("/api/trips/<trip_id>/media", methods=["POST"])
+@limiter.limit("60 per minute")
+@require_auth
+@retry_on_lock()
+def update_trip_media(trip_id):
+    """R12-B4: write the per-trip heavy JSON columns in isolation.
+
+    Planner-only (matches the old upsert_trip gate these writes used to
+    flow through — only planners edit trip-level media). Accepts a JSON
+    body with any subset of {photos, documents, markedPlaces, checklist};
+    each present key must be a list, is bounded to _MEDIA_FIELD_MAX_BYTES
+    of serialized JSON, and overwrites ONLY its own column. Keys absent
+    from the body are left untouched — so two concurrent media writes
+    that touch different fields can't clobber each other.
+
+    Does NOT bump trips.updated_at: media is no longer part of the
+    metadata optimistic-concurrency token (that token guards name /
+    cover / dates via upsert_trip). Decoupling avoids a photo-add
+    spuriously 409-ing a slow rename in another tab.
+
+    The frontend sends the FULL media object (all four current arrays)
+    on every write so the offline outbox — which dedupes queued
+    mutations by (method, url) — collapses repeated writes to the latest
+    complete snapshot without dropping a sibling field on replay.
+    """
+    user_id = current_user_id()
+    body = request.get_json(silent=True) or {}
+    # Collect + validate the provided fields before opening the txn.
+    updates: list[tuple[str, str]] = []  # (column, json_text)
+    for key, column in _MEDIA_KEY_TO_COLUMN.items():
+        if key not in body:
+            continue
+        value = body[key]
+        if not isinstance(value, list):
+            return jsonify({"error": f"{key} must be an array"}), 400
+        payload = json.dumps(value)
+        if len(payload.encode("utf-8")) > _MEDIA_FIELD_MAX_BYTES:
+            return jsonify({"error": f"{key} payload too large"}), 413
+        updates.append((column, payload))
+    if not updates:
+        # Nothing to write — treat as a no-op success so an empty/odd
+        # client payload doesn't 400-spam the logs.
+        return jsonify({"status": "ok", "updated": []})
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if trip_member_role(cursor, trip_id, user_id) is None:
+            return jsonify({"error": "Forbidden"}), 403
+        if not can_edit_trip(cursor, trip_id, user_id):
+            return jsonify({"error": "Forbidden"}), 403
+        bind_trip_context(trip_id)
+        set_clause = ", ".join(f"{col} = ?" for col, _ in updates)
+        params = [payload for _, payload in updates]
+        params.append(trip_id)
+        cursor.execute(
+            f"UPDATE trips SET {set_clause} WHERE id = ?", params
+        )
+        conn.commit()
+    return jsonify({"status": "ok", "updated": [k for k in body if k in _MEDIA_KEY_TO_COLUMN]})
 
 
 @bp.route("/api/trips/invite", methods=["POST"])
