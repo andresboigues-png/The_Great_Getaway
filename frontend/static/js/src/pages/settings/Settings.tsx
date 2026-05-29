@@ -40,6 +40,7 @@ import { syncCategories, apiFetch } from '../../api.js';
 import { POI_CATEGORIES, getPoiTooltip } from '../home.js';
 import { setTheme } from '../../theme.js';
 import { t, getLocale, setLocale, type Locale } from '../../i18n.js';
+import { iconSvg } from '../../icons.js';
 import {
     getSettingsTabState,
     setSettingsTab,
@@ -427,7 +428,7 @@ function SubTabStrip({ current }: { current: GeneralSubTab }) {
                 aria-selected={current === 'pills'}
                 onClick={() => setGeneralSubTab('pills')}
             >
-                <span className="general-subtab__icon">🗺️</span>
+                <span className="general-subtab__icon inline-flex" dangerouslySetInnerHTML={{ __html: iconSvg('map', { size: 18 }) }} />
                 <span className="general-subtab__label">{t('settings.subtabPills')}</span>
             </button>
             <button
@@ -437,7 +438,7 @@ function SubTabStrip({ current }: { current: GeneralSubTab }) {
                 aria-selected={current === 'appearance'}
                 onClick={() => setGeneralSubTab('appearance')}
             >
-                <span className="general-subtab__icon">🎨</span>
+                <span className="general-subtab__icon inline-flex" dangerouslySetInnerHTML={{ __html: iconSvg('palette', { size: 18 }) }} />
                 <span className="general-subtab__label">{t('settings.appearance')}</span>
             </button>
             <button
@@ -447,7 +448,7 @@ function SubTabStrip({ current }: { current: GeneralSubTab }) {
                 aria-selected={current === 'language'}
                 onClick={() => setGeneralSubTab('language')}
             >
-                <span className="general-subtab__icon">🌐</span>
+                <span className="general-subtab__icon inline-flex" dangerouslySetInnerHTML={{ __html: iconSvg('globe', { size: 18 }) }} />
                 <span className="general-subtab__label">{t('settings.language')}</span>
             </button>
         </div>
