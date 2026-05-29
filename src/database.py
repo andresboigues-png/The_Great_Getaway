@@ -777,6 +777,35 @@ def init_db():
             )
         ''')
 
+        # R12-B3: settlement-deletion audit trail. Append-only,
+        # NO foreign keys — audit rows are immutable historical
+        # facts that must survive even if the referenced trip /
+        # user / settlement is later deleted (an FK CASCADE would
+        # erase the very record we keep). The delete route snapshots
+        # the full settlement row + actor (deleted_by) + timestamp
+        # here BEFORE the hard DELETE. Mirrored in Alembic migration
+        # a1b2c3d4e5f6 (same dual-write idempotency pattern as the
+        # indexes — CREATE IF NOT EXISTS so fresh DBs + migrated
+        # prod DBs converge).
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS settlements_audit (
+                audit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                settlement_id TEXT NOT NULL,
+                trip_id TEXT,
+                from_user_id TEXT,
+                to_user_id TEXT,
+                from_name TEXT,
+                to_name TEXT,
+                amount REAL,
+                currency TEXT,
+                euro_value REAL,
+                recorded_by TEXT,
+                action TEXT NOT NULL DEFAULT 'deleted',
+                actor_id TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
         # FIXING_ROADMAP §2.1 — indexes on hot tables. Must come AFTER
         # all CREATE TABLE statements above (the table needs to exist
         # before the index can reference it). All CREATE INDEX IF NOT
@@ -797,6 +826,12 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_expenses_trip ON expenses(trip_id)",
             "CREATE INDEX IF NOT EXISTS idx_trip_days_trip ON trip_days(trip_id)",
             "CREATE INDEX IF NOT EXISTS idx_settlements_trip ON settlements(trip_id)",
+            # R12-B3: audit-trail lookups — deletion history per
+            # settlement + "what did this actor delete".
+            "CREATE INDEX IF NOT EXISTS idx_settlements_audit_settlement "
+            "ON settlements_audit(settlement_id)",
+            "CREATE INDEX IF NOT EXISTS idx_settlements_audit_actor "
+            "ON settlements_audit(actor_id)",
             "CREATE INDEX IF NOT EXISTS idx_user_achievements_user "
             "ON user_achievements(user_id, badge_id)",
             "CREATE INDEX IF NOT EXISTS idx_follows_followee "

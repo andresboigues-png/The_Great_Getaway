@@ -6495,6 +6495,93 @@ def test_settle_up_delete_owner_can(
     assert delete.status_code == 200
 
 
+def test_settlement_delete_writes_audit_row(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R12-B3: deleting a settlement must snapshot the full row into
+    settlements_audit BEFORE the hard delete, recording WHO deleted it
+    (actor_id), the action, and the original payload — closing the
+    repudiation gap. Here seed_other (payer) records a settlement to
+    seed_user, then the trip OWNER (seed_user) deletes it. The audit
+    row must show actor_id = the owner (the deleter), preserve the
+    original from/to + amount, and action='deleted'."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-settle-audit")
+    _seed_member(trip_id, seed_other_user, role="relaxer")
+
+    res = client.post("/api/settlements", headers=other_auth_headers, json={
+        "tripId": trip_id,
+        "fromUserId": seed_other_user,
+        "toUserId": seed_user,
+        "amount": 42.0,
+        "currency": "EUR",
+    })
+    sid = res.get_json()["settlement"]["id"]
+
+    # Owner (seed_user) deletes it.
+    delete = client.delete(f"/api/settlements/{sid}", headers=auth_headers)
+    assert delete.status_code == 200
+
+    # The settlement row is gone...
+    from database import get_db
+    with get_db() as conn:
+        live = conn.execute(
+            "SELECT COUNT(*) AS c FROM settlements WHERE id = ?", (sid,)
+        ).fetchone()
+        assert live["c"] == 0, "settlement should be hard-deleted"
+
+        # ...but the audit row preserves it.
+        audit = conn.execute(
+            "SELECT * FROM settlements_audit WHERE settlement_id = ?", (sid,)
+        ).fetchall()
+        assert len(audit) == 1, "exactly one audit row per deletion"
+        a = audit[0]
+        assert a["actor_id"] == seed_user, "deleter (owner) recorded as actor"
+        assert a["action"] == "deleted"
+        assert a["from_user_id"] == seed_other_user
+        assert a["to_user_id"] == seed_user
+        assert a["amount"] == 42.0
+        assert a["currency"] == "EUR"
+        # recorded_by was the payer (who POSTed the settlement).
+        assert a["recorded_by"] == seed_other_user
+        # created_at is auto-stamped — non-empty.
+        assert a["created_at"]
+
+
+def test_settlement_delete_403_writes_no_audit_row(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R12-B3: a REJECTED delete (recipient-who-isn't-owner, 403) must
+    NOT leave an audit row — the audit INSERT lives after the auth gate
+    so a forbidden attempt can't pollute the trail with phantom
+    'deletions' that never happened."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-settle-audit-403")
+    _seed_member(trip_id, seed_other_user, role="relaxer")
+    res = client.post("/api/settlements", headers=other_auth_headers, json={
+        "tripId": trip_id,
+        "fromUserId": seed_other_user,
+        "toUserId": seed_user,
+        "amount": 9.0,
+        "currency": "EUR",
+    })
+    sid = res.get_json()["settlement"]["id"]
+
+    # Hand trip ownership to seed_other so seed_user is recipient-only
+    # (recipient who isn't owner → 403).
+    from database import get_db
+    with get_db() as conn:
+        conn.execute("UPDATE trips SET user_id = ? WHERE id = ?", (seed_other_user, trip_id))
+        conn.commit()
+
+    delete = client.delete(f"/api/settlements/{sid}", headers=auth_headers)
+    assert delete.status_code == 403
+    with get_db() as conn:
+        audit = conn.execute(
+            "SELECT COUNT(*) AS c FROM settlements_audit WHERE settlement_id = ?",
+            (sid,),
+        ).fetchone()
+        assert audit["c"] == 0, "a forbidden delete must not write an audit row"
+
+
 def test_settle_up_list_hides_from_non_member(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):

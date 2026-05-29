@@ -449,6 +449,36 @@ def delete_settlement(settlement_id):
                 "error": "Trip is archived — unarchive to delete settlements",
             }), 409
 
+        # R12-B3: snapshot the full row into the append-only audit
+        # trail BEFORE the hard delete. Closes the repudiation gap —
+        # `recorded_by` captured WHO created the settlement, but a
+        # deletion left only an ephemeral stdout log. Now the audit
+        # row permanently records WHO deleted it (actor_id), WHEN
+        # (created_at default), and the full original payload, so the
+        # parties can reconstruct a reverted settlement even months
+        # later. Uses sqlite3.Row's .get-free indexing — every column
+        # is selected by `SELECT *` above so all keys exist.
+        cursor.execute(
+            "INSERT INTO settlements_audit "
+            "(settlement_id, trip_id, from_user_id, to_user_id, "
+            " from_name, to_name, amount, currency, euro_value, "
+            " recorded_by, action, actor_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'deleted', ?)",
+            (
+                settlement_id,
+                row["trip_id"],
+                row["from_user_id"],
+                row["to_user_id"],
+                row["from_name"],
+                row["to_name"],
+                row["amount"],
+                row["currency"],
+                row["euro_value"],
+                row["recorded_by"],
+                user_id,
+            ),
+        )
+
         cursor.execute("DELETE FROM settlements WHERE id = ?", (settlement_id,))
 
         # Notify the recipient (skip if they're the one deleting,
