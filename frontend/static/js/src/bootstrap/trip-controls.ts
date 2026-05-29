@@ -6,7 +6,7 @@
 // is easy to swap out per surface.
 
 import { STATE, emit } from '../state.js';
-import { archiveTripOnServer, deleteTrip, notifyTripPublic, fetchTripMedia } from '../api.js';
+import { archiveTripOnServer, deleteTrip, notifyTripPublic } from '../api.js';
 import { navigate } from '../router.js';
 import { showConfirmModal, esc } from '../utils.js';
 import { t } from '../i18n.js';
@@ -69,13 +69,6 @@ export function updateTripSelector() {
             if (!target) return;
             STATE.activeTripId = target.value;
             emit(EVENTS.STATE_CHANGED);          // saveState + updateTripSelector via subscriber (re-syncs the sibling selector)
-            // R11-B2-followup Phase 1B: load heavy media for the newly
-            // selected trip immediately. Without this the user would
-            // see stale/empty photos+docs+marked+checklist until the
-            // next /api/data poll (≤15s) fires the post-pull hook in
-            // api.ts. fetchTripMedia is dedupe-safe via _mediaInflight
-            // so a parallel-firing post-pull hook doesn't double-fetch.
-            fetchTripMedia(target.value).catch(() => { /* best-effort */ });
             navigate(PAGES.HOME);
         };
     }

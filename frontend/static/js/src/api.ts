@@ -5,7 +5,6 @@ import { navigate, currentNavSignal } from './router.js';
 import { API_BASE_URL, EVENTS, PAGES, type PageName } from './constants.js';
 import { validateServerData } from './schemas.js';
 import { normalizeTripCompanions } from './companions.js';
-import type { Trip } from './types';
 import { showLiquidAlert } from './utils.js';
 import { t } from './i18n.js';
 import { enqueueMutation } from './outbox.js';
@@ -357,30 +356,6 @@ export async function pullFromServer() {
                 trip.companions.unshift({ name: myFirstName, linkedUserId: me.id });
             }
         }
-        // R11-B2-followup Phase 1B: /api/data no longer ships the 4
-        // heavy per-trip JSON fields (photos, documents, markedPlaces,
-        // checklist). Merge each incoming trip with its existing
-        // STATE entry to preserve previously-loaded media so the next
-        // 15s poll doesn't wipe what fetchTripMedia() loaded. Trips
-        // without an existing entry default to empty arrays — they
-        // get populated on trip-open via fetchTripMedia. The 94
-        // frontend consumers of trip.photos/etc. don't have to change:
-        // they keep reading from STATE.trips[i].photos as before.
-        const existingTripsById = new Map<string, Trip>();
-        for (const t of (STATE.trips || [])) existingTripsById.set(t.id, t);
-        for (const t of (STATE.archivedTrips || [])) existingTripsById.set(t.id, t);
-        for (const trip of allTrips) {
-            const existing = existingTripsById.get(trip.id);
-            // Each line: prefer the SERVER value when it's present (lets
-            // a future schema rev re-introduce the field via /api/data
-            // without breaking the merge), then existing in-memory copy,
-            // then [] as the cold-start default.
-            const tt = trip as unknown as Record<string, unknown>;
-            if (tt.photos === undefined) tt.photos = existing?.photos ?? [];
-            if (tt.documents === undefined) tt.documents = existing?.documents ?? [];
-            if (tt.markedPlaces === undefined) tt.markedPlaces = existing?.markedPlaces ?? [];
-            if (tt.checklist === undefined) tt.checklist = existing?.checklist ?? [];
-        }
         STATE.trips = allTrips.filter(t => !t.isArchived);
         STATE.archivedTrips = allTrips.filter(t => t.isArchived);
 
@@ -500,29 +475,6 @@ export async function pullFromServer() {
         }
 
         emit(EVENTS.STATE_CHANGED);          // saveState + updateTripSelector via subscriber
-
-        // R11-B2-followup Phase 1B: if the active trip's heavy media
-        // hasn't been loaded yet (cold start, just-switched trip whose
-        // first poll preserved an empty array via the merge above),
-        // fetch it now. Fire-and-forget — the consumers render empty
-        // states gracefully until the fetch completes + emits its own
-        // STATE_CHANGED. `_mediaInflight` dedupes against a parallel
-        // setter-side call, so the 15s polling cadence doesn't refetch.
-        if (STATE.activeTripId) {
-            const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId)
-                || STATE.archivedTrips.find(t => t.id === STATE.activeTripId);
-            const photos = (activeTrip as unknown as { photos?: unknown[] } | undefined)?.photos;
-            const docs = (activeTrip as unknown as { documents?: unknown[] } | undefined)?.documents;
-            const places = (activeTrip as unknown as { markedPlaces?: unknown[] } | undefined)?.markedPlaces;
-            const checklist = (activeTrip as unknown as { checklist?: unknown[] } | undefined)?.checklist;
-            // Heuristic: if ALL four are empty/missing, the trip hasn't
-            // been hydrated yet. A trip with even one populated array
-            // is considered loaded — we don't re-poll on every pull.
-            const looksUnloaded = !photos?.length && !docs?.length && !places?.length && !checklist?.length;
-            if (looksUnloaded) {
-                fetchTripMedia(STATE.activeTripId).catch(() => { /* best-effort */ });
-            }
-        }
 
         await fetchNotifications(); // already emits 'notifications:changed'
 
@@ -757,55 +709,6 @@ export function unarchiveTripOnServer(tripId: string) {
 export function notifyTripPublic(tripId: string) {
     if (!STATE.user) return;
     return _post('/api/notifications/trip_public', { trip_id: tripId });
-}
-
-/** R11-B2-followup Phase 1B: fetch the 4 heavy per-trip JSON fields
- *  (photos, documents, markedPlaces, checklist) for one trip and
- *  splice them into STATE.trips / STATE.archivedTrips. Called on
- *  trip-open + after every pullFromServer to keep the active trip's
- *  media hydrated despite /api/data no longer shipping these fields.
- *
- *  Module-level `_mediaInflight` set ensures we don't double-fetch
- *  the same trip if two callers race (e.g. activeTripId setter + the
- *  post-pull hook firing in the same tick). The set entry is cleared
- *  on completion/error so subsequent legitimate refetches work.
- *
- *  Best-effort: a 403 (kicked from trip mid-flight) or network
- *  failure logs + bails. The 4 fields stay at whatever they were
- *  pre-fetch (usually [] for a fresh trip), which the consumers
- *  already render gracefully as empty states. */
-const _mediaInflight = new Set<string>();
-
-export async function fetchTripMedia(tripId: string): Promise<void> {
-    if (!tripId || !STATE.user) return;
-    if (_mediaInflight.has(tripId)) return;
-    _mediaInflight.add(tripId);
-    try {
-        const res = await apiFetch(`/api/trips/${encodeURIComponent(tripId)}/media`);
-        if (!res.ok) return;
-        const media = await res.json() as {
-            photos?: unknown[];
-            documents?: unknown[];
-            markedPlaces?: unknown[];
-            checklist?: unknown[];
-        };
-        // Trip may live in either active OR archived list — whichever
-        // matches gets the heavy fields populated. If no match (trip
-        // deleted mid-flight), the response is silently dropped.
-        const target = STATE.trips.find(t => t.id === tripId)
-            || STATE.archivedTrips.find(t => t.id === tripId);
-        if (!target) return;
-        const tt = target as unknown as Record<string, unknown>;
-        tt.photos = media.photos ?? [];
-        tt.documents = media.documents ?? [];
-        tt.markedPlaces = media.markedPlaces ?? [];
-        tt.checklist = media.checklist ?? [];
-        emit(EVENTS.STATE_CHANGED);
-    } catch (err) {
-        console.warn('fetchTripMedia failed for', tripId, err);
-    } finally {
-        _mediaInflight.delete(tripId);
-    }
 }
 
 /** Audit fix (2026-05-27 fix #36/#59): block primitive helpers.

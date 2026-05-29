@@ -257,55 +257,6 @@ def test_trip_cover_url_optional(client, seed_user, auth_headers):
     assert trip["coverUrl"] is None
 
 
-def test_api_data_omits_heavy_json_fields(
-    client, seed_user, auth_headers, temp_db,
-):
-    """R11-B2-followup Phase 1B: /api/data must NOT ship the 4 heavy
-    per-trip JSON columns (photos, documents, markedPlaces, checklist).
-    They ride on the dedicated GET /api/trips/<id>/media endpoint now.
-    Pins the contract — a future refactor that re-adds these fields
-    to /api/data should also flip the frontend merge logic (api.ts)
-    to consume them. Otherwise we silently re-introduce the 500KB
-    poll-response bloat this commit was meant to fix.
-
-    Seeds the 4 columns on the trips row directly so the fixture isn't
-    just testing an empty-arrays case (where presence vs absence are
-    indistinguishable)."""
-    _create_trip(client, auth_headers, trip_id="trip-heavy-strip")
-    from database import get_db
-    with get_db() as conn:
-        conn.execute(
-            "UPDATE trips SET photos_json = ?, documents_json = ?, "
-            "marked_places_json = ?, checklist_json = ? WHERE id = ?",
-            (
-                '[{"id":"p1","url":"https://example.com/a.jpg"}]',
-                '[{"id":"d1","name":"Passport"}]',
-                '[{"id":"m1","name":"Eiffel Tower"}]',
-                '[{"id":"c1","body":"Pack","done":false}]',
-                "trip-heavy-strip",
-            ),
-        )
-        conn.commit()
-    data = client.get("/api/data", headers=auth_headers).get_json()
-    trip = next(t for t in data["trips"] if t["id"] == "trip-heavy-strip")
-    # The four keys must be ABSENT — not just empty. Empty would mask
-    # a serializer-level overwrite + still ship as `"photos": []`, ~3
-    # bytes/key/trip across the network. Absent means the merge logic
-    # in pullFromServer can use `=== undefined` to detect "server
-    # didn't ship this" reliably.
-    assert "photos" not in trip
-    assert "documents" not in trip
-    assert "markedPlaces" not in trip
-    assert "checklist" not in trip
-    # Confirm the same data IS available via the per-trip /media route
-    # (Phase 1A) — the frontend's on-open hook reads from here.
-    media = client.get("/api/trips/trip-heavy-strip/media", headers=auth_headers).get_json()
-    assert media["photos"][0]["id"] == "p1"
-    assert media["documents"][0]["name"] == "Passport"
-    assert media["markedPlaces"][0]["name"] == "Eiffel Tower"
-    assert media["checklist"][0]["body"] == "Pack"
-
-
 # ── /api/expenses ────────────────────────────────────────────────────────────
 
 def test_upsert_expense_happy_path(client, seed_user, auth_headers):
