@@ -41,6 +41,17 @@ export function wireNavChrome(): void {
     // click() for the entire page in a single delegated listener.
     wireRoleButtonKeys(document.body);
 
+    // ── Platform tag for the bottom-nav URL-bar compensation ──
+    // The mobile bottom-nav is lifted by `calc(100vh - 100dvh)` to clear
+    // iOS Safari's BOTTOM url bar. On Android the browser toolbar is on
+    // TOP, so that same calc wrongly lifts the bar ~60–120px off the
+    // bottom (the "floating bottom bar" bug). Gate the lift to iOS via
+    // this class so Android (and desktop) keep a true `bottom: 0`.
+    // (2026-05-30 mobile bottom-nav position fix.)
+    const _ua = navigator.userAgent || '';
+    const _isIOS = /iPad|iPhone|iPod/.test(_ua) || (_ua.includes('Mac') && 'ontouchend' in document);
+    document.documentElement.classList.toggle('is-ios', _isIOS);
+
     // ── Hamburger ──
     // §2.8: a11y — same aria-expanded story as the notification bells.
     // The hamburger button toggles the side-drawer; screen readers
@@ -376,9 +387,23 @@ export function wireNavChrome(): void {
             e.preventDefault();
             const page = resolvePage(navLink.getAttribute('data-page') ?? PAGES.HOME);
             navigate(page);
-            // Auto-close sidebar
+            // Auto-close sidebar. CRITICAL: toggleSidebar() applied
+            // `inert` + `aria-hidden` to the navbar / #app-container /
+            // bottom-nav when the drawer opened. Closing here by only
+            // stripping `.open` left that `inert` in place, so the WHOLE
+            // page became scroll-but-not-tappable after navigating via a
+            // drawer link — fatal for drawer-only pages like Settings.
+            // Lift the inert state too. (2026-05-30 mobile tap-lock fix.)
             document.getElementById('sidebar')?.classList.remove('open');
             document.getElementById('sidebarOverlay')?.classList.remove('open');
+            for (const el of [
+                document.querySelector('.navbar'),
+                document.getElementById('app-container'),
+                document.querySelector('.mobile-bottom-nav'),
+            ]) {
+                el?.removeAttribute('inert');
+                el?.removeAttribute('aria-hidden');
+            }
         }
     });
 }

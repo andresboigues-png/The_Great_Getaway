@@ -4159,13 +4159,16 @@ main#app-container.nav-anim-backward {
         min-height: 56px;
         transform: none !important;
     }
-    /* iOS Safari URL-bar compensation. Only browsers that support
-       dvh (Safari 15.4+, Chrome 108+) enter this block; older
-       browsers see `bottom: 0` and Safari handles fixed-bottom
-       above-the-URL-bar natively in the older behavior. */
+    /* iOS Safari URL-bar compensation — iOS ONLY (html.is-ios, set in
+       nav-chrome.ts). iOS Safari's url bar sits at the BOTTOM, so
+       `bottom: 0` hides the nav behind it; lift by the bar height
+       (100vh − 100dvh). On Android the toolbar is on TOP, so that same
+       calc wrongly floats the nav up off the bottom — Android must keep
+       the base `bottom: 0`. Only dvh-capable browsers (Safari 15.4+)
+       enter the @supports block. (2026-05-30 fix.) */
     @supports (height: 100dvh) {
-        body > nav.mobile-bottom-nav,
-        .mobile-bottom-nav {
+        html.is-ios body > nav.mobile-bottom-nav,
+        html.is-ios .mobile-bottom-nav {
             bottom: calc(100vh - 100dvh) !important;
         }
     }
