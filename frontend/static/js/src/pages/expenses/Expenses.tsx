@@ -27,6 +27,8 @@
 import { useSyncExternalStore } from 'react';
 import { useActiveTrip } from '../../react/TripContext.js';
 import { t } from '../../i18n.js';
+import { EmptyState } from '../../react/components/EmptyState.js';
+import { openNewTripModal } from '../../modals.js';
 import {
     getActiveExpensesTab,
     setActiveExpensesTab,
@@ -83,9 +85,17 @@ export function Expenses() {
                 >
                     {t('expenses.title')}
                 </h1>
-                <div className="card glass">
-                    <p>{t('validation.selectTripFirst')}</p>
-                </div>
+                {/* MK2 UX: was a bare validation string in a card (a dead end).
+                    Route through the shared EmptyState with a CTA that opens
+                    the new-trip modal, matching Budgets/Todo/Friends. */}
+                <EmptyState
+                    accent="orange"
+                    iconName="wallet"
+                    title={t('validation.selectTripFirst')}
+                    body=""
+                    ctaLabel={t('todo.emptyNoTripCta')}
+                    onCta={() => openNewTripModal()}
+                />
             </div>
         );
     }

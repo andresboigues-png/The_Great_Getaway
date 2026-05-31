@@ -27,7 +27,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { STATE, emit } from '../../state.js';
 import { showLiquidAlert, esc } from '../../utils.js';
-import { setTripActionsHidden } from '../../api.js';
+import { setTripActionsHidden, upsertDay } from '../../api.js';
 import {
     openEditTripModal,
     openPdfExportModal,
@@ -64,6 +64,49 @@ import { t, tn } from '../../i18n.js';
 
 export interface TripBodyProps {
     activeTrip: Trip;
+}
+
+
+/** MK2 UX: open a native date picker for a day and persist the chosen date.
+ *  Pre-fix the day-card "Set date" was a dead control and there was NO way to
+ *  date an existing day anywhere (only at Add-Day creation or via the whole-
+ *  trip range). Uses a transient off-screen <input type="date"> + showPicker()
+ *  so mobile gets the native wheel; writes day.date via upsertDay and re-renders
+ *  (which updates the weather chip + "today" highlight). An empty value clears
+ *  the date. */
+function openDayDatePicker(dayId: string): void {
+    const day = (STATE.tripDays || []).find((d) => d.id === dayId);
+    if (!day) return;
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.value = day.date || '';
+    input.style.cssText = 'position:fixed; left:50%; bottom:12px; transform:translateX(-50%); opacity:0; pointer-events:none; z-index:-1;';
+    document.body.appendChild(input);
+    let done = false;
+    const finish = async (write: boolean) => {
+        if (done) return;
+        done = true;
+        const newDate = input.value || '';
+        input.remove();
+        if (!write || newDate === (day.date || '')) return;
+        day.date = newDate;
+        emit('state:changed');
+        try {
+            await upsertDay(day);
+        } catch {
+            /* outbox + next /api/data pull reconcile a transient failure */
+        }
+    };
+    input.addEventListener('change', () => { void finish(true); });
+    // Dismissed without choosing → clean up (deferred so a `change` wins).
+    input.addEventListener('blur', () => { setTimeout(() => { void finish(false); }, 50); });
+    const picker = input as unknown as { showPicker?: () => void };
+    if (typeof picker.showPicker === 'function') {
+        try { picker.showPicker(); return; } catch { /* fall through */ }
+    }
+    // Fallback for browsers without showPicker(): reveal + focus the input.
+    input.style.cssText = 'position:fixed; left:50%; bottom:12px; transform:translateX(-50%); z-index:10001;';
+    input.focus();
 }
 
 
@@ -284,6 +327,15 @@ export function TripBody({ activeTrip }: TripBodyProps) {
             const detailBtn = target.closest('.day-detail-btn') as HTMLElement | null;
             if (detailBtn?.dataset.dayId) {
                 openDayDetail(detailBtn.dataset.dayId);
+                return;
+            }
+            // MK2 UX: the day-card date is now a real picker (was a dead
+            // control — no way to date an existing day). Checked BEFORE the
+            // card-body select below so the tap opens the picker, not just
+            // selecting the card.
+            const dateBtn = target.closest('.day-card__date-btn') as HTMLElement | null;
+            if (dateBtn?.dataset.dayId) {
+                openDayDatePicker(dateBtn.dataset.dayId);
                 return;
             }
 

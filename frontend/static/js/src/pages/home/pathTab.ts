@@ -156,7 +156,11 @@ function buildDayCardBody(
         if (totalPhotos) subtitleParts.push(`<span style="display:inline-flex; align-items:center; gap:4px; background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">${iconSvg('photo', { size: 13 })}${totalPhotos}</span>`);
         if (totalDocs) subtitleParts.push(`<span style="display:inline-flex; align-items:center; gap:4px; background:rgba(88,86,214,0.12); color:#5856d6; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">${iconSvg('document', { size: 13 })}${totalDocs}</span>`);
     } else {
-        subtitleParts.push(`<span style="display:inline-flex; align-items:center; gap:5px;">${iconSvg('calendar', { size: 14 })}${formatDayDate(day.date) || t('pathTab.setDatePlaceholder')}</span>`);
+        // MK2 UX: the date is now a real control. Pre-fix this was a dead
+        // `cursor:pointer` span with no handler, and there was no way to set an
+        // existing day's date anywhere. Now it's a button that opens a date
+        // picker (wired in TripBody.tsx → openDayDatePicker).
+        subtitleParts.push(`<button type="button" class="day-card__date-btn" data-day-id="${esc(day.id)}" aria-label="${esc(t('pathTab.setDatePlaceholder'))}" style="display:inline-flex; align-items:center; gap:5px; background:none; border:none; padding:0; margin:0; font:inherit; color:inherit; cursor:pointer;">${iconSvg('calendar', { size: 14 })}${formatDayDate(day.date) || t('pathTab.setDatePlaceholder')}</button>`);
         if (day.lat) subtitleParts.push(`<span style="color: #005bb8;">${esc(t('pathTab.locationSet'))}</span>`);
         else subtitleParts.push(`<span class="day-card__pin-hint" style="display:inline-flex; align-items:center; gap:4px;">${iconSvg('pinned', { size: 13 })}${esc(stripLeadingEmoji(t('pathTab.pinThisDay')))}</span>`);
         // Weather slot — populated async by applyWeatherChips() after

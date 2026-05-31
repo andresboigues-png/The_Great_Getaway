@@ -29,6 +29,7 @@ import { getHomeCurrency, currencySymbol } from '../../utils.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Expense, Category } from '../../types';
 import { t } from '../../i18n.js';
+import { openNewTripModal } from '../../modals.js';
 
 // Chart is loaded via CDN in index.html and declared as a global in types.d.ts
 declare const Chart: any;
@@ -77,9 +78,16 @@ export function Insights() {
                 >
                     {t('insights.title')}
                 </h1>
-                <div className="card glass">
-                    <p>{t('insights.emptyNoTripBody')}</p>
-                </div>
+                {/* MK2 UX: was a bare "Please select a trip." in a card — route
+                    through EmptyState with a create-trip CTA. */}
+                <EmptyState
+                    variant="tall"
+                    iconName="barChart"
+                    title={t('validation.selectTripFirst')}
+                    body=""
+                    ctaLabel={t('todo.emptyNoTripCta')}
+                    onCta={() => openNewTripModal()}
+                />
             </div>
         );
     }
