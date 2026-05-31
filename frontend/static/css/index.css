@@ -813,12 +813,24 @@ h1 {
     height: 100dvh;
     z-index: 1999;
     transform: translateX(-100%);
+    /* BUG-29 (MK2 audit): when closed, the drawer was only pushed
+       off-screen by `transform` — its ~9 links stayed in the tab order
+       and the accessibility tree, so every page had phantom tab stops
+       and screen-reader users heard a hidden menu. `visibility: hidden`
+       removes the subtree from BOTH. We delay the hide by the slide
+       duration (`visibility 0s linear 0.38s`) so the close ANIMATION is
+       still visible; `.sidebar.open` flips it visible with no delay so
+       the open animation isn't suppressed. Driving this off the `.open`
+       class means every open/close path (hamburger, swipe, overlay tap,
+       nav-link, Esc) is covered by one rule. */
+    visibility: hidden;
     /* Spring-flavoured easing (easeOutExpo-ish): fast off the line and
        a slow, calm landing — feels more "drawer is decisively sliding
        into place" than the previous Material-standard curve. The 0.38s
        gives the staggered content fade-in below room to land before the
        panel itself fully settles. */
-    transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 0.38s;
     /* Bottom padding includes safe-area + extra room so Settings (the
        last item in the drawer on mobile) clears the home-indicator
        and the bottom-tab nav strip when both are open at once. */
@@ -1108,6 +1120,11 @@ body.is-signed-out .trip-controls-popover {
 
 .sidebar.open {
     transform: translateX(0);
+    /* BUG-29: become focusable/visible to AT immediately on open (no
+       delay), so the slide-in plays and the links are reachable. */
+    visibility: visible;
+    transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 0s;
 }
 
 /* ── Staggered drawer content entry ──────────────────────────────────

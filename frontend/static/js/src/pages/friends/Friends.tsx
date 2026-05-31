@@ -427,9 +427,9 @@ export function Friends() {
             <div className="trip-tabnav-wrap" role="tablist" aria-label="Network filter">
                 <nav className="trip-tabnav network-tabnav">
                     {([
-                        { id: 'followers', label: t('friends.followersOnlyTitle'), short: 'Followers', count: followers.length },
-                        { id: 'following', label: t('friends.followingOnlyTitle'), short: 'Following', count: following.length },
-                        { id: 'friends',   label: t('friends.friendsTitle'),       short: 'Friends',   count: mutuals.length },
+                        { id: 'followers', label: t('friends.followersOnlyTitle'), short: t('friends.tabFollowers'), count: followers.length },
+                        { id: 'following', label: t('friends.followingOnlyTitle'), short: t('friends.tabFollowing'), count: following.length },
+                        { id: 'friends',   label: t('friends.friendsTitle'),       short: t('friends.tabFriends'),   count: mutuals.length },
                     ] as Array<{ id: NetworkTab; label: string; short: string; count: number }>).map((tab) => (
                         <button
                             key={tab.id}

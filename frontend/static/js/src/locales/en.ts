@@ -79,6 +79,11 @@ export const en = {
         todo: 'To do list',
         ai: 'Plan with AI',
         expenses: 'Expenses',
+        // Compact labels for the 4-across mobile bottom-nav (BUG-28),
+        // where the desktop "To do list" / "Plan with AI" are too long
+        // to fit. Home / Expenses reuse the nav.* keys above.
+        bottomTodo: 'To-do',
+        bottomAi: 'Plan AI',
         insights: 'Insights',
         budgets: 'Budgets',
         settings: 'Settings',
@@ -279,6 +284,11 @@ export const en = {
         cardDataMgmtCta: 'Manage Data →',
         cardPersonalizationTitle: 'Personalization',
         cardPersonalizationBody: 'Customise expense categories and the look of your trips.',
+        // BUG-30: Sessions + Blocked-users cards (were hard-coded English).
+        cardSessionsTitle: 'Active sessions',
+        cardSessionsBody: "See where you're signed in and sign out of any device.",
+        cardBlocksTitle: 'Blocked users',
+        cardBlocksBody: "Review and unblock people you've blocked from following or interacting with you.",
         // Developer settings — admin-only menu card + view.
         cardDeveloperTitle: 'Developer settings',
         cardDeveloperBody: 'App-wide stats, user roster, host-key pool, and other operator-only info.',
@@ -999,6 +1009,12 @@ export const en = {
         followingOnlyEmptyBody: 'Search above to find someone, or browse the Explore tab on your feed for trip ideas.',
         // Section: mutuals — the Model B equivalent of "friends".
         friendsTitle: '👥 Friends',
+        // BUG-30: emoji-free short labels for the segmented network tabs
+        // (the *Title keys above carry an emoji + are used as section
+        // headers, so they can't double as the compact pill labels).
+        tabFollowers: 'Followers',
+        tabFollowing: 'Following',
+        tabFriends: 'Friends',
         friendsHint: 'Mutual follows. Tap any to view their profile.',
         friendsEmptyTitle: 'No friends yet',
         friendsEmptyBody: "When someone you follow follows you back, you'll appear together as friends here.",

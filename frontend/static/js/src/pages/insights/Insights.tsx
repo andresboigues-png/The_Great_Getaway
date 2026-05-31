@@ -24,7 +24,7 @@ import { STATE, emit } from '../../state.js';
 import { CONVERSION_RATES, EVENTS } from '../../constants.js';
 import { convertCurrency } from '../../utils/currency.js';
 import { fetchHistoricalRates } from '../../api.js';
-import { getIntlLocale } from '../../i18n.js';
+import { getIntlLocale, formatNumber } from '../../i18n.js';
 import { getHomeCurrency, currencySymbol } from '../../utils.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Expense, Category } from '../../types';
@@ -432,7 +432,7 @@ export function Insights() {
                     <div className="flex items-baseline gap-3">
                         <h1 className="hero-stat-card__value">
                             {targetSym}
-                            {totalDisplay.toFixed(2)}
+                            {formatNumber(totalDisplay)}
                         </h1>
                         <span className="hero-stat-card__currency">{targetCurr}</span>
                     </div>
@@ -458,7 +458,7 @@ export function Insights() {
                     <h2 className="card-title metric-label">{t('insights.avgDaily')}</h2>
                     <h1 className="metric-value">
                         {targetSym}
-                        {(totalDisplay / (Object.keys(dateTotals).length || 1)).toFixed(2)}
+                        {formatNumber(totalDisplay / (Object.keys(dateTotals).length || 1))}
                         <small
                             className="text-[length:var(--font-lg)] font-normal text-secondary ml-2"
                         >
@@ -471,7 +471,7 @@ export function Insights() {
                         <h2 className="card-title metric-label">{t('insights.singlePeak')}</h2>
                         <h1 className="metric-value text-[#ff3b30]">
                             {targetSym}
-                            {highestExpense.displayValue.toFixed(2)}
+                            {formatNumber(highestExpense.displayValue)}
                         </h1>
                         <p
                             className="metric-label mt-1 mr-0 mb-0 ml-0"
@@ -493,7 +493,7 @@ export function Insights() {
                         <span
                             className="text-accent-blue font-bold text-[1.1rem]"
                         >
-                            {totalDisplay > 0 ? targetSym + topSpenderAmount.toFixed(2) : '0'}
+                            {totalDisplay > 0 ? targetSym + formatNumber(topSpenderAmount) : '0'}
                         </span>
                     </div>
                     <div
@@ -506,7 +506,7 @@ export function Insights() {
                                 </span>
                                 <span className="ranking-row__value">
                                     {targetSym}
-                                    {amount.toFixed(2)}
+                                    {formatNumber(amount)}
                                 </span>
                             </div>
                         ))}
@@ -577,7 +577,7 @@ export function Insights() {
                                             className="font-extrabold text-accent-blue tabular-nums whitespace-nowrap"
                                         >
                                             {targetSym}
-                                            {amount.toFixed(2)}
+                                            {formatNumber(amount)}
                                             <span
                                                 className="ml-2 text-secondary font-semibold text-[0.8rem]"
                                             >

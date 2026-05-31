@@ -324,10 +324,10 @@ function MenuView() {
                 onClick={() => setSettingsTab('sessions')}
             >
                 <h2 className="card-title m-0">
-                    Active sessions
+                    {t('settings.cardSessionsTitle')}
                 </h2>
                 <p className="st-help-text">
-                    See where you're signed in and sign out of any device.
+                    {t('settings.cardSessionsBody')}
                 </p>
                 <div className="mt-5 text-accent-blue-deep font-bold text-[0.85rem]">
                     {t('settings.cardConfigureCta')}
@@ -345,11 +345,10 @@ function MenuView() {
                 onClick={() => setSettingsTab('blocks')}
             >
                 <h2 className="card-title m-0">
-                    Blocked users
+                    {t('settings.cardBlocksTitle')}
                 </h2>
                 <p className="st-help-text">
-                    Review and unblock people you've blocked from following
-                    or interacting with you.
+                    {t('settings.cardBlocksBody')}
                 </p>
                 <div className="mt-5 text-accent-blue-deep font-bold text-[0.85rem]">
                     {t('settings.cardConfigureCta')}

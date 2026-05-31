@@ -376,6 +376,24 @@ export function formatCurrency(amount: number, currency: string): string {
     }
 }
 
+/** Format a bare number in the active locale — the locale's grouping
+ *  and decimal separators, `fractionDigits` decimals, and NO currency
+ *  symbol. Used where the call site renders the currency symbol itself
+ *  (e.g. the Insights hero/metric cards, which pair a styled symbol
+ *  with the value). BUG-30: those used `.toFixed(2)`, which is always
+ *  en-US (period decimal, no grouping), so a French user saw "1234.56"
+ *  instead of "1 234,56". */
+export function formatNumber(amount: number, fractionDigits: number = 2): string {
+    try {
+        return new Intl.NumberFormat(getIntlLocale(), {
+            minimumFractionDigits: fractionDigits,
+            maximumFractionDigits: fractionDigits,
+        }).format(amount);
+    } catch {
+        return amount.toFixed(fractionDigits);
+    }
+}
+
 /** Format a Date as a short, human-readable string in the active
  *  locale. Used by formatDayDate in utils.ts. Example: 'Apr 6'
  *  (en-US) / '6 abr.' (pt-PT) / '6 abr.' (es-ES) / '6 avr.' (fr-FR).
