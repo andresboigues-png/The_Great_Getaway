@@ -68,10 +68,23 @@ def upsert_trip():
     membership row on insert; rejects edits from non-planners on
     existing trips."""
     data = request.json or {}
+    # BUG-22 (MK2 audit): guard non-dict bodies (array root, or `trip` being a
+    # string/list, or a dict with no id) so malformed input is a clean 400
+    # instead of an uncaught AttributeError/KeyError → 500.
+    if not isinstance(data, dict):
+        return jsonify({"error": "Malformed payload"}), 400
     user_id = current_user_id()
     t = data.get("trip")
-    if not t:
+    if not isinstance(t, dict):
         return jsonify({"error": "Missing data"}), 400
+    if not t.get("id"):
+        return jsonify({"error": "Missing trip id"}), 400
+    # BUG-22: `name` is bound unconditionally into the INSERT (and the ON
+    # CONFLICT overwrites with excluded.name). Real callers always send the
+    # full trip; require it so a malformed payload is a clean 400 instead of a
+    # KeyError → 500 (and so a partial body can't blank a trip's name).
+    if not t.get("name"):
+        return jsonify({"error": "Missing trip name"}), 400
     bind_trip_context(t.get("id"))
     with get_db() as conn:
         cursor = conn.cursor()

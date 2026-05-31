@@ -242,7 +242,17 @@ def _visible_to_post_friends(cursor, components, user_id) -> bool:
             (row["trip_id"], user_id),
         )
         return cursor.fetchone() is not None
-    return is_friend_of(cursor, user_id, row["user_id"])
+    # BUG-20 (MK2 audit): a PUBLIC share is engageable by ANYONE, matching the
+    # repost rule (feed.py lets any user repost a public trip) and the
+    # public-discovery intent — pre-fix you could repost a public trip but got
+    # 404 on like/comment because this returned friends-only. Still honour the
+    # block contract in both directions (mirrors the repost block check).
+    author = row["user_id"]
+    if user_id != author:
+        from routes.blocks import is_blocked
+        if is_blocked(cursor, author, user_id) or is_blocked(cursor, user_id, author):
+            return False
+    return True
 
 
 def _visible_to_settlement_parties(cursor, components, user_id) -> bool:

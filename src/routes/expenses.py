@@ -35,9 +35,14 @@ bp = Blueprint("expenses", __name__)
 def upsert_expense():
     """Create or update a single expense."""
     data = request.json or {}
+    # BUG-22 (MK2 audit): guard non-dict bodies (a JSON array root, or
+    # `expense` being a string/list) so malformed input is a clean 400 instead
+    # of an uncaught AttributeError → 500 that pollutes error monitoring.
+    if not isinstance(data, dict):
+        return jsonify({"error": "Malformed payload"}), 400
     user_id = current_user_id()
     e = data.get("expense")
-    if not e:
+    if not isinstance(e, dict):
         return jsonify({"error": "Missing data"}), 400
     expense_id = e.get("id")
     if not expense_id:

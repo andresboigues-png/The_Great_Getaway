@@ -326,10 +326,16 @@ export function eventLine(ev: any) {
             // which never existed on the wire, so otherName always
             // fell through to the 'someone' default and the self-
             // attribution branch was always false.
-            const actorIsSelf = !!meId && ev.actor.id === meId;
-            const otherName = actorIsSelf
-                ? esc(ev.recipient?.name || 'someone')
-                : esc(ev.actor.name || 'someone');
+            // BUG-18 (MK2 audit): the OTHER party is ALWAYS the recipient
+            // (receiver); `who` above is already the actor (payer). Pre-fix,
+            // when the VIEWER was the recipient, otherName fell through to
+            // `ev.actor.name` → both slots became the payer ("Sara settled up
+            // with Sara"). Resolve the recipient, and say "you" when that's the
+            // viewer.
+            const recipientIsSelf = !!meId && ev.recipient?.id === meId;
+            const otherName = recipientIsSelf
+                ? esc(t('feed.verbYou'))
+                : esc(ev.recipient?.name || 'someone');
             return `${who} settled up with <strong style="color:#002d5b;">${otherName}</strong> on ${tripName || 'a trip'} 🤝`;
         }
         default:

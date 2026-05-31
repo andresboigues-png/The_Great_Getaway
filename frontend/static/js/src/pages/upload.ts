@@ -223,7 +223,11 @@ export function renderUpload() {
             const populars = [
                 { id: 'tricount', name: 'Tricount Export (CSV/XLSX)' },
                 { id: 'splitwise', name: 'Splitwise Export' },
-                { id: 'revolut', name: 'Revolut Monthly Statement' }
+                // BUG-9 (MK2 audit): Revolut removed — only tricount/splitwise
+                // are actually parsed (see ~line 464). Picking Revolut fell
+                // through to €0 ghost rows + a false "Imported N" toast, then
+                // the server rejected them all (looked like data loss).
+                // Re-add only with a real parsing branch + abs()'d amounts.
             ];
 
             const popOpts = populars.map(p =>

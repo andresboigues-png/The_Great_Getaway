@@ -389,6 +389,19 @@ def test_expense_rejects_garbage_date(client, seed_user, auth_headers):
     assert post_expense("") == 200                    # empty (undated) allowed
 
 
+def test_malformed_write_payloads_return_400_not_500(client, seed_user, auth_headers):
+    """BUG-22 tripwire (MK2 audit): non-dict bodies must be a clean 400, not an
+    uncaught AttributeError/KeyError → 500 (which pollutes error monitoring)."""
+    # Array root → data.get(...) used to AttributeError.
+    assert client.post("/api/expenses", headers=auth_headers, json=[1, 2]).status_code == 400
+    assert client.post("/api/trips", headers=auth_headers, json=[1, 2]).status_code == 400
+    # `expense` / `trip` a non-dict (string).
+    assert client.post("/api/expenses", headers=auth_headers, json={"expense": "x"}).status_code == 400
+    assert client.post("/api/trips", headers=auth_headers, json={"trip": "x"}).status_code == 400
+    # Trip dict with id but no name → t['name'] used to KeyError.
+    assert client.post("/api/trips", headers=auth_headers, json={"trip": {"id": "t-x"}}).status_code == 400
+
+
 def test_upsert_expense_rejected_when_not_member(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):
