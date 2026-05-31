@@ -2411,6 +2411,55 @@ def test_feed_share_owner_auto_promotes_private_trip(client, seed_user, auth_hea
     assert row["is_public"] == 1, "trip should be public after owner Share"
 
 
+def test_feed_share_owner_mints_share_token_for_explore(
+    client, seed_user, auth_headers,
+):
+    """BUG-44 (MK2 persona audit): the Explore tab lists only trips with
+    `is_public = 1 AND share_token IS NOT NULL`, but Share-to-feed used
+    to set is_public alone. A user who tapped the prominent Share button
+    (the obvious way to publish a trip) never saw it in Explore — that
+    tab stayed permanently empty unless they'd separately created a
+    share link. Owner Share must now mint a share_token too, and do so
+    idempotently (a pre-existing link survives re-share)."""
+    from database import get_db
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-explore-token")
+
+    # Fresh trip has no share_token.
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT share_token FROM trips WHERE id = ?", (trip_id,),
+        ).fetchone()
+    assert row["share_token"] is None, "trip should start with no share_token"
+
+    res = client.post("/api/feed/share", headers=auth_headers, json={
+        "trip_id": trip_id,
+    })
+    assert res.status_code == 200, res.get_data(as_text=True)
+
+    # After Share: both Explore conditions are satisfied.
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT is_public, share_token FROM trips WHERE id = ?", (trip_id,),
+        ).fetchone()
+    assert row["is_public"] == 1
+    assert row["share_token"], \
+        "Share-to-feed must mint a share_token so the trip is Explore-discoverable"
+    minted = row["share_token"]
+
+    # Re-share is idempotent: the existing token is preserved (rotating a
+    # share link out-of-band must not be undone by a later feed re-share).
+    res = client.post("/api/feed/share", headers=auth_headers, json={
+        "trip_id": trip_id, "caption": "second share",
+    })
+    assert res.status_code == 200, res.get_data(as_text=True)
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT share_token FROM trips WHERE id = ?", (trip_id,),
+        ).fetchone()
+    assert row["share_token"] == minted, \
+        "re-share must not rotate an existing share_token"
+
+
 def test_feed_share_non_owner_private_trip_400(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):

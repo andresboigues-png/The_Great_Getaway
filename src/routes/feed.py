@@ -12,6 +12,8 @@ because they're feed-specific (they read feed_posts and resolve
 event_ids of the form `share_<id>` / `repost_<id>`).
 """
 
+import secrets
+
 from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
@@ -613,6 +615,23 @@ def share_trip_to_feed():
                         "it public before sharing to the feed."
                     ),
                 }), 400
+        # BUG-44 (MK2 persona audit): the Explore tab only surfaces trips
+        # where is_public=1 AND share_token IS NOT NULL, but feed-share
+        # historically set is_public alone. Result: a user who tapped the
+        # prominent "Share to feed" button (the obvious way to publish a
+        # trip) never saw it appear in Explore — that tab stayed
+        # permanently empty unless they'd separately created a share
+        # link. Mint a token here so Share-to-feed is sufficient for
+        # discoverability. Idempotent + owner-gated: keep any existing
+        # token (so a previously-minted share link survives), and never
+        # mint on someone else's trip.
+        if is_owner:
+            cursor.execute(
+                "UPDATE trips SET share_token = ?, "
+                "updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
+                "WHERE id = ? AND share_token IS NULL",
+                (secrets.token_urlsafe(16), trip_id),
+            )
         # 2026-05-18 audit H5: race-safe share via the partial UNIQUE
         # index `idx_feed_posts_unique_original_share` on
         # (user_id, trip_id) WHERE repost_of_post_id IS NULL. Two

@@ -830,9 +830,9 @@ export const en = {
         errorOverloaded: 'Gemini is overloaded right now.',
         errorOverloadedHint: 'This usually clears in 30-60 seconds.',
         errorQuota: 'Daily AI quota reached for this key.',
-        errorQuotaHint: 'Try again tomorrow, or use a different Gemini key in Settings → AI Engine.',
+        errorQuotaHint: 'Try again tomorrow, or use your own free Gemini key — tap "Use my own key" on this page.',
         errorBadKey: "AI key isn't accepted by Gemini.",
-        errorBadKeyHint: 'Open Settings → AI Engine and check the key, or generate a new one.',
+        errorBadKeyHint: 'Check or replace the key under "Use my own key" on this page, or generate a new one.',
         errorNetwork: 'Network hiccup talking to the AI.',
         errorNetworkHint: 'Check your connection and retry.',
         // Error card actions.
