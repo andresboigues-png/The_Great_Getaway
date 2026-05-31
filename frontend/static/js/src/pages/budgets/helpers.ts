@@ -84,6 +84,34 @@ export function spentForBudget(budget: any): number {
     return spent;
 }
 
+/** BUG-6 (MK2 audit): total spend covered by a SET of budgets, counting each
+ *  expense ONCE. The Overall card previously summed `spentForBudget` per
+ *  budget, so any expense under overlapping scopes was double-counted — a
+ *  trip-total budget + a category sub-budget both counted the same expenses
+ *  (Lisbon's real €970.62 spend showed as €1,095.13). Here we take the UNION
+ *  of expenses matched by any budget's trip+category scope and sum each at
+ *  full euroValue. (Person-scoped budgets count a share in their own card; the
+ *  at-a-glance Overall intentionally uses the full value of each covered
+ *  expense once.) */
+export function spentAcrossBudgets(budgets: any[]): number {
+    const seen = new Set<string>();
+    let sum = 0;
+    for (const e of STATE.expenses || []) {
+        if (e.isSettlement) continue;
+        if (e.id && seen.has(e.id)) continue;
+        const covered = budgets.some((b) =>
+            (!b.tripId || b.tripId === 'all' || e.tripId === b.tripId)
+            && (!b.categoryId || b.categoryId === 'all' || e.categoryId === b.categoryId),
+        );
+        if (covered) {
+            if (e.id) seen.add(e.id);
+            sum += (e.euroValue || 0);
+        }
+    }
+    return sum;
+}
+
+
 /** Status tier for a budget — drives the color + label across the UI.
  *
  *  2026-05-26 (audit B5): the "over" gate was `spent > target`, which

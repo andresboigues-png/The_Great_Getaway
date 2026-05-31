@@ -145,8 +145,26 @@ interface SwipeStart {
  * "flip whatever state it's in".
  */
 function openSidebar(): void {
-    document.getElementById('sidebar')?.classList.add('open');
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar?.classList.contains('open')) return;  // already open — don't re-apply
+    sidebar?.classList.add('open');
     document.getElementById('sidebarOverlay')?.classList.add('open');
+    // BUG-16 (MK2 audit): mirror the hamburger path (nav-chrome.ts
+    // toggleSidebar) so a SWIPE-open applies the same `inert` + `aria-hidden`
+    // + `aria-expanded` state. Pre-fix the swipe added only `.open`, leaving
+    // the page behind the drawer keyboard/screen-reader reachable and the
+    // hamburger's aria-expanded wrong. All close paths (close button, overlay,
+    // Esc, drawer-link nav) already strip inert, so we only owe the open side.
+    document.getElementById('hamburgerBtn')?.setAttribute('aria-expanded', 'true');
+    for (const el of [
+        document.querySelector('.navbar'),
+        document.getElementById('app-container'),
+        document.querySelector('.mobile-bottom-nav'),
+    ]) {
+        el?.setAttribute('inert', '');
+        el?.setAttribute('aria-hidden', 'true');
+    }
+    (document.getElementById('sidebarClose') as HTMLElement | null)?.focus();
 }
 
 /** True if the touch target (or any ancestor) matches an opt-out

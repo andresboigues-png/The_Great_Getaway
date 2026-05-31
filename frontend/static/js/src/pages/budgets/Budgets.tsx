@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { useStore } from '../../react/store.js';
 import { formatHome } from '../../utils.js';
 import {
-    spentForBudget,
+    spentAcrossBudgets,
     budgetStatus,
     budgetTitle,
     deleteBudget,
@@ -40,7 +40,9 @@ export function Budgets() {
         : allBudgets;
 
     const totalAllocated = visibleBudgets.reduce((s: number, b: Budget) => s + (b.amount || 0), 0);
-    const totalSpent = visibleBudgets.reduce((s: number, b: Budget) => s + spentForBudget(b), 0);
+    // BUG-6: count each expense ONCE across overlapping budget scopes (a
+    // trip-total budget + a category sub-budget no longer double-count).
+    const totalSpent = spentAcrossBudgets(visibleBudgets);
     const totalRemaining = totalAllocated - totalSpent;
     const overallPct = totalAllocated > 0 ? Math.min((totalSpent / totalAllocated) * 100, 999) : 0;
     const overallTier =

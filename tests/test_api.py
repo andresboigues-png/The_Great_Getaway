@@ -364,6 +364,31 @@ def test_upsert_expense_happy_path(client, seed_user, auth_headers):
     assert res.status_code == 200
 
 
+def test_expense_rejects_garbage_date(client, seed_user, auth_headers):
+    """BUG-8 tripwire (MK2 audit): a non-ISO date must be rejected (400), not
+    stored verbatim — a garbage date corrupts Insights (avg-daily denominator,
+    timeline labels, and the historical-FX URL for the whole trip). Empty +
+    strict YYYY-MM-DD stay valid; an impossible calendar date is rejected."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "Tuscany"},
+    })
+
+    def post_expense(date):
+        return client.post("/api/expenses", headers=auth_headers, json={
+            "expense": {
+                "id": "exp-" + str(abs(hash(date)))[:6], "tripId": "trip-1",
+                "who": "Me", "value": 10, "currency": "EUR", "euroValue": 10,
+                "label": "x", "date": date,
+            },
+        }).status_code
+
+    assert post_expense("not-a-date-99999") == 400   # garbage → rejected
+    assert post_expense("2026-13-40") == 400          # impossible calendar date
+    assert post_expense("2026-1-2") == 400            # non-zero-padded
+    assert post_expense("2026-06-11") == 200          # valid ISO
+    assert post_expense("") == 200                    # empty (undated) allowed
+
+
 def test_upsert_expense_rejected_when_not_member(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):

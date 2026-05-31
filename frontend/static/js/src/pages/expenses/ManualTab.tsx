@@ -433,7 +433,18 @@ export function ManualTab() {
     // ── render ──────────────────────────────────────────────────
     const draftCategory = STATE.draftExpense?.categoryId || '';
     const draftCurrency = STATE.draftExpense?.currency || '';
-    const defaultPct = splitters.length > 0 ? (100 / splitters.length).toFixed(1) : '';
+    // BUG-5 (MK2 audit): distribute an equal split so the values actually sum
+    // to 100 (the last person absorbs the rounding remainder). Pre-fix every
+    // input got (100/N).toFixed(1) — 33.3×3 = 99.9 — which the submit gate
+    // then rejected, making an even 3-way split impossible to save.
+    const splitDefaults: string[] = (() => {
+        const n = splitters.length;
+        if (n === 0) return [];
+        const base = Math.floor(10000 / n) / 100;            // 2-dp floor, e.g. 33.33
+        const out: number[] = Array(n).fill(base);
+        out[n - 1] = Math.round((100 - base * (n - 1)) * 100) / 100;  // remainder → 33.34
+        return out.map((v) => String(v));
+    })();
 
     return (
         <div>
@@ -762,15 +773,15 @@ export function ManualTab() {
                                     100% will be attributed to the payer.
                                 </p>
                             ) : (
-                                splitters.map((p) => (
+                                splitters.map((p, idx) => (
                                     // Key includes splitters.length so adding/
                                     // removing a person forces every row to
-                                    // remount with the freshly-computed
-                                    // defaultPct. Matches the legacy
-                                    // "redistribute equally on every change"
-                                    // behaviour (where innerHTML rewrite reset
-                                    // all inputs). Manual edits live until the
-                                    // next add/remove — same tradeoff.
+                                    // remount with the freshly-computed equal
+                                    // split. Matches the legacy "redistribute
+                                    // equally on every change" behaviour (where
+                                    // innerHTML rewrite reset all inputs).
+                                    // Manual edits live until the next
+                                    // add/remove — same tradeoff.
                                     <div key={`${p}_${splitters.length}`} className="splitter-row">
                                         <span className="font-medium">{p}</span>
                                         <div className="flex items-center gap-2">
@@ -778,8 +789,8 @@ export function ManualTab() {
                                                 type="number"
                                                 className="glass-input split-input splitter-row__pct"
                                                 data-person={p}
-                                                defaultValue={defaultPct}
-                                                step="0.1"
+                                                defaultValue={splitDefaults[idx]}
+                                                step="any"
                                                 required
                                             />
                                             <span

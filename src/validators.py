@@ -220,6 +220,31 @@ def validate_currency(value) -> str:
     return code
 
 
+def validate_date(value, *, field_name: str = "date") -> str:
+    """Accept an empty string / None (no date set) or a strict ISO calendar
+    date `YYYY-MM-DD`; reject anything else.
+
+    MK2 BUG-8: garbage dates (e.g. "not-a-date-99999", or a batch-import cell
+    that didn't parse) used to store verbatim and corrupt Insights — the
+    avg-daily denominator gained phantom buckets, the timeline rendered
+    "Invalid Date"/"Jan 1", and the date became the max of a Frankfurter
+    historical-FX URL, breaking the whole trip's "at trip" rate fetch."""
+    if value is None:
+        return ""
+    s = str(value).strip()
+    if s == "":
+        return ""
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
+        raise ValidationError(f"{field_name} must be a date (YYYY-MM-DD)")
+    from datetime import date as _date
+    try:
+        y, m, d = (int(p) for p in s.split("-"))
+        _date(y, m, d)  # rejects impossible dates like 2026-13-40
+    except (ValueError, TypeError):
+        raise ValidationError(f"{field_name} must be a valid calendar date")
+    return s
+
+
 # ── Geo ──────────────────────────────────────────────────────────────
 
 

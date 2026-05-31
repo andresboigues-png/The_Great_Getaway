@@ -18,6 +18,7 @@ from validators import (
     ValidationError,
     clean_text,
     validate_currency,
+    validate_date,
     validate_money,
     validate_splits,
     validate_upload_url,
@@ -92,10 +93,9 @@ def upsert_expense():
             e.get("categoryId", ""), max_len=120, allow_newlines=False,
             field_name="categoryId",
         )
-        date = clean_text(
-            e.get("date", ""), max_len=32, allow_newlines=False,
-            field_name="date",
-        )
+        # BUG-8: strict YYYY-MM-DD (or empty) — a garbage date silently
+        # corrupts Insights (avg-daily, timeline, historical-FX URL).
+        date = validate_date(e.get("date", ""))
         receipt_url = validate_upload_url(
             e.get("receiptUrl"), user_id=user_id,
             field_name="receiptUrl", allow_empty=True,

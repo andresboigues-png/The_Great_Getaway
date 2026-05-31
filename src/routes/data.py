@@ -35,6 +35,7 @@ from validators import (
     clean_companions as _clean_companions_raw,
     clean_text,
     validate_currency,
+    validate_date,
     validate_money,
     validate_splits,
     validate_upload_url,
@@ -94,10 +95,13 @@ def _validate_sync_expense(e: dict, user_id: str) -> dict | None:
             e.get('categoryId', '') or '', max_len=120, allow_newlines=False,
             field_name="categoryId",
         )
-        date = clean_text(
-            e.get('date', '') or '', max_len=32, allow_newlines=False,
-            field_name="date",
-        )
+        # BUG-8: coerce to YYYY-MM-DD or empty. On the bulk sync path we DROP
+        # a garbage date (→ '') rather than reject the whole expense, so a bad
+        # date can't corrupt Insights but the legit expense still syncs.
+        try:
+            date = validate_date(e.get('date', ''))
+        except ValidationError:
+            date = ''
         # R10-B6a F1: gate receiptUrl ownership before it lands in
         # the receipt_url column. Bad URL (not owned, not the
         # accepted prefix shape, non-string) drops the whole row

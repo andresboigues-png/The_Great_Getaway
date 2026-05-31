@@ -137,6 +137,13 @@ def network_lists(cursor, user_id: str) -> dict:
     if not user_id:
         return {"mutuals": [], "followersOnly": [], "followingOnly": []}
 
+    # BUG-13 (MK2 audit): mask emails here exactly like /api/friends/list does.
+    # Pre-fix this endpoint (which the Friends page actually calls via
+    # /api/follows/<self>?include=lists) shipped RAW `users.email`, leaking
+    # every friend's real address into the page DOM. Deferred import avoids
+    # the social↔routes.friends circular at module load.
+    from routes.friends import _mask_email
+
     # Followers (with display fields).
     cursor.execute(
         """
@@ -149,6 +156,8 @@ def network_lists(cursor, user_id: str) -> dict:
         (user_id,),
     )
     followers = [dict(r) for r in cursor.fetchall()]
+    for _r in followers:
+        _r["email"] = _mask_email(_r.get("email"))
     followers_by_id = {r["id"]: r for r in followers}
 
     # Following (with display fields).
@@ -163,6 +172,8 @@ def network_lists(cursor, user_id: str) -> dict:
         (user_id,),
     )
     following = [dict(r) for r in cursor.fetchall()]
+    for _r in following:
+        _r["email"] = _mask_email(_r.get("email"))
     following_by_id = {r["id"]: r for r in following}
 
     follower_ids = set(followers_by_id.keys())
