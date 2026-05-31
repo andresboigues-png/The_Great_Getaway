@@ -67,15 +67,17 @@
         padding: 4px;
     }
     .network-tabnav__tab {
-        flex: 1 1 0;
+        flex: 0 auto;
         justify-content: center;
         gap: 4px;
         min-width: 0;
-        padding: 7px 10px;
-        font-size: 0.78rem;
+        padding: 7px 9px;
+        font-size: 0.76rem;
     }
     .network-tabnav__label {
-        max-width: 12ch;
+        text-overflow: clip;
+        max-width: none;
+        overflow: visible;
     }
     .network-tabnav__count {
         min-width: 18px;
