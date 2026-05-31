@@ -169,20 +169,24 @@ export const announceUserToSW = (userId: string | null | undefined): void => {
  *     longer-lived request (e.g. a background sync that should
  *     outlive the page).
  *  Returns the raw Response so callers can branch on .ok / .status. */
-export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
+export async function apiFetch(path: string, options: RequestInit = {}, timeoutMs: number = 20_000): Promise<Response> {
     const url = path.startsWith('http') ? path : apiUrl(path);
     // Pick the signal: caller-supplied wins; otherwise fall back to
     // the router's per-nav signal. Build the merged init object
     // conditionally so we don't write `signal: undefined` (TS's
     // exactOptionalPropertyTypes flags that).
-    // R6-B4: 20s timeout on every fetch so flaky-cell mutations
+    // R6-B4: per-call timeout (default 20s) so flaky-cell mutations
     // can't hang for the browser default (often 5 minutes). Combine
     // with any caller-supplied signal — the request aborts on
     // whichever fires first. Without this a user on slow 3G hits
     // Save, sees no spinner timeout, taps Save again → duplicate
     // submission (R5's If-Match catches the corruption but the user
     // hits a confusing 409 stale-edit toast they didn't cause).
-    const timeoutSignal = AbortSignal.timeout(20_000);
+    // MK2 BUG-3: callers can pass a larger `timeoutMs` for legitimately
+    // slow endpoints — e.g. AI itinerary generation takes ~30s (Gemini +
+    // Places enrichment), which the blanket 20s used to abort, failing
+    // every multi-day plan with a misleading "Network hiccup".
+    const timeoutSignal = AbortSignal.timeout(timeoutMs);
     const callerSignal = options.signal ?? currentNavSignal();
     const combinedSignal = callerSignal
         ? AbortSignal.any([callerSignal, timeoutSignal])

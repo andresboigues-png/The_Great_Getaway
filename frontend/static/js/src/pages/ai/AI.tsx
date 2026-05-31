@@ -86,6 +86,21 @@ import { FilterSelect } from '../../react/components/FilterSelect.js';
 import './ai.css';
 
 
+/** MK2 BUG-2: the AI itinerary MUST be a day-array before any
+ *  `.map`/`.forEach`. Gemini sometimes wraps it as `{ days: [...] }` (the
+ *  backend even detects this shape for telemetry but forwarded it raw), and a
+ *  stale `activeTrip.aiPlan` persisted from an old session could be any shape.
+ *  Feeding a non-array into the renderer threw `TypeError: e.map is not a
+ *  function` straight into the page-mount ErrorBoundary — a full-page crash
+ *  that lost the (paid) plan. Coerce to a day-array or null so a variant /
+ *  garbage response can never crash the page. */
+function toItineraryDays(x: any): any[] | null {
+    if (Array.isArray(x)) return x;
+    if (x && typeof x === 'object' && Array.isArray((x as any).days)) return (x as any).days;
+    return null;
+}
+
+
 // ── Top-level ──────────────────────────────────────────────────
 export function AI() {
     // §3.4 — `useActiveTrip` is the single canonical resolver of
@@ -235,7 +250,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
 
     // Itinerary state — null until generated. Initialised from
     // activeTrip.aiPlan so re-mounts paint the last accepted plan.
-    const [itinerary, setItinerary] = useState<any>(activeTrip.aiPlan || null);
+    const [itinerary, setItinerary] = useState<any[] | null>(toItineraryDays(activeTrip.aiPlan));
     const [generationError, setGenerationError] = useState<{
         msg: string;
         hint: string;
@@ -587,7 +602,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                     sightseeingContext: sightsContextWithMarked,
                     gemini_key: (STATE.geminiApiKey || '').trim(),
                 }),
-            });
+            }, 75_000);  // MK2 BUG-3: generation takes ~30s (Gemini + Places); the blanket 20s aborted every multi-day plan
             serverStatus = r.status;
             const d = await r.json();
             // R10-B6b MA2: capture the explicit per-user-cap signal
@@ -603,11 +618,19 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                 setHostPoolStatus(d.host_keys as GeminiHostKeyStatus);
             }
             if (d.error) throw new Error(d.error);
-            const generated = d.itinerary;
+            // MK2 BUG-2: normalise to a day-array (unwrap `{days:[…]}`) before
+            // it touches state/render; a bare string or un-unwrappable object
+            // becomes null → friendly retry instead of a page crash.
+            const generated = toItineraryDays(d.itinerary);
             if (generated != null) {
-                activeTrip.aiPlan = generated;
+                // `aiPlan` is declared `string` in types but in practice holds
+                // the day-array — cast to keep the normaliser's array typing.
+                activeTrip.aiPlan = generated as any;
             } else {
                 delete activeTrip.aiPlan;
+                // Truthy-but-unreadable model output: surface an error rather
+                // than rendering nothing as if generation never happened.
+                if (d.itinerary != null) throw new Error(t('ai.errorGeneric'));
             }
             emit('state:changed');
             setItinerary(generated);
@@ -1404,7 +1427,7 @@ function ItineraryOutput({
                 </div>
             </div>
             <div className="flex flex-col gap-4">
-                {itinerary.map((day: any, i: number) => (
+                {(Array.isArray(itinerary) ? itinerary : []).map((day: any, i: number) => (
                     <div
                         key={i}
                         ref={(el) => {

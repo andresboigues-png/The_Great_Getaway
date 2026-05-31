@@ -612,6 +612,38 @@ def test_upsert_day_rejects_non_planner(
     assert res.status_code == 403
 
 
+def test_day_notes_and_tip_persist_independently(client, seed_user, auth_headers):
+    """BUG-1 tripwire (MK2 audit): per-day `notes` (Personal Notes / Journaling)
+    must be stored in its OWN column, never overloaded into `tip`. Regressing
+    this silently destroys every journal entry (and a notes-only payload can
+    resurface mislabeled as the Expert Tip). POST a day carrying BOTH, re-read
+    via /api/data, and assert each survives independently."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "Tuscany"},
+    })
+    res = client.post("/api/days", headers=auth_headers, json={
+        "day": {
+            "id": "day-1", "tripId": "trip-1", "dayNumber": 1, "name": "Florence",
+            "tip": "MY_EXPERT_TIP", "notes": "MY_JOURNAL_ENTRY",
+        },
+    })
+    assert res.status_code == 200
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    day = next(d for d in data["tripDays"] if d["id"] == "day-1")
+    assert day["notes"] == "MY_JOURNAL_ENTRY"   # was silently dropped pre-fix
+    assert day["tip"] == "MY_EXPERT_TIP"         # must not be clobbered by notes
+
+    # A notes-only payload must NOT leak into the tip column.
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {"id": "day-2", "tripId": "trip-1", "dayNumber": 2,
+                "name": "Siena", "notes": "JUST_A_NOTE"},
+    })
+    data2 = client.get("/api/data", headers=auth_headers).get_json()
+    day2 = next(d for d in data2["tripDays"] if d["id"] == "day-2")
+    assert day2["notes"] == "JUST_A_NOTE"
+    assert (day2["tip"] or "") == ""             # notes must NOT become the tip
+
+
 def test_delete_day_happy_path(client, seed_user, auth_headers):
     """Planner can delete a numbered day; row is gone after."""
     client.post("/api/trips", headers=auth_headers, json={

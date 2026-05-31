@@ -812,8 +812,8 @@ def sync_data():
             # days — see routes/days.py for the rationale and migration
             # b7c8d9e0f1a2_add_tombstone_columns.
             cursor.execute('''
-                INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, lat, lng)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, notes, lat, lng)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     day_number=excluded.day_number,
                     date=excluded.date,
@@ -822,6 +822,7 @@ def sync_data():
                     afternoon=excluded.afternoon,
                     evening=excluded.evening,
                     tip=excluded.tip,
+                    notes=excluded.notes,
                     lat=excluded.lat,
                     lng=excluded.lng,
                     -- R4-B1: bump updated_at so the R3-R5 stale-edit
@@ -837,7 +838,10 @@ def sync_data():
                   d.get('morning', d.get('plan', {}).get('morning', '')) or '',
                   d.get('afternoon', d.get('plan', {}).get('afternoon', '')) or '',
                   d.get('evening', d.get('plan', {}).get('evening', '')) or '',
-                  d.get('tip', d.get('notes', '')),
+                  # BUG-1 fix: write `notes` as its own column (was overloaded
+                  # into `tip`, silently losing per-day notes + journaling).
+                  d.get('tip', ''),
+                  d.get('notes', ''),
                   d.get('lat'),
                   # The frontend writes `lon` and `lng` interchangeably for
                   # longitude (legacy naming); the lat column was previously

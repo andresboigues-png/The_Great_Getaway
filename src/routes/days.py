@@ -97,8 +97,8 @@ def upsert_day():
             # See migration b7c8d9e0f1a2_add_tombstone_columns for the
             # column rationale.
             cursor.execute('''
-                INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, lat, lng, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
+                INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, notes, lat, lng, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
                 ON CONFLICT(id) DO UPDATE SET
                     day_number=excluded.day_number,
                     date=excluded.date,
@@ -107,6 +107,7 @@ def upsert_day():
                     afternoon=excluded.afternoon,
                     evening=excluded.evening,
                     tip=excluded.tip,
+                    notes=excluded.notes,
                     lat=excluded.lat,
                     lng=excluded.lng,
                     updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
@@ -121,7 +122,13 @@ def upsert_day():
                   d.get('morning', d.get('plan', {}).get('morning', '')) or '',
                   d.get('afternoon', d.get('plan', {}).get('afternoon', '')) or '',
                   d.get('evening', d.get('plan', {}).get('evening', '')) or '',
-                  d.get('tip', d.get('notes', '')),
+                  # BUG-1 fix: `tip` and `notes` are SEPARATE columns. Previously
+                  # `notes` was overloaded into the `tip` fallback, so per-day
+                  # Personal Notes + Journaling silently vanished (the notes
+                  # column was never written) and could resurface mislabeled as
+                  # the Expert Tip. Bind each independently.
+                  d.get('tip', ''),
+                  d.get('notes', ''),
                   d.get('lat'),
                   # §2.4 — `or` drops lng=0 (prime meridian). Explicit
                   # is-not-None instead.

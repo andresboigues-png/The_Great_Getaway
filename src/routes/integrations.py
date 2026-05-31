@@ -938,6 +938,15 @@ def generate_itinerary():
         # by design (the user is spending their own quota).
         if not using_byo:
             _ai_increment_for_user(requesting_user_id)
+        # MK2 BUG-2 (defence-in-depth): the model sometimes wraps the plan as
+        # {"days": [...]} (see days_count above) or returns a stray non-list.
+        # Always hand the client a bare day-array so a variant shape can't
+        # crash the frontend renderer's `.map`/`.forEach`.
+        if isinstance(itinerary, dict):
+            inner = itinerary.get("days")
+            itinerary = inner if isinstance(inner, list) else []
+        elif not isinstance(itinerary, list):
+            itinerary = []
         # Include the pool snapshot on success too so the frontend
         # bar refreshes after every generation — useful when one
         # request silently drains the last available slot.
