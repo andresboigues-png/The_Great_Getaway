@@ -397,8 +397,15 @@ function collectSettlementHistory(trip: any): HistoryItem[] {
     // via direct API call, which the UI can't trigger).
     for (const s of STATE.settlements || []) {
         if (s.tripId !== trip.id) continue;
-        const fromName = findTripCompanionByLinkedUser(trip, s.fromUserId)?.name;
-        const toName = findTripCompanionByLinkedUser(trip, s.toUserId)?.name;
+        // BUG-4/B3 (MK2 audit): prefer the settlement's name snapshot (the
+        // server backfills fromName/toName on every row) so a member with an
+        // UNLINKED companion still resolves. Pre-fix the linked-only lookup
+        // returned undefined and `continue` DROPPED the row — so the History
+        // list showed "no past settlements" while the badge + chip counted it.
+        const fromName = (s as { fromName?: string }).fromName
+            || findTripCompanionByLinkedUser(trip, s.fromUserId)?.name;
+        const toName = (s as { toName?: string }).toName
+            || findTripCompanionByLinkedUser(trip, s.toUserId)?.name;
         if (!fromName || !toName) continue;
         items.push({
             id: s.id,

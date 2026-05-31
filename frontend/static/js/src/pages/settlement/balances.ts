@@ -75,15 +75,31 @@ export function applySettlementToBalances(
     // dropped from balance math — the debt stayed visible after
     // payment. Resolution: when the snapshot name misses, try the
     // companion-lookup, which IS keyed on the roster-side name.
+    // BUG-4 (MK2 audit): generalise the owner's first-name reconciliation to
+    // ALL members. The settlement snapshot carries the member's FULL account
+    // name ("Sara Lopez") + user_id, but expenses split on the companion's
+    // first-name key ("Sara"). The owner is auto-linked so the companion
+    // lookup saves them; a non-owner member with an UNLINKED same-person
+    // companion was not, so `balances["Sara Lopez"]` was undefined and a
+    // PHANTOM duplicate person got seeded below (the €45 landed on the phantom
+    // and the real debt never cleared). When the full name + the linked lookup
+    // both miss, fall back to the first token so the payment reconciles to the
+    // existing companion balance instead of inventing a second person.
+    const firstNameKey = (full: string | undefined): string | undefined => {
+        const first = (full || '').split(/\s+/)[0];
+        return first && balances[first] !== undefined ? first : undefined;
+    };
     let fromName: string | undefined = settlement.fromName || undefined;
     if (!fromName || balances[fromName] === undefined) {
         const found = findTripCompanionByLinkedUser(trip, settlement.fromUserId)?.name;
         if (found && balances[found] !== undefined) fromName = found;
+        else fromName = firstNameKey(fromName) ?? fromName;
     }
     let toName: string | undefined = settlement.toName || undefined;
     if (!toName || balances[toName] === undefined) {
         const found = findTripCompanionByLinkedUser(trip, settlement.toUserId)?.name;
         if (found && balances[found] !== undefined) toName = found;
+        else toName = firstNameKey(toName) ?? toName;
     }
     if (!fromName || !toName) return;
     // R3-Round 2 fix: SEED missing roster entries instead of silently
