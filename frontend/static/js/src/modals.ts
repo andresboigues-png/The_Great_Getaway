@@ -252,10 +252,25 @@ function _wirePlacePicker(
             countryCode,
         });
     });
-    // If the user edits the input after picking, invalidate so the place data
-    // stays in sync with what's visible.
+    // BUG-11 (MK2 audit): keep a free-text fallback even when Places IS
+    // loaded. The picker used to only enable submit on `place_changed`
+    // (selecting a suggestion) and invalidate to null on any divergent
+    // keystroke — so a restricted/slow Places API, a quota-throttled
+    // autocomplete, or simply an unlisted destination left the very
+    // first "Create Trip" permanently un-clickable (the free-text escape
+    // existed only in the `google === undefined` branch above). Now: if
+    // the typed text doesn't match the rich pick, fall back to a
+    // free-text place (placeId='' / no coordinates) so the button always
+    // works; a later `place_changed` upgrades it to the rich pick with
+    // lat/lng/country.
     placeInput.addEventListener('input', () => {
-        if (pickedPlace && placeInput.value !== pickedPlace.name) setPicked(null);
+        if (pickedPlace && placeInput.value === pickedPlace.name) return;
+        const val = placeInput.value.trim();
+        if (val.length > 1) {
+            setPicked({ placeId: '', name: val, lat: 0, lng: 0, viewport: null, types: [], countryCode: null });
+        } else {
+            setPicked(null);
+        }
     });
 
     return { getPicked: () => pickedPlace };

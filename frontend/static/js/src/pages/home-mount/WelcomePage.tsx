@@ -22,11 +22,15 @@
 import { useEffect, useRef } from 'react';
 import { buildEmptyStateHtml } from '../home/welcomeCard.js';
 import { setupSlideshow, stopHomeSlideshow } from '../home/slideshow.js';
+import { appendGettingStartedGuide } from '../home/gettingStartedGuide.js';
+import { wireRoleButtonKeys } from '../../components/Keyboard.js';
 import { openNewTripModal } from '../../modals.js';
 
 
 export function WelcomePage() {
+    const rootRef = useRef<HTMLDivElement | null>(null);
     const hostRef = useRef<HTMLDivElement | null>(null);
+    const guideRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         const host = hostRef.current;
@@ -50,5 +54,33 @@ export function WelcomePage() {
         };
     }, []);
 
-    return <div ref={hostRef} />;
+    // BUG-10 (MK2 audit): render the Getting-Started guide on the
+    // no-trips screen too. Pre-fix the guide lived only in the
+    // active-trip TripView, so a brand-new user (0 trips) saw just the
+    // slideshow + a single CTA and never the 10-step onboarding
+    // scaffold. There's no active trip here — the guide handles that
+    // (its "Add companions" step just navigates home), and `hasPlan` /
+    // `hasExpenses` resolve false off the empty arrays.
+    useEffect(() => {
+        const host = guideRef.current;
+        if (!host) return;
+        host.innerHTML = '';
+        appendGettingStartedGuide({
+            parent: host,
+            activeTrip: null,
+            tripDays: [],
+            tripExpenses: [],
+        });
+        if (rootRef.current) wireRoleButtonKeys(rootRef.current);
+        return () => {
+            host.innerHTML = '';
+        };
+    }, []);
+
+    return (
+        <div ref={rootRef}>
+            <div ref={hostRef} />
+            <div ref={guideRef} />
+        </div>
+    );
 }

@@ -75,7 +75,18 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
     // Companions are per-trip now — for the getting-started
     // checklist, count "any trip with any companions" as having
     // companions set up.
-    const hasCompanions = STATE.trips.some(t => (t.companions || []).length > 0);
+    //
+    // BUG-10/42 (MK2 audit): exclude the auto-added self-companion. Every
+    // owned trip gets the owner unshifted as a companion
+    // (`linkedUserId === me.id`, stamped in api.ts), so the pre-fix
+    // `length > 0` check marked "Add companions" done before the user
+    // had added anyone. Count only companions that aren't you.
+    const myId = STATE.user?.id;
+    const hasCompanions = STATE.trips.some(
+        t => (t.companions || []).some(
+            (c: { linkedUserId?: string }) => c.linkedUserId !== myId,
+        ),
+    );
     const hasPlan = tripDays.length > 0;
     const hasExpenses = tripExpenses.length > 0;
     const hasBudgets = !!(STATE.budgets && STATE.budgets.length > 0);
@@ -139,24 +150,22 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
         emit('state:changed');
     }
 
-    // Round 3 audit fix — first-run UX improvement: previously the
-    // guide was hidden by default for ALL users (only showed the tiny
-    // "🧭 Show Quick Access" button), which meant new users never saw
-    // the 10-step onboarding hint. Now: brand-new users (no completed
-    // steps yet AND no explicit Hide click) see the guide expanded
-    // by default. Once they complete at least one step OR explicitly
-    // hide it, the existing collapsed-by-default behaviour resumes.
+    // BUG-10 (MK2 audit): keep the guide expanded until the user
+    // EXPLICITLY hides it — never infer dismissal from progress. The
+    // previous logic collapsed the guide whenever `completedSteps > 0`,
+    // but the "login" step auto-completes the moment you're signed in
+    // (you can't reach Home otherwise), so completedSteps was ALWAYS
+    // ≥ 1 and the 10-step onboarding guide collapsed to a tiny "Show
+    // Quick Access" button before any new user could ever see it —
+    // contradicting the very intent the old comment documented.
     //
-    //   - STATE.hideQuickAccess === false → user explicitly opened
-    //     it (or never closed it) → expanded.
-    //   - STATE.hideQuickAccess === true  → user explicitly hid it
-    //     → collapsed (the small Show button).
-    //   - undefined → first-run-ish; expand if they've completed
-    //     ZERO steps so far (true onboarding moment), otherwise
-    //     collapse (returning user who never explicitly opened).
-    const completedSteps = steps.filter(s => s.done).length;
-    const isHidden = STATE.hideQuickAccess === true
-        || (STATE.hideQuickAccess === undefined && completedSteps > 0);
+    //   - STATE.hideQuickAccess === true → user clicked Hide → collapsed
+    //     (the small Show button).
+    //   - otherwise (false / undefined) → expanded. For a brand-new user
+    //     that's the onboarding checklist; once every step is done it
+    //     becomes the compact Quick Access toolbar, still one click from
+    //     Hide.
+    const isHidden = STATE.hideQuickAccess === true;
 
     if (isHidden) {
         const showBtnContainer = document.createElement('div');
