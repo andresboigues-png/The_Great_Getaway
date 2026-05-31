@@ -217,15 +217,22 @@ export function computeTripBalances(trip: any) {
 /** Greedy minimal-payments list. Pairs largest debtor with largest
  *  creditor, settles the smaller of the two, repeats.
  *
- *  R3-Round 2 fix: epsilon bumped from €0.01 to €0.50. The previous
- *  value couldn't absorb FX rounding residue from multi-currency
- *  trips (JPY→EUR rounds at the thousandths place per row; summed
- *  over a few dozen expenses the residue routinely lands in
- *  €0.02–€0.40 range). Users saw "Alice owes Bob €0.02" lingering
- *  after a settle-up. €0.50 is below the visible-friction threshold
- *  (nobody balks at the cents column in a group split) and well
- *  above plausible accumulated rounding error. */
-const _ZERO_EPSILON_EUR = 0.5;
+ *  Epsilon history:
+ *   - R3-Round 2 bumped it €0.01 → €0.50 to absorb residue that made
+ *     "Alice owes Bob €0.02" linger after a settle-up. But the DOMINANT
+ *     residue source at that time was structural, not FX rounding: an
+ *     un-normalised 33/33/33 split summed to 99 %, leaking ~1 % of
+ *     EVERY expense into the balances (a €100 dinner left €1 unbalanced).
+ *   - BUG-23 (MK2 audit): that structural drift was later eliminated by
+ *     the "audit S5" split-normalisation in computeTripBalances (it now
+ *     divides each split % by the actual sum, so near-100 % splits
+ *     self-correct to exactly 0). With the 1 %-per-expense leak gone,
+ *     only genuine sub-cent FX rounding remains (JPY→EUR thousandths),
+ *     which €0.01 absorbs fine. The old €0.50 floor was now eating REAL
+ *     debts — a €0.49 coffee-rounding debt showed "All settled 🥂".
+ *     Tightened back to €0.01 so real small debts surface again while
+ *     true rounding noise (< 1 cent) is still swallowed. */
+const _ZERO_EPSILON_EUR = 0.01;
 export function simplifyDebts(balances: Record<string, number>): SettlementDebt[] {
     const creditors: BalanceEntry[] = [];
     const debtors: BalanceEntry[] = [];

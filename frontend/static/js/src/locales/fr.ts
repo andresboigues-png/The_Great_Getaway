@@ -1110,6 +1110,7 @@ export const fr: Translations = {
         sharedToFeedSuccess: 'Partagé dans le fil !',
         sharedToFeedDuplicate: 'Déjà partagé — va dans Collections pour annuler ou reposter.',
         sharedToFeedFailed: 'Impossible de partager dans le fil. Réessaie.',
+        feedMakesPublicWarning: 'Attention : ce voyage est privé. Le partager dans ton fil le rend public — tes amis peuvent l’ouvrir, il apparaît dans Explorer, et toute personne ayant le lien peut le voir.',
         viewsCount: {
             one: '👁 {count} vue',
             other: '👁 {count} vues',

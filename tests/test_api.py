@@ -6984,6 +6984,61 @@ def test_settle_up_happy_path(
     assert any(x["id"] == s["id"] for x in data["settlements"])
 
 
+def test_settlement_rejects_overpayment_beyond_trip_spend(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """BUG-24 (MK2 audit): the server must reject a settlement larger
+    than the whole trip's spend. The persona logged a €10,000 settlement
+    against a €45 debt and got a 201 — which INVERTS the ledger (the
+    payer becomes the creditor). A single from→to debt can never exceed
+    total trip spend, so that's the safe server-side bound."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-overpay")
+    _seed_member(trip_id, seed_other_user, role="relaxer")
+    # One €45 expense → total trip spend = €45.
+    exp = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-overpay-1", "tripId": trip_id,
+            "who": "Owner", "value": 45, "currency": "EUR",
+            "euroValue": 45, "label": "Dinner", "date": "2026-01-02",
+        },
+    })
+    assert exp.status_code == 200
+
+    # €10,000 settlement on a €45 trip → rejected, with the cap surfaced.
+    over = client.post("/api/settlements", headers=auth_headers, json={
+        "tripId": trip_id,
+        "fromUserId": seed_other_user, "toUserId": seed_user,
+        "amount": 10000.0, "currency": "EUR", "euroValue": 10000.0,
+    })
+    assert over.status_code == 400, over.get_data(as_text=True)
+    assert "maxEur" in over.get_json()
+
+    # A settlement within the trip's spend still goes through.
+    ok = client.post("/api/settlements", headers=auth_headers, json={
+        "tripId": trip_id,
+        "fromUserId": seed_other_user, "toUserId": seed_user,
+        "amount": 22.5, "currency": "EUR", "euroValue": 22.5,
+    })
+    assert ok.status_code == 201, ok.get_data(as_text=True)
+
+
+def test_settlement_cap_skipped_when_trip_has_no_expenses(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """BUG-24 corollary: the cap is bounded by recorded spend, so a trip
+    with NO expenses can't bound anything — the settlement may be an
+    off-app cash debt the user logs after the fact. Such settlements are
+    still accepted (no regression to the happy path)."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-nocap")
+    _seed_member(trip_id, seed_other_user, role="relaxer")
+    res = client.post("/api/settlements", headers=auth_headers, json={
+        "tripId": trip_id,
+        "fromUserId": seed_other_user, "toUserId": seed_user,
+        "amount": 500.0, "currency": "EUR", "euroValue": 500.0,
+    })
+    assert res.status_code == 201, res.get_data(as_text=True)
+
+
 def test_member_sees_settlement_between_other_members_in_data(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):

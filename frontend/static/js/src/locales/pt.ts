@@ -1109,6 +1109,7 @@ export const pt: Translations = {
         sharedToFeedSuccess: 'Partilhado no feed!',
         sharedToFeedDuplicate: 'Já partilhado — vai às Coleções para retirar ou republicar.',
         sharedToFeedFailed: 'Não foi possível partilhar no feed. Tenta novamente.',
+        feedMakesPublicWarning: 'Atenção: esta viagem é privada. Partilhá-la no teu feed torna-a pública — os teus amigos podem abri-la, aparece em Explorar e qualquer pessoa com o link pode vê-la.',
         viewsCount: {
             one: '👁 {count} visualização',
             other: '👁 {count} visualizações',

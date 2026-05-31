@@ -1438,6 +1438,7 @@ export const en = {
         sharedToFeedSuccess: 'Shared to feed!',
         sharedToFeedDuplicate: 'Already shared — head to Collections to unshare or repost.',
         sharedToFeedFailed: "Couldn't share to feed. Try again.",
+        feedMakesPublicWarning: 'Heads up — this trip is private. Sharing it to your feed makes it public: friends can open it, it appears in Explore, and anyone with its share link can view it.',
         // Views chip (plural-aware).
         viewsCount: {
             one: '👁 {count} view',

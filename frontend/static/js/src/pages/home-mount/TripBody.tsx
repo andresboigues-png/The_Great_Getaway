@@ -745,6 +745,73 @@ export function TripBody({ activeTrip }: TripBodyProps) {
 }
 
 
+// ── Roster chip model — single source of truth for the Companions
+// card. Both the chip panel (render) and the header count badge derive
+// from this ONE deduped list so they can never disagree.
+//
+// BUG-19 (MK2 audit): the count badge read `companions.length` while
+// the chips rendered a deduped union (owner ∪ members ∪ companions not
+// already linked to a member). So a trip where one person was both a
+// member and a same-name companion (the "two Saras" case) showed e.g.
+// "3 people" above 4 chips — or vice-versa. Deriving the count from the
+// same builder makes the mismatch structurally impossible.
+interface ChipShape {
+    name: string;
+    role: string | null;
+    picture?: string | null;
+    isOwner: boolean;
+    isMember: boolean;
+    isPending?: boolean;
+}
+
+function buildRosterChips(activeTrip: Trip): ChipShape[] {
+    const members = activeTrip.members || [];
+    const companions = activeTrip.companions || [];
+    const chips: ChipShape[] = [];
+    const seenMemberIds = new Set<string>();
+
+    const owner = members.find((m) => m.userId === activeTrip.ownerId);
+    if (owner) {
+        chips.push({
+            name:
+                findTripCompanionByLinkedUser(activeTrip, owner.userId)?.name ||
+                owner.name ||
+                t('companions.fallbackOwnerName'),
+            role: owner.role,
+            picture: owner.picture ?? null,
+            isOwner: true,
+            isMember: true,
+        });
+        seenMemberIds.add(owner.userId);
+    }
+    for (const m of members) {
+        if (seenMemberIds.has(m.userId)) continue;
+        seenMemberIds.add(m.userId);
+        chips.push({
+            name:
+                findTripCompanionByLinkedUser(activeTrip, m.userId)?.name ||
+                m.name ||
+                m.userId,
+            role: m.role,
+            picture: m.picture ?? null,
+            isOwner: false,
+            isMember: true,
+        });
+    }
+    for (const c of companions) {
+        if (c.linkedUserId && seenMemberIds.has(c.linkedUserId)) continue;
+        chips.push({
+            name: c.name,
+            role: null,
+            isOwner: false,
+            isMember: false,
+            isPending: !!c.linkedUserId,
+        });
+    }
+    return chips;
+}
+
+
 // ── CompanionsCard — chip panel + roster CTA ───────────────────
 interface CompanionsCardProps {
     activeTrip: Trip;
@@ -754,11 +821,16 @@ interface CompanionsCardProps {
 }
 
 function CompanionsCard({ activeTrip, tripIsManageable, isActive, onRoster }: CompanionsCardProps) {
-    const companionCount = tripIsManageable
-        ? (activeTrip.companions || []).length
-        : (activeTrip.members || []).length;
+    // BUG-19: count the SAME deduped roster the chips render, so the
+    // header badge can't disagree with the visible chips. The CTA
+    // wording still keys off whether there's anything to manage
+    // (companions to edit / members to see) — unchanged behaviour.
+    const companionCount = buildRosterChips(activeTrip).length;
+    const hasManageTarget = tripIsManageable
+        ? (activeTrip.companions || []).length > 0
+        : (activeTrip.members || []).length > 0;
     const ctaLabel = tripIsManageable
-        ? companionCount > 0
+        ? hasManageTarget
             ? t('companions.cardCtaEdit')
             : t('companions.cardCtaAdd')
         : t('companions.cardCtaSee');
@@ -828,58 +900,8 @@ function MemberChipsPanel({
     tripIsManageable: boolean;
     onClick: () => void;
 }) {
-    const members = activeTrip.members || [];
-    const companions = activeTrip.companions || [];
-
-    interface ChipShape {
-        name: string;
-        role: string | null;
-        picture?: string | null;
-        isOwner: boolean;
-        isMember: boolean;
-        isPending?: boolean;
-    }
-    const chips: ChipShape[] = [];
-    const seenMemberIds = new Set<string>();
-
-    const owner = members.find((m) => m.userId === activeTrip.ownerId);
-    if (owner) {
-        chips.push({
-            name:
-                findTripCompanionByLinkedUser(activeTrip, owner.userId)?.name ||
-                owner.name ||
-                t('companions.fallbackOwnerName'),
-            role: owner.role,
-            picture: owner.picture ?? null,
-            isOwner: true,
-            isMember: true,
-        });
-        seenMemberIds.add(owner.userId);
-    }
-    for (const m of members) {
-        if (seenMemberIds.has(m.userId)) continue;
-        seenMemberIds.add(m.userId);
-        chips.push({
-            name:
-                findTripCompanionByLinkedUser(activeTrip, m.userId)?.name ||
-                m.name ||
-                m.userId,
-            role: m.role,
-            picture: m.picture ?? null,
-            isOwner: false,
-            isMember: true,
-        });
-    }
-    for (const c of companions) {
-        if (c.linkedUserId && seenMemberIds.has(c.linkedUserId)) continue;
-        chips.push({
-            name: c.name,
-            role: null,
-            isOwner: false,
-            isMember: false,
-            isPending: !!c.linkedUserId,
-        });
-    }
+    // BUG-19: render the SAME deduped roster the count badge reads.
+    const chips = buildRosterChips(activeTrip);
 
     if (chips.length === 0) {
         return (

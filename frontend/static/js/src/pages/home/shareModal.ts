@@ -20,6 +20,7 @@
 import { showModal } from '../../components/Modal.js';
 import { esc } from '../../utils.js';
 import { t } from '../../i18n.js';
+import { iconSvg } from '../../icons.js';
 
 
 /** Flip the Silence-trip button between outline and filled
@@ -109,10 +110,20 @@ export function updateShareBtnVisualState(btn: HTMLElement | null, shared: boole
  *  this modal so the share UX stays identical regardless of
  *  entry point. */
 export function openShareToFeedModal(
-    trip: { name: string; country?: string },
+    trip: { name: string; country?: string; isPublic?: boolean },
     onSubmit: (caption: string) => Promise<void> | void,
     seedCaption: string = '',
 ): void {
+    // BUG-14 (MK2 audit): sharing a PRIVATE trip to the feed silently
+    // flips it public — and (after the BUG-44 fix) also mints a
+    // share_token, so the trip becomes discoverable in Explore and via
+    // its public link, not just visible to friends. The chooser
+    // subtitle ("Post to your friends") doesn't hint at any of that, so
+    // a user reasonably expects a friends-only post. Surface a clear
+    // consent notice when the trip isn't already public; hitting Share
+    // is then an informed choice. Public trips skip the notice (nothing
+    // changes for them).
+    const willGoPublic = !trip.isPublic;
     const { root, close } = showModal({
         cardClass: 'card glass',
         cardStyle: 'width: 480px; max-width: calc(100vw - 32px); padding: 28px; border-radius: 28px; background: white;',
@@ -124,6 +135,11 @@ export function openShareToFeedModal(
                 </div>
                 <button id="shareModalClose" class="close-x-btn" aria-label="${t('common.close')}">✕</button>
             </div>
+            ${willGoPublic ? `
+            <div role="note" style="display:flex; gap:10px; align-items:flex-start; padding:11px 13px; margin-bottom:16px; background:rgba(255,149,0,0.10); border:1px solid rgba(255,149,0,0.30); border-radius:14px;">
+                <span style="flex:0 0 auto; color:#c8791a; margin-top:1px; line-height:0;">${iconSvg('globe', { size: 16 })}</span>
+                <p style="margin:0; font-size:0.82rem; line-height:1.45; color:#8a5a12;">${t('share.feedMakesPublicWarning')}</p>
+            </div>` : ''}
             <label style="display:block; font-size:0.78rem; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Add a caption (optional)</label>
             <textarea id="shareCaptionInput" maxlength="280" placeholder="e.g. Adding Lisbon for Easter — anyone been?"
                 style="width:100%; box-sizing:border-box; min-height: 90px; padding:12px 14px; border:1px solid rgba(0,45,91,0.12); border-radius:14px; font-size:0.95rem; font-family: inherit; color:#002d5b; background:rgba(0,113,227,0.04); resize: vertical; line-height:1.45;">${esc(seedCaption || '')}</textarea>

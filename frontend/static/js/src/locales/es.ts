@@ -1105,6 +1105,7 @@ export const es: Translations = {
         sharedToFeedSuccess: '¡Compartido en el feed!',
         sharedToFeedDuplicate: 'Ya compartido — ve a Colecciones para dejar de compartir o repostear.',
         sharedToFeedFailed: 'No se pudo compartir en el feed. Inténtalo de nuevo.',
+        feedMakesPublicWarning: 'Atención: este viaje es privado. Compartirlo en tu feed lo hará público — tus amigos podrán abrirlo, aparecerá en Explorar y cualquiera con el enlace podrá verlo.',
         viewsCount: {
             one: '👁 {count} visita',
             other: '👁 {count} visitas',

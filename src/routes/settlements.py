@@ -238,6 +238,40 @@ def create_settlement():
                 "error": "Trip is archived — unarchive to record new settlements",
             }), 409
 
+        # BUG-24 (MK2 persona audit): reject grossly-oversized settlements
+        # server-side. The persona logged a €10,000 settlement against a
+        # €45 debt and got a 201 — which INVERTS the ledger (the payer is
+        # now owed money). Only the manual modal warned; the API didn't.
+        #
+        # We don't replicate the client's full split engine here (custom
+        # splits, multi-currency, identity reconciliation) — doing so
+        # risks subtle divergence that would FALSE-REJECT legitimate
+        # settlements, which is worse than the bug. Instead we use a
+        # provably-safe upper bound: a single from→to debt can never
+        # exceed the total euros ever spent on the trip (the most anyone
+        # can owe is their share of everything). A settlement larger than
+        # that is necessarily an overpayment. The cap carries 1 % + €0.50
+        # headroom so accumulated FX rounding on a full-trip settlement
+        # never trips it. Skip entirely when the trip has no recorded
+        # expenses — nothing to bound against, and it may be an off-app
+        # cash debt the user is logging after the fact.
+        cursor.execute(
+            "SELECT COALESCE(SUM(euro_value), 0) AS total FROM expenses "
+            "WHERE trip_id = ? AND is_settlement = 0",
+            (trip_id,),
+        )
+        total_spend = cursor.fetchone()["total"] or 0
+        if total_spend > 0 and euro_value is not None:
+            settlement_cap = total_spend * 1.01 + 0.5
+            if euro_value > settlement_cap:
+                return jsonify({
+                    "error": (
+                        "This settlement is larger than the whole trip's "
+                        "spend — double-check the amount."
+                    ),
+                    "maxEur": round(total_spend, 2),
+                }), 400
+
         # 2026-05-26 (audit S1 + S6): snapshot party display names at
         # insert time. Pre-fix, the balance math resolved names from
         # the trip's live companion roster — so if either party was

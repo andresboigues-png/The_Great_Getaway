@@ -107,19 +107,27 @@
     }
     .network-tabnav__tab {
         gap: 4px;
-        padding: 7px 10px;
-        font-size: 0.78rem;
-        /* Equal flex so each pill takes a third of the row — no
-           runt pill at the end when the labels are short. */
-        flex: 1 1 0;
+        padding: 7px 9px;
+        font-size: 0.76rem;
+        /* BUG-25 (MK2 audit): size each pill to its CONTENT instead of
+           forcing an equal third. The old `flex: 1 1 0` made every pill
+           exactly 1/3 of the row regardless of label length, which
+           squeezed "Followers" → "Follow…" and "Following" → "Followi…"
+           — two tabs that then looked identical. Content-sizing +
+           `space-between` (on the nav) keeps all three on one line and
+           fully legible; the ≤9-char labels fit every phone ≥360px, and
+           the count chip already drops below 360px for the narrowest
+           devices. */
+        flex: 0 1 auto;
         justify-content: center;
         min-width: 0;
     }
     .network-tabnav__label {
-        /* Allow a tighter ellipsis on phone — long localised labels
-           like Portuguese "Seguidores" already fit, but Russian /
-           German variants could need it. */
-        max-width: 12ch;
+        /* BUG-25: never ellipsize on phones — the whole word must show
+           so the two "Follow…" tabs stay tellable apart. */
+        max-width: none;
+        overflow: visible;
+        text-overflow: clip;
     }
     .network-tabnav__count {
         min-width: 18px;
