@@ -1178,7 +1178,10 @@ function EventCard(props: EventCardProps) {
             style={{
                 padding: '16px 18px',
                 borderRadius: 18,
-                background: 'white',
+                // BUG-15 (MK2 audit): theme token, not hard-coded white — feed
+                // cards used to stay white-on-black in dark mode with
+                // near-invisible inner text.
+                background: 'var(--card-bg)',
                 border: `1px solid ${accent.color}22`,
                 borderLeft: `4px solid ${accent.color}`,
                 boxShadow: '0 4px 14px rgba(0,45,91,0.06)',
@@ -1231,7 +1234,8 @@ function EventCard(props: EventCardProps) {
                         background: 'rgba(88,86,214,0.06)',
                         borderRadius: 12,
                         fontSize: '0.92rem',
-                        color: '#002d5b',
+                        // BUG-15: theme token so the caption is legible in dark mode.
+                        color: 'var(--text-brand-navy)',
                         lineHeight: 1.45,
                         whiteSpace: 'pre-wrap',
                         wordWrap: 'break-word',
@@ -1245,7 +1249,7 @@ function EventCard(props: EventCardProps) {
             {isShareLike && ev.trip?.id ? (
                 <button
                     type="button"
-                    className="feed-trip-card mt-2.5 w-full text-left bg-white border border-[rgba(88,86,214,0.22)] border-l-4 border-[#5856d6] rounded-[14px] py-3 px-3.5 cursor-pointer flex items-center gap-3 shadow-[0_2px_8px_rgba(0,45,91,0.04)] transition-[transform_0.15s_ease,_box-shadow_0.15s_ease]"
+                    className="feed-trip-card mt-2.5 w-full text-left bg-[var(--card-bg-elevated)] border border-[rgba(88,86,214,0.22)] border-l-4 border-[#5856d6] rounded-[14px] py-3 px-3.5 cursor-pointer flex items-center gap-3 shadow-[0_2px_8px_rgba(0,45,91,0.04)] transition-[transform_0.15s_ease,_box-shadow_0.15s_ease]"
                     data-trip-id={ev.trip.id}
                     onClick={() => viewArchivedDetails(ev.trip!.id)}
                 >

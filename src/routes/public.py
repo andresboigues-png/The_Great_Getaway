@@ -260,15 +260,26 @@ def get_public_trip(trip_id):
                 "AND COALESCE(is_settlement, 0) = 0",
                 (trip_id,),
             )
-            expenses = [dict(r) for r in cursor.fetchall()]
-            # Translate snake_case → camelCase for the public detail
-            # surface. Same shape as routes/data.py — both reads need to
-            # match because the frontend filters by `e.tripId`.
-            for e in expenses:
-                e['tripId'] = e.pop('trip_id', None)
-                e['categoryId'] = e.pop('category_id', None)
-                e['euroValue'] = e.pop('euro_value', None)
-                e['receiptUrl'] = e.pop('receipt_url', None)
+            # BUG-12 (MK2 audit): project public expenses down to spend-only
+            # fields. Pre-fix `dict(r)` shipped the RAW row to anonymous
+            # viewers — `who`, the named `splits` map ({"Alex":50,"Sara":50}),
+            # the `receiptUrl`, plus is_settlement/deleted_at/updated_at/user_id
+            # — i.e. the interpersonal accounting the publicShowExpenses toggle
+            # was never meant to expose. A stranger should see WHAT was spent,
+            # not who paid or how the bill was split. Keep only the safe fields.
+            for r in cursor.fetchall():
+                row = dict(r)
+                expenses.append({
+                    'id': row.get('id'),
+                    'tripId': row.get('trip_id'),
+                    'label': row.get('label'),
+                    'value': row.get('value'),
+                    'currency': row.get('currency'),
+                    'euroValue': row.get('euro_value'),
+                    'categoryId': row.get('category_id'),
+                    'date': row.get('date'),
+                    'country': row.get('country'),
+                })
 
         # Inline tripDays + expenses + members on the trip object. The
         # archived-trip frontend reads these from `trip.tripDays` and

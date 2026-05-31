@@ -94,7 +94,7 @@ export function archiveActiveTrip() {
         message: t('errors.completeTripBody'),
         confirmText: t('errors.completeTripConfirmBtn'),
         confirmColor: "#34c759",
-        onConfirm: () => {
+        onConfirm: async () => {
             trip.isArchived = true;
             // Stamp the moment of completion so Collections can sort
             // by "Recently completed" without relying on array-order
@@ -128,7 +128,14 @@ export function archiveActiveTrip() {
             STATE.activeTripId = STATE.trips.length > 0 ? STATE.trips[0]!.id : null;
 
             emit('state:changed');               // saveState + updateTripSelector via subscriber
-            archiveTripOnServer(trip.id);        // server delta still explicit
+            // BUG-7 (MK2 audit): await the archive before navigating — the
+            // navigate() below aborts the request's nav signal, so a
+            // fire-and-forget write was racy (archive sometimes didn't land).
+            try {
+                await archiveTripOnServer(trip.id);
+            } catch (e) {
+                console.error('Archive trip failed:', e);
+            }
             // Audit fix (2026-05-26): if the trip is public, broadcast
             // "completed!" to every follower. Pre-fix this server route
             // existed but had no frontend caller — the whole feature
@@ -181,7 +188,15 @@ export function deleteActiveTrip(): void {
             STATE.activeTripId = STATE.trips.length > 0 ? STATE.trips[0]!.id : null;
 
             emit('state:changed');               // saveState + updateTripSelector via subscriber
-            deleteTrip(trip.id);                 // server delta still explicit
+            // BUG-7 (MK2 audit): await the delete before navigating —
+            // navigate() synchronously aborts the request's nav signal, so a
+            // fire-and-forget delete could be killed before it left the
+            // browser and the trip reappeared on the next pull.
+            try {
+                await deleteTrip(trip.id);
+            } catch (e) {
+                console.error('Delete trip failed:', e);
+            }
             navigate('home');
         }
     });

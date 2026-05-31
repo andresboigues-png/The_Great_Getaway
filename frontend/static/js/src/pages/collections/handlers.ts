@@ -64,7 +64,7 @@ export const restoreTrip = (id: string) => {
         title: t('errors.restoreTripTitle'),
         message: t('errors.restoreTripBody'),
         confirmText: t('errors.restoreTripConfirmBtn'),
-        onConfirm: () => {
+        onConfirm: async () => {
             trip.isArchived = false;
 
             // Restore expenses and days to global lists
@@ -98,7 +98,16 @@ export const restoreTrip = (id: string) => {
             // stays at 1 and the trip re-buckets into archivedTrips on the
             // next /api/data pull (i.e. on every reload). Local STATE alone
             // is the wrong source of truth; the per-user flag is.
-            unarchiveTripOnServer(id);
+            // BUG-7 (MK2 audit): AWAIT the server write before navigating.
+            // navigate() synchronously aborts the request's per-nav signal
+            // (api.ts currentNavSignal), so a fire-and-forget write was killed
+            // before it left the browser — 5/5 restore trials lost, the trip
+            // re-archived on the next /api/data poll. Awaiting lets the
+            // unarchive land; the catch swallows a real network failure (the
+            // outbox + next pull reconcile it) so navigation still happens.
+            try {
+                await unarchiveTripOnServer(id);
+            } catch { /* outbox / next pull reconciles */ }
             navigate('home');
         },
     });
@@ -121,8 +130,13 @@ export const deleteArchivedTrip = (id: string) => {
             // to the api.ts `deleteTrip()` helper which targets the
             // correct path-keyed route and uses apiFetch for cookie
             // auth + AbortSignal hookup.
-            const p = deleteTrip(id);
-            if (p) p.catch((err) => console.error('Delete archived trip failed:', err));
+            // BUG-7: await before navigating — navigate() aborts the request
+            // signal, which lost the delete (trip reappeared on next pull).
+            try {
+                await deleteTrip(id);
+            } catch (err) {
+                console.error('Delete archived trip failed:', err);
+            }
             navigate('collections');
         },
     });

@@ -1498,6 +1498,9 @@
     .bg-\[var\(--accent-purple-bg-soft\)\] {
         background-color: var(--accent-purple-bg-soft);
     }
+    .bg-\[var\(--card-bg-elevated\)\] {
+        background-color: var(--card-bg-elevated);
+    }
     .bg-\[var\(--glass-bg\)\] {
         background-color: var(--glass-bg);
     }

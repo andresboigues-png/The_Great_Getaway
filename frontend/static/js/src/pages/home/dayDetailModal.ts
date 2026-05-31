@@ -668,7 +668,17 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         pendingSave = true;
         flashStatus(t('dayDetail.statusSaving'));
         try {
-            await upsertDay(day);
+            const res = await upsertDay(day);
+            // BUG-17 (MK2 audit): a stale (409) save RESOLVES with {ok:false}
+            // rather than throwing, so the old code flashed "Saved ✓" on a
+            // REJECTED write — a second tab lost its edit while being told it
+            // saved. Reflect the truth instead. The api layer's stale-edit
+            // handler pulls the newer version; we leave the user's text in the
+            // textarea (don't clobber their work) so they can re-save.
+            if (!res || !res.ok) {
+                flashStatus(t('dayDetail.statusFailed'), '#ff3b30');
+                return;
+            }
             flashStatus(SAVED_STATUS_TEXT, '#1a6b3c');
             // Decay back to neutral after a beat so the badge
             // isn't permanently green (would imply nothing's
