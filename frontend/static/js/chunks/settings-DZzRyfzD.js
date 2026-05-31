@@ -1,0 +1,15 @@
+import{Kt as e,Lt as t,Rt as n,S as r,Ut as i,Y as a,an as o,ct as s,in as c}from"../app.bundle.js";var l={tab:`menu`,generalSubTab:`pills`},u=new Set,d=0;function f(){d++,u.forEach(e=>e())}function p(){return l}function m(e){l.tab!==e&&(l.tab=e,f())}function h(e){l.generalSubTab!==e&&(l.generalSubTab=e,f())}function g(e){return u.add(e),()=>{u.delete(e)}}function _(){return d}var v=e=>{(e===`menu`||e===`general`||e===`format`||e===`reset`)&&m(e)},y=e=>{let t=document.getElementById(`persMenu`),n=document.getElementById(`persContent`),r=document.getElementById(`persCategories`);e===`menu`?(t&&(t.style.display=`grid`),n&&(n.style.display=`none`)):(t&&(t.style.display=`none`),n&&(n.style.display=`block`),r&&(r.style.display=`block`))},b=e=>{t({title:r(`settings.categoryDeleteConfirmTitle`),message:r(`settings.categoryDeleteConfirmMessage`),confirmText:r(`settings.categoryDeleteConfirmBtn`),onConfirm:()=>{c.categories=c.categories.filter(t=>t.id!==e),o(`state:changed`),a(),s(`personalization`),setTimeout(()=>y(`categories`),50)}})};function x(t){let l=c.categories.find(e=>e.id===t);if(!l)return;let{root:u,close:d}=n({variant:`glass-light`,cardStyle:`width: 420px;`,innerHTML:`
+            <h2 style="margin: 0 0 var(--space-5); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Edit Category</h2>
+            <form id="editCategoryForm" style="display: flex; flex-direction: column; gap: var(--space-4);">
+                <div style="display: flex; gap: var(--space-3); align-items: center;">
+                    <select id="editCatIcon" class="glass-input" style="width: 80px;">${`🍷.🏨.✈️.🚕.🍕.🎟️.🛍️.🍦.🥐.🏛️.🏖️.🎢.🚠.🚌.🚆.🌍.🗺️.🎒.📸.☕.🍔.🛒.🎨.💊.🎭.🚗`.split(`.`).map(e=>`<option value="${e}" ${e===l.icon?`selected`:``}>${e}</option>`).join(``)}</select>
+                    <input type="text" id="editCatName" class="glass-input" value="${i(l.name)}" placeholder="Category name" required style="flex: 1;">
+                    <input type="color" id="editCatColor" class="glass-input" value="${i(l.color)}" style="width: 50px; padding: 2px;">
+                </div>
+                <div style="display: flex; gap: var(--space-3); margin-top: var(--space-2);">
+                    <button type="submit" class="btn-primary" style="flex: 2;">${r(`settings.editCategorySaveBtn`)}</button>
+                    <button type="button" id="cancelEditCatBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Cancel</button>
+                </div>
+            </form>
+        `});e(u,`#cancelEditCatBtn`).onclick=()=>d(),e(u,`#editCategoryForm`).onsubmit=t=>{t.preventDefault();let n=e(u,`#editCatIcon`).value,r=e(u,`#editCatName`).value.trim(),i=e(u,`#editCatColor`).value;r&&(l.icon=n,l.name=r,l.color=i,o(`state:changed`),a(),d(),s(`personalization`),setTimeout(()=>y(`categories`),50))}}export{p as a,m as c,v as i,g as l,x as n,_ as o,y as r,h as s,b as t};
+//# sourceMappingURL=settings-DZzRyfzD.js.map
