@@ -304,6 +304,7 @@ export function Budgets() {
                                                 WebkitLineClamp: 2,
                                                 WebkitBoxOrient: 'vertical',
                                             }}
+                                            title={budgetTitle(b)}
                                         >
                                             {budgetTitle(b)}
                                         </div>

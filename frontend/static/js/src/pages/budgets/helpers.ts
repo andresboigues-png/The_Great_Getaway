@@ -325,6 +325,11 @@ export const openCreateBudgetModal = () => {
             categoryId: (q(root, '#newBudCat') as HTMLSelectElement).value,
             user: (q(root, '#newBudUser') as HTMLSelectElement).value,
             amount: eurAmt,
+            // MM-7: `amount` is already canonical EUR (converted/typed above),
+            // so the budget's own currency is EUR. Set it explicitly rather
+            // than leaving it undefined — the read side groups/labels off this
+            // and an absent currency rendered as a bare number with no unit.
+            currency: 'EUR',
             originalAmount: amt,
             originalCurrency: curr,
         };

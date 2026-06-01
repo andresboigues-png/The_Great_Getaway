@@ -2330,10 +2330,13 @@ def test_budget_upsert_rejects_cross_user_id(
     assert res.status_code == 200
 
     # Attacker tries to overwrite it with their own id reference.
+    # (Use a valid non-zero amount so this exercises the cross-user
+    # ownership gate — a zero amount would 400 at validation first,
+    # per the MM-9 allow_zero=False rule, masking what we test here.)
     res = client.post("/api/budgets", headers=other_auth_headers, json={
         "budget": {
             "id": "bud-victim", "label": "Hijacked",
-            "amount": 0, "currency": "USD",
+            "amount": 999, "currency": "USD",
         },
     })
     assert res.status_code == 404

@@ -41,7 +41,10 @@ def upsert_budget():
     # Audit fix (2026-05-26): server-side validation. amount is the
     # main vector — NaN/Inf/negative all flowed through pre-fix.
     try:
-        amount = validate_money(b.get("amount", 0), field_name="amount")
+        # Integration audit MM-9: reject a zero target (matches the expense
+        # gate + the create-budget modal's own check). A €0 budget is a ghost
+        # row that renders permanently "within budget" and means nothing.
+        amount = validate_money(b.get("amount", 0), field_name="amount", allow_zero=False)
         currency = validate_currency(b.get("currency"))
         label = clean_text(
             b.get("label", ""), max_len=120, allow_newlines=False,
