@@ -376,12 +376,20 @@ export function Insights() {
     const topSpender = topEntry ? topEntry[0] : 'N/A';
     const topSpenderAmount = topEntry ? topEntry[1] : 0;
 
+    // Resolve a category by id, falling back to a case-insensitive NAME
+    // match — so name-string categoryIds from imports / legacy / external
+    // writes (e.g. 'food') resolve to the real "Food" category instead of
+    // collapsing the whole by-category view to "Unknown" (audit BUG).
+    const findCategory = (catId: string) =>
+        categories.find((c: Category) => c.id === catId) ||
+        categories.find((c: Category) => c.name.toLowerCase() === String(catId).toLowerCase());
+
     // Pie data — matched to category lookups for color/label display.
     const pieLabels: string[] = [];
     const pieData: number[] = [];
     const pieColors: string[] = [];
     Object.keys(catTotals).forEach((catId) => {
-        const cat = categories.find((c: Category) => c.id === catId);
+        const cat = findCategory(catId);
         pieLabels.push(cat ? `${cat.icon} ${cat.name}` : t('insights.unknownCategory'));
         pieColors.push(cat ? cat.color : '#ccc');
         pieData.push(catTotals[catId] ?? 0);
@@ -845,7 +853,7 @@ export function Insights() {
                         className="mt-5 flex flex-col gap-1"
                     >
                         {sortedCats.slice(1).map(([catId, count], index) => {
-                            const cat = categories.find((c: Category) => c.id === catId);
+                            const cat = findCategory(catId);
                             return (
                                 <div className="ranking-row" key={catId}>
                                     <span className="ranking-row__label">

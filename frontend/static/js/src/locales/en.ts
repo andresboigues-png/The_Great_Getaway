@@ -1900,6 +1900,7 @@ export const en = {
         uploadBtn: 'Upload and Process',
         errorSelectFile: 'Please select a valid file to process.',
         successImported: 'Successfully imported {count} expenses!',
+        skippedRows: '{count} row(s) skipped (invalid amount or currency): {rows}.',
         errorParsing: 'Error parsing file. Check the format.',
     },
 } as const;

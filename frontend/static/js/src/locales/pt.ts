@@ -1484,6 +1484,7 @@ export const pt: Translations = {
         uploadBtn: 'Carregar e processar',
         errorSelectFile: 'Por favor seleciona um ficheiro válido para processar.',
         successImported: '{count} despesas importadas com sucesso!',
+        skippedRows: '{count} linha(s) ignorada(s) (montante ou moeda inválidos): {rows}.',
         errorParsing: 'Erro ao analisar o ficheiro. Verifica o formato.',
     },
 };

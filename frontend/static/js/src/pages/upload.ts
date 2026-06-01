@@ -1,7 +1,7 @@
 import { STATE, emit } from '../state.js';
-import { convertCurrency } from '../utils/currency.js';
+import { convertCurrency, hasRate } from '../utils/currency.js';
 import { generateId, q, showLiquidAlert, esc } from '../utils.js';
-import { syncWithServer } from '../api.js';
+import { syncWithServer, upsertExpense } from '../api.js';
 import { navigate } from '../router.js';
 import { showSettingsTab } from './settings.js';
 import { addTripCompanion, getTripCompanionNames } from '../companions.js';
@@ -447,6 +447,9 @@ export function renderUpload() {
                 /** Collected so the user can hit "Undo last batch" on
                  *  the expenses page and revert this import in one shot. */
                 const importedIds = ([] as string[]);
+                /** Rows we refused to import (server would reject them) —
+                 *  reported to the user instead of silently over-counting. */
+                const skipped = ([] as string[]);
 
                 if (!isPopular) {
                     const formatId = formatVal.split(':')[1];
@@ -455,7 +458,7 @@ export function renderUpload() {
                     mappings = format.mappings;
                 }
 
-                parsedRows.forEach((/** @type {any[]} */ row) => {
+                parsedRows.forEach((row: any[], rowIndex: number) => {
                     let who = '', catName = '', label = '', date = '', country = '';
                     let value = 0, currency = 'EUR';
                     // Splits + settlement flag. Custom formats can map the new
@@ -470,8 +473,13 @@ export function renderUpload() {
                             value = parseFloat(row[1]) || 0;
                             currency = String(row[2] || 'EUR').trim().toUpperCase();
                             date = parseCellDate(row[3]);
-                            catName = String(row[4] || '').trim();
-                            who = String(row[5] || '').trim();
+                            // Tricount columns are [Title, Amount, Currency,
+                            // Date, Paid by] — index 4 is the PAYER, and there
+                            // is NO category column. Pre-fix read row[4] as the
+                            // category (→ categories named after people) and
+                            // row[5] (nonexistent) as `who` (→ empty payer). (audit P0)
+                            who = String(row[4] || '').trim();
+                            catName = '';
                             country = 'Unknown';
                         } else if (popularFormat === 'splitwise') {
                             date = parseCellDate(row[0]);
@@ -509,6 +517,16 @@ export function renderUpload() {
                         currency = get('currency').toUpperCase() || 'EUR';
                         splits = parseSplitsCell(get('splits'));
                         isSettlement = parseFlagCell(get('isSettlement'));
+                    }
+
+                    // Skip rows the server would reject anyway. Pre-fix every
+                    // parsed row was optimistically counted + pushed, then
+                    // /api/sync silently dropped the bad ones — so "Imported N"
+                    // over-counted and rows vanished on reload. Filter here and
+                    // report what we skipped. (audit P1)
+                    if (!Number.isFinite(value) || value <= 0 || !hasRate(currency)) {
+                        skipped.push(label || `#${rowIndex + 2}`);
+                        return;
                     }
 
                     // Register `who` on both rosters: the account-level master
@@ -549,7 +567,12 @@ export function renderUpload() {
                         category = { id: generateId(), name: catName, icon: style.icon, color: style.color };
                         STATE.categories.push(category);
                     }
-                    const categoryId = category ? category.id : (STATE.categories[0]?.id ?? '');
+                    // No category match + no category column (e.g. Tricount):
+                    // leave it uncategorized rather than silently dumping every
+                    // row into the first category (was STATE.categories[0] →
+                    // "Food", so a Tricount hotel imported as Food). Insights
+                    // shows these honestly as "Uncategorized".
+                    const categoryId = category ? category.id : '';
 
                     const expense: import('../types').Expense = {
                         id: generateId(),
@@ -574,6 +597,10 @@ export function renderUpload() {
                     STATE.expenses.push(expense);
                     importedIds.push(expense.id);
                     added++;
+                    // Persist per-row (audit P0): syncWithServer() below only
+                    // sends categories, so without this the import lived in
+                    // localStorage only and vanished on the next /api/data poll.
+                    upsertExpense(expense);
                 });
 
                 // Capture the batch so the user can undo it from the
@@ -589,8 +616,12 @@ export function renderUpload() {
                 }
 
                 emit('state:changed');
-                syncWithServer(); // Bulk: sync all newly imported data to server
-                statusDiv.innerText = t('upload.successImported', { count: added });
+                // Persists the categories the import created; the expenses
+                // themselves were persisted per-row via upsertExpense above.
+                syncWithServer();
+                statusDiv.innerText = skipped.length === 0
+                    ? t('upload.successImported', { count: added })
+                    : `${t('upload.successImported', { count: added })} ${t('upload.skippedRows', { count: skipped.length, rows: skipped.join(', ') })}`;
                 statusDiv.style.color = "green";
                 parsedRows = null;
                 q(div, '#previewContainer').style.display = 'none';
