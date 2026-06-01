@@ -711,6 +711,8 @@ const CONTINENT_GRADIENT_INDEX: Record<string, number> = {
 function albumGradient(key: string): string {
     const fixed = CONTINENT_GRADIENT_INDEX[key];
     if (fixed !== undefined) return ALBUM_GRADIENTS[fixed]!;
+    // MK3-6: year keys index by value so adjacent years never collide.
+    if (/^\d{4}$/.test(key)) return ALBUM_GRADIENTS[Number(key) % ALBUM_GRADIENTS.length]!;
     let h = 0;
     for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
     return ALBUM_GRADIENTS[h % ALBUM_GRADIENTS.length]!;

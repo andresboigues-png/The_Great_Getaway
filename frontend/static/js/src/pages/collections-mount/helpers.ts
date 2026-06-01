@@ -12,14 +12,15 @@ import { countryCodeToContinent, countryNameToContinent } from '../../utils/plac
 import type { Trip } from '../../types';
 
 
-/** Earliest tripDay date on a trip (its start). Falls back to null
- *  for trips with no dated days — those float to the end on date sorts. */
+/** Earliest tripDay date on a trip (its start). MK3-4: falls back to the
+ *  trip-level `dateFrom` when no day is individually dated, then null — so
+ *  "group by year" and the card date aren't lost for date-range trips. */
 export function tripStartDate(trip: Trip): string | null {
     const dates = (trip.tripDays || [])
         .map((d) => d.date)
         .filter(Boolean)
         .sort();
-    return dates[0] || null;
+    return dates[0] || trip.dateFrom || null;
 }
 
 

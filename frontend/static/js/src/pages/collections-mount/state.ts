@@ -24,12 +24,24 @@ interface CollectionsFilterState {
     groupBy: GroupBy;          // how the grid is partitioned into albums
 }
 
+// MK3-5: group-by is a sticky *view preference* (not an ephemeral filter), so
+// persist it across sessions — a user who prefers the flat list ("none") keeps
+// it without re-selecting every visit. The filters above stay session-only.
+const _GROUPBY_KEY = 'gg_collections_groupby';
+function _initialGroupBy(): GroupBy {
+    try {
+        const v = localStorage.getItem(_GROUPBY_KEY);
+        if (v === 'continent' || v === 'year' || v === 'none') return v;
+    } catch (_) { /* localStorage unavailable — fall through */ }
+    return 'continent';
+}
+
 const _state: CollectionsFilterState = {
     sort: 'recent',
     filterYear: '',
     filterDestination: '',
     searchText: '',
-    groupBy: 'continent',
+    groupBy: _initialGroupBy(),
 };
 
 
@@ -51,6 +63,7 @@ export function setCollectionsSearchText(text: string): void {
 }
 export function setCollectionsGroupBy(groupBy: GroupBy): void {
     _state.groupBy = groupBy;
+    try { localStorage.setItem(_GROUPBY_KEY, groupBy); } catch (_) { /* ignore */ }
 }
 
 /** One-shot reset — called by the "Clear filters" chip. Sets every
