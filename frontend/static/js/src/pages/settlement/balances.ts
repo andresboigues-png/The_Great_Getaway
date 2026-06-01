@@ -85,6 +85,25 @@ export function applySettlementToBalances(
     // and the real debt never cleared). When the full name + the linked lookup
     // both miss, fall back to the first token so the payment reconciles to the
     // existing companion balance instead of inventing a second person.
+    const parties = resolveSettlementParties(settlement, trip, balances);
+    if (!parties) return;
+    // euroValue is the cross-currency-normalised amount the balance math uses
+    // everywhere else; falls back to `amount` for legacy non-euroValue rows.
+    const amount = settlement.euroValue || settlement.amount || 0;
+    balances[parties.fromName]! += amount;
+    balances[parties.toName]! -= amount;
+}
+
+/** Resolve a settlement's from/to to roster keys: snapshot name →
+ *  linked-companion lookup → first-name fallback, seeding any missing
+ *  entry to 0 so the caller can apply the amount. Returns null if
+ *  unresolvable. Shared by the EUR path (applySettlementToBalances) and
+ *  the per-currency path so the BUG-4 reconciliation can't diverge. */
+function resolveSettlementParties(
+    settlement: Settlement,
+    trip: any,
+    balances: Record<string, number>,
+): { fromName: string; toName: string } | null {
     const firstNameKey = (full: string | undefined): string | undefined => {
         const first = (full || '').split(/\s+/)[0];
         return first && balances[first] !== undefined ? first : undefined;
@@ -101,24 +120,10 @@ export function applySettlementToBalances(
         if (found && balances[found] !== undefined) toName = found;
         else toName = firstNameKey(toName) ?? toName;
     }
-    if (!fromName || !toName) return;
-    // R3-Round 2 fix: SEED missing roster entries instead of silently
-    // dropping the settlement. The expense-side path already does this
-    // for removed companions (via `removedFromRoster`); pre-fix the
-    // settlement side just returned, so a settlement involving a
-    // companion who was later removed left the original debt visible
-    // forever as if the payment never happened. Now: if the snapshot
-    // name resolves to a person not in the live roster, we create a
-    // zero balance for them so the +=/-= below applies cleanly.
+    if (!fromName || !toName) return null;
     if (balances[fromName] === undefined) balances[fromName] = 0;
     if (balances[toName] === undefined) balances[toName] = 0;
-    // euroValue is the cross-currency-normalised amount the balance
-    // math uses everywhere else. Falls back to `amount` only when
-    // euroValue is null (older / non-EUR rows that pre-date the
-    // server's conversion logic).
-    const amount = settlement.euroValue || settlement.amount || 0;
-    balances[fromName]! += amount;
-    balances[toName]! -= amount;
+    return { fromName, toName };
 }
 
 /** A single debt → creditor settlement edge produced by simplifyDebts. */
@@ -216,6 +221,63 @@ export function computeTripBalances(trip: any) {
     }
 
     return { balances, roster, expenses: tripExps, removedFromRoster };
+}
+
+/** MK3-8: per-currency balances for the settle view. Unlike
+ *  computeTripBalances (one EUR net), this keeps each currency separate
+ *  using each expense's ORIGINAL `value` + splits — so debts read in the
+ *  trip's real currencies and a no-rate currency (ARS) stays in ARS with
+ *  no conversion. Mirrors the EUR loop exactly (incl. legacy isSettlement
+ *  expense rows + the split-normalisation) so the two can't diverge.
+ *  Global + Insights keep the EUR computeTripBalances. */
+export function computeTripBalancesByCurrency(trip: any): {
+    byCurrency: Record<string, Record<string, number>>;
+    roster: string[];
+} {
+    if (!trip) return { byCurrency: {}, roster: [] };
+    const tripExps = (STATE.expenses || []).filter((e) => e.tripId === trip.id);
+    const tripCompanionNames = getTripCompanionNames(trip);
+    const expenseAttributedNames = Array.from(new Set(
+        tripExps.flatMap((e) => [e.who, ...Object.keys(e.splits || {})]).filter(Boolean),
+    ));
+    const roster = Array.from(new Set([...tripCompanionNames, ...expenseAttributedNames]));
+    const byCurrency: Record<string, Record<string, number>> = {};
+    const ensure = (cur: string): Record<string, number> => {
+        if (!byCurrency[cur]) {
+            const m: Record<string, number> = {};
+            roster.forEach((p) => (m[p] = 0));
+            byCurrency[cur] = m;
+        }
+        return byCurrency[cur]!;
+    };
+    for (const exp of tripExps) {
+        const cur = (exp.currency || 'EUR').toUpperCase();
+        const amount = Number(exp.value) || 0; // ORIGINAL currency units, not euroValue
+        if (!(amount > 0)) continue;
+        const bal = ensure(cur);
+        if (bal[exp.who] !== undefined) bal[exp.who]! += amount;
+        if (exp.splits && Object.keys(exp.splits).length > 0) {
+            const totalPct = Object.values(exp.splits).reduce((s, p) => s + Number(p || 0), 0);
+            const denom = totalPct > 0 ? totalPct : 100;
+            for (const [person, pct] of Object.entries(exp.splits)) {
+                if (bal[person] !== undefined) bal[person]! -= amount * (Number(pct) / denom);
+            }
+        } else {
+            const share = amount / Math.max(roster.length, 1);
+            roster.forEach((p) => { if (bal[p] !== undefined) bal[p]! -= share; });
+        }
+    }
+    for (const s of (STATE.settlements || []).filter((s) => s.tripId === trip.id)) {
+        const cur = (s.currency || 'EUR').toUpperCase();
+        const amt = Number(s.amount) || 0;
+        if (!(amt > 0)) continue;
+        const bal = ensure(cur);
+        const parties = resolveSettlementParties(s, trip, bal);
+        if (!parties) continue;
+        bal[parties.fromName]! += amt;
+        bal[parties.toName]! -= amt;
+    }
+    return { byCurrency, roster };
 }
 
 /** Greedy minimal-payments list. Pairs largest debtor with largest
