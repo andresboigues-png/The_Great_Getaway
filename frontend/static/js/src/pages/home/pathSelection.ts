@@ -25,6 +25,7 @@
 // cached id no longer matches a day on the trip.
 
 import { STATE } from '../../state.js';
+import { localTodayIso } from '../../utils.js';
 import { setPathCardCollapsed } from './pathTab.js';
 
 
@@ -186,7 +187,9 @@ export function resolveSelectedDayId(
     if (!activeTrip || !sortedDays.length) return null;
     const cached = selectedDayByTrip[activeTrip.id];
     if (cached && sortedDays.some(d => d.id === cached)) return cached;
-    const today = new Date().toISOString().slice(0, 10);
+    // BUG-32: LOCAL today (was UTC via toISOString) so this auto-select
+    // agrees with the "today" chip highlight in pathTab.
+    const today = localTodayIso();
     const todayMatch = sortedDays.find(d => d.dayNumber > 0 && d.date === today);
     if (todayMatch) return todayMatch.id;
     const firstNumbered = sortedDays.find(d => d.dayNumber > 0);

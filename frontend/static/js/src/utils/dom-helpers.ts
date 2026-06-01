@@ -129,6 +129,22 @@ export function esc(v: unknown): string {
  * own year-separator convention (`, ` in en-US, ` de ` in pt-PT)
  * is respected.
  */
+/**
+ * The user's LOCAL calendar date as `YYYY-MM-DD`. BUG-32 (MK2 audit):
+ * "today" was computed two different ways — `new Date().toISOString()
+ * .slice(0,10)` (UTC) in pathSelection vs a local build in pathTab — so
+ * the auto-selected day and the highlighted "today" chip could disagree
+ * by a day for users in negative-UTC offsets late in the evening. Both
+ * now call this single local-date source.
+ */
+export function localTodayIso(): string {
+    const t = new Date();
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const d = String(t.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
 export function formatDayDate(dateStr: string | null | undefined): string {
     if (!dateStr) return '';
     const date = new Date(dateStr + 'T00:00:00Z');

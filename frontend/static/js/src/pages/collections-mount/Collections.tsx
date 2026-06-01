@@ -371,6 +371,11 @@ function ArchivedCard({ trip }: { trip: Trip }) {
         : null;
     const dest = tripDestination(trip);
     const expenseCount = (trip.expenses || []).filter((e) => !e.isSettlement).length;
+    // BUG-33 (MK2 audit): exclude the Trip Hub (day_number=0) from the
+    // day count, matching pathTab / TripBody / the archived-detail hero.
+    // Pre-fix this card used `trip.tripDays.length` (Hub included), so a
+    // trip read "4 days" here but "3 days" everywhere else.
+    const plannedDays = (trip.tripDays || []).filter((d) => ((d as { dayNumber?: number }).dayNumber || 0) > 0).length;
 
     return (
         <div
@@ -424,12 +429,12 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                             <span className="inline-flex items-center gap-1">
                                 <span className="inline-flex" dangerouslySetInnerHTML={{ __html: iconSvg('calendar', { size: 13 }) }} />
                                 {startStr}
-                                {(trip.tripDays?.length || 0) > 1
-                                    ? ` · ${tn('collections.dayCount', trip.tripDays!.length)}`
+                                {plannedDays > 1
+                                    ? ` · ${tn('collections.dayCount', plannedDays)}`
                                     : ''}
                             </span>
                         ) : (
-                            <span>{tn('collections.dayCount', trip.tripDays?.length || 0)}</span>
+                            <span>{tn('collections.dayCount', plannedDays)}</span>
                         )}
                         <span>📒 {tn('collections.expenseCount', expenseCount)}</span>
                         {archivedAt && (

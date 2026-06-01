@@ -589,6 +589,11 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
         // src/routes/integrations.py:679). Source-of-truth wins.
         let serverUserCapHit = false;
         let serverStatus = 0;
+        // BUG-38 (MK2 audit): track whether the bar was already updated
+        // from the response's authoritative `host_keys` snapshot, so the
+        // catch's last-ditch status re-fetch doesn't overwrite a freshly
+        // drained pool with a (possibly stale) "0% used" reading.
+        let poolUpdatedInline = false;
         try {
             const r = await apiFetch('/api/generate_itinerary', {
                 method: 'POST',
@@ -616,6 +621,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
             // freshly-drained slot count even on a 429.
             if (d && d.host_keys) {
                 setHostPoolStatus(d.host_keys as GeminiHostKeyStatus);
+                poolUpdatedInline = true;
             }
             if (d.error) throw new Error(d.error);
             // MK2 BUG-2: normalise to a day-array (unwrap `{days:[…]}`) before
@@ -665,13 +671,17 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
             }
             setGenerationError({ msg, hint, raw: rawMsg || t('ai.errorUnknown') });
             showLiquidAlert(msg);
-            // Last-ditch refresh — if the throw came from a non-JSON
-            // response or a network error, the inline `d.host_keys`
-            // update above never fired. Fall back to a status fetch
-            // so the bar isn't stuck on a stale snapshot.
-            fetchGeminiHostKeyStatus().then((s) => {
-                if (s) setHostPoolStatus(s);
-            });
+            // Last-ditch refresh — ONLY when the inline `d.host_keys`
+            // update never fired (non-JSON response or network error).
+            // BUG-38: firing this unconditionally overwrote the accurate
+            // drained snapshot we just set on a 429 with a status
+            // re-fetch that could read back "0% used" — the bar flipped
+            // from "fully drained" to "empty" right after the quota error.
+            if (!poolUpdatedInline) {
+                fetchGeminiHostKeyStatus().then((s) => {
+                    if (s) setHostPoolStatus(s);
+                });
+            }
         } finally {
             setGenerating(false);
         }

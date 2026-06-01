@@ -22,7 +22,7 @@
 // `data-path-chip-day-id` so this file's selector contract stays
 // stable.
 
-import { esc, formatDayDate, shortPlaceName } from '../../utils.js';
+import { esc, formatDayDate, shortPlaceName, localTodayIso } from '../../utils.js';
 import { resolveSelectedDayId } from './pathSelection.js';
 import { t, tn } from '../../i18n.js';
 // 4.8 design (DSGN-2): inline-SVG line icons replace the emoji prefixes
@@ -297,16 +297,10 @@ export function buildPathTabHtml(ctx: PathTabContext): string {
         : (selectedDay
             ? t('path.summaryDay', { day: selectedDay.dayNumber, total: totalDays })
             : tn('path.summaryNone', totalDays, { count: totalDays }));
-    // Today's local date in YYYY-MM-DD — used to flag the day chip
-    // that matches the user's actual calendar today. Built once per
-    // render, not per chip.
-    const todayStr = (() => {
-        const t = new Date();
-        const y = t.getFullYear();
-        const m = String(t.getMonth() + 1).padStart(2, '0');
-        const dd = String(t.getDate()).padStart(2, '0');
-        return `${y}-${m}-${dd}`;
-    })();
+    // Today's LOCAL date in YYYY-MM-DD — used to flag the day chip that
+    // matches the user's actual calendar today. Shared with pathSelection
+    // via localTodayIso so the two agree (BUG-32).
+    const todayStr = localTodayIso();
     // Chip strip — Anchor chip first, then numbered days, then a `+`
     // chip (only for editable trips) that opens the Add-Day modal.
     const chipsHtml = sortedDays.map(d => {
