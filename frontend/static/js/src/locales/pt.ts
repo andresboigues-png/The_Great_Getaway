@@ -538,7 +538,7 @@ export const pt: Translations = {
         heroSubText: 'Gasto em <strong>{count}</strong> transações durante a tua viagem.',
         avgDaily: 'Gasto médio diário',
         avgDailySuffix: '/ dia',
-        singlePeak: 'Pico isolado',
+        singlePeak: 'Maior despesa',
         topSpenders: 'Maiores gastadores',
         categoryBreakdown: 'Por categoria',
         unknownCategory: 'Desconhecido',

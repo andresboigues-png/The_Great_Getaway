@@ -1783,7 +1783,7 @@ export async function fetchCpiSeries(currency: string): Promise<void> {
     if (STATE.cpiCache[cur] && Object.keys(STATE.cpiCache[cur]).length > 0) return;
     try {
         const thisYear = new Date().getFullYear();
-        const url = `https://api.worldbank.org/v2/country/${country}/indicator/FP.CPI.TOTL?format=json&date=2000:${thisYear}&per_page=200`;
+        const url = `https://api.worldbank.org/v2/country/${country}/indicator/FP.CPI.TOTL?format=json&date=1970:${thisYear}&per_page=200`;
         const sig = currentNavSignal();
         const resp = await fetch(url, sig ? { signal: sig } : {});
         if (!resp.ok) {

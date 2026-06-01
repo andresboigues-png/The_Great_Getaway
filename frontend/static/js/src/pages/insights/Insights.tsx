@@ -231,17 +231,24 @@ export function Insights() {
             // own date (historical rateCache), falling back to the value
             // frozen at write time, then the live overlay. Identical in
             // both modes — the toggle no longer changes the exchange rate.
-            let euroVal: number;
+            // Use historical (real ECB) rates for BOTH legs or NEITHER —
+            // never one historical + one static, which would pair an
+            // at-the-time foreign rate with a present-day home rate and
+            // quietly skew the home value (R-audit DATA-5). Both legs come
+            // from the same Frankfurter fetch, so in practice they land
+            // together; when either is missing we fall back to the
+            // write-time frozen euroValue + a single static/live hop.
             const k = `${e.date}_${e.currency}_EUR`;
-            euroVal = (rateCache && rateCache[k])
-                ? e.value * rateCache[k]
-                : (e.euroValue || convertCurrency(e.value, e.currency, 'EUR'));
-            let spentHome = euroVal;
-            if (targetCurr !== 'EUR') {
-                const hk = `${e.date}_${targetCurr}_EUR`;
-                spentHome = (rateCache && rateCache[hk])
-                    ? euroVal / rateCache[hk]
-                    : convertCurrency(euroVal, 'EUR', targetCurr);
+            const hk = `${e.date}_${targetCurr}_EUR`;
+            const histForeign = rateCache ? rateCache[k] : undefined;
+            const histHome = targetCurr === 'EUR' ? 1 : (rateCache ? rateCache[hk] : undefined);
+            let spentHome: number;
+            if (histForeign && histHome) {
+                const euroVal = e.value * histForeign;
+                spentHome = targetCurr === 'EUR' ? euroVal : euroVal / histHome;
+            } else {
+                const euroVal = e.euroValue || convertCurrency(e.value, e.currency, 'EUR');
+                spentHome = targetCurr === 'EUR' ? euroVal : convertCurrency(euroVal, 'EUR', targetCurr);
             }
             // "Worth today" = that as-spent home cost, adjusted for the
             // home currency's inflation since the expense's year.
@@ -895,7 +902,7 @@ export function Insights() {
                                             <span
                                                 className="ml-2 text-secondary font-semibold text-[0.8rem]"
                                             >
-                                                {pct.toFixed(0)}%
+                                                {formatNumber(pct, 0)}%
                                             </span>
                                         </span>
                                     </div>

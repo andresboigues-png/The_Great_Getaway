@@ -686,7 +686,7 @@ export const en = {
         // Summary metrics.
         avgDaily: 'Avg. Daily Spend',
         avgDailySuffix: '/ day',
-        singlePeak: 'Single Peak',
+        singlePeak: 'Biggest expense',
         // Rankings.
         topSpenders: 'Top Spenders',
         categoryBreakdown: 'Category Breakdown',
