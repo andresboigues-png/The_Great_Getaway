@@ -332,10 +332,18 @@
     <div class="section-label">The path</div>
     <ol class="day-list">
       {% for d in days %}
+      {# BUG-27 (MK2 audit): the Trip Hub is day_number=0, which sorts
+         first. The old `d.dayNumber or loop.index` hit Jinja's falsy
+         trap — `0 or loop.index` → loop.index (1) — so the Hub AND the
+         real Day 1 both rendered "Day 1". Treat day-0 as the Hub (★),
+         use the real dayNumber for numbered days, and only fall back to
+         loop.index when there's no dayNumber at all. #}
+      {% set is_hub = (d.dayNumber == 0) %}
+      {% set day_label = d.dayNumber if d.dayNumber is not none else loop.index %}
       <li class="day-row">
-        <div class="day-num">{{ d.dayNumber or loop.index }}</div>
+        <div class="day-num">{% if is_hub %}★{% else %}{{ day_label }}{% endif %}</div>
         <div class="day-body">
-          <div class="day-name">{{ d.name or 'Day ' ~ (d.dayNumber or loop.index) }}</div>
+          <div class="day-name">{{ d.name or ('Trip Hub' if is_hub else 'Day ' ~ day_label) }}</div>
           <div class="day-meta">{{ d.date or '' }}</div>
           {# Plan block — only present when the owner opted in via
              share_show_plans. The server only attaches `d.plan` /

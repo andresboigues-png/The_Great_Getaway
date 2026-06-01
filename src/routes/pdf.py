@@ -1947,23 +1947,35 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             color=_BRAND_GREEN,
         ))
         section_num += 1
-        # The budgets table is { label, amount, currency } — there's
-        # no per-budget→category mapping in this schema, so we can't
-        # split spend by budget. Show each budget's planned amount
-        # alongside the trip's TOTAL spend (one number, footer row)
-        # so the reader still gets the at-a-glance "did I stay
-        # under" answer without a misleading per-row "spent" column.
+        # Each budget's planned amount alongside the trip's TOTAL spend
+        # (one number, footer row) so the reader still gets the
+        # at-a-glance "did I stay under" answer without a misleading
+        # per-row "spent" column. Labels are derived from scope in the
+        # data-assembly step (BUG-21); amounts are shown in the user's
+        # ORIGINAL currency per row but summed in EUR for the total.
         rows = [["Budget", "Planned"]]
-        total_planned = 0.0
+        total_planned_eur = 0.0
         for b in budgets:
-            amount = float(b.get("amount") or 0)
-            currency = b.get("currency") or "EUR"
-            total_planned += amount
+            # `amount` is always EUR-normalised at write time — sum THAT
+            # for the total so mixed-currency budgets aren't added up as
+            # if every figure were already EUR (BUG-21).
+            eur_amount = float(b.get("amount") or 0)
+            total_planned_eur += eur_amount
+            # Per row, show what the user actually budgeted: their
+            # original currency + amount (a USD budget reads "USD 1,100",
+            # not the EUR-normalised value). Fall back to the canonical
+            # pair for legacy rows missing the original_* fields.
+            orig_amount = b.get("original_amount")
+            orig_curr = b.get("original_currency")
+            if orig_amount is not None and orig_curr:
+                planned_disp = f"{orig_curr} {float(orig_amount):,.0f}"
+            else:
+                planned_disp = f"{b.get('currency') or 'EUR'} {eur_amount:,.0f}"
             rows.append([
                 _esc(b.get("label") or "Untitled"),
-                f"{currency} {amount:,.0f}",
+                planned_disp,
             ])
-        rows.append(["Total planned", f"EUR {total_planned:,.0f}"])
+        rows.append(["Total planned (EUR-normalised)", f"EUR {total_planned_eur:,.0f}"])
         if trip_row.get("total_spend_eur") is not None:
             rows.append([
                 "Actual trip spend (EUR-normalised)",
@@ -2271,12 +2283,37 @@ def export_trip_pdf(trip_id: str):
         # showed as €200 against the WHOLE trip's spend (misleading
         # 1500% overspend chips on tightly-scoped budgets).
         cursor.execute(
-            "SELECT label, amount, currency, category_id, owner_name "
+            "SELECT label, amount, currency, category_id, owner_name, "
+            "original_amount, original_currency "
             "FROM budgets "
             "WHERE trip_id = ? AND user_id = ?",
             (trip_id, trip["user_id"]),
         )
-        trip["budgets"] = [dict(b) for b in cursor.fetchall()]
+        budget_rows = [dict(b) for b in cursor.fetchall()]
+        # BUG-21 (MK2 audit): budgets carry no user-facing name (the
+        # create modal has no label field), so the PDF printed every one
+        # as "Untitled". Derive a label from the budget's SCOPE: the
+        # category name (or "Overall" for a trip-total budget), plus the
+        # person when the budget is scoped to one. Load the user's
+        # category id→name map once.
+        cursor.execute(
+            "SELECT id, name FROM categories WHERE user_id = ?",
+            (trip["user_id"],),
+        )
+        _cat_name = {r["id"]: r["name"] for r in cursor.fetchall()}
+        for b in budget_rows:
+            if (b.get("label") or "").strip():
+                continue  # respect an explicit label if one ever exists
+            cat_id = b.get("category_id")
+            if cat_id and _cat_name.get(cat_id):
+                scope_label = _cat_name[cat_id]
+            elif cat_id:
+                scope_label = "Category budget"
+            else:
+                scope_label = "Overall"
+            owner = (b.get("owner_name") or "").strip()
+            b["label"] = f"{scope_label} · {owner}" if owner else scope_label
+        trip["budgets"] = budget_rows
 
         # Total spend across the trip — drives the cover stat tile.
         # R3-Round 2 fix: exclude `is_settlement = 1` rows. The

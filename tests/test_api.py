@@ -5672,6 +5672,32 @@ def test_share_html_page_renders_og_meta(client, seed_user, auth_headers):
     assert 'name="twitter:card"' in html
 
 
+def test_share_page_hub_day_not_labelled_day_one(client, seed_user, auth_headers):
+    """BUG-27 (MK2 audit): the Trip Hub is day_number=0 and sorts first.
+    The template's `d.dayNumber or loop.index` hit Jinja's falsy trap
+    (`0 or 1` → 1), so the Hub AND the real Day 1 both rendered "Day 1".
+    The Hub must render as the Hub ("Trip Hub"), leaving exactly one
+    "Day 1" on the public share page."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-hub-share")
+    # Hub (day_number=0) + a real Day 1, both name-less so the template
+    # falls back to its computed labels.
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {"id": "day-hub", "tripId": trip_id, "dayNumber": 0},
+    })
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {"id": "day-one", "tripId": trip_id, "dayNumber": 1},
+    })
+    token = client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers, json={},
+    ).get_json()["token"]
+    res = client.get(f"/share/{token}")
+    assert res.status_code == 200
+    html = res.get_data(as_text=True)
+    assert html.count("Day 1") == 1, \
+        f"expected exactly one 'Day 1', got {html.count('Day 1')} (Hub collision?)"
+    assert "Trip Hub" in html, "the day_number=0 row should render as the Trip Hub"
+
+
 def test_share_html_page_unknown_token_returns_404_friendly(client):
     """An expired or wrong token still renders an HTML page (not a JSON
     error) so a chat preview unfurler doesn't crash, and the user gets
@@ -9248,6 +9274,47 @@ def test_pdf_export_invalid_options_payload(
     assert res.status_code in (200, 500), (
         f"non-list aiPlan must coerce, not 4xx; got {res.status_code}"
     )
+
+
+def test_pdf_budget_table_labels_and_original_currency(
+    client, seed_user, auth_headers,
+):
+    """BUG-21 (MK2 audit): the PDF budget table must (a) derive a label
+    from the budget's scope instead of printing "Untitled", and (b) show
+    each budget in its ORIGINAL currency per row while summing the
+    EUR-normalised total. Skips if the PDF builder can't fetch the static
+    cover map (offline CI), since we need a real 200 to read the bytes."""
+    import io
+    import pypdf
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-pdf-budget")
+    # Trip-total budget (categoryId 'all' → "Overall"), typed as USD so
+    # the per-row currency must read USD while the total is EUR.
+    bud = client.post("/api/budgets", headers=auth_headers, json={
+        "budget": {
+            "id": "bud-pdf-1", "tripId": trip_id,
+            "categoryId": "all", "user": "all",
+            "amount": 1000, "originalAmount": 1100, "originalCurrency": "USD",
+        },
+    })
+    assert bud.status_code in (200, 201), bud.get_data(as_text=True)
+
+    res = client.post(
+        f"/api/trips/{trip_id}/pdf",
+        headers=auth_headers,
+        json={"includeBudgets": True},
+    )
+    if res.status_code != 200:
+        import pytest
+        pytest.skip(f"PDF builder returned {res.status_code} (offline map fetch?)")
+
+    text = "\n".join(
+        (page.extract_text() or "")
+        for page in pypdf.PdfReader(io.BytesIO(res.get_data())).pages
+    )
+    assert "Untitled" not in text, "budget must not render as 'Untitled'"
+    assert "Overall" in text, "trip-total budget should derive the 'Overall' label"
+    assert "USD" in text, "per-row amount must show the user's original currency"
+    assert "EUR-normalised" in text, "the total row must be labelled EUR-normalised"
 
 
 # ── R11-B1: /api/blocks DELETE (unblock) ────────────────────────────────────
