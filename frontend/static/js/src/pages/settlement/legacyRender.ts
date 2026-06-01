@@ -25,8 +25,8 @@ import {
 } from '../../utils.js';
 import {
     getTripCompanionNames,
-    findTripCompanion,
     findTripCompanionByLinkedUser,
+    findAcceptedMemberUserId,
 } from '../../companions.js';
 import { createSettlement, deleteSettlementOnServer, upsertExpense } from '../../api.js';
 import { showModal } from '../../components/Modal.js';
@@ -736,6 +736,11 @@ function renderGlobalTab(): string {
  *  wiring rollout. balances.ts now reads STATE.settlements directly
  *  via applySettlementToBalances, so the fake-expense is no longer
  *  load-bearing for the linked-user path. */
+/** Integration audit A2: in-flight settle keys, to drop a concurrent
+ *  double-fire of the same settlement (tripId|from|to|amount) before the
+ *  optimistic repaint removes the button. Cleared in settleDebt's finally. */
+const _settleInFlight = new Set<string>();
+
 export async function settleDebt(
     tripId: string,
     from: string,
@@ -768,84 +773,116 @@ export async function settleDebt(
     const euroValue = convertCurrency(amount, currency, 'EUR');
 
     const trip = STATE.trips.find((tr) => tr.id === tripId);
-    const fromUserId = findTripCompanion(trip, from)?.linkedUserId;
-    const toUserId = findTripCompanion(trip, to)?.linkedUserId;
+    // Integration audit INT-2: resolve each party to an ACCEPTED-member
+    // user id. Prefer the companion's explicit `linkedUserId`, then fall
+    // back to the trip's accepted-members roster (Trip.members) by name.
+    // Pre-fix this read ONLY `findTripCompanion(...).linkedUserId`, so an
+    // accepted member whose companion row was never linked (the common
+    // "invite, then separately-named companion" flow) was wrongly routed
+    // to the legacy fake-expense path EVEN THOUGH the server would have
+    // accepted a real settlement (it gates on `_is_accepted_member` —
+    // settlements.py:226). findAcceptedMemberUserId realigns the PATH A/B
+    // decision with what the API actually accepts.
+    const fromUserId = findAcceptedMemberUserId(trip, from);
+    const toUserId = findAcceptedMemberUserId(trip, to);
 
-    if (fromUserId && toUserId) {
-        // PATH A — server-side settlement. Await the POST so we can
-        // splice the server's row (with its real id + createdAt) into
-        // STATE.settlements before emitting. The brief in-flight wait
-        // (~200-500ms) is acceptable; the next /api/data poll would
-        // hydrate the same row anyway, but we don't want to block on
-        // it for the UI update.
-        const result = await createSettlement({
-            tripId,
-            fromUserId,
-            toUserId,
-            amount,
-            currency,
-            euroValue,
-            ...(options?.method ? { method: options.method } : {}),
-            ...(options?.note ? { note: options.note } : {}),
-        });
-        if (result.settlement) {
-            STATE.settlements.push(result.settlement);
-            emit(EVENTS.STATE_CHANGED);
-            showLiquidAlert(t('settlement.toastRecordedNotified', {
-                amount: formatHome(euroValue, 'EUR'),
-                from,
-                to,
-            }));
-        } else {
-            // Log + toast. We deliberately don't fall back to the
-            // fake-expense pattern here — keeping the data layer
-            // clean is worth the user-visible failure mode.
-            // Sentry catches via §3.8's structured logging.
-            console.warn('[settlement] /api/settlements failed:', result.error);
-            showLiquidAlert(t('settlement.toastSettlementFailed', {
-                error: result.error || t('settlement.toastSettlementFailedNetwork'),
-            }));
-            // 2026-05-25 (audit S3): emit STATE_CHANGED so the Settle
-            // button re-renders out of its disabled "Recording…" state.
-            // Without this, the button stayed permanently disabled on
-            // failure since no state mutation triggered a repaint —
-            // user had to navigate away to re-arm the row.
-            emit(EVENTS.STATE_CHANGED);
+    // Integration audit A2 (idempotency): the one-click Settle button used
+    // to give NO on-screen feedback — a mutating `.push` (below) left the
+    // balances' array-ref identity unchanged, so Settlement.tsx's useMemo
+    // never recomputed and the page kept showing the pre-settle debts.
+    // Users re-clicked and DUPLICATED the settlement, inverting the ledger
+    // ("Sara owes Alex €X" became "Alex owes Sara €X"). The repaint is
+    // fixed below via immutable replace; this guard additionally blocks a
+    // concurrent double-fire during the async PATH A round-trip.
+    const inFlightKey = `${tripId}::${from}::${to}::${amount}`;
+    if (_settleInFlight.has(inFlightKey)) return;
+    _settleInFlight.add(inFlightKey);
+    try {
+        if (fromUserId && toUserId) {
+            // PATH A — server-side settlement. Await the POST so we can
+            // splice the server's row (with its real id + createdAt) into
+            // STATE.settlements before emitting. The brief in-flight wait
+            // (~200-500ms) is acceptable; the next /api/data poll would
+            // hydrate the same row anyway, but we don't want to block on
+            // it for the UI update.
+            const result = await createSettlement({
+                tripId,
+                fromUserId,
+                toUserId,
+                amount,
+                currency,
+                euroValue,
+                ...(options?.method ? { method: options.method } : {}),
+                ...(options?.note ? { note: options.note } : {}),
+            });
+            if (result.settlement) {
+                // INT-3: immutable replace (not `.push`) so the new array
+                // identity bumps Settlement.tsx's useStore(settlements) dep
+                // and the balances repaint immediately.
+                STATE.settlements = [...STATE.settlements, result.settlement];
+                emit(EVENTS.STATE_CHANGED);
+                showLiquidAlert(t('settlement.toastRecordedNotified', {
+                    amount: formatHome(euroValue, 'EUR'),
+                    from,
+                    to,
+                }));
+            } else {
+                // Log + toast. We deliberately don't fall back to the
+                // fake-expense pattern here — keeping the data layer
+                // clean is worth the user-visible failure mode.
+                // Sentry catches via §3.8's structured logging.
+                console.warn('[settlement] /api/settlements failed:', result.error);
+                showLiquidAlert(t('settlement.toastSettlementFailed', {
+                    error: result.error || t('settlement.toastSettlementFailedNetwork'),
+                }));
+                // 2026-05-25 (audit S3): emit STATE_CHANGED so the Settle
+                // button re-renders out of its disabled "Recording…" state.
+                // Without this, the button stayed permanently disabled on
+                // failure since no state mutation triggered a repaint —
+                // user had to navigate away to re-arm the row.
+                emit(EVENTS.STATE_CHANGED);
+            }
+            return;
         }
-        return;
-    }
 
-    // PATH B — legacy fake-expense for name-only companions. The
-    // settlements table can't store these rows (it's user_id keyed),
-    // so we keep the expense-driven balance shift as the only path.
-    const settlementExp = {
-        id: generateId(),
-        tripId: tripId,
-        label: t('settlement.settlementLabel', { from, to }),
-        value: amount,
-        euroValue: euroValue,
-        currency: currency,
-        who: from,
-        categoryId: STATE.categories[0]?.id ?? '',
-        country: t('settlement.expenseCountry'),
-        date: new Date().toISOString().split('T')[0] ?? '',
-        splits: { [to]: 100 },
-        isSettlement: true,
-    };
-    STATE.expenses.push(settlementExp);
-    emit(EVENTS.STATE_CHANGED);
-    // R10-B1 P0-2: POST the new fake-expense row to /api/expenses
-    // immediately. Pre-fix the legacy name-only path only pushed
-    // into STATE.expenses; the ship-to-server depended on the
-    // next /api/sync poll firing AND succeeding. A tab close in
-    // that window lost the settlement. Same outbox-safe pattern
-    // as the edit path above.
-    upsertExpense(settlementExp);
-    showLiquidAlert(t('settlement.toastRecorded', {
-        amount: formatHome(euroValue, 'EUR'),
-        from,
-        to,
-    }));
+        // PATH B — legacy fake-expense for name-only companions. The
+        // settlements table can't store these rows (it's user_id keyed),
+        // so we keep the expense-driven balance shift as the only path.
+        const settlementExp = {
+            id: generateId(),
+            tripId: tripId,
+            label: t('settlement.settlementLabel', { from, to }),
+            value: amount,
+            euroValue: euroValue,
+            currency: currency,
+            who: from,
+            categoryId: STATE.categories[0]?.id ?? '',
+            country: t('settlement.expenseCountry'),
+            date: new Date().toISOString().split('T')[0] ?? '',
+            splits: { [to]: 100 },
+            isSettlement: true,
+        };
+        // INT-3: immutable replace (not `.push`) so the new array identity
+        // bumps Settlement.tsx's useMemo `expenses` dep and the balances
+        // repaint immediately — pre-fix the push left the page showing the
+        // pre-settle debts, so users re-clicked and duplicated the row.
+        STATE.expenses = [...STATE.expenses, settlementExp];
+        emit(EVENTS.STATE_CHANGED);
+        // R10-B1 P0-2: POST the new fake-expense row to /api/expenses
+        // immediately. Pre-fix the legacy name-only path only pushed
+        // into STATE.expenses; the ship-to-server depended on the
+        // next /api/sync poll firing AND succeeding. A tab close in
+        // that window lost the settlement. Same outbox-safe pattern
+        // as the edit path above.
+        upsertExpense(settlementExp);
+        showLiquidAlert(t('settlement.toastRecorded', {
+            amount: formatHome(euroValue, 'EUR'),
+            from,
+            to,
+        }));
+    } finally {
+        _settleInFlight.delete(inFlightKey);
+    }
 }
 
 /** Undo a recorded settlement. Routes by source:

@@ -163,6 +163,7 @@ _INTENTIONAL_ENGLISH = {
     'archivedDetail.statDocuments': 'fr: identical',
     'archivedDetail.statPhotos':    'fr: identical',
     'modals.addDayLabelDate':       'fr: identical "Date"',
+    'expenses.dateLabel':           'fr: identical "Date"',
     'modals.newTripLabelDest':      'fr: identical "Destination"',
     'modals.pdfOptBudgets':         'fr: identical "Budgets"',
 

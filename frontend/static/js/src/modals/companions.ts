@@ -15,7 +15,7 @@
 
 import { STATE, emit } from '../state.js';
 import { t } from '../i18n.js';
-import { showLiquidAlert, showConfirmModal, q, esc } from '../utils.js';
+import { showLiquidAlert, showConfirmModal, q, esc, formatHome, getHomeCurrency } from '../utils.js';
 import {
     upsertTrip,
     fetchAcceptedFriends,
@@ -24,6 +24,7 @@ import {
     type FriendListEntry,
 } from '../api.js';
 import { findTripCompanion, addTripCompanion, removeTripCompanion } from '../companions.js';
+import { computeTripBalances } from '../pages/settlement/balances.js';
 import { ROLE_PLANNER, ROLE_BUDGETEER, ROLE_RELAXER, canManageRoster } from '../permissions.js';
 import { showModal } from '../components/Modal.js';
 import { iconSvg } from '../icons.js';
@@ -288,7 +289,30 @@ export const openCompanionPickerModal = (tripId: string) => {
                 }
                 refreshList();
             };
-            if (companion.linkedUserId) {
+            // Integration audit B4: if this person still has an OPEN
+            // balance on the trip, warn before removing them. Removing a
+            // member hard-deletes their trip_members row (trips.py:1063),
+            // after which the clean /api/settlements path can no longer
+            // name them as a party — the debt then has to be cleared the
+            // awkward way (a legacy fake-expense). The clean resolution is
+            // "settle up FIRST, then remove", so we surface the balance.
+            const { balances } = computeTripBalances(trip);
+            const openBalance = balances[name] ?? 0;
+            if (Math.abs(openBalance) > 0.01) {
+                const home = getHomeCurrency();
+                showConfirmModal({
+                    title: t('companions.removeWithBalanceTitle'),
+                    message: openBalance > 0
+                        ? t('companions.removeWithBalanceOwed', {
+                            name, amount: formatHome(openBalance, home),
+                        })
+                        : t('companions.removeWithBalanceOwes', {
+                            name, amount: formatHome(Math.abs(openBalance), home),
+                        }),
+                    confirmText: t('common.remove'),
+                    onConfirm: removeIt,
+                });
+            } else if (companion.linkedUserId) {
                 showConfirmModal({
                     title: t('companions.removeConfirmTitle'),
                     message: t('companions.removeConfirmBody', { name }),

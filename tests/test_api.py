@@ -7171,21 +7171,68 @@ def test_settlement_rejects_overpayment_beyond_trip_spend(
     assert ok.status_code == 201, ok.get_data(as_text=True)
 
 
-def test_settlement_cap_skipped_when_trip_has_no_expenses(
+def test_settlement_zero_spend_allows_normal_blocks_absurd(
     client, seed_user, seed_other_user, auth_headers,
 ):
-    """BUG-24 corollary: the cap is bounded by recorded spend, so a trip
-    with NO expenses can't bound anything — the settlement may be an
-    off-app cash debt the user logs after the fact. Such settlements are
-    still accepted (no regression to the happy path)."""
+    """Integration audit B3: a trip with NO recorded expenses can't ground a
+    debt, so we still allow off-app cash debts logged after the fact (a
+    normal €500 → 201). But the pre-fix code SKIPPED the cap entirely there,
+    so a fat-finger €100,000,000 got a 201 and poisoned the cross-trip
+    Global tab + Insights for every trip. Now the zero-spend path is bounded
+    by a generous absolute sanity ceiling — absurd amounts are rejected."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-nocap")
     _seed_member(trip_id, seed_other_user, role="relaxer")
-    res = client.post("/api/settlements", headers=auth_headers, json={
+    # Normal off-app debt → still accepted (no regression to the happy path).
+    ok = client.post("/api/settlements", headers=auth_headers, json={
         "tripId": trip_id,
         "fromUserId": seed_other_user, "toUserId": seed_user,
         "amount": 500.0, "currency": "EUR", "euroValue": 500.0,
     })
-    assert res.status_code == 201, res.get_data(as_text=True)
+    assert ok.status_code == 201, ok.get_data(as_text=True)
+    # Absurd amount → rejected with the sanity ceiling surfaced.
+    absurd = client.post("/api/settlements", headers=auth_headers, json={
+        "tripId": trip_id,
+        "fromUserId": seed_other_user, "toUserId": seed_user,
+        "amount": 100_000_000.0, "currency": "EUR", "euroValue": 100_000_000.0,
+    })
+    assert absurd.status_code == 400, absurd.get_data(as_text=True)
+    assert "maxEur" in absurd.get_json()
+
+
+def test_settlement_cap_blocks_partial_payment_sequence_overpay(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Integration audit B2: the cap now subtracts what `from` has ALREADY
+    paid `to`, so a partial-payment SEQUENCE can't slip past it and invert
+    the ledger. Pre-fix the cap was a flat `total_spend` ignoring prior
+    settlements: on a €100 trip you could settle €60, then €60 again (each
+    < €100), ending with the payer OWED €20. Now the running F→to total is
+    bounded by trip spend."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-seq")
+    _seed_member(trip_id, seed_other_user, role="relaxer")
+    exp = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-seq-1", "tripId": trip_id,
+            "who": "Owner", "value": 100, "currency": "EUR",
+            "euroValue": 100, "label": "Villa", "date": "2026-01-02",
+        },
+    })
+    assert exp.status_code == 200
+    # First €60 → within the €100 spend → accepted.
+    first = client.post("/api/settlements", headers=auth_headers, json={
+        "tripId": trip_id,
+        "fromUserId": seed_other_user, "toUserId": seed_user,
+        "amount": 60.0, "currency": "EUR", "euroValue": 60.0,
+    })
+    assert first.status_code == 201, first.get_data(as_text=True)
+    # Second €60 → running total €120 > €100 spend → rejected (pre-fix: 201).
+    second = client.post("/api/settlements", headers=auth_headers, json={
+        "tripId": trip_id,
+        "fromUserId": seed_other_user, "toUserId": seed_user,
+        "amount": 60.0, "currency": "EUR", "euroValue": 60.0,
+    })
+    assert second.status_code == 400, second.get_data(as_text=True)
+    assert "maxEur" in second.get_json()
 
 
 def test_member_sees_settlement_between_other_members_in_data(

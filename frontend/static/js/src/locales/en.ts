@@ -1071,7 +1071,11 @@ export const en = {
         // Delete-expense confirm modal.
         deleteConfirmTitle: 'Delete Expense?',
         deleteConfirmMessage: 'This action cannot be undone.',
+        deleteConfirmMessageSettled: "This trip already has settle-ups recorded. Deleting this expense recalculates everyone's balances — you may need to settle up again. This can't be undone.",
         deleteConfirmBtn: 'Delete',
+        editSettledWarnTitle: 'Edit a settled-up expense?',
+        editSettledWarnMessage: "This trip already has settle-ups recorded. Changing this expense's amount or split recalculates everyone's balances — you may need to settle up again.",
+        editSettledWarnBtn: 'Edit anyway',
         // Manual-tab form labels & options.
         splitBetween: 'Split Between',
         addPersonToSplit: 'Add person to split…',
@@ -1411,6 +1415,9 @@ export const en = {
         // confirm since they're pure-local renames.
         removeConfirmTitle: 'Remove this companion?',
         removeConfirmBody: '{name} will be removed from the trip and lose access. Their settled balances are kept; you can re-invite them later.',
+        removeWithBalanceTitle: 'Settle up before removing?',
+        removeWithBalanceOwed: '{name} is still owed {amount} on this trip. Removing them now makes that debt hard to settle the clean way — settle up first if you can. Remove anyway?',
+        removeWithBalanceOwes: '{name} still owes {amount} on this trip. Removing them now makes that debt hard to settle the clean way — settle up first if you can. Remove anyway?',
         // openCompanionPickerModal — owner-side roster manager.
         pickerTitle: 'Trip Companions',
         pickerIntro: "Add who's coming on <strong>{trip}</strong>. Friends get a trip invitation (Relaxer by default — you can override per pick); plain companions are just labels for non-app travellers.",

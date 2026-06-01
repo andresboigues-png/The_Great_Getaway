@@ -86,15 +86,43 @@ export function setExpensesTab(
  *  history, sets the tab to Upload + sub-mode Manual, and navigates.
  *  The navigate + setActiveExpensesTab pair re-mounts the React
  *  tree on the Upload tab with the draft already in place. */
+/** Integration audit B1: does this trip have recorded settle-ups? A
+ *  settlement is either a server row (STATE.settlements) or a legacy
+ *  isSettlement expense. Editing or DELETING an underlying expense after a
+ *  settle-up silently recomputes everyone's balances — it can invert the
+ *  ledger or double-count cash someone already handed over (audit P4-1 /
+ *  P5-1). Settlements aren't linked to the expense they paid, so we can't
+ *  auto-reconcile; instead these flows warn first rather than strand the
+ *  settlement silently. */
+const tripHasSettlements = (tripId: string): boolean =>
+    (STATE.settlements || []).some((s) => s.tripId === tripId) ||
+    (STATE.expenses || []).some((e) => e.tripId === tripId && e.isSettlement);
+
 export const openEditExpenseModal = (id: string) => {
     const e = STATE.expenses.find((exp) => exp.id === id);
     if (!e) return;
-    STATE.draftExpense = { ...e };
-    STATE.activeTripId = e.tripId;
-    setUploadMode('manual');
-    setActiveExpensesTab('upload');
-    emit('state:changed');
-    navigate('expenses');
+    const proceed = () => {
+        STATE.draftExpense = { ...e };
+        STATE.activeTripId = e.tripId;
+        setUploadMode('manual');
+        setActiveExpensesTab('upload');
+        emit('state:changed');
+        navigate('expenses');
+    };
+    // B1: editing a normal expense on a trip that's already been settled
+    // will shift balances after the fact — warn before opening the editor.
+    // (Skip for settlement rows themselves — those are the settle-up, not
+    // a tracked cost.)
+    if (!e.isSettlement && tripHasSettlements(e.tripId)) {
+        showConfirmModal({
+            title: t('expenses.editSettledWarnTitle'),
+            message: t('expenses.editSettledWarnMessage'),
+            confirmText: t('expenses.editSettledWarnBtn'),
+            onConfirm: proceed,
+        });
+        return;
+    }
+    proceed();
 };
 
 
@@ -103,9 +131,15 @@ export const openEditExpenseModal = (id: string) => {
  *  block the UI. Lands the user on the History tab after the delete
  *  so they see the row gone in context. */
 export const deleteExpense = (id: string) => {
+    const exp = STATE.expenses.find((e) => e.id === id);
+    // B1: a stronger warning when deleting will disturb a settled-up trip.
+    const willDisturbSettlement =
+        !!exp && !exp.isSettlement && tripHasSettlements(exp.tripId);
     showConfirmModal({
         title: t('expenses.deleteConfirmTitle'),
-        message: t('expenses.deleteConfirmMessage'),
+        message: willDisturbSettlement
+            ? t('expenses.deleteConfirmMessageSettled')
+            : t('expenses.deleteConfirmMessage'),
         confirmText: t('expenses.deleteConfirmBtn'),
         onConfirm: () => {
             STATE.expenses = STATE.expenses.filter((e) => e.id !== id);

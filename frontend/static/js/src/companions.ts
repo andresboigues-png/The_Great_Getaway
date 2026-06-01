@@ -61,6 +61,54 @@ export function findTripCompanionByLinkedUser(trip: TripWithCompanions | null | 
     return (trip?.companions ?? []).find(c => c.linkedUserId === userId);
 }
 
+/** Minimal accepted-member shape, as shipped on `Trip.members` by
+ *  /api/data (data.py builds `{userId, role, archived, name, picture}`
+ *  from `trip_members` JOIN users). We only need userId + name here. */
+type TripWithMembers = TripWithCompanions & {
+    members?: Array<{ userId?: string | null; name?: string | null } | null>;
+};
+
+/** Resolve a settlement-balance display name (the first-name-ish key the
+ *  balance map uses) to an ACCEPTED-member user id, for deciding whether
+ *  a settle-up can take the real `/api/settlements` path vs the legacy
+ *  fake-expense path.
+ *
+ *  Priority:
+ *    1. The companion's explicit `linkedUserId` (set when the companion
+ *       was added from a friend / linked via the invite modal).
+ *    2. The trip's accepted-members roster (`Trip.members`, shipped on
+ *       every /api/data poll) matched by FULL name or FIRST-name token.
+ *
+ *  Why (2) matters — integration audit INT-2 / personas 1·2·3: accepting
+ *  a trip invite writes a `trip_members` row but does NOT populate the
+ *  matching `companions[].linkedUserId`, so the common "invite, then a
+ *  separately-named companion" case left an accepted member unlinked.
+ *  `settleDebt` then fell to the legacy fake-expense path EVEN THOUGH the
+ *  server would have accepted a real settlement (it gates on
+ *  `_is_accepted_member`, i.e. the members roster — settlements.py:226).
+ *  Resolving via the members roster realigns the client's real-vs-legacy
+ *  decision with what the API actually accepts.
+ *
+ *  Returns undefined when the name doesn't resolve to exactly ONE accepted
+ *  member (a genuinely name-only companion, or an ambiguous first-name
+ *  collision) — the caller falls back to the legacy path. */
+export function findAcceptedMemberUserId(
+    trip: TripWithMembers | null | undefined,
+    name: string,
+): string | undefined {
+    if (!trip || !name) return undefined;
+    const linked = findTripCompanion(trip, name)?.linkedUserId;
+    if (linked) return linked;
+    const lower = name.toLocaleLowerCase();
+    const members = Array.isArray(trip.members) ? trip.members : [];
+    const matches = members.filter((m) => {
+        const full = (m?.name || '').toLocaleLowerCase();
+        if (!full || !m?.userId) return false;
+        return full === lower || full.split(/\s+/)[0] === lower;
+    });
+    return matches.length === 1 ? (matches[0]!.userId ?? undefined) : undefined;
+}
+
 export function tripHasCompanion(trip: TripWithCompanions | null | undefined, name: string): boolean {
     return findTripCompanion(trip, name) !== undefined;
 }

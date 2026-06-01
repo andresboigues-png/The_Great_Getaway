@@ -38,6 +38,12 @@ export function Settlement() {
     // Subscribe to expenses so mutations (settle/unsettle/edit) trigger
     // a fresh buildPageHtml call.
     const expenses = useStore((s) => s.expenses);
+    // Integration audit A2 (INT-3): also subscribe to settlements. A real
+    // (PATH A) settle replaces STATE.settlements, and the balances depend
+    // on it — without this dep the page didn't repaint after a server
+    // settlement, so the user saw stale debts and re-clicked. Pairs with
+    // the immutable replace in settleDebt (the array identity must change).
+    const settlements = useStore((s) => s.settlements);
 
     const [activeTab, setActiveTab] = useState<SettlementTab>('trip');
 
@@ -110,7 +116,7 @@ export function Settlement() {
     // a real dep fixes that.
     const html = useMemo(
         () => buildPageHtml(trip, tripIsEditable, activeTab, currentTripId),
-        [trip, tripIsEditable, activeTab, currentTripId, expenses],
+        [trip, tripIsEditable, activeTab, currentTripId, expenses, settlements],
     );
 
     const wrapperRef = useRef<HTMLDivElement | null>(null);

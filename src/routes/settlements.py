@@ -58,6 +58,13 @@ logger = get_logger(__name__)
 # at the airport").
 _ALLOWED_METHODS = {"cash", "revolut", "bank_transfer", "wise", "paypal", "custom"}
 
+# Integration audit B3: a settlement on a trip with NO recorded expenses
+# can't be grounded against any debt, so we still allow it (off-app cash
+# debts logged after the fact). But it must stay below this generous
+# absolute ceiling — far above any plausible single trip debt, far below a
+# fat-finger that would poison the cross-trip Global tab + Insights.
+_ZERO_SPEND_SETTLEMENT_SANITY_EUR = 1_000_000
+
 
 def _settlement_id() -> str:
     """11-char crypto-grade id. R3-Round 3 fix: stopped truncating
@@ -238,38 +245,73 @@ def create_settlement():
                 "error": "Trip is archived — unarchive to record new settlements",
             }), 409
 
-        # BUG-24 (MK2 persona audit): reject grossly-oversized settlements
-        # server-side. The persona logged a €10,000 settlement against a
-        # €45 debt and got a 201 — which INVERTS the ledger (the payer is
-        # now owed money). Only the manual modal warned; the API didn't.
+        # BUG-24 (MK2 persona audit) + integration audit B2/B3: reject
+        # grossly-oversized settlements server-side. Logging €10,000 against
+        # a €45 debt INVERTS the ledger (the payer ends up owed money).
         #
-        # We don't replicate the client's full split engine here (custom
-        # splits, multi-currency, identity reconciliation) — doing so
-        # risks subtle divergence that would FALSE-REJECT legitimate
-        # settlements, which is worse than the bug. Instead we use a
-        # provably-safe upper bound: a single from→to debt can never
-        # exceed the total euros ever spent on the trip (the most anyone
-        # can owe is their share of everything). A settlement larger than
-        # that is necessarily an overpayment. The cap carries 1 % + €0.50
-        # headroom so accumulated FX rounding on a full-trip settlement
-        # never trips it. Skip entirely when the trip has no recorded
-        # expenses — nothing to bound against, and it may be an off-app
-        # cash debt the user is logging after the fact.
+        # We still don't replicate the client's full split engine here
+        # (custom splits, multi-currency, name↔user reconciliation) — doing
+        # so risks subtle divergence that would FALSE-REJECT legitimate
+        # settlements, which is worse than the bug. We use a provably-safe
+        # upper bound: a from→to debt can never exceed the trip's total
+        # spend (the most anyone can owe is their share of everything).
+        #
+        # Integration audit fixes to the original BUG-24 cap:
+        #   • B2 — subtract what `from` has ALREADY paid `to` on this trip.
+        #     The pre-fix cap was a flat `total_spend` and ignored prior
+        #     settlements, so a partial-payment SEQUENCE (€50, then €60, on
+        #     a €100 debt) sailed under the cap each time and inverted the
+        #     ledger. Bounding (alreadyPaidFromTo + this) by total_spend
+        #     closes that — and stays provably safe: a legitimate split of a
+        #     real debt D ≤ total_spend can never make the running F→to total
+        #     exceed total_spend.
+        #   • B3 — a trip with NO recorded spend still can't be grounded, so
+        #     we keep allowing it (the documented "off-app cash debt the user
+        #     logs after the fact" flow — and the manual settle modal is the
+        #     only way to reach it). But the pre-fix code SKIPPED the cap
+        #     entirely there, so a fat-finger €100,000,000 got a 201 and
+        #     poisoned the cross-trip Global tab + Insights for every trip.
+        #     Now the zero-spend path is bounded by a generous absolute sanity
+        #     ceiling (_ZERO_SPEND_SETTLEMENT_SANITY_EUR): far above any real
+        #     trip debt, far below an absurd one.
+        # The residual (a SINGLE overpay below total_spend but above the true
+        # pairwise debt) stays guarded on the client, where the split engine
+        # lives (`_pairwiseOwed` in legacyRender.ts pops an overpay confirm).
         cursor.execute(
             "SELECT COALESCE(SUM(euro_value), 0) AS total FROM expenses "
             "WHERE trip_id = ? AND is_settlement = 0",
             (trip_id,),
         )
         total_spend = cursor.fetchone()["total"] or 0
-        if total_spend > 0 and euro_value is not None:
-            settlement_cap = total_spend * 1.01 + 0.5
-            if euro_value > settlement_cap:
+        cursor.execute(
+            "SELECT COALESCE(SUM(euro_value), 0) AS paid FROM settlements "
+            "WHERE trip_id = ? AND from_user_id = ? AND to_user_id = ?",
+            (trip_id, from_user_id, to_user_id),
+        )
+        already_paid_from_to = cursor.fetchone()["paid"] or 0
+        if euro_value is not None:
+            if total_spend > 0:
+                # B2: spend-grounded cap, with prior F→to settlements subtracted.
+                settlement_cap = total_spend * 1.01 + 0.5 - already_paid_from_to
+                if euro_value > settlement_cap:
+                    return jsonify({
+                        "error": (
+                            "This settlement is larger than what's still "
+                            "outstanding for this trip — log the expenses "
+                            "first, or double-check the amount."
+                        ),
+                        "maxEur": round(max(settlement_cap, 0), 2),
+                    }), 400
+            elif euro_value > _ZERO_SPEND_SETTLEMENT_SANITY_EUR:
+                # B3: zero-spend trip — allow off-app debt logging, but never
+                # a clearly-absurd amount that would skew aggregate views.
                 return jsonify({
                     "error": (
-                        "This settlement is larger than the whole trip's "
-                        "spend — double-check the amount."
+                        "This settlement looks too large to be real — "
+                        "double-check the amount, or log the trip's "
+                        "expenses so the balance can be calculated."
                     ),
-                    "maxEur": round(total_spend, 2),
+                    "maxEur": float(_ZERO_SPEND_SETTLEMENT_SANITY_EUR),
                 }), 400
 
         # 2026-05-26 (audit S1 + S6): snapshot party display names at
