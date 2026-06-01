@@ -681,6 +681,42 @@ function albumLabel(key: string, groupBy: GroupBy): string {
 }
 
 
+// Distinct gradient per album for photoless covers, so the shelf isn't a
+// wall of identical rectangles. Continents map to a fixed hue; other keys
+// (years, "Other") hash deterministically into the same palette.
+const ALBUM_GRADIENTS = [
+    'linear-gradient(135deg, #0a84ff 0%, #5e5ce6 100%)', // blue → indigo
+    'linear-gradient(135deg, #ff375f 0%, #ff9f0a 100%)', // red → orange
+    'linear-gradient(135deg, #ff9f0a 0%, #ffd60a 100%)', // amber → gold
+    'linear-gradient(135deg, #30d158 0%, #a3e635 100%)', // green → lime
+    'linear-gradient(135deg, #bf5af2 0%, #ff375f 100%)', // purple → pink
+    'linear-gradient(135deg, #40c8e0 0%, #0a84ff 100%)', // teal → blue
+    'linear-gradient(135deg, #64d2ff 0%, #5e5ce6 100%)', // cyan → indigo
+    'linear-gradient(135deg, #8e8e93 0%, #636366 100%)', // slate (Other)
+];
+const CONTINENT_GRADIENT_INDEX: Record<string, number> = {
+    Europe: 0,
+    Asia: 1,
+    Africa: 2,
+    'South America': 3,
+    Oceania: 4,
+    'North America': 5,
+    Antarctica: 6,
+    [ALBUM_OTHER]: 7,
+};
+
+/** Gradient for an album's photoless cover tiles, keyed off its
+ *  continent/year so adjacent stacks read as distinct rather than a row
+ *  of identical blue rectangles. */
+function albumGradient(key: string): string {
+    const fixed = CONTINENT_GRADIENT_INDEX[key];
+    if (fixed !== undefined) return ALBUM_GRADIENTS[fixed]!;
+    let h = 0;
+    for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+    return ALBUM_GRADIENTS[h % ALBUM_GRADIENTS.length]!;
+}
+
+
 /** A continent/year "album" rendered as a fanned stack of trip cover
  *  photos. Up to 3 tiles; trips without a photo show a gradient tile so
  *  a single-photo album still reads as a stack. Click / Enter / Space
@@ -708,6 +744,7 @@ function AlbumStack(
         { src: covers[0], cls: 'album-stack__tile--top' },
     ];
     const countLabel = t('collections.albumTripCount', { count: album.trips.length });
+    const emptyBg = albumGradient(album.key);
     return (
         <div
             className="card glass album-card"
@@ -734,7 +771,11 @@ function AlbumStack(
                             className={`album-stack__tile ${slot.cls}`}
                         />
                     ) : (
-                        <div key={i} className={`album-stack__tile album-stack__tile--empty ${slot.cls}`} />
+                        <div
+                            key={i}
+                            className={`album-stack__tile album-stack__tile--empty ${slot.cls}`}
+                            style={{ background: emptyBg }}
+                        />
                     ),
                 )}
                 <span className="album-stack__count">{album.trips.length}</span>

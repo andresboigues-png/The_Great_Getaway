@@ -5793,15 +5793,18 @@ main#app-container.nav-anim-backward {
 .album-card:hover .album-stack__tile--back2 {
     transform: rotate(-7deg) translateY(8px) scale(0.92);
 }
-/* Gradient placeholders for photo-less trips — varied hues add depth. */
+/* Photoless tiles: the per-album hue is set inline (albumGradient in
+   Collections.tsx) so adjacent stacks read as distinct instead of a row
+   of identical rectangles. This is just a neutral fallback; within-stack
+   depth comes from brightness, keeping each stack a single hue family. */
 .album-stack__tile--empty {
-    background: linear-gradient(135deg, #007aff 0%, #5856d6 60%, #34c759 130%);
+    background: linear-gradient(135deg, #8e8e93 0%, #636366 100%);
 }
 .album-stack__tile--empty.album-stack__tile--back1 {
-    background: linear-gradient(135deg, #5856d6 0%, #7c3a9e 100%);
+    filter: brightness(0.9);
 }
 .album-stack__tile--empty.album-stack__tile--back2 {
-    background: linear-gradient(135deg, #34c759 0%, #007aff 120%);
+    filter: brightness(0.8);
 }
 .album-stack__count {
     position: absolute;
