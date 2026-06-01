@@ -162,7 +162,9 @@ export function Settlement() {
                 settleBtn.dataset.from,
                 settleBtn.dataset.to,
                 parseFloat(settleBtn.dataset.amount),
-                'EUR',
+                // MK3-8: settle in the debt's own currency (per-currency debts),
+                // not a forced EUR. Falls back to EUR for any legacy button.
+                settleBtn.dataset.currency || 'EUR',
             );
             // No manual re-render; useStore picks up the emit and React
             // re-renders. The disabled button gets replaced by the new

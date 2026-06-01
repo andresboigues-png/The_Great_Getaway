@@ -32,10 +32,12 @@ import { createSettlement, deleteSettlementOnServer, upsertExpense } from '../..
 import { showModal } from '../../components/Modal.js';
 import {
     computeTripBalances,
+    computeTripBalancesByCurrency,
     simplifyDebts,
     computeGlobalBalances,
     computeLeaderboard,
 } from './balances.js';
+import { hasRate } from '../../utils/currency.js';
 import { t, tn, formatCurrency } from '../../i18n.js';
 
 // §0.4 follow-up: settlement-page shared styles, extracted
@@ -224,7 +226,20 @@ function originalCurrencyHint(eurAmount: number, primaryCurrency: string | null)
 function renderTripTab(trip: any, tripIsEditable: boolean): string {
     const { balances, removedFromRoster } = computeTripBalances(trip);
     const removedSet = new Set(removedFromRoster || []);
-    const debts = simplifyDebts(balances);
+    // MK3-8: per-currency debts for the suggested-payments list. The standing
+    // summary below stays in the viewer's home currency; the actual payments
+    // to make are shown in the trip's real currencies (a no-rate currency like
+    // ARS stays in ARS — the home "≈" hint is gated on hasRate).
+    const { byCurrency } = computeTripBalancesByCurrency(trip);
+    const curDebts: { from: string; to: string; amount: number; currency: string }[] = [];
+    for (const [cur, bal] of Object.entries(byCurrency)) {
+        for (const d of simplifyDebts(bal)) {
+            curDebts.push({ from: d.from, to: d.to, amount: d.amount, currency: cur });
+        }
+    }
+    curDebts.sort((a, b) =>
+        a.from.localeCompare(b.from) || a.to.localeCompare(b.to) || a.currency.localeCompare(b.currency),
+    );
     // Shared "original currency" hint reference for this trip's amounts.
     const primaryCurrency = tripPrimarySpendCurrency(trip.id);
     const board = computeLeaderboard(trip);
@@ -329,11 +344,16 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
         `<p class="text-muted" style="padding: 20px; text-align:center;">${t('settlement.emptyNoCompanions')}</p>`;
 
     const debtsHtml =
-        debts.length === 0
+        curDebts.length === 0
             ? `<div style="text-align:center; padding: 40px 20px;"><div style="font-size:2.2rem; margin-bottom:8px;">🥂</div><p style="margin:0; font-weight:800; color:#1a6b3c;">${t('settlement.allSettledTitle')}</p><p style="margin:6px 0 0; color:var(--text-secondary); font-size:0.85rem;">${t('settlement.allSettledBody')}</p></div>`
-            : debts
-                  .map(
-                      (d) => `
+            : curDebts
+                  .map((d) => {
+                      // Home-currency "≈" hint, gated on hasRate so a no-rate
+                      // currency (ARS) shows just its own amount, not a 1:1 fake.
+                      const homeHint = hasRate(d.currency)
+                          ? ` <span style="font-weight:600; color:var(--text-secondary); font-size:0.8rem;">≈ ${esc(formatHome(convertCurrency(d.amount, d.currency, 'EUR'), 'EUR'))}</span>`
+                          : '';
+                      return `
             <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:16px;">
                 <div class="stl-flex-grow-truncate">
                     <div class="stl-flex-row-wrap-6">
@@ -341,19 +361,19 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
                         <span style="color:rgba(0,0,0,0.3);">→</span>
                         <span class="stl-heading-3">${esc(d.to)}</span>
                     </div>
-                    <div style="font-size:1.3rem; font-weight:800; color: var(--text-brand-navy); letter-spacing:-0.01em; margin-top:2px;">${formatHome(d.amount, 'EUR')}${originalCurrencyHint(d.amount, primaryCurrency)}</div>
+                    <div style="font-size:1.3rem; font-weight:800; color: var(--text-brand-navy); letter-spacing:-0.01em; margin-top:2px;">${esc(formatCurrency(d.amount, d.currency))}${homeHint}</div>
                 </div>
                 ${
                     tripIsEditable
                         ? `
-                    <button class="btn-primary settle-debt-btn" data-trip-id="${esc(trip.id)}" data-from="${esc(d.from)}" data-to="${esc(d.to)}" data-amount="${d.amount}"
+                    <button class="btn-primary settle-debt-btn" data-trip-id="${esc(trip.id)}" data-from="${esc(d.from)}" data-to="${esc(d.to)}" data-amount="${d.amount}" data-currency="${esc(d.currency)}"
                         style="padding: 8px 18px; font-size:0.85rem; border-radius: 999px; flex-shrink:0;">${t('settlement.settleBtn')}</button>
                 `
                         : ''
                 }
             </div>
-        `,
-                  )
+        `;
+                  })
                   .join('');
 
     return `
@@ -374,7 +394,7 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
                         <h3 class="stl-heading-1">${t('settlement.suggestedPaymentsTitle')} · ${tripNameLabel}</h3>
                         <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">${t('settlement.suggestedPaymentsSubtitle')}</div>
                     </div>
-                    <span class="stl-section-label--shrink-0">${tn('settlement.paymentsCount', debts.length)}</span>
+                    <span class="stl-section-label--shrink-0">${tn('settlement.paymentsCount', curDebts.length)}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     ${debtsHtml}
@@ -967,6 +987,17 @@ export function openManualSettleModal(tripId: string): void {
         .map(m => `<option value="${esc(m.value)}">${esc(t(m.labelKey))}</option>`)
         .join('');
     const home = getHomeCurrency();
+    // MK3-8: per-currency manual settle. Offer the trip's actual spend
+    // currencies (default = the primary one), falling back to home when the
+    // trip has no expenses yet. The debt is settled in the chosen currency
+    // and the overpay check compares like-for-like.
+    const _manualByCur = computeTripBalancesByCurrency(trip).byCurrency;
+    const _manualCurs = Object.keys(_manualByCur);
+    const _manualDefaultCur = (tripPrimarySpendCurrency(trip?.id ?? '') || home).toUpperCase();
+    const _manualCurList = _manualCurs.length > 0 ? _manualCurs : [home.toUpperCase()];
+    const currencyOptions = _manualCurList
+        .map((c) => `<option value="${esc(c)}" ${c === _manualDefaultCur ? 'selected' : ''}>${esc(c)}</option>`)
+        .join('');
 
     const { root: modalRoot, close } = showModal({
         variant: 'glass-light',
@@ -979,8 +1010,11 @@ export function openManualSettleModal(tripId: string): void {
                 <select id="manualSettleFrom" class="glass-input stl-card-minor-bg">${peopleOptions}</select>
                 <label class="form-label stl-mt-6">${esc(t('settlement.labelTo'))}</label>
                 <select id="manualSettleTo" class="glass-input stl-card-minor-bg">${peopleOptions}</select>
-                <label class="form-label stl-mt-6">${esc(t('settlement.labelAmount', { currency: home }))}</label>
-                <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input" placeholder="0.00" required class="stl-card-minor">
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelAmount', { currency: _manualDefaultCur }))}</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input stl-card-minor" placeholder="0.00" required style="flex:2;">
+                    <select id="manualSettleCurrency" class="glass-input stl-card-minor-bg" style="flex:1;" aria-label="${esc(t('settlement.labelAmount', { currency: '' }))}">${currencyOptions}</select>
+                </div>
                 <label class="form-label stl-mt-6">${esc(t('settlement.labelMethod'))}</label>
                 <select id="manualSettleMethod" class="glass-input stl-card-minor-bg">${methodOptions}</select>
                 <label class="form-label stl-mt-6">${esc(t('settlement.labelNote'))} <span class="text-subtitle" style="font-weight:500;">${esc(t('settlement.labelNoteOptional'))}</span></label>
@@ -998,6 +1032,7 @@ export function openManualSettleModal(tripId: string): void {
         const from = (q(modalRoot, '#manualSettleFrom') as HTMLSelectElement).value;
         const to = (q(modalRoot, '#manualSettleTo') as HTMLSelectElement).value;
         const amount = parseFloat((q(modalRoot, '#manualSettleAmount') as HTMLInputElement).value);
+        const cur = ((q(modalRoot, '#manualSettleCurrency') as HTMLSelectElement)?.value || home).toUpperCase();
         const method = (q(modalRoot, '#manualSettleMethod') as HTMLSelectElement).value;
         const note = (q(modalRoot, '#manualSettleNote') as HTMLInputElement).value.trim();
         if (from === to) {
@@ -1014,13 +1049,14 @@ export function openManualSettleModal(tripId: string): void {
         // owed; the value-of-zero case is "settling a fictional debt"
         // which is also worth confirming). Confirms always settle as
         // requested — this is a UX nudge, not a hard gate.
-        const owed = _pairwiseOwed(trip, from, to, home);
+        // MK3-8: overpay check is per-currency (owed in `cur`, no conversion).
+        const owed = _pairwiseOwed(trip, from, to, cur);
         const proceed = () => {
             // The method + note flow into /api/settlements when both
             // parties have linkedUserIds (see settleDebt step 2). They
             // get dropped silently for the legacy companion-by-name path
             // since there's no server-side record to attach them to.
-            settleDebt(tripId, from, to, amount, home, { method, note });
+            settleDebt(tripId, from, to, amount, cur, { method, note });
             close();
         };
         if (amount > owed + 0.005) {
@@ -1028,13 +1064,13 @@ export function openManualSettleModal(tripId: string): void {
                 title: t('settlement.overpayConfirmTitle'),
                 message: owed > 0.005
                     ? t('settlement.overpayConfirmBody', {
-                        amount: formatHome(amount, home),
-                        owed: formatHome(owed, home),
+                        amount: formatCurrency(amount, cur),
+                        owed: formatCurrency(owed, cur),
                         from,
                         to,
                     })
                     : t('settlement.overpayConfirmBodyNone', {
-                        amount: formatHome(amount, home),
+                        amount: formatCurrency(amount, cur),
                         from,
                         to,
                     }),
@@ -1055,15 +1091,16 @@ export function openManualSettleModal(tripId: string): void {
  *  if the direct from→to edge exists, that's the answer, otherwise 0
  *  (no direct debt; the user is paying into a chain we can't simplify
  *  without re-running netting from scratch). */
-function _pairwiseOwed(trip: any, from: string, to: string, home: string): number {
+function _pairwiseOwed(trip: any, from: string, to: string, currency: string): number {
     if (!trip) return 0;
-    const { balances } = computeTripBalances(trip);
-    const debts = simplifyDebts(balances);
-    const edge = debts.find(d => d.from === from && d.to === to);
-    if (!edge) return 0;
-    // `amount` from simplifyDebts is in EUR. Convert to the user's
-    // home currency for the comparison + UI display. EUR → home.
-    return convertCurrency(edge.amount, 'EUR', home);
+    // MK3-8: per-currency. Net debts within the requested currency only and
+    // return the direct from→to edge in that currency (no conversion), so the
+    // overpay nudge compares like-for-like with the entered amount.
+    const { byCurrency } = computeTripBalancesByCurrency(trip);
+    const bal = byCurrency[(currency || 'EUR').toUpperCase()];
+    if (!bal) return 0;
+    const edge = simplifyDebts(bal).find((d) => d.from === from && d.to === to);
+    return edge ? edge.amount : 0;
 }
 
 export function openEditSettlementModal(id: string): void {
