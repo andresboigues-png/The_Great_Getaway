@@ -1818,6 +1818,7 @@ export const en = {
         newTripLabelName: 'Adventure Name',
         newTripPlaceholderName: 'e.g. Summer in Tuscany',
         newTripLabelDest: 'Destination',
+        countryFallback: 'Select the destination country',
         newTripPlaceholderDest: 'Search a country, city, or address...',
         newTripDestHint: 'Pick a suggestion to confirm the location.',
         newTripLabelStart: 'Start date',

@@ -190,6 +190,21 @@ export function countryNameToContinent(name: string | null | undefined): string 
     return null;
 }
 
+/** Every ISO country as {code, name} for the Maps-down country fallback
+ *  (MK3-1). Names are English (this is a degraded path); sorted by name. */
+export function getCountryOptions(): { code: string; name: string }[] {
+    const out: { code: string; name: string }[] = [];
+    for (const code of Object.keys(_codeToContinent)) {
+        let name = code;
+        if (_isoToEnglish) {
+            try { name = _isoToEnglish.of(code) || code; } catch (_) { /* keep code */ }
+        }
+        out.push({ code, name });
+    }
+    out.sort((a, b) => a.name.localeCompare(b.name));
+    return out;
+}
+
 /**
  * Strip postal-code-like leading tokens from a place name. Google's
  * formatted_address often prefixes "8950 Castro Marim, Portugal" — fine for

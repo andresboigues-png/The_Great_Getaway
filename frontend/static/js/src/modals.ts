@@ -23,6 +23,7 @@ import { t, tn } from './i18n.js';
 import { showConfirmModal } from './utils.js';
 import { mountDateRangePicker } from './utils/dateRangePicker.js';
 import { localizeNotificationMessage } from './bootstrap/notifications.js';
+import { getCountryOptions } from './utils/place-names.js';
 
 // Trip-roster modals moved to ./modals/companions.ts in the B1 split.
 // Re-exported here so existing imports (`from '../modals.js'`) keep
@@ -214,15 +215,38 @@ function _wirePlacePicker(
     if (typeof google === 'undefined' || !google.maps || !google.maps.places) {
         hint.textContent = t('errors.googleMapsFailed');
         setHintTone('warn');
-        // Manual escape hatch — accept whatever they typed.
-        placeInput.oninput = () => {
+        // MK3-1 fix: Maps failed to load (ad-blocker / billing / quota /
+        // regional block). A trip still needs a country (mandatory-country
+        // gate), so offer a fallback instead of a permanently-dead Create.
+        if (initialPlace) {
+            // Edit mode: rename works via the name field and pickedPlace stays
+            // = initialPlace (with its existing countryCode). Changing the
+            // destination needs Maps; we don't wire free-text so we never null
+            // out the existing country.
+            return { getPicked: () => pickedPlace };
+        }
+        // New trip: a country <select> so the typed destination still resolves
+        // a real countryCode and Create can enable.
+        const countrySel = document.createElement('select');
+        countrySel.className = 'glass-input-modal';
+        countrySel.style.marginTop = '8px';
+        const opts = getCountryOptions()
+            .map((c) => `<option value="${esc(c.code)}">${esc(c.name)}</option>`)
+            .join('');
+        countrySel.innerHTML =
+            `<option value="">${esc(t('modals.countryFallback'))}</option>${opts}`;
+        placeInput.insertAdjacentElement('afterend', countrySel);
+        const recompute = () => {
             const val = placeInput.value.trim();
-            if (val.length > 1) {
-                setPicked({ placeId: '', name: val, lat: 0, lng: 0, viewport: null, types: [], countryCode: null });
+            const code = countrySel.value;
+            if (val.length > 1 && code) {
+                setPicked({ placeId: '', name: val, lat: 0, lng: 0, viewport: null, types: [], countryCode: code });
             } else {
                 setPicked(null);
             }
         };
+        placeInput.addEventListener('input', recompute);
+        countrySel.addEventListener('change', recompute);
         return { getPicked: () => pickedPlace };
     }
 

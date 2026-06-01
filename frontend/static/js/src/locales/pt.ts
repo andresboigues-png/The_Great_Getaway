@@ -1418,6 +1418,7 @@ export const pt: Translations = {
         newTripLabelName: 'Nome da Aventura',
         newTripPlaceholderName: 'ex. Verão na Toscana',
         newTripLabelDest: 'Destino',
+        countryFallback: 'Seleciona o país de destino',
         newTripPlaceholderDest: 'Pesquisa um país, cidade, ou morada...',
         newTripDestHint: 'Escolhe uma sugestão para confirmar o local.',
         newTripLabelStart: 'Data de início',
