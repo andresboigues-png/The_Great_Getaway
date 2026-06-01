@@ -24,7 +24,7 @@ import { STATE, emit } from '../../state.js';
 import { EVENTS } from '../../constants.js';
 import { convertCurrency } from '../../utils/currency.js';
 import { fetchHistoricalRates, fetchCpiSeries } from '../../api.js';
-import { getIntlLocale, formatNumber, formatCurrency } from '../../i18n.js';
+import { getIntlLocale, formatNumber, formatNumberForCurrency, formatCurrency } from '../../i18n.js';
 import { getHomeCurrency, currencySymbol } from '../../utils.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Expense, Category } from '../../types';
@@ -56,6 +56,37 @@ interface ConvertedExpense {
     euroValue?: number;
     isSettlement?: boolean;
     displayValue: number;
+}
+
+/** True when the date keys span more than one calendar year — used to
+ *  decide whether the timeline axis needs the year to disambiguate
+ *  (e.g. a "Jun 1 2016" and a "Jun 1 2026" expense). Parses UTC and
+ *  ignores non-date keys (the localized "Unknown" undated bucket). */
+function datesSpanMultipleYears(isoKeys: string[]): boolean {
+    const years = isoKeys
+        .map((d) => new Date(d + 'T00:00:00Z').getUTCFullYear())
+        .filter((y) => Number.isFinite(y));
+    return years.length > 0 && Math.max(...years) !== Math.min(...years);
+}
+
+/** Build a Chart.js axis label from a bare date key. Parses as UTC — so
+ *  "2026-06-01" never slips to "May 31" for UTC-negative users (mirrors
+ *  i18n.formatDateShort) — guards an Invalid Date (the undated bucket
+ *  carries a localized "Unknown" key, not an ISO date) by returning the
+ *  key verbatim, and includes the year when the trip spans >1 year. */
+function timelineDateLabel(isoKey: string, includeYear: boolean): string {
+    const dt = new Date(isoKey + 'T00:00:00Z');
+    if (Number.isNaN(dt.getTime())) return isoKey;
+    try {
+        return new Intl.DateTimeFormat(getIntlLocale(), {
+            month: 'short',
+            day: 'numeric',
+            ...(includeYear ? { year: 'numeric' } : {}),
+            timeZone: 'UTC',
+        }).format(dt);
+    } catch {
+        return isoKey;
+    }
 }
 
 export function Insights() {
@@ -391,31 +422,32 @@ export function Insights() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { position: 'right' } },
+                plugins: {
+                    legend: { position: 'right' },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx: any) => `${ctx.label}: ${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}`,
+                        },
+                    },
+                },
             },
         });
         return () => chart.destroy();
-    }, [pieData.join('|'), pieLabels.join('|'), pieColors.join('|')]);
+    }, [pieData.join('|'), pieLabels.join('|'), pieColors.join('|'), targetCurr, targetSym]);
 
     useEffect(() => {
         if (!timeCanvasRef.current || tripExps.length === 0) return;
         const sortedDates = Object.keys(dateTotals).sort();
         const timeData = sortedDates.map((d) => dateTotals[d]);
-        const chartLabels = sortedDates.map((d) => {
-            try {
-                const dateObj = new Date(d);
-                return dateObj.toLocaleDateString(getIntlLocale(), { month: 'short', day: 'numeric' });
-            } catch (e) {
-                return d;
-            }
-        });
+        const includeYear = datesSpanMultipleYears(sortedDates);
+        const chartLabels = sortedDates.map((d) => timelineDateLabel(d, includeYear));
         const chart = new Chart(timeCanvasRef.current, {
             type: 'line',
             data: {
                 labels: chartLabels,
                 datasets: [
                     {
-                        label: targetCurr + ' Spent',
+                        label: targetCurr + ' ' + t(mode === 'today' ? 'insights.rateModeToday' : 'insights.rateModeAtTrip'),
                         data: timeData,
                         borderColor: '#0071e3',
                         backgroundColor: 'rgba(0, 113, 227, 0.1)',
@@ -430,7 +462,14 @@ export function Insights() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx: any) => targetSym + formatNumberForCurrency(ctx.parsed.y, targetCurr),
+                        },
+                    },
+                },
                 scales: {
                     x: {
                         grid: { display: false },
@@ -441,14 +480,14 @@ export function Insights() {
                         grid: { color: 'rgba(255,255,255,0.05)' },
                         ticks: {
                             maxTicksLimit: 5,
-                            callback: (value: number | string) => targetSym + value,
+                            callback: (value: number | string) => targetSym + formatNumber(Number(value), 0),
                         },
                     },
                 },
             },
         });
         return () => chart.destroy();
-    }, [dateTotals, targetCurr, targetSym, tripExps.length]);
+    }, [dateTotals, targetCurr, targetSym, mode, tripExps.length]);
 
     // Currency-share donut — share of spend (home-equivalent) by the
     // ORIGINAL currency it was logged in. Only built when the breakdown
@@ -468,11 +507,18 @@ export function Insights() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { position: 'right' } },
+                plugins: {
+                    legend: { position: 'right' },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx: any) => `${ctx.label}: ${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}`,
+                        },
+                    },
+                },
             },
         });
         return () => chart.destroy();
-    }, [showCurrencyBreakdown, currencyRows.map((r) => `${r.code}:${r.homeAmount.toFixed(2)}`).join('|')]);
+    }, [showCurrencyBreakdown, targetCurr, targetSym, currencyRows.map((r) => `${r.code}:${r.homeAmount.toFixed(2)}`).join('|')]);
 
     // Currency-over-time stacked bars — home-equivalent spend per
     // original currency per day, so the currency mix shift across the
@@ -482,13 +528,8 @@ export function Insights() {
         const allDates = Array.from(
             new Set(spendCurrencies.flatMap((c) => Object.keys(currencyDateTotals[c] || {}))),
         ).sort();
-        const labels = allDates.map((d) => {
-            try {
-                return new Date(d).toLocaleDateString(getIntlLocale(), { month: 'short', day: 'numeric' });
-            } catch (e) {
-                return d;
-            }
-        });
+        const includeYear = datesSpanMultipleYears(allDates);
+        const labels = allDates.map((d) => timelineDateLabel(d, includeYear));
         const datasets = currencyRows.map((r) => ({
             label: r.code,
             data: allDates.map((d) => (currencyDateTotals[r.code]?.[d]) || 0),
@@ -501,20 +542,27 @@ export function Insights() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom' } },
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx: any) => `${ctx.dataset.label}: ${targetSym}${formatNumberForCurrency(ctx.parsed.y, targetCurr)}`,
+                        },
+                    },
+                },
                 scales: {
                     x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 7 } },
                     y: {
                         stacked: true,
                         beginAtZero: true,
                         grid: { color: 'rgba(255,255,255,0.05)' },
-                        ticks: { maxTicksLimit: 5, callback: (value: number | string) => targetSym + value },
+                        ticks: { maxTicksLimit: 5, callback: (value: number | string) => targetSym + formatNumber(Number(value), 0) },
                     },
                 },
             },
         });
         return () => chart.destroy();
-    }, [showCurrencyBreakdown, targetSym, JSON.stringify(currencyDateTotals)]);
+    }, [showCurrencyBreakdown, targetSym, targetCurr, JSON.stringify(currencyDateTotals)]);
 
     // ── Mutation handlers ─────────────────────────────────────────────────
     // Mutate STATE then emit — useStore subscribers re-render. No need
@@ -611,7 +659,7 @@ export function Insights() {
                     <div className="flex items-baseline gap-3">
                         <h1 className="hero-stat-card__value">
                             {targetSym}
-                            {formatNumber(totalDisplay)}
+                            {formatNumberForCurrency(totalDisplay, targetCurr)}
                         </h1>
                         <span className="hero-stat-card__currency">{targetCurr}</span>
                     </div>
@@ -664,7 +712,7 @@ export function Insights() {
                                         <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: r.color, flexShrink: 0 }} />
                                         <span className="font-extrabold" style={{ minWidth: '46px' }}>{r.code}</span>
                                         <span className="text-secondary text-[0.85rem]">{formatCurrency(r.ownAmount, r.code)}</span>
-                                        <span className="ml-auto font-extrabold" style={{ color: 'var(--text-brand-navy)' }}>{targetSym}{formatNumber(r.homeAmount)}</span>
+                                        <span className="ml-auto font-extrabold" style={{ color: 'var(--text-brand-navy)' }}>{targetSym}{formatNumberForCurrency(r.homeAmount, targetCurr)}</span>
                                         <span className="text-secondary text-[0.78rem]" style={{ minWidth: '40px', textAlign: 'right' }}>{formatNumber(r.pct, 0)}%</span>
                                     </div>
                                 ))}
@@ -693,7 +741,7 @@ export function Insights() {
                     <h2 className="card-title metric-label">{t('insights.avgDaily')}</h2>
                     <h1 className="metric-value">
                         {targetSym}
-                        {formatNumber(totalDisplay / (Object.keys(dateTotals).length || 1))}
+                        {formatNumberForCurrency(totalDisplay / (Object.keys(dateTotals).length || 1), targetCurr)}
                         <small
                             className="text-[length:var(--font-lg)] font-normal text-secondary ml-2"
                         >
@@ -706,7 +754,7 @@ export function Insights() {
                         <h2 className="card-title metric-label">{t('insights.singlePeak')}</h2>
                         <h1 className="metric-value text-[#ff3b30]">
                             {targetSym}
-                            {formatNumber(highestExpense.displayValue)}
+                            {formatNumberForCurrency(highestExpense.displayValue, targetCurr)}
                         </h1>
                         <p
                             className="metric-label mt-1 mr-0 mb-0 ml-0"
@@ -728,7 +776,7 @@ export function Insights() {
                         <span
                             className="text-accent-blue font-bold text-[1.1rem]"
                         >
-                            {totalDisplay > 0 ? targetSym + formatNumber(topSpenderAmount) : '0'}
+                            {totalDisplay > 0 ? targetSym + formatNumberForCurrency(topSpenderAmount, targetCurr) : '0'}
                         </span>
                     </div>
                     <div
@@ -741,7 +789,7 @@ export function Insights() {
                                 </span>
                                 <span className="ranking-row__value">
                                     {targetSym}
-                                    {formatNumber(amount)}
+                                    {formatNumberForCurrency(amount, targetCurr)}
                                 </span>
                             </div>
                         ))}
@@ -812,7 +860,7 @@ export function Insights() {
                                             className="font-extrabold text-accent-blue tabular-nums whitespace-nowrap"
                                         >
                                             {targetSym}
-                                            {formatNumber(amount)}
+                                            {formatNumberForCurrency(amount, targetCurr)}
                                             <span
                                                 className="ml-2 text-secondary font-semibold text-[0.8rem]"
                                             >

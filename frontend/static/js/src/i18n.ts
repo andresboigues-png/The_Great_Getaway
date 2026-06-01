@@ -394,6 +394,28 @@ export function formatNumber(amount: number, fractionDigits: number = 2): string
     }
 }
 
+/** Like formatNumber, but uses the CORRECT number of fraction digits for
+ *  `currency` (0 for JPY/KRW/HUF, 2 for EUR/USD, 3 for KWD/BHD…) — still
+ *  with NO symbol, for call sites that render their own symbol (e.g. the
+ *  Insights hero/metric cards). Hard-coding 2 here showed "¥1 234,56" for
+ *  0-decimal currencies; the digit count comes from Intl's own currency
+ *  metadata so it stays correct for any code. */
+export function formatNumberForCurrency(amount: number, currency: string): string {
+    let digits = 2;
+    try {
+        const resolved = new Intl.NumberFormat(getIntlLocale(), {
+            style: 'currency',
+            currency,
+        }).resolvedOptions();
+        if (typeof resolved.maximumFractionDigits === 'number') {
+            digits = resolved.maximumFractionDigits;
+        }
+    } catch {
+        /* unknown code → keep the 2-decimal default */
+    }
+    return formatNumber(amount, digits);
+}
+
 /** Format a Date as a short, human-readable string in the active
  *  locale. Used by formatDayDate in utils.ts. Example: 'Apr 6'
  *  (en-US) / '6 abr.' (pt-PT) / '6 abr.' (es-ES) / '6 avr.' (fr-FR).
