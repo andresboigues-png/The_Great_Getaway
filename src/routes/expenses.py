@@ -162,12 +162,29 @@ def upsert_expense():
         # for the permission check on UPDATEs; INSERTs (no existing row)
         # gate on the claimed trip as before.
         cursor.execute(
-            "SELECT trip_id FROM expenses WHERE id = ?", (expense_id,),
+            "SELECT trip_id, value, currency, euro_value FROM expenses WHERE id = ?",
+            (expense_id,),
         )
         existing = cursor.fetchone()
         gate_trip_id = existing["trip_id"] if existing else claimed_trip_id
         if not can_edit_expenses(cursor, gate_trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
+        # Integration audit MM-1/MM-5: preserve the FROZEN euro_value on an edit
+        # that doesn't change the money (value + currency unchanged). On a NEW
+        # write (or a changed amount/currency) compute_euro_value stamps at
+        # TODAY's rate and IGNORES the client euroValue — that's the R3-Fix-#6
+        # anti-tamper rule, and it's correct there. But re-stamping an unchanged
+        # months-old foreign expense on a label-only edit silently drifts every
+        # balance / budget / Insight as FX moves. Reuse the row's OWN stored
+        # euro_value (server-trusted, so no tamper window), regardless of
+        # currency — which also stops a no-rate row's euroValue being mutated
+        # by an edit that leaves value+currency alone (MM-5).
+        if (
+            existing
+            and abs((existing["value"] or 0) - value) < 1e-9
+            and (existing["currency"] or "").upper() == currency.upper()
+        ):
+            euro_value = existing["euro_value"]
         # R3-Fix #18: refuse writes to a trip the caller has archived
         # for themselves. The /api/sync bulk path is exempt (it's the
         # catch-up channel for archived state from a freshly-installed

@@ -2210,6 +2210,50 @@ def test_expense_euro_value_recomputed_server_side(
         fx_rates._cache_set_at = 0.0
 
 
+def test_expense_euro_value_frozen_on_unchanged_money_edit(client, seed_user, auth_headers):
+    """Integration audit MM-1: editing an expense WITHOUT changing value+currency
+    must NOT re-stamp euroValue at today's FX — it keeps the frozen value.
+    compute_euro_value recomputes for a NEW write / changed amount (R3-Fix-#6
+    anti-tamper), but a label-only edit of a months-old foreign expense would
+    otherwise silently drift every balance/budget/Insight as the rate moves.
+    A CHANGED amount still recomputes at the current rate."""
+    import fx_rates
+    import time as _time
+    fx_rates._cache = {"EUR": 1.0, "USD": 0.5}  # 1 USD = 0.5 EUR
+    fx_rates._cache_set_at = _time.time()
+    try:
+        trip_id = _create_trip(client, auth_headers, trip_id="trip-freeze")
+        r = client.post("/api/expenses", headers=auth_headers, json={
+            "expense": {"id": "exp-freeze", "tripId": trip_id, "who": "Me",
+                        "value": 100, "currency": "USD", "label": "Hotel",
+                        "date": "2026-01-02"},
+        })
+        assert r.status_code == 200
+        assert r.get_json()["euroValue"] == 50.0  # frozen at 0.5
+        # FX drifts: now 1 USD = 0.9 EUR.
+        fx_rates._cache = {"EUR": 1.0, "USD": 0.9}
+        fx_rates._cache_set_at = _time.time()
+        # Label-only edit (value + currency unchanged) → euroValue must STAY 50.
+        r2 = client.post("/api/expenses", headers=auth_headers, json={
+            "expense": {"id": "exp-freeze", "tripId": trip_id, "who": "Me",
+                        "value": 100, "currency": "USD", "label": "Hotel (3 nights)",
+                        "date": "2026-01-02"},
+        })
+        assert r2.status_code == 200
+        assert r2.get_json()["euroValue"] == 50.0, "label-only edit must NOT re-stamp euroValue"
+        # Changing the amount DOES recompute at the current rate (200 × 0.9 = 180).
+        r3 = client.post("/api/expenses", headers=auth_headers, json={
+            "expense": {"id": "exp-freeze", "tripId": trip_id, "who": "Me",
+                        "value": 200, "currency": "USD", "label": "Hotel (3 nights)",
+                        "date": "2026-01-02"},
+        })
+        assert r3.status_code == 200
+        assert r3.get_json()["euroValue"] == 180.0, "changed amount should recompute"
+    finally:
+        fx_rates._cache = {}
+        fx_rates._cache_set_at = 0.0
+
+
 def test_expense_rejects_uncomputable_currency_and_echoes_euro_value(
     client, seed_user, auth_headers,
 ):

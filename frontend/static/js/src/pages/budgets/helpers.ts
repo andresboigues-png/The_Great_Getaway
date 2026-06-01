@@ -6,7 +6,7 @@
 // cleanly).
 
 import { STATE, emit } from '../../state.js';
-import { EVENTS } from '../../constants.js';
+import { EVENTS, CURRENCY_SYMBOLS } from '../../constants.js';
 import { convertCurrency, getSupportedCurrencies, hasRate } from '../../utils/currency.js';
 import {
     generateId,
@@ -229,7 +229,11 @@ export const openCreateBudgetModal = () => {
     // R3-Round 2 fix: same widening as ManualTab — show every currency
     // the live FX cache OR the static fallback knows about (not just
     // the 17-entry CONVERSION_RATES).
-    const currOpts = getSupportedCurrencies()
+    // F2-DSGN1: union the rate-backed currencies with the full symbol-known
+    // (= server-allowed) set, so no-rate currencies (VND/EGP/ARS) are pickable
+    // — they get a manual EUR-target field below (mirrors the expense form).
+    const currOpts = Array.from(new Set([...getSupportedCurrencies(), ...Object.keys(CURRENCY_SYMBOLS)]))
+        .sort((a, b) => (a === 'EUR' ? -1 : b === 'EUR' ? 1 : a.localeCompare(b)))
         .map((c) => `<option value="${c}" ${home === c ? 'selected' : ''}>${c}</option>`)
         .join('');
 
@@ -258,6 +262,13 @@ export const openCreateBudgetModal = () => {
                     <input type="number" id="newBudAmt" class="glass-input" placeholder="1000" min="0" step="any" style="padding: var(--space-3); border-radius: 12px;">
                     <select id="newBudCurr" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">${currOpts}</select>
                 </div>
+                <!-- F2-DSGN1: manual EUR target, shown only for currencies with no
+                     live rate (mirrors the expense form's manual-EUR field). -->
+                <div id="newBudEurRow" style="display:none; flex-direction:column; gap: var(--space-2); margin-top:8px;">
+                    <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary);">${t('budgets.createEurLabel')}</label>
+                    <input type="number" id="newBudEur" class="glass-input" placeholder="0.00" min="0" step="any" style="padding: var(--space-3); border-radius: 12px;">
+                    <span id="newBudEurHint" style="font-size:0.72rem; color: var(--text-secondary);"></span>
+                </div>
                 <div id="newBudStatus" style="font-size:0.72rem; color: var(--text-secondary); min-height:1em; font-weight:700;"></div>
             </div>
             <div style="display:flex; gap: var(--space-3);">
@@ -268,6 +279,19 @@ export const openCreateBudgetModal = () => {
     });
     const statusEl = q(root, '#newBudStatus') as HTMLElement;
     (q(root, '#newBudCancelBtn') as HTMLButtonElement).onclick = () => close();
+    // F2-DSGN1: toggle the manual EUR-target field when the chosen currency has
+    // no live rate (so VND/EGP/ARS budgets are enterable). Initial state
+    // reflects the default-selected (home) currency, which always has a rate.
+    const eurRow = q(root, '#newBudEurRow') as HTMLElement;
+    const eurHint = q(root, '#newBudEurHint') as HTMLElement;
+    const currSel = q(root, '#newBudCurr') as HTMLSelectElement;
+    const syncEurRow = () => {
+        const needsEur = !!currSel.value && !hasRate(currSel.value);
+        eurRow.style.display = needsEur ? 'flex' : 'none';
+        if (needsEur) eurHint.textContent = t('budgets.createEurHint', { curr: currSel.value });
+    };
+    currSel.onchange = syncEurRow;
+    syncEurRow();
     (q(root, '#newBudSaveBtn') as HTMLButtonElement).onclick = async () => {
         const amtRaw = (q(root, '#newBudAmt') as HTMLInputElement).value;
         const amt = parseFloat(amtRaw);
@@ -277,23 +301,24 @@ export const openCreateBudgetModal = () => {
             return;
         }
         const curr = (q(root, '#newBudCurr') as HTMLSelectElement).value;
-        // R10-B6b F3: live-rate-aware gate. Pre-fix this used the bare
-        // `CONVERSION_RATES[curr]` truthy check, which sees only the
-        // 17-entry static fallback table — a user picking THB (or any
-        // code outside the static table) hit the "unknown currency"
-        // toast even though Frankfurter's live rate had already been
-        // fetched and cached. `hasRate` consults EUR + live cache +
-        // static table, matching pages/expenses/ManualTab.tsx:344.
+        // F2-MM4/DSGN1: a currency with no live rate (VND/EGP/ARS) can't be
+        // converted — take the explicit EUR target from the manual field
+        // (mirrors the expense manual-EUR flow) instead of blocking, or
+        // silently converting 1:1 (which stored the raw foreign number as if
+        // it were euros). Rate-backed currencies convert via the overlay-aware
+        // helper as before. `hasRate` consults EUR + live cache + static table.
+        let eurAmt: number;
         if (!hasRate(curr)) {
-            statusEl.textContent = t('budgets.createUnknownCurrency', { curr });
-            statusEl.style.color = '#ff3b30';
-            return;
+            eurAmt = parseFloat((q(root, '#newBudEur') as HTMLInputElement).value);
+            if (!Number.isFinite(eurAmt) || eurAmt <= 0) {
+                statusEl.textContent = t('budgets.createEurRequired', { curr });
+                statusEl.style.color = '#ff3b30';
+                return;
+            }
+            eurAmt = Math.round(eurAmt * 100) / 100;
+        } else {
+            eurAmt = convertCurrency(amt, curr, 'EUR');
         }
-        // R2 audit fix: route through convertCurrency so the live FX
-        // overlay wins over the stale static `rate` constant above.
-        // The `rate` lookup stays as a known-currency gate; the
-        // actual conversion goes through the overlay-aware helper.
-        const eurAmt = convertCurrency(amt, curr, 'EUR');
         const budget = {
             id: generateId(),
             tripId: (q(root, '#newBudTrip') as HTMLSelectElement).value,

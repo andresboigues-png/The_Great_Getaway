@@ -628,7 +628,8 @@ def sync_data():
         # inserts gate on the claimed trip as before.
         for e in expenses:
             existing = cursor.execute(
-                "SELECT trip_id FROM expenses WHERE id = ?", (e['id'],),
+                "SELECT trip_id, value, currency, euro_value FROM expenses WHERE id = ?",
+                (e['id'],),
             ).fetchone()
             gate_trip_id = existing['trip_id'] if existing else e.get('tripId')
             # R5-B4: set lookup instead of can_edit_expenses' 2-query
@@ -642,6 +643,17 @@ def sync_data():
             cleaned = _validate_sync_expense(e, user_id)
             if cleaned is None:
                 continue
+            # Integration audit MM-1/MM-5: preserve the FROZEN euro_value on a
+            # re-sync that doesn't change the money (value+currency unchanged),
+            # mirroring the per-row /api/expenses path. Without this, every
+            # /api/sync re-stamps each foreign expense at today's FX, drifting
+            # all balances/budgets/Insights. Reuse the row's own stored value.
+            if (
+                existing
+                and abs((existing["value"] or 0) - cleaned['value']) < 1e-9
+                and (existing["currency"] or "").upper() == cleaned['currency'].upper()
+            ):
+                cleaned['euro_value'] = existing["euro_value"]
             # 2026-05-25 (audit S1): persist splits + is_settlement here too,
             # so a bulk-sync path doesn't silently strip them.
             # R10-B6a F2: splits now arrive pre-validated.
