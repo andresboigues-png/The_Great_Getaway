@@ -11,7 +11,7 @@ from flask import Blueprint, jsonify, request
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
-from fx_rates import compute_euro_value
+from fx_rates import compute_euro_value, get_rate_eur
 from helpers import can_edit_expenses, is_trip_archived_for
 from observability import bind_trip_context
 from validators import (
@@ -120,6 +120,29 @@ def upsert_expense():
         splits_clean = validate_splits(e.get('splits'), require_full=True)
     except ValidationError as ve:
         return jsonify({"error": str(ve)}), 400
+
+    # Integration audit C1: refuse to store a bogus euro_value for a non-EUR
+    # currency we can't actually convert. Pre-fix, a currency with no live
+    # Frankfurter rate (VND, EGP, ARS, HRK, ...) froze euro_value to 0 (the
+    # client default) or to the raw foreign amount (1:1 cold-path), which then
+    # read THREE inconsistent ways downstream — budgets €0 (`euroValue || 0`),
+    # balances the raw foreign number (`euroValue || value`), Insights 1:1.
+    # Mirror the settlements gate (settlements.py): require either a live rate
+    # OR an explicit positive client euroValue, so a frozen euro_value is
+    # always a real conversion. The manual form already blocks these via its
+    # hasRate() check, so this only bites the API / CSV-import / legacy paths.
+    if (
+        currency != "EUR"
+        and get_rate_eur(currency) is None
+        and not (client_euro_value and client_euro_value > 0)
+    ):
+        return jsonify({
+            "error": (
+                "euroValue is required for this currency — no live exchange "
+                "rate is available to convert it."
+            ),
+            "currency": currency,
+        }), 400
     # `splits_raw` retained below as the source-of-truth dict to
     # serialise (helper returns it normalised; identical keys/values
     # for the legitimate path, just with garbage rejected upstream).
@@ -256,7 +279,16 @@ def upsert_expense():
         new_row = cursor.fetchone()
         new_updated_at = new_row['updated_at'] if new_row else None
         conn.commit()
-    return jsonify({"status": "ok", "updatedAt": new_updated_at})
+    # Integration audit C2: echo the server-FROZEN euro_value back. Pre-fix
+    # the response carried only {status, updatedAt}, so after saving a
+    # foreign-currency expense the client kept showing its own (static-table)
+    # estimate until the next /api/data poll overwrote it. Returning the
+    # canonical value lets the caller reconcile immediately.
+    return jsonify({
+        "status": "ok",
+        "updatedAt": new_updated_at,
+        "euroValue": euro_value,
+    })
 
 
 @bp.route("/api/expenses/<expense_id>", methods=["DELETE"])

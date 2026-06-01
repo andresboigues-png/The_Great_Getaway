@@ -58,7 +58,12 @@ export function spentForBudget(budget: any): number {
         if (budget.tripId && budget.tripId !== 'all' && e.tripId !== budget.tripId) continue;
         if (budget.categoryId && budget.categoryId !== 'all' && e.categoryId !== budget.categoryId)
             continue;
-        const euroValue = e.euroValue || 0;
+        // Integration audit C1: `?? value ?? 0` (not `|| 0`) so this matches
+        // the balances/Insights read. Pre-fix a frozen euroValue of 0 read as
+        // €0 here but as the raw foreign `value` in balances — the SAME
+        // expense meant two different things. Now all three agree, and a
+        // legacy EUR row missing euroValue counts its `value` (not €0).
+        const euroValue = e.euroValue ?? e.value ?? 0;
         if (!personScope) {
             spent += euroValue;
             continue;
@@ -105,7 +110,7 @@ export function spentAcrossBudgets(budgets: any[]): number {
         );
         if (covered) {
             if (e.id) seen.add(e.id);
-            sum += (e.euroValue || 0);
+            sum += (e.euroValue ?? e.value ?? 0);  // C1: consistent read
         }
     }
     return sum;

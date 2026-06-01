@@ -650,6 +650,14 @@ async function _upsertWithUpdatedAt(url: string, key: string, obj: any) {
         if (fresh && obj && typeof obj === 'object') {
             obj.updatedAt = fresh;
         }
+        // Integration audit C2: reconcile the server-FROZEN euroValue back
+        // onto the live row so a freshly-saved foreign-currency expense stops
+        // showing the client's static-table estimate until the next poll.
+        // Guarded by `!== undefined` so non-expense callers (budgets/days/
+        // trips, whose responses carry no euroValue) are untouched.
+        if (body && body.euroValue !== undefined && obj && typeof obj === 'object') {
+            obj.euroValue = body.euroValue;
+        }
     } catch (e) {
         console.error(`POST ${url} failed:`, e);
     }

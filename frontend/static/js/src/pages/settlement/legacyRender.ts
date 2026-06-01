@@ -230,8 +230,17 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
     const totalPaid = board.reduce((s, b) => s + b.paid, 0);
 
     const topPaid = [...board].sort((a, b) => b.paid - a.paid)[0];
-    const topOwes = [...board].sort((a, b) => a.net - b.net)[0];
-    const topOwed = [...board].sort((a, b) => b.net - a.net)[0];
+    // Integration audit D1: derive "most to receive" / "owes most" from the
+    // settlement-ADJUSTED balances (the same map the list below + Insights
+    // use), NOT computeLeaderboard.net (= paid − share, which ignores recorded
+    // settlements). Pre-fix the header read ±485 while the balances list right
+    // beneath it read ±440 on a trip with a €45 settlement — same people,
+    // adjacent, contradicting each other.
+    const _balArr = Object.entries(balances).map(
+        ([name, net]) => ({ name, net: net as number }),
+    );
+    const topOwes = [..._balArr].sort((a, b) => a.net - b.net)[0];
+    const topOwed = [..._balArr].sort((a, b) => b.net - a.net)[0];
 
     // Build a trip-name banner so the user sees AT A GLANCE which
     // trip's data is on screen. Pre-fix this card just said "TRIP

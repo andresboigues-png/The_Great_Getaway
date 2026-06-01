@@ -249,7 +249,9 @@ export function Insights() {
                 const euroVal = e.value * histForeign;
                 spentHome = targetCurr === 'EUR' ? euroVal : euroVal / histHome;
             } else {
-                const euroVal = e.euroValue || convertCurrency(e.value, e.currency, 'EUR');
+                // C1: `??` (not `||`) — a frozen euroValue of 0 is respected
+                // as €0, not re-converted 1:1 from the raw foreign value.
+                const euroVal = e.euroValue ?? convertCurrency(e.value, e.currency, 'EUR');
                 spentHome = targetCurr === 'EUR' ? euroVal : convertCurrency(euroVal, 'EUR', targetCurr);
             }
             // "Worth today" = that as-spent home cost, adjusted for the
@@ -412,17 +414,27 @@ export function Insights() {
     // Daily-average denominator: count only real trip days (a valid date
     // <= today). Empty-date + far-future buckets shouldn't dilute it (audit).
     const _todayIso = new Date().toISOString().slice(0, 10);
-    const validDayCount = Object.keys(dateTotals).filter(
+    // Integration audit D3: the daily average must divide spend and days over
+    // the SAME window. Pre-fix the numerator was ALL spend (incl. future-dated
+    // expenses) while the denominator was past-valid-days only, overstating
+    // €/day (e.g. €506 shown vs €411 actual). Sum dateTotals across exactly
+    // the days the denominator counts.
+    const _validDayKeys = Object.keys(dateTotals).filter(
         (d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= _todayIso,
-    ).length || 1;
+    );
+    const validDayCount = _validDayKeys.length || 1;
+    const pastValidSpend = _validDayKeys.reduce((s, d) => s + (dateTotals[d] || 0), 0);
 
     // Net balances (who owes whom) — reuses the settlement engine (splits +
     // settlements), shown in the home currency. Hidden when everyone's even.
     const activeTrip = STATE.trips.find((tr: any) => tr.id === activeTripId);
     const netBalances = activeTrip
         ? Object.entries(computeTripBalances(activeTrip).balances)
-              .map(([name, eur]) => ({ name, home: convertCurrency(eur as number, 'EUR', targetCurr) }))
-              .filter((b) => Math.abs(b.home) >= 0.005)
+              .map(([name, eur]) => ({ name, eur: eur as number, home: convertCurrency(eur as number, 'EUR', targetCurr) }))
+              // Integration audit D4: filter on the EUR balance at the SAME
+              // 0.01 epsilon simplifyDebts uses (_ZERO_EPSILON_EUR), so Insights
+              // never shows "owes €0.01" while Settle-up says "all settled".
+              .filter((b) => Math.abs(b.eur) >= 0.01)
               .sort((a, b) => b.home - a.home)
         : [];
 
@@ -875,7 +887,7 @@ export function Insights() {
                     <h2 className="card-title metric-label">{t('insights.avgDaily')}</h2>
                     <h1 className="metric-value">
                         {targetSym}
-                        {formatNumberForCurrency(totalDisplay / validDayCount, targetCurr)}
+                        {formatNumberForCurrency(pastValidSpend / validDayCount, targetCurr)}
                         <small
                             className="text-[length:var(--font-lg)] font-normal text-secondary ml-2"
                         >

@@ -171,7 +171,11 @@ export function computeTripBalances(trip: any) {
     roster.forEach((p) => (balances[p] = 0));
 
     for (const exp of tripExps) {
-        const amount = exp.euroValue || exp.value || 0;
+        // Integration audit C1: `??` (not `||`) so a FROZEN euroValue of 0
+        // is respected as €0, not silently overridden by the raw foreign
+        // `value` (which treated e.g. 270000 VND as €270000). A missing
+        // euroValue still falls back to value for legacy EUR rows.
+        const amount = exp.euroValue ?? exp.value ?? 0;
         if (balances[exp.who] !== undefined) balances[exp.who]! += amount;
         if (exp.splits && Object.keys(exp.splits).length > 0) {
             // 2026-05-25 (audit S5): normalise splits to sum to 100%
@@ -432,7 +436,13 @@ export function computeLeaderboard(trip: any) {
     const board: Record<string, { paid: number; share: number }> = {};
     roster.forEach((p) => (board[p] = { paid: 0, share: 0 }));
     for (const exp of exps) {
-        const amount = exp.euroValue || exp.value || 0;
+        // Integration audit D2: settlements (legacy isSettlement fake-rows)
+        // are NOT trip spend — counting them inflated the leaderboard's
+        // "trip total" + "who paid most" (a €440 settle-up made a €970 trip
+        // read €1851). Exclude them; real spend only.
+        if (exp.isSettlement) continue;
+        // C1: `??` (not `||`) — see computeTripBalances.
+        const amount = exp.euroValue ?? exp.value ?? 0;
         if (board[exp.who]) board[exp.who]!.paid += amount;
         if (exp.splits && Object.keys(exp.splits).length > 0) {
             // R9-B1 H1: denominator is the SUM of split values, not

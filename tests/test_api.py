@@ -2172,6 +2172,63 @@ def test_expense_euro_value_recomputed_server_side(
         fx_rates._cache_set_at = 0.0
 
 
+def test_expense_rejects_uncomputable_currency_and_echoes_euro_value(
+    client, seed_user, auth_headers,
+):
+    """Integration audit C1+C2.
+
+    C1: a non-EUR expense in a currency with NO live rate and NO usable
+    client euroValue must be REJECTED (400), not silently frozen to a bogus
+    euro_value (0, or the raw foreign amount 1:1) that then reads three
+    inconsistent ways downstream (budgets €0 / balances raw / Insights 1:1).
+    Mirrors the settlements gate. With an explicit positive euroValue, OR a
+    live rate, the write succeeds.
+
+    C2: the success response echoes the server-FROZEN euro_value.
+    """
+    import fx_rates
+    fx_rates._cache = {"EUR": 1.0, "USD": 0.5}  # JPY deliberately absent from injected cache
+    fx_rates._cache_set_at = __import__('time').time()
+    try:
+        trip_id = _create_trip(client, auth_headers, trip_id="trip-c1")
+        # No rate for ZZZ + no euroValue hint → reject.
+        reject = client.post("/api/expenses", headers=auth_headers, json={
+            "expense": {
+                "id": "exp-c1-noeuro", "tripId": trip_id, "who": "Me",
+                "value": 270000, "currency": "JPY",
+                "label": "Pho", "date": "2026-05-12",
+            },
+        })
+        assert reject.status_code == 400, reject.get_data(as_text=True)
+        assert "currency" in reject.get_json()
+
+        # Same currency WITH an explicit positive euroValue → accepted (the
+        # cold-path hint is honoured, like settlements).
+        ok_hint = client.post("/api/expenses", headers=auth_headers, json={
+            "expense": {
+                "id": "exp-c1-hint", "tripId": trip_id, "who": "Me",
+                "value": 270000, "currency": "JPY", "euroValue": 10,
+                "label": "Pho", "date": "2026-05-12",
+            },
+        })
+        assert ok_hint.status_code == 200, ok_hint.get_data(as_text=True)
+
+        # A currency WITH a live rate needs no hint, and the response echoes
+        # the server-frozen euro_value (C2): 20 USD × 0.5 = 10 EUR.
+        ok_rate = client.post("/api/expenses", headers=auth_headers, json={
+            "expense": {
+                "id": "exp-c1-rate", "tripId": trip_id, "who": "Me",
+                "value": 20, "currency": "USD",
+                "label": "Tip", "date": "2026-05-12",
+            },
+        })
+        assert ok_rate.status_code == 200, ok_rate.get_data(as_text=True)
+        assert ok_rate.get_json().get("euroValue") == 10.0
+    finally:
+        fx_rates._cache = {}
+        fx_rates._cache_set_at = 0.0
+
+
 def test_budget_upsert_rejects_cross_user_id(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):
