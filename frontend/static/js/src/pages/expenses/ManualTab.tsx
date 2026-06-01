@@ -418,8 +418,8 @@ export function ManualTab() {
 
         setSaveStatus({
             text: isEdit
-                ? '✓ Expense updated — view in History'
-                : '✓ Expense saved — view in History',
+                ? t('expenses.updatedToast')
+                : t('expenses.savedToast'),
             color: '#34c759',
         });
         setTimeout(() => setSaveStatus(null), 4000);
@@ -490,7 +490,7 @@ export function ManualTab() {
                             >
                                 <span className="inline-flex align-[-2px]" dangerouslySetInnerHTML={{ __html: iconSvg('plus', { size: 14 }) }} />{' '}
                                 <span className="underline">
-                                    Add companions to this trip from Home
+                                    {t('expenses.addCompanionsCta')}
                                 </span>
                             </div>
                         ) : null}
@@ -499,7 +499,7 @@ export function ManualTab() {
                     {/* Category */}
                     <div className="form-row">
                         <label className="form-label-light" htmlFor="expCategory">
-                            Category
+                            {t('expenses.catLabel')}
                         </label>
                         <select
                             id="expCategory"
@@ -520,14 +520,14 @@ export function ManualTab() {
                     {/* Label */}
                     <div className="form-row">
                         <label className="form-label-light" htmlFor="expLabel">
-                            Label
+                            {t('expenses.labelLabel')}
                         </label>
                         <input
                             id="expLabel"
                             ref={labelRef}
                             type="text"
                             className="glass-input-light"
-                            placeholder="e.g. Dinner at Mario's"
+                            placeholder={t('expenses.labelPlaceholder')}
                             required
                             defaultValue={STATE.draftExpense?.label || ''}
                             onInput={(e) => draft('label', (e.target as HTMLInputElement).value)}
@@ -537,7 +537,7 @@ export function ManualTab() {
                     {/* Date */}
                     <div className="form-row">
                         <label className="form-label-light" htmlFor="expDate">
-                            Date
+                            {t('expenses.dateLabel')}
                         </label>
                         <input
                             id="expDate"
@@ -555,7 +555,7 @@ export function ManualTab() {
                     {/* Country combobox */}
                     <div className="form-row relative">
                         <label className="form-label-light" htmlFor="expCountry">
-                            Country
+                            {t('expenses.countryLabel')}
                         </label>
                         <div className="custom-select-wrapper">
                             <input
@@ -563,7 +563,7 @@ export function ManualTab() {
                                 ref={countryInputRef}
                                 type="text"
                                 className="glass-input-light"
-                                placeholder="Search country..."
+                                placeholder={t('expenses.countrySearchPlaceholder')}
                                 autoComplete="off"
                                 role="combobox"
                                 aria-autocomplete="list"
@@ -588,7 +588,7 @@ export function ManualTab() {
                                 ref={countryListRef}
                                 className="custom-select-dropdown glass shadow-xl"
                                 role="listbox"
-                                aria-label="Countries"
+                                aria-label={t('expenses.countriesAria')}
                                 style={{
                                     display: comboOpen ? 'block' : 'none',
                                     position: 'absolute',
@@ -631,7 +631,7 @@ export function ManualTab() {
                     {/* Value */}
                     <div className="form-row">
                         <label className="form-label-light" htmlFor="expValue">
-                            Value
+                            {t('expenses.valueLabel')}
                         </label>
                         <input
                             id="expValue"
@@ -653,7 +653,7 @@ export function ManualTab() {
                     {/* Currency */}
                     <div className="form-row">
                         <label className="form-label-light" htmlFor="expCurrency">
-                            Currency
+                            {t('expenses.currencyLabel')}
                         </label>
                         <select
                             id="expCurrency"
@@ -678,9 +678,9 @@ export function ManualTab() {
                     {/* Receipt picker */}
                     <div className="form-row mb-8">
                         <label className="form-label-light" htmlFor="expReceiptInput">
-                            Receipt{' '}
+                            {t('expenses.receiptLabel')}{' '}
                             <span className="font-medium text-[rgba(0,0,0,0.55)]">
-                                (optional)
+                                {t('expenses.receiptOptional')}
                             </span>
                         </label>
                         <input
@@ -701,7 +701,7 @@ export function ManualTab() {
                                 onClick={onPickReceipt}
                             >
                                 <span className="inline-flex align-[-2px] mr-1" dangerouslySetInnerHTML={{ __html: iconSvg('document', { size: 14 }) }} />
-                                Attach receipt
+                                {t('expenses.attachReceipt')}
                             </button>
                             {receiptUrl ? (
                                 <div
@@ -709,9 +709,9 @@ export function ManualTab() {
                                 >
                                     <img
                                         src={receiptUrl}
-                                        alt="Receipt preview"
+                                        alt={t('expenses.receiptPreviewAlt')}
                                         className="w-12 h-12 rounded-[10px] object-cover border border-[rgba(0,0,0,0.08)] shadow-[0_4px_12px_rgba(0,0,0,0.08)] cursor-pointer"
-                                        title="Click to view full size"
+                                        title={t('expenses.receiptViewFull')}
                                         onClick={onViewReceipt}
                                     />
                                     <button
@@ -719,7 +719,7 @@ export function ManualTab() {
                                         className="btn-ghost py-2.5 px-4 min-h-[var(--tap-min)] text-[0.78rem] font-bold text-[#ff3b30] bg-[rgba(255,59,48,0.08)] border border-[rgba(255,59,48,0.2)] rounded-lg cursor-pointer"
                                         onClick={onRemoveReceipt}
                                     >
-                                        Remove
+                                        {t('common.remove')}
                                     </button>
                                 </div>
                             ) : null}
@@ -764,7 +764,7 @@ export function ManualTab() {
                                 className="btn btn-small py-0 px-6 h-[50px] rounded-[16px] bg-[#0071e3] text-white font-bold"
                                 onClick={onAddSplit}
                             >
-                                + Add
+                                {t('expenses.addPersonBtn')}
                             </button>
                         </div>
                         <div className="flex flex-col gap-3">
@@ -772,7 +772,7 @@ export function ManualTab() {
                                 <p
                                     className="text-secondary text-[0.85rem] p-2.5 border border-dashed border-[var(--glass-border)] rounded-lg text-center"
                                 >
-                                    100% will be attributed to the payer.
+                                    {t('expenses.payerGets100')}
                                 </p>
                             ) : (
                                 splitters.map((p, idx) => (
@@ -803,7 +803,7 @@ export function ManualTab() {
                                             <button
                                                 type="button"
                                                 className="btn-x-bare font-bold ml-2"
-                                                aria-label={`Remove ${p}`}
+                                                aria-label={t('expenses.removeSplitterAria', { name: p })}
                                                 onClick={() => onRemoveSplit(p)}
                                             >
                                                 ×
@@ -816,7 +816,7 @@ export function ManualTab() {
                     </div>
 
                     <button type="submit" className="btn-primary btn-primary--lg">
-                        Save Expense
+                        {t('expenses.saveExpense')}
                     </button>
                     {saveStatus ? (
                         <div
