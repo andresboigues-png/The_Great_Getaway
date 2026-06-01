@@ -133,6 +133,12 @@ export function ManualTab() {
 
     // ── save status (green confirmation under submit) ────────────
     const [saveStatus, setSaveStatus] = useState<{ text: string; color: string } | null>(null);
+    // MK3-13: guard against a double-submit creating a duplicate expense. The
+    // ref blocks a synchronous double-fire (a button-disable only takes effect
+    // on the next render, too late for a 2nd click in the same tick); `saving`
+    // disables the button for visual feedback.
+    const [saving, setSaving] = useState(false);
+    const submittingRef = useRef(false);
 
     // ── click-outside-to-close the combobox ──────────────────────
     useEffect(() => {
@@ -302,6 +308,7 @@ export function ManualTab() {
     // ── submit ──────────────────────────────────────────────────
     const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (submittingRef.current) return; // MK3-13: ignore double-fire
         if (!STATE.activeTripId) return;
         const tripId = STATE.activeTripId;
 
@@ -382,6 +389,11 @@ export function ManualTab() {
         // wrong. The `rate !== undefined` check above stays as a
         // user-friendly gate against unknown currencies; the actual
         // conversion routes through the overlay-aware helper.
+        // MK3-13: all validations passed — lock against a double-submit
+        // duplicate (esp. on the edit path, where the 2nd click would otherwise
+        // create a fresh-id copy of the just-edited row).
+        submittingRef.current = true;
+        setSaving(true);
         const countryVal = countryValue || (activeTrip ? activeTrip.country : '');
         const isEdit = !!STATE.draftExpense?.id;
         // R3-Round 2 fix: only re-derive euroValue when the user
@@ -455,6 +467,9 @@ export function ManualTab() {
         e.currentTarget.reset();
         setSplitters([]);
         setReceiptUrl(null);
+        // MK3-13: release the lock after a short window (the form stays open
+        // for the next expense).
+        setTimeout(() => { submittingRef.current = false; setSaving(false); }, 1000);
     };
 
     // ── render ──────────────────────────────────────────────────
@@ -881,7 +896,7 @@ export function ManualTab() {
                         </div>
                     </div>
 
-                    <button type="submit" className="btn-primary btn-primary--lg">
+                    <button type="submit" className="btn-primary btn-primary--lg" disabled={saving}>
                         {t('expenses.saveExpense')}
                     </button>
                     {saveStatus ? (
