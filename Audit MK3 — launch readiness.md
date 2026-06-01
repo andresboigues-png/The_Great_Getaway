@@ -233,6 +233,9 @@ double-submit guard).
   tests duplicate expenses.
 - **Fix:** Disable Save while the request is in-flight, and mint the draft id
   once when the draft is created (stable id → re-submit upserts idempotently).
+- **✅ FIXED (2026-06-01, commit 09a619e):** in-flight guard (`submittingRef` +
+  `saving` button-disable) blocks the double-fire on both new + edit paths.
+  Code- + build-verified; double-click not yet exercised live.
 
 ---
 
@@ -357,7 +360,7 @@ Effort: XS (<1h) · S (≤½day) · M (~1–2 days) · L (multi-day).
 | --- | ------------------------------------------------- | ------------------------------------------------ | ----------- | ----------------------------- | ------ |
 | ✅  | **MK3-1** Maps-down blocks all trip creation      | Country `<select>` fallback — **DONE (f2b964f)** | High        | **High** (lost signups/trips) | S      |
 | 1   | **MK3-12** Over-settlement: no server guard, racy | Server outstanding-check + dedup window          | Med–High    | **High** (wrong money)        | M      |
-| 2   | **MK3-13** Expense double-submit → duplicates     | Disable Save in-flight + stable draft id         | Med         | Med                           | S      |
+| ✅  | **MK3-13** Expense double-submit → duplicates     | In-flight guard — **DONE (09a619e)**             | Med         | Med                           | S      |
 | 3   | **MK3-9** Refund balances unlabeled               | Label "refund owed" + link history               | Med         | Med                           | S      |
 | 4   | **MK3-5** Grouped Collections hides single trips  | Total count + persist group-by + visible search  | Med         | Med                           | S      |
 | 5   | **MK3-4** "By year" dumps undated trips to Other  | `tripYear` falls back to `dateFrom`              | Med         | Low                           | S      |
