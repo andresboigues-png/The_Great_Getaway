@@ -16,12 +16,12 @@
 // re-renders. No need to call navigate('insights') after the mutation
 // the way the imperative version did.
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../../react/store.js';
 import { useActiveTrip } from '../../react/TripContext.js';
 import { useNavigate } from '../../react/useNavigate.js';
 import { STATE, emit } from '../../state.js';
-import { CONVERSION_RATES, EVENTS } from '../../constants.js';
+import { EVENTS } from '../../constants.js';
 import { convertCurrency } from '../../utils/currency.js';
 import { fetchHistoricalRates } from '../../api.js';
 import { getIntlLocale, formatNumber } from '../../i18n.js';
@@ -65,9 +65,10 @@ export function Insights() {
     // !isSettlement filter is Insights-specific and stays here.
     const { activeTripId, expenses: tripExpensesAll } = useActiveTrip();
     const categories = useStore((s) => s.categories);
-    const insightCurrency = useStore((s) => s.insightCurrency);
     const rateMode = useStore((s) => s.rateMode);
     const rateCache = useStore((s) => s.rateCache);
+    // Currency-breakdown expander (multi-currency trips only).
+    const [showCurrencyBreakdown, setShowCurrencyBreakdown] = useState(false);
 
     // ── Empty: no active trip ─────────────────────────────────────────────
     if (!activeTripId) {
@@ -113,7 +114,11 @@ export function Insights() {
         if (uniqueDates.length > 0) fetchHistoricalRates(uniqueDates).then(() => {});
     }, [tripExps]);
 
-    const targetCurr = insightCurrency || getHomeCurrency();
+    // Insights always reports in the viewer's HOME currency now (the
+    // selectable display currency was removed — the original-currency
+    // story lives in the breakdown below instead). The At trip / Today
+    // toggle is what varies the rate.
+    const targetCurr = getHomeCurrency();
     const targetSym = currencySymbol(targetCurr);
     const mode = rateMode || 'at_trip';
 
@@ -126,41 +131,43 @@ export function Insights() {
         catTotals,
         dateTotals,
         sortedCountries,
+        currencyHomeTotals,
+        currencyOwnTotals,
+        currencyDateTotals,
     } = useMemo(() => {
         const convertedExps: ConvertedExpense[] = tripExps.map((e: Expense) => {
-            // Step 1: Get value in EUR.
-            // R2 audit fix: the static CONVERSION_RATES fallback runs
-            // against a ~2-year-stale baked table. For 'current' mode
-            // use the live FX overlay (convertCurrency); for 'at_trip'
-            // mode the historical rateCache wins when available, and
-            // the LAST-resort fallback also goes through the live
-            // overlay rather than the stale baked table.
+            // Step 1 — original amount → EUR.
+            //   • today   : today's LIVE rate (re-float the original amount).
+            //   • at_trip : the REAL ECB rate ON THE EXPENSE'S OWN DATE,
+            //     from the historical rateCache; fall back to the value
+            //     frozen at write time, then the live overlay.
+            // BUG (pre-fix): both modes short-circuited on `e.euroValue ||`,
+            // so the historical rate was NEVER used and the toggle did
+            // nothing (especially for a home-currency-EUR viewer). Now the
+            // two modes genuinely differ, so "At trip vs Today" is a real
+            // then-vs-now FX comparison.
             let euroVal: number;
             if (mode === 'at_trip') {
-                const cacheKey = `${e.date}_${e.currency}_EUR`;
-                if (rateCache && rateCache[cacheKey]) {
-                    euroVal = e.euroValue || e.value * rateCache[cacheKey];
-                } else {
-                    euroVal = e.euroValue || convertCurrency(e.value, e.currency, 'EUR');
-                }
+                const k = `${e.date}_${e.currency}_EUR`;
+                euroVal = (rateCache && rateCache[k])
+                    ? e.value * rateCache[k]
+                    : (e.euroValue || convertCurrency(e.value, e.currency, 'EUR'));
             } else {
-                euroVal = e.euroValue || convertCurrency(e.value, e.currency, 'EUR');
+                euroVal = convertCurrency(e.value, e.currency, 'EUR');
             }
-            // Step 2: Convert EUR to target insightCurrency.
-            let targetVal = euroVal;
+            // Step 2 — EUR → the viewer's HOME currency.
+            let homeVal = euroVal;
             if (targetCurr !== 'EUR') {
                 if (mode === 'at_trip') {
-                    const targetCacheKeyInv = `${e.date}_${targetCurr}_EUR`;
-                    if (rateCache && rateCache[targetCacheKeyInv]) {
-                        targetVal = euroVal / rateCache[targetCacheKeyInv];
-                    } else {
-                        targetVal = convertCurrency(euroVal, 'EUR', targetCurr);
-                    }
+                    const hk = `${e.date}_${targetCurr}_EUR`;
+                    homeVal = (rateCache && rateCache[hk])
+                        ? euroVal / rateCache[hk]
+                        : convertCurrency(euroVal, 'EUR', targetCurr);
                 } else {
-                    targetVal = convertCurrency(euroVal, 'EUR', targetCurr);
+                    homeVal = convertCurrency(euroVal, 'EUR', targetCurr);
                 }
             }
-            return { ...e, displayValue: targetVal };
+            return { ...e, displayValue: homeVal };
         });
 
         const totalDisplay = convertedExps.reduce((sum, e) => sum + e.displayValue, 0);
@@ -189,11 +196,23 @@ export function Insights() {
         // on this side-trip to Spain" semantics rather than smearing
         // by trip-level country mix.
         const countryTotals: Record<string, number> = {};
+        // Per-original-currency aggregates for the currency breakdown:
+        //  - home-equivalent total (donut share + list "≈ home" column)
+        //  - own-currency total (list "what you actually spent" column)
+        //  - home-equiv per date per currency (the stacked timeline)
+        const currencyHomeTotals: Record<string, number> = {};
+        const currencyOwnTotals: Record<string, number> = {};
+        const currencyDateTotals: Record<string, Record<string, number>> = {};
         convertedExps.forEach((e) => {
             catTotals[e.categoryId] = (catTotals[e.categoryId] || 0) + e.displayValue;
             spenderTotals[e.who] = (spenderTotals[e.who] || 0) + e.displayValue;
             const d = e.date || t('insights.unknownDate');
             dateTotals[d] = (dateTotals[d] || 0) + e.displayValue;
+            const cur = (e.currency || 'EUR').toUpperCase();
+            currencyHomeTotals[cur] = (currencyHomeTotals[cur] || 0) + e.displayValue;
+            currencyOwnTotals[cur] = (currencyOwnTotals[cur] || 0) + e.value;
+            if (!currencyDateTotals[cur]) currencyDateTotals[cur] = {};
+            currencyDateTotals[cur][d] = (currencyDateTotals[cur][d] || 0) + e.displayValue;
             // Expenses without a `country` (legacy data, batch upload
             // without country tagging) bucket under a sentinel key so
             // they're visible in the breakdown but distinguishable
@@ -235,6 +254,9 @@ export function Insights() {
             catTotals,
             dateTotals,
             sortedCountries,
+            currencyHomeTotals,
+            currencyOwnTotals,
+            currencyDateTotals,
         };
     }, [tripExps, mode, targetCurr, rateCache]);
 
@@ -277,9 +299,34 @@ export function Insights() {
         pieData.push(catTotals[catId] ?? 0);
     });
 
+    // ── Currency breakdown data ───────────────────────────────────────
+    // The currency story only appears when the trip involved spend
+    // OUTSIDE the viewer's home currency. A single home-currency trip
+    // has nothing to break down (and the At trip / Today toggle would be
+    // a no-op), so both are hidden in that case.
+    const homeCurr = targetCurr;
+    const spendCurrencies = Object.keys(currencyHomeTotals).sort(
+        (a, b) => (currencyHomeTotals[b] ?? 0) - (currencyHomeTotals[a] ?? 0),
+    );
+    const hasForeignSpend = spendCurrencies.some((c) => c !== homeCurr);
+    const currencyGrandTotal = spendCurrencies.reduce(
+        (s, c) => s + (currencyHomeTotals[c] ?? 0), 0,
+    );
+    const CURRENCY_PALETTE = ['#0071e3', '#34c759', '#ff9500', '#af52de', '#ff2d55', '#5ac8fa', '#ffcc00', '#8e8e93'];
+    const currencyColor = (i: number) => CURRENCY_PALETTE[i % CURRENCY_PALETTE.length] ?? '#8e8e93';
+    const currencyRows = spendCurrencies.map((c, i) => ({
+        code: c,
+        color: currencyColor(i),
+        ownAmount: currencyOwnTotals[c] ?? 0,
+        homeAmount: currencyHomeTotals[c] ?? 0,
+        pct: currencyGrandTotal > 0 ? ((currencyHomeTotals[c] ?? 0) / currencyGrandTotal) * 100 : 0,
+    }));
+
     // ── Chart.js side-effects ─────────────────────────────────────────────
     const pieCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const timeCanvasRef = useRef<HTMLCanvasElement | null>(null);
+    const currencyPieRef = useRef<HTMLCanvasElement | null>(null);
+    const currencyTimeRef = useRef<HTMLCanvasElement | null>(null);
 
     useEffect(() => {
         if (!pieCanvasRef.current || pieData.length === 0) return;
@@ -351,16 +398,78 @@ export function Insights() {
         return () => chart.destroy();
     }, [dateTotals, targetCurr, targetSym, tripExps.length]);
 
+    // Currency-share donut — share of spend (home-equivalent) by the
+    // ORIGINAL currency it was logged in. Only built when the breakdown
+    // is expanded (the canvas isn't in the DOM until then).
+    useEffect(() => {
+        if (!showCurrencyBreakdown || !currencyPieRef.current || currencyRows.length === 0) return;
+        const chart = new Chart(currencyPieRef.current, {
+            type: 'doughnut',
+            data: {
+                labels: currencyRows.map((r) => r.code),
+                datasets: [{
+                    data: currencyRows.map((r) => r.homeAmount),
+                    backgroundColor: currencyRows.map((r) => r.color),
+                    borderWidth: 0,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'right' } },
+            },
+        });
+        return () => chart.destroy();
+    }, [showCurrencyBreakdown, currencyRows.map((r) => `${r.code}:${r.homeAmount.toFixed(2)}`).join('|')]);
+
+    // Currency-over-time stacked bars — home-equivalent spend per
+    // original currency per day, so the currency mix shift across the
+    // trip is visible at a glance.
+    useEffect(() => {
+        if (!showCurrencyBreakdown || !currencyTimeRef.current || spendCurrencies.length === 0) return;
+        const allDates = Array.from(
+            new Set(spendCurrencies.flatMap((c) => Object.keys(currencyDateTotals[c] || {}))),
+        ).sort();
+        const labels = allDates.map((d) => {
+            try {
+                return new Date(d).toLocaleDateString(getIntlLocale(), { month: 'short', day: 'numeric' });
+            } catch (e) {
+                return d;
+            }
+        });
+        const datasets = currencyRows.map((r) => ({
+            label: r.code,
+            data: allDates.map((d) => (currencyDateTotals[r.code]?.[d]) || 0),
+            backgroundColor: r.color,
+            borderWidth: 0,
+        }));
+        const chart = new Chart(currencyTimeRef.current, {
+            type: 'bar',
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' } },
+                scales: {
+                    x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 7 } },
+                    y: {
+                        stacked: true,
+                        beginAtZero: true,
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        ticks: { maxTicksLimit: 5, callback: (value: number | string) => targetSym + value },
+                    },
+                },
+            },
+        });
+        return () => chart.destroy();
+    }, [showCurrencyBreakdown, targetSym, JSON.stringify(currencyDateTotals)]);
+
     // ── Mutation handlers ─────────────────────────────────────────────────
     // Mutate STATE then emit — useStore subscribers re-render. No need
     // to call navigate('insights') the way the legacy imperative
     // version did; React handles the repaint.
     const setMode = (m: 'at_trip' | 'today') => {
         STATE.rateMode = m;
-        emit(EVENTS.STATE_CHANGED);
-    };
-    const setCurrency = (c: string) => {
-        STATE.insightCurrency = c;
         emit(EVENTS.STATE_CHANGED);
     };
 
@@ -392,36 +501,29 @@ export function Insights() {
                 <div
                     className="insights-header__controls flex items-center gap-3 flex-wrap"
                 >
-                    <div
-                        className="glass flex p-1 rounded-[14px] border border-[var(--glass-border)] shadow-[var(--shadow-sm)]"
-                    >
-                        <button
-                            className={`toggle-btn rate-mode-btn ${mode === 'at_trip' ? 'active' : ''}`}
-                            onClick={() => setMode('at_trip')}
+                    {/* The currency SELECTOR was removed — Insights always
+                        reports in your home currency now. The At trip /
+                        Today toggle only appears when the trip had foreign
+                        spend (otherwise the rate never varies). */}
+                    {hasForeignSpend ? (
+                        <div
+                            className="glass flex p-1 rounded-[14px] border border-[var(--glass-border)] shadow-[var(--shadow-sm)]"
+                            title={t('insights.rateModeHint')}
                         >
-                            {t('insights.rateModeAtTrip')}
-                        </button>
-                        <button
-                            className={`toggle-btn rate-mode-btn ${mode === 'today' ? 'active' : ''}`}
-                            onClick={() => setMode('today')}
-                        >
-                            {t('insights.rateModeToday')}
-                        </button>
-                    </div>
-
-                    <select
-                        id="insightCurrencySelector"
-                        className="glass-input w-[110px] py-2 px-3 font-medium text-[0.9rem] bg-[var(--glass-bg)]"
-                        aria-label={t('insights.currencySelectorAriaLabel')}
-                        value={targetCurr}
-                        onChange={(e) => setCurrency(e.target.value)}
-                    >
-                        {Object.keys(CONVERSION_RATES).map((c) => (
-                            <option key={c} value={c}>
-                                {c}
-                            </option>
-                        ))}
-                    </select>
+                            <button
+                                className={`toggle-btn rate-mode-btn ${mode === 'at_trip' ? 'active' : ''}`}
+                                onClick={() => setMode('at_trip')}
+                            >
+                                {t('insights.rateModeAtTrip')}
+                            </button>
+                            <button
+                                className={`toggle-btn rate-mode-btn ${mode === 'today' ? 'active' : ''}`}
+                                onClick={() => setMode('today')}
+                            >
+                                {t('insights.rateModeToday')}
+                            </button>
+                        </div>
+                    ) : null}
                 </div>
             </div>
 
@@ -447,8 +549,60 @@ export function Insights() {
                             __html: t('insights.heroSubText', { count: totalCount }),
                         }}
                     />
+                    <p className="hero-stat-card__sub" style={{ opacity: 0.7, marginTop: '4px' }}>
+                        {t('insights.heroHomeCurrencyHint', { currency: targetCurr })}
+                    </p>
+                    {hasForeignSpend ? (
+                        <button
+                            type="button"
+                            onClick={() => setShowCurrencyBreakdown((v) => !v)}
+                            className="link-underline text-accent-blue font-bold text-[0.85rem]"
+                            style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, marginTop: '12px' }}
+                        >
+                            {showCurrencyBreakdown
+                                ? t('insights.hideCurrencyBreakdown')
+                                : t('insights.seeCurrencyBreakdown')}
+                        </button>
+                    ) : null}
                 </div>
             </div>
+
+            {/* Currency breakdown — only for trips with foreign spend. */}
+            {hasForeignSpend && showCurrencyBreakdown ? (
+                <div className="mb-8">
+                    <div className="card glass in-card-pad-28 mb-8">
+                        <h2 className="card-title">{t('insights.currencyBreakdownTitle')}</h2>
+                        <p className="text-secondary text-[0.85rem] mt-1 mb-5">
+                            {t('insights.currencyBreakdownSub')}
+                        </p>
+                        <div className="grid-2 grid-cols-2 gap-6 items-center">
+                            <div className="relative h-[220px] w-full">
+                                <canvas ref={currencyPieRef}></canvas>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                {currencyRows.map((r) => (
+                                    <div className="flex items-center gap-2" key={r.code}>
+                                        <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: r.color, flexShrink: 0 }} />
+                                        <span className="font-extrabold" style={{ minWidth: '46px' }}>{r.code}</span>
+                                        <span className="text-secondary text-[0.85rem]">{currencySymbol(r.code)}{formatNumber(r.ownAmount)}</span>
+                                        <span className="ml-auto font-extrabold" style={{ color: 'var(--text-brand-navy)' }}>{targetSym}{formatNumber(r.homeAmount)}</span>
+                                        <span className="text-secondary text-[0.78rem]" style={{ minWidth: '40px', textAlign: 'right' }}>{formatNumber(r.pct, 0)}%</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="card glass in-card-pad-28">
+                        <h2 className="card-title">{t('insights.currencyTimelineTitle')}</h2>
+                        <p className="text-secondary text-[0.85rem] mt-1 mb-5">
+                            {t('insights.currencyTimelineSub')}
+                        </p>
+                        <div className="relative h-[300px] w-full">
+                            <canvas ref={currencyTimeRef}></canvas>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
 
             {/* Summary Grid */}
             <div

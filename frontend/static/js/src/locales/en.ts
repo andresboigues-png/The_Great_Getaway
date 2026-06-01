@@ -664,7 +664,16 @@ export const en = {
         // Rate-mode toggle.
         rateModeAtTrip: 'At Trip',
         rateModeToday: 'Today',
+        rateModeHint: 'At Trip uses the exchange rate on each expense\'s date; Today uses today\'s rate.',
         currencySelectorAriaLabel: 'Display currency for insights',
+        // Currency story (home-currency hint + multi-currency breakdown).
+        heroHomeCurrencyHint: 'Shown in {currency} — changes with your profile home currency.',
+        seeCurrencyBreakdown: 'See currency breakdown →',
+        hideCurrencyBreakdown: 'Hide currency breakdown',
+        currencyBreakdownTitle: 'Spent by currency',
+        currencyBreakdownSub: 'What you actually paid in each currency, and its share of the trip in your home currency.',
+        currencyTimelineTitle: 'Currency mix over time',
+        currencyTimelineSub: 'How your spend split across currencies as the trip went on.',
         // Hero stat card.
         heroTitle: 'Total Spent on your trip',
         heroSubText: 'Spent across <strong>{count}</strong> transactions during your travels.',
