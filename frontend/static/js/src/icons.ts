@@ -119,6 +119,9 @@ export const ICON_PATHS: Record<string, string> = {
     // plus — add (➕)
     plus:
         '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    // info — explainer / "how is this calculated" (ⓘ)
+    info:
+        '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
     // lightbulb — tip / idea (💡)
     lightbulb:
         '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/>' +

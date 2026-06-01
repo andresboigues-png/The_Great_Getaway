@@ -145,6 +145,20 @@ export const LOCALE_TO_CURRENCY: Record<string, string> = {
     ID: 'IDR', SG: 'SGD', HK: 'HKD', KR: 'KRW', ZA: 'ZAR', CN: 'CNY',
 };
 
+// Currency → World Bank ISO3 country code, for the inflation ("Worth
+// today") calculation, which pulls real CPI (FP.CPI.TOTL) per year.
+// EUR maps to Germany as a Eurozone proxy because the World Bank's
+// Euro-area aggregate ("EMU") has no CPI series. A currency that's
+// absent here simply gets no inflation adjustment (factor 1), so the
+// "Worth today" value falls back to the as-spent value.
+export const CURRENCY_TO_CPI_COUNTRY: Record<string, string> = {
+    EUR: 'DEU', USD: 'USA', GBP: 'GBR', JPY: 'JPN', CHF: 'CHE',
+    CAD: 'CAN', AUD: 'AUS', NZD: 'NZL', SEK: 'SWE', NOK: 'NOR',
+    DKK: 'DNK', PLN: 'POL', CZK: 'CZE', HUF: 'HUN', CNY: 'CHN',
+    INR: 'IND', BRL: 'BRA', MXN: 'MEX', ZAR: 'ZAF', KRW: 'KOR',
+    SGD: 'SGP', HKD: 'HKG', IDR: 'IDN', THB: 'THA', TRY: 'TUR',
+};
+
 // Country / region display name → ISO 4217 currency code.
 // Used by the expense form to auto-suggest the currency dropdown
 // when a country is picked, so a trip in Japan defaults the

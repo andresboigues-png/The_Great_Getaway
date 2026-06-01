@@ -23,13 +23,16 @@ import { useNavigate } from '../../react/useNavigate.js';
 import { STATE, emit } from '../../state.js';
 import { EVENTS } from '../../constants.js';
 import { convertCurrency } from '../../utils/currency.js';
-import { fetchHistoricalRates } from '../../api.js';
+import { fetchHistoricalRates, fetchCpiSeries } from '../../api.js';
 import { getIntlLocale, formatNumber, formatCurrency } from '../../i18n.js';
 import { getHomeCurrency, currencySymbol } from '../../utils.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Expense, Category } from '../../types';
 import { t } from '../../i18n.js';
 import { openNewTripModal } from '../../modals.js';
+import { showModal } from '../../components/Modal.js';
+import { iconSvg } from '../../icons.js';
+import { esc } from '../../utils.js';
 
 // Chart is loaded via CDN in index.html and declared as a global in types.d.ts
 declare const Chart: any;
@@ -67,6 +70,7 @@ export function Insights() {
     const categories = useStore((s) => s.categories);
     const rateMode = useStore((s) => s.rateMode);
     const rateCache = useStore((s) => s.rateCache);
+    const cpiCache = useStore((s) => s.cpiCache);
     // Currency-breakdown expander (multi-currency trips only).
     const [showCurrencyBreakdown, setShowCurrencyBreakdown] = useState(false);
 
@@ -114,6 +118,13 @@ export function Insights() {
         if (uniqueDates.length > 0) fetchHistoricalRates(uniqueDates).then(() => {});
     }, [tripExps]);
 
+    // Background fetch for the home-currency CPI series — powers the
+    // "Worth today" inflation adjustment. Re-fetches if the home
+    // currency changes (a profile change between visits).
+    useEffect(() => {
+        fetchCpiSeries(getHomeCurrency()).then(() => {});
+    }, []);
+
     // Insights always reports in the viewer's HOME currency now (the
     // selectable display currency was removed — the original-currency
     // story lives in the breakdown below instead). The At trip / Today
@@ -135,39 +146,67 @@ export function Insights() {
         currencyOwnTotals,
         currencyDateTotals,
     } = useMemo(() => {
+        // ── Inflation ("Worth today") factor ──────────────────────────
+        // Real CPI for the home currency's region (World Bank FP.CPI.TOTL,
+        // cached in cpiCache). Factor = CPI(latest available year) /
+        // CPI(expense's year). Recent years (e.g. the current one, whose
+        // CPI isn't published yet) clamp to the latest available, so a
+        // brand-new trip shows ~no inflation, which is correct. Returns 1
+        // when we have no CPI data (→ "Worth today" == as-spent).
+        const cpi = cpiCache[targetCurr];
+        let cpiLatestYear = 0;
+        let cpiLatestVal = 0;
+        let cpiEarliestYear = 0;
+        if (cpi) {
+            const ys = Object.keys(cpi).map(Number).filter((y) => Number.isFinite(y));
+            if (ys.length) {
+                cpiLatestYear = Math.max(...ys);
+                cpiEarliestYear = Math.min(...ys);
+                cpiLatestVal = cpi[cpiLatestYear] || 0;
+            }
+        }
+        const inflationFactor = (date: string): number => {
+            if (!cpi || !cpiLatestVal) return 1;
+            let y = Number((date || '').slice(0, 4));
+            // Guard against an empty/garbage date: `Number('')` is 0
+            // (finite!), which would otherwise clamp to the earliest year
+            // and apply max inflation. Treat any implausible year as the
+            // latest (→ factor 1, no inflation) instead.
+            if (!Number.isFinite(y) || y < 1900 || y > cpiLatestYear + 1) y = cpiLatestYear;
+            let baseYear = Math.max(cpiEarliestYear, Math.min(cpiLatestYear, y));
+            let baseCpi = cpi[baseYear];
+            // Walk down to the nearest year that has data (gaps are rare).
+            while (baseCpi == null && baseYear > cpiEarliestYear) {
+                baseYear -= 1;
+                baseCpi = cpi[baseYear];
+            }
+            return baseCpi ? cpiLatestVal / baseCpi : 1;
+        };
+
         const convertedExps: ConvertedExpense[] = tripExps.map((e: Expense) => {
-            // Step 1 — original amount → EUR.
-            //   • today   : today's LIVE rate (re-float the original amount).
-            //   • at_trip : the REAL ECB rate ON THE EXPENSE'S OWN DATE,
-            //     from the historical rateCache; fall back to the value
-            //     frozen at write time, then the live overlay.
-            // BUG (pre-fix): both modes short-circuited on `e.euroValue ||`,
-            // so the historical rate was NEVER used and the toggle did
-            // nothing (especially for a home-currency-EUR viewer). Now the
-            // two modes genuinely differ, so "At trip vs Today" is a real
-            // then-vs-now FX comparison.
+            // "Spent" = the cost in the home currency AT THE TIME: convert
+            // the original amount at the REAL ECB rate on the expense's
+            // own date (historical rateCache), falling back to the value
+            // frozen at write time, then the live overlay. Identical in
+            // both modes — the toggle no longer changes the exchange rate.
             let euroVal: number;
-            if (mode === 'at_trip') {
-                const k = `${e.date}_${e.currency}_EUR`;
-                euroVal = (rateCache && rateCache[k])
-                    ? e.value * rateCache[k]
-                    : (e.euroValue || convertCurrency(e.value, e.currency, 'EUR'));
-            } else {
-                euroVal = convertCurrency(e.value, e.currency, 'EUR');
-            }
-            // Step 2 — EUR → the viewer's HOME currency.
-            let homeVal = euroVal;
+            const k = `${e.date}_${e.currency}_EUR`;
+            euroVal = (rateCache && rateCache[k])
+                ? e.value * rateCache[k]
+                : (e.euroValue || convertCurrency(e.value, e.currency, 'EUR'));
+            let spentHome = euroVal;
             if (targetCurr !== 'EUR') {
-                if (mode === 'at_trip') {
-                    const hk = `${e.date}_${targetCurr}_EUR`;
-                    homeVal = (rateCache && rateCache[hk])
-                        ? euroVal / rateCache[hk]
-                        : convertCurrency(euroVal, 'EUR', targetCurr);
-                } else {
-                    homeVal = convertCurrency(euroVal, 'EUR', targetCurr);
-                }
+                const hk = `${e.date}_${targetCurr}_EUR`;
+                spentHome = (rateCache && rateCache[hk])
+                    ? euroVal / rateCache[hk]
+                    : convertCurrency(euroVal, 'EUR', targetCurr);
             }
-            return { ...e, displayValue: homeVal };
+            // "Worth today" = that as-spent home cost, adjusted for the
+            // home currency's inflation since the expense's year.
+            const displayValue = mode === 'today'
+                ? spentHome * inflationFactor(e.date)
+                : spentHome;
+            return { ...e, displayValue };
         });
 
         const totalDisplay = convertedExps.reduce((sum, e) => sum + e.displayValue, 0);
@@ -258,7 +297,7 @@ export function Insights() {
             currencyOwnTotals,
             currencyDateTotals,
         };
-    }, [tripExps, mode, targetCurr, rateCache]);
+    }, [tripExps, mode, targetCurr, rateCache, cpiCache]);
 
     // ── Empty: trip has no expenses ───────────────────────────────────────
     if (tripExps.length === 0) {
@@ -485,6 +524,25 @@ export function Insights() {
         STATE.rateMode = m;
         emit(EVENTS.STATE_CHANGED);
     };
+    // ⓘ explainer — how "Spent" and "Worth today" are calculated.
+    const openRateModeInfo = () => {
+        const { root, close } = showModal({
+            variant: 'glass',
+            cardStyle: 'width: 460px; max-width: calc(100vw - 32px); padding: 26px; border-radius: 24px;',
+            innerHTML: `
+                <h2 style="margin:0 0 14px; font-size:1.3rem; font-weight:800; color:var(--text-brand-navy); letter-spacing:-0.02em;">${t('insights.rateInfoTitle')}</h2>
+                <div style="display:flex; flex-direction:column; gap:12px; font-size:0.92rem; line-height:1.5; color:var(--text-brand-navy);">
+                    <p style="margin:0;"><strong>${t('insights.rateModeAtTrip')}</strong> — ${t('insights.rateInfoSpent', { currency: esc(targetCurr) })}</p>
+                    <p style="margin:0;"><strong>${t('insights.rateModeToday')}</strong> — ${t('insights.rateInfoWorthToday', { currency: esc(targetCurr) })}</p>
+                    <p style="margin:6px 0 0; font-size:0.82rem; color:var(--text-secondary);">${t('insights.rateInfoNote')}</p>
+                </div>
+                <div style="display:flex; justify-content:flex-end; margin-top:20px;">
+                    <button id="rateInfoClose" class="btn-primary" style="padding:9px 20px; border-radius:999px;">${t('common.close')}</button>
+                </div>
+            `,
+        });
+        (root.querySelector('#rateInfoClose') as HTMLButtonElement | null)?.addEventListener('click', close);
+    };
 
     return (
         <div>
@@ -512,31 +570,37 @@ export function Insights() {
                     </p>
                 </div>
                 <div
-                    className="insights-header__controls flex items-center gap-3 flex-wrap"
+                    className="insights-header__controls flex items-center gap-2 flex-wrap"
                 >
                     {/* The currency SELECTOR was removed — Insights always
-                        reports in your home currency now. The At trip /
-                        Today toggle only appears when the trip had foreign
-                        spend (otherwise the rate never varies). */}
-                    {hasForeignSpend ? (
-                        <div
-                            className="glass flex p-1 rounded-[14px] border border-[var(--glass-border)] shadow-[var(--shadow-sm)]"
-                            title={t('insights.rateModeHint')}
+                        reports in your home currency. The Spent / Worth-today
+                        toggle is always shown now: even a home-currency trip
+                        differs by inflation. The ⓘ explains the math. */}
+                    <div
+                        className="glass flex p-1 rounded-[14px] border border-[var(--glass-border)] shadow-[var(--shadow-sm)]"
+                        title={t('insights.rateModeHint')}
+                    >
+                        <button
+                            className={`toggle-btn rate-mode-btn ${mode === 'at_trip' ? 'active' : ''}`}
+                            onClick={() => setMode('at_trip')}
                         >
-                            <button
-                                className={`toggle-btn rate-mode-btn ${mode === 'at_trip' ? 'active' : ''}`}
-                                onClick={() => setMode('at_trip')}
-                            >
-                                {t('insights.rateModeAtTrip')}
-                            </button>
-                            <button
-                                className={`toggle-btn rate-mode-btn ${mode === 'today' ? 'active' : ''}`}
-                                onClick={() => setMode('today')}
-                            >
-                                {t('insights.rateModeToday')}
-                            </button>
-                        </div>
-                    ) : null}
+                            {t('insights.rateModeAtTrip')}
+                        </button>
+                        <button
+                            className={`toggle-btn rate-mode-btn ${mode === 'today' ? 'active' : ''}`}
+                            onClick={() => setMode('today')}
+                        >
+                            {t('insights.rateModeToday')}
+                        </button>
+                    </div>
+                    <button
+                        type="button"
+                        className="icon-action-btn"
+                        onClick={openRateModeInfo}
+                        aria-label={t('insights.rateModeInfoAria')}
+                        title={t('insights.rateModeInfoAria')}
+                        dangerouslySetInnerHTML={{ __html: iconSvg('info', { size: 18 }) }}
+                    />
                 </div>
             </div>
 

@@ -40,6 +40,7 @@ export const STATE: AppState = {
     insightCurrency: 'EUR',
     rateMode: 'at_trip', // 'at_trip' or 'today'
     rateCache: {}, // { 'YYYY-MM-DD_FROM_TO': rate }
+    cpiCache: {}, // { [currency]: { [year]: cpiIndex } } — World Bank CPI
     user: null, // Stores { id, name, email, picture }
     hasLoggedInBefore: false, // Tracks if user has ever signed in
     /** User's personal Gemini API key for the AI planner. Bring-your-own

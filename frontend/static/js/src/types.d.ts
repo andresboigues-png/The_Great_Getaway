@@ -542,6 +542,10 @@ export interface AppState {
     rateMode: 'at_trip' | 'today';
     /** Cached FX rates, key shape `${date}_${from}_${to}`. */
     rateCache: Record<string, number>;
+    /** Cached CPI series per currency for the inflation ("Worth today")
+     *  calc, shape `{ [currency]: { [year]: cpiIndex } }`. Fetched
+     *  browser-direct from the World Bank (FP.CPI.TOTL). */
+    cpiCache: Record<string, Record<number, number>>;
     user: User | null;
     hasLoggedInBefore: boolean;
     excelMapping: Record<string, string>;

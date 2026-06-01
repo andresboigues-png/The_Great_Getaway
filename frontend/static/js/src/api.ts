@@ -2,7 +2,7 @@
 
 import { STATE, emit } from './state.js';
 import { navigate, currentNavSignal } from './router.js';
-import { API_BASE_URL, EVENTS, PAGES, type PageName } from './constants.js';
+import { API_BASE_URL, EVENTS, PAGES, CURRENCY_TO_CPI_COUNTRY, type PageName } from './constants.js';
 import { validateServerData } from './schemas.js';
 import { normalizeTripCompanions } from './companions.js';
 import { showLiquidAlert } from './utils.js';
@@ -1754,6 +1754,45 @@ export async function fetchHistoricalRates(dates: string[]) {
         // AbortError = user navigated away mid-fetch; not a failure.
         if (e?.name === 'AbortError') return;
         console.error("Failed to fetch historical rates:", e);
+    }
+}
+
+/** Fetch the annual CPI series (World Bank FP.CPI.TOTL) for the country
+ *  that represents `currency`, and cache it under STATE.cpiCache[CUR].
+ *  Powers the Insights "Worth today" inflation calc. Browser-direct (the
+ *  World Bank API sends `access-control-allow-origin: *`), mirroring
+ *  fetchHistoricalRates. No-op when the currency has no mapped country
+ *  (→ no inflation adjustment) or the series is already cached. */
+export async function fetchCpiSeries(currency: string): Promise<void> {
+    const cur = (currency || '').toUpperCase();
+    const country = CURRENCY_TO_CPI_COUNTRY[cur];
+    if (!country) return;
+    if (STATE.cpiCache[cur] && Object.keys(STATE.cpiCache[cur]).length > 0) return;
+    try {
+        const thisYear = new Date().getFullYear();
+        const url = `https://api.worldbank.org/v2/country/${country}/indicator/FP.CPI.TOTL?format=json&date=2000:${thisYear}&per_page=200`;
+        const sig = currentNavSignal();
+        const resp = await fetch(url, sig ? { signal: sig } : {});
+        if (!resp.ok) {
+            console.warn('World Bank CPI fetch returned', resp.status);
+            return;
+        }
+        const data = await resp.json();
+        // World Bank shape: [meta, [{ date: "2024", value: 143.8, ... }, ...]]
+        const rows = (Array.isArray(data) && Array.isArray(data[1])) ? data[1] : [];
+        const series: Record<number, number> = {};
+        for (const r of rows) {
+            const y = Number(r?.date);
+            const v = r?.value;
+            if (Number.isFinite(y) && typeof v === 'number' && v > 0) series[y] = v;
+        }
+        if (Object.keys(series).length > 0) {
+            STATE.cpiCache[cur] = series;
+            emit(EVENTS.STATE_CHANGED);
+        }
+    } catch (e: any) {
+        if (e?.name === 'AbortError') return;
+        console.error('Failed to fetch CPI series:', e);
     }
 }
 

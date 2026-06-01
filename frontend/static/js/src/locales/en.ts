@@ -662,9 +662,14 @@ export const en = {
         emptyNoExpensesBody: 'Add your travel expenses in the <b>Expenses</b> tab or upload an Excel sheet to see your spending breakdown and analytics.',
         emptyNoExpensesCta: 'Add Your First Expense',
         // Rate-mode toggle.
-        rateModeAtTrip: 'At Trip',
-        rateModeToday: 'Today',
-        rateModeHint: 'At Trip uses the exchange rate on each expense\'s date; Today uses today\'s rate.',
+        rateModeAtTrip: 'Spent',
+        rateModeToday: 'Worth today',
+        rateModeHint: 'Spent = what it cost at the time. Worth today = that, adjusted for inflation since.',
+        rateModeInfoAria: 'How these numbers are calculated',
+        rateInfoTitle: 'How these numbers work',
+        rateInfoSpent: 'what the trip cost in {currency} at the time — foreign amounts converted at the exchange rate on the day you paid.',
+        rateInfoWorthToday: 'that cost adjusted for inflation since then, using real consumer-price (CPI) data for {currency} from the World Bank.',
+        rateInfoNote: 'Inflation data is annual, and we use the most recent year available — so a very recent trip shows little or no change.',
         currencySelectorAriaLabel: 'Display currency for insights',
         // Currency story (home-currency hint + multi-currency breakdown).
         heroHomeCurrencyHint: 'Shown in {currency} — changes with your profile home currency.',
