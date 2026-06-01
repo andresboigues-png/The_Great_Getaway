@@ -8,6 +8,7 @@
 // future surface that wants to sort/filter trips on the same fields.
 
 import { shortPlaceName } from '../../utils.js';
+import { countryCodeToContinent, countryNameToContinent } from '../../utils/place-names.js';
 import type { Trip } from '../../types';
 
 
@@ -133,4 +134,74 @@ export function applyCollectionsView(
             break;
     }
     return out;
+}
+
+
+/** Sentinel continent/year key for trips we can't bucket. Always sorts
+ *  last in an album list and gets a localized "Other" label in the UI. */
+export const ALBUM_OTHER = 'Other';
+
+
+/** Continent a trip belongs to, for the Collections album grouping.
+ *  Primary source is `countryCode` — the country where the Trip Hub
+ *  (day-0 anchor) sits, set from the Google Places pick at creation.
+ *  Falls back to the first multi-country code, then a free-text parse of
+ *  the legacy `country` string, then ALBUM_OTHER. */
+export function resolveTripContinent(trip: Trip): string {
+    const primary = trip.countryCode || (trip.countries && trip.countries[0]);
+    const byCode = primary ? countryCodeToContinent(primary) : null;
+    if (byCode) return byCode;
+    const byName = countryNameToContinent(trip.country || '');
+    return byName || ALBUM_OTHER;
+}
+
+
+/** Representative cover image for an album tile. Mirrors the archived-
+ *  detail hero priority chain: explicit coverUrl → first trip-level photo
+ *  → first day photo → null (caller renders a gradient placeholder). */
+export function tripCover(trip: Trip): string | null {
+    if (trip.coverUrl) return trip.coverUrl;
+    if (trip.photos && trip.photos.length > 0) return trip.photos[0]!.src;
+    for (const day of trip.tripDays || []) {
+        if (day.photos && day.photos.length > 0) return day.photos[0]!;
+    }
+    return null;
+}
+
+
+/** How the Collections grid is partitioned into albums. */
+export type GroupBy = 'continent' | 'year' | 'none';
+
+export interface TripAlbum {
+    /** Continent key ('Europe'…/ALBUM_OTHER) or year string ('2024'). */
+    key: string;
+    trips: Trip[];
+}
+
+
+/** Partition an already-sorted/filtered trip list into albums. Album
+ *  order follows the first appearance of each key in `trips`, so it
+ *  inherits whatever sort the caller applied; ALBUM_OTHER always sorts
+ *  last. `groupBy === 'none'` returns a single 'all' album (flat list). */
+export function groupTrips(trips: Trip[], groupBy: GroupBy): TripAlbum[] {
+    if (groupBy === 'none') return [{ key: 'all', trips }];
+    const order: string[] = [];
+    const buckets = new Map<string, Trip[]>();
+    for (const trip of trips) {
+        let key: string;
+        if (groupBy === 'continent') {
+            key = resolveTripContinent(trip);
+        } else {
+            const y = tripYear(trip);
+            key = y ? String(y) : ALBUM_OTHER;
+        }
+        if (!buckets.has(key)) {
+            buckets.set(key, []);
+            order.push(key);
+        }
+        buckets.get(key)!.push(trip);
+    }
+    const ordered = order.filter((k) => k !== ALBUM_OTHER);
+    if (buckets.has(ALBUM_OTHER)) ordered.push(ALBUM_OTHER);
+    return ordered.map((key) => ({ key, trips: buckets.get(key)! }));
 }

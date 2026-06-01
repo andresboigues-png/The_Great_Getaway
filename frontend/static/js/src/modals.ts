@@ -181,10 +181,19 @@ function _wirePlacePicker(
 
     const setPicked = (place: any) => {
         pickedPlace = place;
-        if (place) {
+        if (place && place.countryCode) {
             submitBtn.disabled = false;
             hint.textContent = `📍 ${place.name}`;
             setHintTone('success');
+        } else if (place) {
+            // Typed/free-text value with no resolved ISO country. Every
+            // trip must carry a country (it drives the Collections
+            // continent grouping + the friends map), so a manual entry
+            // that bypasses Places is NOT enough — keep submit disabled
+            // and nudge the user to choose a real suggestion.
+            submitBtn.disabled = true;
+            hint.textContent = t('errors.placePickNeedsCountry');
+            setHintTone('warn');
         } else {
             submitBtn.disabled = true;
             hint.textContent = t('errors.placePickerHint');
@@ -335,6 +344,13 @@ export const openNewTripModal = () => {
         const pickedPlace = getPicked();
         if (!pickedPlace) {
             showLiquidAlert(t('modals.newTripValidationDest'));
+            return;
+        }
+        // A trip must have a real country (extracted from a Google Places
+        // pick). Free-text fallbacks set countryCode=null and are rejected
+        // here so no trip is created without one.
+        if (!pickedPlace.countryCode) {
+            showLiquidAlert(t('errors.placePickNeedsCountry'));
             return;
         }
         const id = generateId();
@@ -639,6 +655,16 @@ export const openEditTripModal = (trip: any) => {
 
         const placeChanged = picked.placeId !== (initialPlace?.placeId || '')
             || picked.name !== (initialPlace?.name || '');
+
+        // If the user actually changed the destination, the new one must be
+        // a real Places pick with a country — don't let a free-text edit
+        // strip the countryCode off an existing trip. A pure rename (place
+        // unchanged) is still allowed so legacy code-less trips can be
+        // renamed without forcing a re-pick.
+        if (placeChanged && !picked.countryCode) {
+            showLiquidAlert(t('errors.placePickNeedsCountry'));
+            return;
+        }
 
         trip.name = newName;
         trip.country = picked.name;

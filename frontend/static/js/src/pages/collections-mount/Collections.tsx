@@ -36,7 +36,12 @@ import {
     tripDestination,
     tripTotalSpent,
     applyCollectionsView,
+    groupTrips,
+    tripCover,
+    ALBUM_OTHER,
     type CollectionsSort,
+    type GroupBy,
+    type TripAlbum,
 } from './helpers.js';
 import {
     getCollectionsFilters,
@@ -44,8 +49,10 @@ import {
     setCollectionsFilterYear,
     setCollectionsFilterDestination,
     setCollectionsSearchText,
+    setCollectionsGroupBy,
     clearCollectionsFilters,
 } from './state.js';
+import { countryCodeToFlag } from '../../utils/place-names.js';
 import type { Trip } from '../../types';
 
 
@@ -86,6 +93,11 @@ export function Collections() {
     // the grid on every keystroke; only updates 220ms after the user
     // stops typing.
     const [searchInputValue, setSearchInputValue] = useState(filters.searchText);
+    const [groupBy, setGroupByLocal] = useState<GroupBy>(filters.groupBy);
+    // Drill-in: which album (continent/year key) is open, or null for the
+    // album overview. Ephemeral — not persisted; resets when the grouping
+    // dimension or search changes (the album context no longer applies).
+    const [openAlbumKey, setOpenAlbumKey] = useState<string | null>(null);
 
     // Debounced search → filter.
     useEffect(() => {
@@ -119,6 +131,28 @@ export function Collections() {
 
     const hasActiveFilter = !!(searchText || filterYear || filterDestination);
 
+    // Search hunts a single trip, so it flattens the album view (a stack-
+    // of-one reads worse than a flat result list). 'none' is the explicit
+    // flat mode. Otherwise partition the (already-sorted) filtered trips
+    // into albums — filters thin them automatically since they run first.
+    const searchActive = !!searchText.trim();
+    const grouped = groupBy !== 'none' && !searchActive;
+    const albums = useMemo(
+        () => (grouped ? groupTrips(filteredTrips, groupBy) : []),
+        [grouped, filteredTrips, groupBy],
+    );
+    const openAlbum = grouped && openAlbumKey
+        ? albums.find((a) => a.key === openAlbumKey) || null
+        : null;
+    // Drop back to the overview if the open album got filtered away, or
+    // if grouping/search changed out from under the drill-in.
+    useEffect(() => {
+        if (openAlbumKey && !openAlbum) setOpenAlbumKey(null);
+    }, [openAlbumKey, openAlbum]);
+    useEffect(() => {
+        setOpenAlbumKey(null);
+    }, [groupBy, searchActive]);
+
     // ── Handlers ──────────────────────────────────────────────────
     const onSortChange = (next: CollectionsSort) => {
         setSortLocal(next);
@@ -131,6 +165,11 @@ export function Collections() {
     const onDestinationChange = (next: string) => {
         setFilterDestinationLocal(next);
         setCollectionsFilterDestination(next);
+    };
+    const onGroupByChange = (next: GroupBy) => {
+        setGroupByLocal(next);
+        setCollectionsGroupBy(next);
+        setOpenAlbumKey(null);
     };
     const onClearFilters = () => {
         clearCollectionsFilters();
@@ -241,6 +280,21 @@ export function Collections() {
                         />
                     </div>
 
+                    {/* Group-by dropdown — partitions the grid into album
+                        stacks (continent / year) or a flat list. Sits left
+                        of Sort; same chip styling. */}
+                    <select
+                        title={t('collections.groupByLabel')}
+                        aria-label={t('collections.groupByLabel')}
+                        value={groupBy}
+                        onChange={(e) => onGroupByChange(e.target.value as GroupBy)}
+                        style={chipSelectStyle}
+                    >
+                        <option value="continent">{t('collections.groupByContinent')}</option>
+                        <option value="year">{t('collections.groupByYear')}</option>
+                        <option value="none">{t('collections.groupByNone')}</option>
+                    </select>
+
                     {/* Sort dropdown. Inline-styled select to match the
                         rest of the bar. Background-image carries the
                         chevron because `appearance: none` strips the
@@ -316,19 +370,17 @@ export function Collections() {
             )}
 
             <div className="col-tab-content">
-                <div className="grid-2 mt-4">
-                    {archived.length === 0 ? (
-                        <div
-                            className="card glass col-span-full text-center p-[60px]"
-                        >
+                {archived.length === 0 ? (
+                    <div className="grid-2 mt-4">
+                        <div className="card glass col-span-full text-center p-[60px]">
                             <div className="text-[4rem] mb-5">📚</div>
                             <h2>{t('collections.emptyNoTripsTitle')}</h2>
                             <p className="text-muted">{t('collections.emptyNoTripsBody')}</p>
                         </div>
-                    ) : filteredTrips.length === 0 ? (
-                        <div
-                            className="card glass col-span-full text-center py-12 px-8"
-                        >
+                    </div>
+                ) : filteredTrips.length === 0 ? (
+                    <div className="grid-2 mt-4">
+                        <div className="card glass col-span-full text-center py-12 px-8">
                             <div
                                 className="mb-3 flex justify-center text-secondary opacity-70"
                                 dangerouslySetInnerHTML={{ __html: iconSvg('search', { size: 44 }) }}
@@ -340,10 +392,48 @@ export function Collections() {
                                 {t('collections.emptyNoMatchesBody')}
                             </p>
                         </div>
-                    ) : (
-                        filteredTrips.map((trip) => <ArchivedCard key={trip.id} trip={trip} />)
-                    )}
-                </div>
+                    </div>
+                ) : !grouped ? (
+                    // Flat list — explicit "no grouping" or an active search.
+                    <div className="grid-2 mt-4">
+                        {filteredTrips.map((trip) => <ArchivedCard key={trip.id} trip={trip} />)}
+                    </div>
+                ) : openAlbum ? (
+                    // Drill-in: one album's trips + a back link to the shelf.
+                    <>
+                        <button
+                            type="button"
+                            onClick={() => setOpenAlbumKey(null)}
+                            className="collections-album-back mt-4 inline-flex items-center gap-1 bg-transparent border-0 text-[#0071e3] font-extrabold text-[0.85rem] cursor-pointer p-0"
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <polyline points="15 18 9 12 15 6"></polyline>
+                            </svg>
+                            {t('collections.albumBack')}
+                        </button>
+                        <h2 className="mt-2.5 mb-0 flex items-center gap-2.5 flex-wrap">
+                            {albumLabel(openAlbum.key, groupBy)}
+                            <span className="text-secondary font-bold text-[0.85rem]">
+                                {t('collections.albumTripCount', { count: openAlbum.trips.length })}
+                            </span>
+                        </h2>
+                        <div className="grid-2 mt-4">
+                            {openAlbum.trips.map((trip) => <ArchivedCard key={trip.id} trip={trip} />)}
+                        </div>
+                    </>
+                ) : (
+                    // Album overview: a shelf of fanned continent/year stacks.
+                    <div className="collections-albums mt-4">
+                        {albums.map((album) => (
+                            <AlbumStack
+                                key={album.key}
+                                album={album}
+                                label={albumLabel(album.key, groupBy)}
+                                onOpen={() => setOpenAlbumKey(album.key)}
+                            />
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -561,6 +651,101 @@ function PrivacySelect({ trip }: { trip: Trip }) {
                 <option value="public-plan">{t('archivedDetail.visibilityPublicPlan')}</option>
                 <option value="public-full">{t('archivedDetail.visibilityPublicAll')}</option>
             </select>
+        </div>
+    );
+}
+
+
+// ── Album grouping (continent stacks) ─────────────────────────────
+
+/** Continent key → localized label. A switch (not a dynamic t() key) so
+ *  each call stays a compile-checked literal path. */
+function continentLabel(key: string): string {
+    switch (key) {
+        case 'Europe': return t('collections.continents.europe');
+        case 'Asia': return t('collections.continents.asia');
+        case 'Africa': return t('collections.continents.africa');
+        case 'North America': return t('collections.continents.northAmerica');
+        case 'South America': return t('collections.continents.southAmerica');
+        case 'Oceania': return t('collections.continents.oceania');
+        case 'Antarctica': return t('collections.continents.antarctica');
+        default: return t('collections.continents.other');
+    }
+}
+
+/** Display label for an album key, given the active grouping dimension. */
+function albumLabel(key: string, groupBy: GroupBy): string {
+    if (groupBy === 'continent') return continentLabel(key);
+    // Year grouping: numeric-string key, or the shared "Other" for undated.
+    return key === ALBUM_OTHER ? t('collections.continents.other') : key;
+}
+
+
+/** A continent/year "album" rendered as a fanned stack of trip cover
+ *  photos. Up to 3 tiles; trips without a photo show a gradient tile so
+ *  a single-photo album still reads as a stack. Click / Enter / Space
+ *  drills into the album. */
+function AlbumStack(
+    { album, label, onOpen }: { album: TripAlbum; label: string; onOpen: () => void },
+) {
+    // Up to 3 distinct cover photos for the fan.
+    const covers: (string | null)[] = [];
+    for (const trip of album.trips) {
+        const c = tripCover(trip);
+        if (c && !covers.includes(c)) covers.push(c);
+        if (covers.length >= 3) break;
+    }
+    while (covers.length < 3) covers.push(null);
+    // Distinct country flags inside the album — a small travel-flavoured
+    // touch under the title. Capped so the row stays tidy.
+    const flags = Array.from(
+        new Set(album.trips.map((tr) => countryCodeToFlag(tr.countryCode)).filter(Boolean)),
+    ).slice(0, 4);
+    // Deepest tile first so the top cover paints last (highest z-order).
+    const slots = [
+        { src: covers[2], cls: 'album-stack__tile--back2' },
+        { src: covers[1], cls: 'album-stack__tile--back1' },
+        { src: covers[0], cls: 'album-stack__tile--top' },
+    ];
+    const countLabel = t('collections.albumTripCount', { count: album.trips.length });
+    return (
+        <div
+            className="card glass album-card"
+            role="button"
+            tabIndex={0}
+            aria-label={`${label} — ${countLabel}`}
+            onClick={onOpen}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onOpen();
+                }
+            }}
+        >
+            <div className="album-stack">
+                {slots.map((slot, i) =>
+                    slot.src ? (
+                        <img
+                            key={i}
+                            src={slot.src}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            className={`album-stack__tile ${slot.cls}`}
+                        />
+                    ) : (
+                        <div key={i} className={`album-stack__tile album-stack__tile--empty ${slot.cls}`} />
+                    ),
+                )}
+                <span className="album-stack__count">{album.trips.length}</span>
+            </div>
+            <div className="album-card__meta">
+                <h3 className="album-card__title m-0">{label}</h3>
+                <span className="album-card__sub text-secondary">
+                    {flags.length > 0 && <span className="album-card__flags">{flags.join(' ')}</span>}
+                    {countLabel}
+                </span>
+            </div>
         </div>
     );
 }

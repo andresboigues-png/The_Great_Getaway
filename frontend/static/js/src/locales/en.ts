@@ -164,6 +164,7 @@ export const en = {
         tripHubCannotDelete: "Trip Hub can't be deleted — it's the trip's home base.",
         dateRangeInvalid: 'End date must be on or after the start date.',
         placePickerHint: 'Pick a suggestion to confirm the location.',
+        placePickNeedsCountry: 'Choose a destination from the suggestions so we can tag its country.',
         googleMapsFailed: '⚠ Google Maps failed to load. Check your API key + billing.',
         pageLoadFailed: 'Failed to load this page. Refresh to retry.',
         // Confirm-modal copy.
@@ -954,6 +955,23 @@ export const en = {
         // Page header.
         title: 'Collections',
         subtitle: 'Your completed travel memories and trip photos.',
+        // Album grouping (continent stacks) + the group-by control.
+        groupByLabel: 'Group',
+        groupByContinent: 'By continent',
+        groupByYear: 'By year',
+        groupByNone: 'No grouping',
+        albumBack: 'All collections',
+        albumTripCount: '{count} trips',
+        continents: {
+            europe: 'Europe',
+            asia: 'Asia',
+            africa: 'Africa',
+            northAmerica: 'North America',
+            southAmerica: 'South America',
+            oceania: 'Oceania',
+            antarctica: 'Antarctica',
+            other: 'Other',
+        },
         // Active-trips hint banner shown when the user has trips that
         // aren't archived yet (so they understand the per-person
         // archive model).

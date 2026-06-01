@@ -13,7 +13,7 @@
 // every change. Wrapping in setters keeps the mutation site
 // well-defined and grep-able.
 
-import type { CollectionsSort } from './helpers.js';
+import type { CollectionsSort, GroupBy } from './helpers.js';
 
 
 interface CollectionsFilterState {
@@ -21,6 +21,7 @@ interface CollectionsFilterState {
     filterYear: string;        // empty string = "all years"
     filterDestination: string; // empty string = "all destinations"
     searchText: string;
+    groupBy: GroupBy;          // how the grid is partitioned into albums
 }
 
 const _state: CollectionsFilterState = {
@@ -28,6 +29,7 @@ const _state: CollectionsFilterState = {
     filterYear: '',
     filterDestination: '',
     searchText: '',
+    groupBy: 'continent',
 };
 
 
@@ -47,10 +49,15 @@ export function setCollectionsFilterDestination(dest: string): void {
 export function setCollectionsSearchText(text: string): void {
     _state.searchText = text;
 }
+export function setCollectionsGroupBy(groupBy: GroupBy): void {
+    _state.groupBy = groupBy;
+}
 
 /** One-shot reset — called by the "Clear filters" chip. Sets every
  *  field back to its default so the next mount starts from a clean
- *  slate. */
+ *  slate. `groupBy` is deliberately preserved: it's a view preference,
+ *  not a filter, so clearing a search shouldn't collapse the user's
+ *  chosen grouping. */
 export function clearCollectionsFilters(): void {
     _state.sort = 'recent';
     _state.filterYear = '';

@@ -121,6 +121,75 @@ function resolveByCountryCode(countryCode: string | null | undefined) {
     return key ? DESTINATION_DATA[key] : null;
 }
 
+// ── Continent grouping (Collections albums) ─────────────────────────
+// ISO 3166-1 alpha-2 → continent. Authored continent→codes[] (easier to
+// eyeball for gaps) then inverted to a flat code→continent map at module
+// load. Continent keys are canonical English strings; the UI maps them to
+// localized labels. Trips created via Google Places always carry a
+// countryCode, so this is the primary path; legacy/code-less trips fall
+// back to countryNameToContinent() below.
+const CONTINENT_CODES: Record<string, string[]> = {
+    Europe: ['AL', 'AD', 'AT', 'BY', 'BE', 'BA', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FO', 'FI', 'FR', 'DE', 'GI', 'GR', 'HU', 'IS', 'IE', 'IM', 'IT', 'XK', 'LV', 'LI', 'LT', 'LU', 'MT', 'MD', 'MC', 'ME', 'NL', 'MK', 'NO', 'PL', 'PT', 'RO', 'RU', 'SM', 'RS', 'SK', 'SI', 'ES', 'SE', 'CH', 'UA', 'GB', 'VA', 'JE', 'GG', 'AX'],
+    Asia: ['AF', 'AM', 'AZ', 'BH', 'BD', 'BT', 'BN', 'KH', 'CN', 'GE', 'HK', 'IN', 'ID', 'IR', 'IQ', 'IL', 'JP', 'JO', 'KZ', 'KW', 'KG', 'LA', 'LB', 'MO', 'MY', 'MV', 'MN', 'MM', 'NP', 'KP', 'OM', 'PK', 'PS', 'PH', 'QA', 'SA', 'SG', 'KR', 'LK', 'SY', 'TW', 'TJ', 'TH', 'TL', 'TR', 'TM', 'AE', 'UZ', 'VN', 'YE'],
+    Africa: ['DZ', 'AO', 'BJ', 'BW', 'BF', 'BI', 'CV', 'CM', 'CF', 'TD', 'KM', 'CG', 'CD', 'CI', 'DJ', 'EG', 'GQ', 'ER', 'SZ', 'ET', 'GA', 'GM', 'GH', 'GN', 'GW', 'KE', 'LS', 'LR', 'LY', 'MG', 'MW', 'ML', 'MR', 'MU', 'YT', 'MA', 'MZ', 'NA', 'NE', 'NG', 'RE', 'RW', 'SH', 'ST', 'SN', 'SC', 'SL', 'SO', 'ZA', 'SS', 'SD', 'TZ', 'TG', 'TN', 'UG', 'EH', 'ZM', 'ZW'],
+    'North America': ['AI', 'AG', 'AW', 'BS', 'BB', 'BZ', 'BM', 'BQ', 'VG', 'CA', 'KY', 'CR', 'CU', 'CW', 'DM', 'DO', 'SV', 'GL', 'GD', 'GP', 'GT', 'HT', 'HN', 'JM', 'MQ', 'MX', 'MS', 'NI', 'PA', 'PR', 'BL', 'KN', 'LC', 'MF', 'PM', 'VC', 'SX', 'TT', 'TC', 'US', 'VI'],
+    'South America': ['AR', 'BO', 'BR', 'CL', 'CO', 'EC', 'FK', 'GF', 'GY', 'PY', 'PE', 'SR', 'UY', 'VE'],
+    Oceania: ['AS', 'AU', 'CK', 'FJ', 'PF', 'GU', 'KI', 'MH', 'FM', 'NR', 'NC', 'NZ', 'NU', 'NF', 'MP', 'PW', 'PG', 'PN', 'WS', 'SB', 'TK', 'TO', 'TV', 'VU', 'WF'],
+    Antarctica: ['AQ', 'BV', 'GS', 'HM', 'TF'],
+};
+
+const _codeToContinent: Record<string, string> = (() => {
+    const m: Record<string, string> = {};
+    for (const [cont, codes] of Object.entries(CONTINENT_CODES)) {
+        for (const c of codes) m[c] = cont;
+    }
+    return m;
+})();
+
+/** ISO 3166-1 alpha-2 country code → continent key, or null if unknown. */
+export function countryCodeToContinent(code: string | null | undefined): string | null {
+    if (!code || typeof code !== 'string') return null;
+    return _codeToContinent[code.trim().toUpperCase()] || null;
+}
+
+// English-country-name → continent, built once by walking every code in
+// the continent map through Intl.DisplayNames. Lets legacy trips that only
+// have a free-text `country` ("Paris, France") still land in a continent.
+const _nameToContinent: Record<string, string> = (() => {
+    const m: Record<string, string> = {};
+    if (_isoToEnglish) {
+        for (const code of Object.keys(_codeToContinent)) {
+            try {
+                const name = _isoToEnglish.of(code);
+                if (name) m[name.toLowerCase()] = _codeToContinent[code]!;
+            } catch (_) { /* skip */ }
+        }
+    }
+    // Common colloquial / legacy spellings Intl won't emit verbatim.
+    Object.assign(m, {
+        usa: 'North America', 'united states of america': 'North America',
+        uk: 'Europe', 'great britain': 'Europe', england: 'Europe',
+        scotland: 'Europe', wales: 'Europe', russia: 'Europe',
+        uae: 'Asia', 'south korea': 'Asia', 'north korea': 'Asia',
+    });
+    return m;
+})();
+
+/** Best-effort continent from a free-text place string (legacy trips with
+ *  no ISO code). Walks comma/dash-separated segments back-to-front so the
+ *  trailing country in "City, Region, Country" wins. Null if unresolved. */
+export function countryNameToContinent(name: string | null | undefined): string | null {
+    if (!name) return null;
+    const parts = name.split(',').map((p) => p.trim()).filter(Boolean);
+    for (let i = parts.length - 1; i >= 0; i--) {
+        for (const seg of parts[i]!.split(/\s*-\s*/)) {
+            const hit = _nameToContinent[seg.trim().toLowerCase()];
+            if (hit) return hit;
+        }
+    }
+    return null;
+}
+
 /**
  * Strip postal-code-like leading tokens from a place name. Google's
  * formatted_address often prefixes "8950 Castro Marim, Portugal" — fine for
