@@ -194,7 +194,8 @@ function tripPrimarySpendCurrency(tripId: string): string | null {
     for (const e of STATE.expenses || []) {
         if (e.tripId !== tripId || (e as { isSettlement?: boolean }).isSettlement) continue;
         const cur = ((e.currency || 'EUR') as string).toUpperCase();
-        byCurrency[cur] = (byCurrency[cur] || 0) + (e.euroValue || e.value || 0);
+        // MM-3: `??` so a frozen euroValue of 0 reads €0 (not raw `value`).
+        byCurrency[cur] = (byCurrency[cur] || 0) + (e.euroValue ?? e.value ?? 0);
     }
     let best: string | null = null;
     let bestVal = -1;

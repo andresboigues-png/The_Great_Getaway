@@ -325,7 +325,11 @@ export function computeGlobalBalances() {
     }
 
     for (const exp of allExpenses) {
-        const amount = exp.euroValue || exp.value || 0;
+        // Integration audit MM-3: `??` (not `||`) so a frozen euroValue of 0
+        // reads €0, not the raw foreign `value` — matches computeTripBalances.
+        // Pre-fix a 0-euroValue row read €0 on the per-trip tab but its raw
+        // foreign amount here (cross-trip), e.g. 270000 VND as €270000.
+        const amount = exp.euroValue ?? exp.value ?? 0;
         if (globalBalances[exp.who] !== undefined) globalBalances[exp.who]! += amount;
         if (exp.splits && Object.keys(exp.splits).length > 0) {
             // 2026-05-26 (audit SP1): normalize the split by the ACTUAL

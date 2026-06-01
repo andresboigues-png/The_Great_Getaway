@@ -444,10 +444,11 @@ export function Insights() {
     const netBalances = activeTrip
         ? Object.entries(computeTripBalances(activeTrip).balances)
               .map(([name, eur]) => ({ name, eur: eur as number, home: convertCurrency(eur as number, 'EUR', targetCurr) }))
-              // Integration audit D4: filter on the EUR balance at the SAME
-              // 0.01 epsilon simplifyDebts uses (_ZERO_EPSILON_EUR), so Insights
-              // never shows "owes €0.01" while Settle-up says "all settled".
-              .filter((b) => Math.abs(b.eur) >= 0.01)
+              // Integration audit D4 + MM-6: filter on the EUR balance with the
+              // SAME strict `> 0.01` test simplifyDebts uses (balances.ts
+              // _ZERO_EPSILON_EUR), so Insights never shows "owes €0.01" while
+              // Settle-up says "all settled" — including at exactly €0.01.
+              .filter((b) => Math.abs(b.eur) > 0.01)
               .sort((a, b) => b.home - a.home)
         : [];
 

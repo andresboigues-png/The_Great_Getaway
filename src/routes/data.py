@@ -29,7 +29,7 @@ from helpers import (
     serialize_trip_row,
     unwrap_legacy_plan_text,
 )
-from fx_rates import compute_euro_value
+from fx_rates import compute_euro_value, get_rate_eur
 from validators import (
     ValidationError,
     clean_companions as _clean_companions_raw,
@@ -79,6 +79,19 @@ def _validate_sync_expense(e: dict, user_id: str) -> dict | None:
         euro_value = compute_euro_value(
             value, currency, client_euro_value=client_euro_value,
         )
+        # Integration audit MM-2: mirror the per-row /api/expenses C1 gate
+        # (expenses.py) on the bulk-sync path. A non-EUR currency with no live
+        # rate AND no positive client euroValue can't be converted — pre-fix
+        # it stored euro_value=0 (the client default), which then read three
+        # inconsistent ways downstream. Drop the row (silent-skip contract —
+        # the bulk path can't 400 the whole batch over one bad row), exactly as
+        # the single-row POST refuses it.
+        if (
+            currency != "EUR"
+            and get_rate_eur(currency) is None
+            and not (client_euro_value and client_euro_value > 0)
+        ):
+            return None
         label = clean_text(
             e.get('label', ''), max_len=200, allow_newlines=False,
             field_name="label",

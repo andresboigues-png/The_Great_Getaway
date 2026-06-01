@@ -1588,6 +1588,44 @@ def test_sync_writes_trips_and_expenses(client, seed_user, auth_headers):
     assert any(e["id"] == "exp-sync-1" for e in body["expenses"])
 
 
+def test_sync_skips_uncomputable_no_rate_currency_expense(client, seed_user, auth_headers):
+    """Integration audit MM-2: the bulk /api/sync path mirrors the per-row
+    /api/expenses C1 gate. A non-EUR currency with NO live rate AND no positive
+    euroValue can't be converted, so the row is DROPPED (silent-skip — the bulk
+    path can't 400 the whole batch over one bad row). A VND row WITH an explicit
+    positive euroValue still syncs. Pre-fix the no-euroValue row stored
+    euro_value=0, which then read inconsistently across surfaces."""
+    import fx_rates
+    fx_rates._cache = {"EUR": 1.0}  # VND deliberately rate-less
+    fx_rates._cache_set_at = __import__('time').time()
+    try:
+        res = client.post("/api/sync", headers=auth_headers, json={
+            "trips": [{"id": "trip-mm2", "name": "Hanoi", "country": "Vietnam"}],
+            "expenses": [
+                {   # no rate + no euroValue → must be SKIPPED
+                    "id": "exp-mm2-skip", "tripId": "trip-mm2", "who": "Me",
+                    "value": 270000, "currency": "VND",
+                    "label": "Pho", "date": "2026-05-12",
+                },
+                {   # no rate but explicit positive euroValue → kept verbatim
+                    "id": "exp-mm2-keep", "tripId": "trip-mm2", "who": "Me",
+                    "value": 270000, "currency": "VND", "euroValue": 9.5,
+                    "label": "Pho 2", "date": "2026-05-12",
+                },
+            ],
+        })
+        assert res.status_code == 200, res.get_data(as_text=True)
+        body = client.get("/api/data", headers=auth_headers).get_json()
+        ids = {e["id"] for e in body["expenses"]}
+        assert "exp-mm2-skip" not in ids, "no-rate/no-euroValue row should be dropped"
+        kept = [e for e in body["expenses"] if e["id"] == "exp-mm2-keep"]
+        assert len(kept) == 1, "the row with an explicit euroValue should sync"
+        assert kept[0]["euroValue"] == 9.5
+    finally:
+        fx_rates._cache = {}
+        fx_rates._cache_set_at = 0.0
+
+
 def test_sync_rejects_trip_in_both_active_and_archived_lists(
     client, seed_user, auth_headers,
 ):
