@@ -44,13 +44,14 @@ to rate-backed codes) is well-built. The net-new issues:
    Kept as a latent code-fragility note, not a blocker.
 
 3. **A cluster of currency-coverage + brand-new-feature edges** (below) — none
-   data-losing, several user-visible (Medium): over-settlement has no server
-   guard (MK3-12), expense double-submit duplicates (MK3-13), grouped-Collections
-   discoverability (MK3-5), `/api/data` ships everything each poll (MK3-10), etc.
+   data-losing, several user-visible (Medium): expense double-submit duplicates
+   (MK3-13, **fixed**), grouped-Collections discoverability (MK3-5), refund
+   balances unlabeled (MK3-9), `/api/data` ships everything each poll (MK3-10).
 
-Headline: MK3-1 is fixed. Remaining launch-relevant items are Medium — most
-impactful are MK3-12 (server-side over-settlement guard) and MK3-13 (expense
-double-submit guard).
+Headline: MK3-1 (High) and MK3-13 (Med) are **fixed + pushed**. MK3-7 and
+MK3-12 were both **downgraded on verification** (not reachable / already
+mitigated + recoverable). The remaining open items are all Medium-or-lower UX /
+scale polish — no launch blockers left open.
 
 ---
 
@@ -166,27 +167,35 @@ double-submit guard).
 - **Fix:** Adopt the "canonical settlement currency + as-of date" the MK2 UX list
   already proposed; show the rate/date used so the number is explainable.
 
-### MK3-12 · Medium · Concurrency / Financial logic
+### MK3-12 · ~~Medium~~ → **Low–Medium** · Concurrency / Financial logic
 
-**Over-settlement has no server-side guard; the only check is a client confirm that doesn't compose across devices.**
+**Cross-device concurrent settlement of the same pairwise debt can over-settle — but it's bounded and recoverable; same-device double-fire is already guarded.**
 
-- **Where:** `settlements.py:137-229` (validation checks amount is finite, ≥0.01,
-  ≤1e9 — but **never** against what's actually owed); client warn
-  `legacyRender.ts:1026`; per-browser in-flight dedup `legacyRender.ts:807`; the
-  15 s poll `main.ts:233`.
-- **What:** `create_settlement` accepts any positive amount regardless of the
-  outstanding debt. The manual modal warns when `amount > owed`, but it's a
-  bypassable client confirm and the in-flight key is per-browser. Two
-  co-travellers settling the same debt — or one settling again before the 15 s
-  poll syncs the first — create two rows that both apply, over-clearing or
-  inverting the balance **silently**.
-- **Why it matters:** Group settlement is inherently multi-device; "we both hit
-  settle" is a normal event. (Distinct from MK2's single-payer overpayment: this
-  is the concurrency/again-settle variant, which the client-only guard can't
-  catch.)
-- **Fix:** Server-side check against the current computed outstanding (reject or
-  flag amounts exceeding the debt by > epsilon), and/or a short server dedup
-  window on `(tripId, fromUserId, toUserId, amount)`.
+> **CORRECTION (2026-06-01, during implementation):** my first framing ("no
+> server guard") was wrong, and a dedup-window fix I tried was **reverted** — it
+> false-positived on two _legitimate_ equal partial payments (caught by
+> `test_settlement_cap_blocks_partial_payment_sequence_overpay`). Accurate
+> picture below.
+
+- **Already mitigated:**
+    - **Server cap** — `create_settlement` (`settlements.py:280-315`, BUG-24/B2/B3)
+      bounds cumulative F→to by **total trip spend minus prior F→to settlements**,
+      so it can't catastrophically invert; zero-spend trips have a sanity ceiling.
+    - **Same-device double-fire** — quick-settle disables its button 1.5 s
+      (`Settlement.tsx:148`); the manual modal calls `close()` synchronously on
+      submit, so the form is gone before a second click. So a single user
+      double-tapping does **not** duplicate.
+- **Residual (the real gap):** the cap is grounded in _total spend_, not the
+  _true pairwise debt_. So two co-travellers who **independently** settle the
+  same €50 debt (each ≤ total spend) both succeed → that debt is paid ~twice.
+  It's **silent**, but **bounded** (≤ total spend) and **recoverable** (two
+  "settled up" rows appear; delete one). Severity Low–Medium, not High.
+- **Proper fix (B, deliberate, deferred):** a server-side check against the
+  _computed pairwise outstanding_. This is the piece the codebase intentionally
+  left on the client (`_pairwiseOwed`) because replicating the name-based split
+  engine in Python risks **false-rejecting legitimate settlements** — worse than
+  the bug. Worth doing carefully (unit-tested against the client math), not as a
+  quick patch. **No fix shipped this pass** (the quick dedup was unsound).
 
 ### MK3-10 · Medium (High at scale) · Performance
 
@@ -356,21 +365,21 @@ want belt-and-suspenders before fixing).
 
 Effort: XS (<1h) · S (≤½day) · M (~1–2 days) · L (multi-day).
 
-| #   | Finding                                           | Fix                                              | User impact | Business impact               | Effort |
-| --- | ------------------------------------------------- | ------------------------------------------------ | ----------- | ----------------------------- | ------ |
-| ✅  | **MK3-1** Maps-down blocks all trip creation      | Country `<select>` fallback — **DONE (f2b964f)** | High        | **High** (lost signups/trips) | S      |
-| 1   | **MK3-12** Over-settlement: no server guard, racy | Server outstanding-check + dedup window          | Med–High    | **High** (wrong money)        | M      |
-| ✅  | **MK3-13** Expense double-submit → duplicates     | In-flight guard — **DONE (09a619e)**             | Med         | Med                           | S      |
-| 3   | **MK3-9** Refund balances unlabeled               | Label "refund owed" + link history               | Med         | Med                           | S      |
-| 4   | **MK3-5** Grouped Collections hides single trips  | Total count + persist group-by + visible search  | Med         | Med                           | S      |
-| 5   | **MK3-4** "By year" dumps undated trips to Other  | `tripYear` falls back to `dateFrom`              | Med         | Low                           | S      |
-| 6   | **MK3-8** Settlement FX-drift not explained       | Canonical currency + as-of date/rate             | Med         | Med                           | M      |
-| 7   | **MK3-10** `/api/data` ships everything each poll | Incremental sync / pagination                    | Med (grows) | **High** (scale/cost)         | L      |
-| 8   | **MK3-11** O(trips×expenses) balance recompute    | Memoize on store version                         | Low         | Low                           | S      |
-| 9   | **MK3-2** 5 ISO territories missing from map      | Add the 5 codes                                  | Low         | Low                           | XS     |
-| 10  | **MK3-6** Year-album gradient collisions          | Index by sorted position                         | Low         | Low                           | XS     |
-| 11  | **MK3-3** Turkey/Caucasus → "Asia"                | Decide scheme; flag transcontinental             | Low         | Low                           | XS     |
-| —   | **MK3-7** No-rate settlement 1:1 (latent)         | Optional defensive `hasRate` guard               | —           | latent                        | XS     |
+| #   | Finding                                                    | Fix                                                              | User impact | Business impact               | Effort |
+| --- | ---------------------------------------------------------- | ---------------------------------------------------------------- | ----------- | ----------------------------- | ------ |
+| ✅  | **MK3-1** Maps-down blocks all trip creation               | Country `<select>` fallback — **DONE (f2b964f)**                 | High        | **High** (lost signups/trips) | S      |
+| ✅  | **MK3-13** Expense double-submit → duplicates              | In-flight guard — **DONE (09a619e)**                             | Med         | Med                           | S      |
+| 1   | **MK3-9** Refund balances unlabeled                        | Label "refund owed" + link history                               | Med         | Med                           | S      |
+| 2   | **MK3-5** Grouped Collections hides single trips           | Total count + persist group-by + visible search                  | Med         | Med                           | S      |
+| 3   | **MK3-4** "By year" dumps undated trips to Other           | `tripYear` falls back to `dateFrom`                              | Med         | Low                           | S      |
+| 4   | **MK3-8** Settlement FX-drift not explained                | Canonical currency + as-of date/rate                             | Med         | Med                           | M      |
+| 5   | **MK3-10** `/api/data` ships everything each poll          | Incremental sync / pagination                                    | Med (grows) | **High** (scale/cost)         | L      |
+| 6   | **MK3-11** O(trips×expenses) balance recompute             | Memoize on store version                                         | Low         | Low                           | S      |
+| 7   | **MK3-2** 5 ISO territories missing from map               | Add the 5 codes                                                  | Low         | Low                           | XS     |
+| 8   | **MK3-6** Year-album gradient collisions                   | Index by sorted position                                         | Low         | Low                           | XS     |
+| 9   | **MK3-3** Turkey/Caucasus → "Asia"                         | Decide scheme; flag transcontinental                             | Low         | Low                           | XS     |
+| ⏸   | **MK3-12** Cross-device over-settle (bounded, recoverable) | Server pairwise-outstanding check — deferred (false-reject risk) | Low–Med     | Med                           | M–L    |
+| —   | **MK3-7** No-rate settlement 1:1 (latent)                  | Optional defensive `hasRate` guard                               | —           | latent                        | XS     |
 
 **Suggested fix order for launch:** MK3-1 ✅ done. Next #1 (MK3-12 server
 over-settlement guard) + #2 (MK3-13 double-submit) for money correctness, then
