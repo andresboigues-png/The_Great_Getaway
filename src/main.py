@@ -270,7 +270,13 @@ attach_request_context(app, current_user_id)
 #     - *.googleapis.com:    Maps, Weather, Routes, Generative
 #                            Language (Gemini), Time Zone APIs
 #     - accounts.google.com: token exchange / signing
-#     - api.frankfurter.app: currency rates
+#     - api.frankfurter.app + api.frankfurter.dev: currency rates.
+#       Frankfurter migrated .app -> .dev/v1 (the .app host now 301s);
+#       we keep BOTH whitelisted so a direct .dev fetch AND any stray
+#       .app->.dev redirect both pass CSP (the browser re-checks CSP on
+#       the redirect target).
+#     - api.worldbank.org: annual CPI (FP.CPI.TOTL) for the Insights
+#       "Worth today" inflation calc, fetched browser-direct.
 #     - *.sentry.io / *.ingest.sentry.io: Sentry telemetry endpoint
 #     - raw.githubusercontent.com: natural-earth GeoJSON country
 #       outlines for the FootprintMap on the profile (fetched once
@@ -467,6 +473,8 @@ def add_security_headers(response):
                 "https://accounts.google.com "
                 "https://*.googleapis.com "
                 "https://api.frankfurter.app "
+                "https://api.frankfurter.dev "
+                "https://api.worldbank.org "
                 "https://raw.githubusercontent.com "
                 "https://*.sentry.io "
                 "https://*.ingest.sentry.io"

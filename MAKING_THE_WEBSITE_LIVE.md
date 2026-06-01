@@ -89,7 +89,9 @@ directly without a volume mount. Easiest deploy of the three.
     - `generativelanguage.googleapis.com` (Gemini)
     - `maps.googleapis.com` (Maps API loaded in the browser, less
       relevant here)
-    - `api.frankfurter.app` (currency rates)
+    - `api.frankfurter.dev` (currency rates; was `api.frankfurter.app`,
+      which now 301-redirects to `.dev/v1`)
+    - `api.worldbank.org` (annual CPI for the Insights inflation calc)
 
 If any of those are NOT allowlisted, the relevant feature breaks. The
 fix is upgrading to the paid tier.

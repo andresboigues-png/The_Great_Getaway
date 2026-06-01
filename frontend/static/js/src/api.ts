@@ -1719,7 +1719,11 @@ export async function fetchHistoricalRates(dates: string[]) {
     // (≈ 13 currencies × 365 days = one trip-year's worth).
     const CACHE_MAX = 5000;
     try {
-        const url = `https://api.frankfurter.app/${start}..${end}`;
+        // Frankfurter migrated api.frankfurter.app -> api.frankfurter.dev/v1
+        // (the .app host now 301-redirects). The browser re-checks CSP on a
+        // redirect target, so we hit the canonical .dev/v1 URL directly.
+        // Same response shape: { rates: { "YYYY-MM-DD": { CUR: rate } } }.
+        const url = `https://api.frankfurter.dev/v1/${start}..${end}`;
         const sig = currentNavSignal();
         const resp = await fetch(url, sig ? { signal: sig } : {});
         if (!resp.ok) {
@@ -1734,21 +1738,30 @@ export async function fetchHistoricalRates(dates: string[]) {
         }
         const data: { rates: Record<string, Record<string, number>> } = await resp.json();
         // data.rates is { "YYYY-MM-DD": { "USD": 1.1, ... } }
+        // Build a NEW cache object instead of mutating in place. Consumers
+        // (e.g. Insights) read rateCache through a useStore selector and
+        // memoize derived totals on its REFERENCE; an in-place mutation
+        // leaves the reference unchanged, so the useMemo wouldn't recompute
+        // when these async rates land — the page would keep showing the
+        // pre-fetch values until an unrelated re-render. Replacing the
+        // reference makes the very next render pick the new rates up.
+        const nextRateCache: Record<string, number> = { ...STATE.rateCache };
         Object.entries(data.rates).forEach(([date, rates]) => {
             Object.entries(rates).forEach(([curr, rate]) => {
-                STATE.rateCache[`${date}_${curr}_EUR`] = 1 / rate;
+                nextRateCache[`${date}_${curr}_EUR`] = 1 / rate;
             });
         });
         // Trim the cache if it grew past the cap. Pure-string keys
         // sort lexicographically by date prefix so the oldest entries
         // drop first.
-        const keys = Object.keys(STATE.rateCache);
+        const keys = Object.keys(nextRateCache);
         if (keys.length > CACHE_MAX) {
             keys.sort();
             for (const k of keys.slice(0, keys.length - CACHE_MAX)) {
-                delete STATE.rateCache[k];
+                delete nextRateCache[k];
             }
         }
+        STATE.rateCache = nextRateCache;
         emit(EVENTS.STATE_CHANGED);
     } catch (e: any) {
         // AbortError = user navigated away mid-fetch; not a failure.
@@ -1787,7 +1800,12 @@ export async function fetchCpiSeries(currency: string): Promise<void> {
             if (Number.isFinite(y) && typeof v === 'number' && v > 0) series[y] = v;
         }
         if (Object.keys(series).length > 0) {
-            STATE.cpiCache[cur] = series;
+            // Replace the reference (don't mutate in place): the Insights
+            // useMemo deps on cpiCache BY REFERENCE, so a mutation wouldn't
+            // trigger a recompute when this async series lands — "Worth
+            // today" would keep showing un-inflated values until the user
+            // toggled. A new object makes the next render recompute.
+            STATE.cpiCache = { ...STATE.cpiCache, [cur]: series };
             emit(EVENTS.STATE_CHANGED);
         }
     } catch (e: any) {

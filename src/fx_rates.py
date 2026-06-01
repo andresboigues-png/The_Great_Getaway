@@ -52,7 +52,10 @@ _TTL_SECONDS = 24 * 60 * 60
 # Frankfurter's "latest" endpoint returns 1 EUR = N <currency>. We
 # need the inverse (1 currency = M EUR). The transform happens in
 # `_refresh` so callers get the pre-transformed dict.
-_FRANKFURTER_LATEST = "https://api.frankfurter.app/latest?from=EUR"
+# Frankfurter migrated api.frankfurter.app -> api.frankfurter.dev/v1
+# (the .app host now 301-redirects); we hit the canonical .dev/v1 URL
+# directly. Same JSON shape ({ "rates": { CUR: rate } }).
+_FRANKFURTER_LATEST = "https://api.frankfurter.dev/v1/latest?from=EUR"
 
 # Module-private cache.
 _cache: dict[str, Optional[float]] = {}
