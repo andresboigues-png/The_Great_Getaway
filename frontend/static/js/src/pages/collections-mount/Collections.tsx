@@ -416,6 +416,16 @@ export function Collections() {
                             <span className="text-secondary font-bold text-[0.85rem]">
                                 {t('collections.albumTripCount', { count: openAlbum.trips.length })}
                             </span>
+                            {/* MK3-3: country flags disambiguate the continent
+                                (e.g. a Türkiye trip under "Asia"). */}
+                            {(() => {
+                                const flags = Array.from(new Set(
+                                    openAlbum.trips.map((tr) => countryCodeToFlag(tr.countryCode)).filter(Boolean),
+                                )).slice(0, 8);
+                                return flags.length > 0
+                                    ? <span className="text-[0.95rem] tracking-[1px]">{flags.join(' ')}</span>
+                                    : null;
+                            })()}
                         </h2>
                         <div className="grid-2 mt-4">
                             {openAlbum.trips.map((trip) => <ArchivedCard key={trip.id} trip={trip} />)}
