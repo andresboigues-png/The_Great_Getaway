@@ -376,7 +376,7 @@ Effort: XS (<1h) · S (≤½day) · M (~1–2 days) · L (multi-day).
 | 1   | **MK3-8** Settlement FX-drift not explained                | Canonical currency + as-of date/rate (design)               | Med         | Med              | M      |
 | 2   | **MK3-10** `/api/data` ships everything each poll          | Incremental sync / pagination (architectural)               | Med (grows) | **High** (scale) | L      |
 | 3   | **MK3-11** O(trips×expenses) balance recompute             | Memoize — do alongside MK3-10                               | Low         | Low              | S      |
-| 🤔  | **MK3-3** Turkey/Caucasus → "Asia"                         | Product decision — your call                                | Low         | Low              | XS     |
+| ✅  | **MK3-3** Turkey/Caucasus → "Asia"                         | Kept UN scheme + drill-in flags — **DONE (2befb79)**        | Low         | Low              | XS     |
 | ⏸   | **MK3-9** Refund balances unlabeled                        | Won't-fix cleanly (math is correct; label needs provenance) | Med         | Med              | —      |
 | ⏸   | **MK3-12** Cross-device over-settle (bounded, recoverable) | Server pairwise check — deferred (false-reject risk)        | Low–Med     | Med              | M–L    |
 | —   | **MK3-7** No-rate settlement 1:1 (latent)                  | Optional defensive `hasRate` guard                          | —           | latent           | XS     |
