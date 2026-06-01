@@ -365,23 +365,27 @@ want belt-and-suspenders before fixing).
 
 Effort: XS (<1h) · S (≤½day) · M (~1–2 days) · L (multi-day).
 
-| #   | Finding                                                    | Fix                                                              | User impact | Business impact               | Effort |
-| --- | ---------------------------------------------------------- | ---------------------------------------------------------------- | ----------- | ----------------------------- | ------ |
-| ✅  | **MK3-1** Maps-down blocks all trip creation               | Country `<select>` fallback — **DONE (f2b964f)**                 | High        | **High** (lost signups/trips) | S      |
-| ✅  | **MK3-13** Expense double-submit → duplicates              | In-flight guard — **DONE (09a619e)**                             | Med         | Med                           | S      |
-| 1   | **MK3-9** Refund balances unlabeled                        | Label "refund owed" + link history                               | Med         | Med                           | S      |
-| 2   | **MK3-5** Grouped Collections hides single trips           | Total count + persist group-by + visible search                  | Med         | Med                           | S      |
-| 3   | **MK3-4** "By year" dumps undated trips to Other           | `tripYear` falls back to `dateFrom`                              | Med         | Low                           | S      |
-| 4   | **MK3-8** Settlement FX-drift not explained                | Canonical currency + as-of date/rate                             | Med         | Med                           | M      |
-| 5   | **MK3-10** `/api/data` ships everything each poll          | Incremental sync / pagination                                    | Med (grows) | **High** (scale/cost)         | L      |
-| 6   | **MK3-11** O(trips×expenses) balance recompute             | Memoize on store version                                         | Low         | Low                           | S      |
-| 7   | **MK3-2** 5 ISO territories missing from map               | Add the 5 codes                                                  | Low         | Low                           | XS     |
-| 8   | **MK3-6** Year-album gradient collisions                   | Index by sorted position                                         | Low         | Low                           | XS     |
-| 9   | **MK3-3** Turkey/Caucasus → "Asia"                         | Decide scheme; flag transcontinental                             | Low         | Low                           | XS     |
-| ⏸   | **MK3-12** Cross-device over-settle (bounded, recoverable) | Server pairwise-outstanding check — deferred (false-reject risk) | Low–Med     | Med                           | M–L    |
-| —   | **MK3-7** No-rate settlement 1:1 (latent)                  | Optional defensive `hasRate` guard                               | —           | latent                        | XS     |
+| #   | Finding                                                    | Fix                                                         | User impact | Business impact  | Effort |
+| --- | ---------------------------------------------------------- | ----------------------------------------------------------- | ----------- | ---------------- | ------ |
+| ✅  | **MK3-1** Maps-down blocks all trip creation               | Country `<select>` fallback — **DONE (f2b964f)**            | High        | **High**         | S      |
+| ✅  | **MK3-13** Expense double-submit → duplicates              | In-flight guard — **DONE (09a619e)**                        | Med         | Med              | S      |
+| ✅  | **MK3-4** "By year" dumps undated trips to Other           | `tripYear` → `dateFrom` — **DONE (b26f724)**                | Med         | Low              | S      |
+| ✅  | **MK3-5** Grouped Collections discoverability              | Sticky group-by (localStorage) — **DONE (b26f724)**         | Med         | Med              | S      |
+| ✅  | **MK3-2** ISO territories missing from map                 | Full ISO coverage (250) — **DONE (b26f724)**                | Low         | Low              | XS     |
+| ✅  | **MK3-6** Year-album gradient collisions                   | Index by year value — **DONE (b26f724)**                    | Low         | Low              | XS     |
+| 1   | **MK3-8** Settlement FX-drift not explained                | Canonical currency + as-of date/rate (design)               | Med         | Med              | M      |
+| 2   | **MK3-10** `/api/data` ships everything each poll          | Incremental sync / pagination (architectural)               | Med (grows) | **High** (scale) | L      |
+| 3   | **MK3-11** O(trips×expenses) balance recompute             | Memoize — do alongside MK3-10                               | Low         | Low              | S      |
+| 🤔  | **MK3-3** Turkey/Caucasus → "Asia"                         | Product decision — your call                                | Low         | Low              | XS     |
+| ⏸   | **MK3-9** Refund balances unlabeled                        | Won't-fix cleanly (math is correct; label needs provenance) | Med         | Med              | —      |
+| ⏸   | **MK3-12** Cross-device over-settle (bounded, recoverable) | Server pairwise check — deferred (false-reject risk)        | Low–Med     | Med              | M–L    |
+| —   | **MK3-7** No-rate settlement 1:1 (latent)                  | Optional defensive `hasRate` guard                          | —           | latent           | XS     |
 
-**Suggested fix order for launch:** MK3-1 ✅ done. Next #1 (MK3-12 server
-over-settlement guard) + #2 (MK3-13 double-submit) for money correctness, then
-#3–#5 (the just-shipped UX gaps), then #7 before real scale, then the XS
-cleanups.
+**Status:** 6 fixes shipped (MK3-1, MK3-13, MK3-4, MK3-5, MK3-2, MK3-6). MK3-7 +
+MK3-12 downgraded on verification (not reachable / already-mitigated +
+recoverable). MK3-9 won't-fix cleanly (the math is correct; a "refund" label
+needs provenance the balance model doesn't track). **What's left needs a
+decision or a larger deliberate effort, not a quick patch:** MK3-8 (canonical
+settlement currency + as-of basis — design), MK3-10 (incremental sync —
+architectural; fold MK3-11 memoization into it), MK3-3 (Turkey/Caucasus
+continent scheme — your product call).
