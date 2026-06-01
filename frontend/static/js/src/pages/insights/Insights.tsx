@@ -26,6 +26,8 @@ import { convertCurrency } from '../../utils/currency.js';
 import { fetchHistoricalRates, fetchCpiSeries } from '../../api.js';
 import { getIntlLocale, formatNumber, formatNumberForCurrency, formatCurrency } from '../../i18n.js';
 import { getHomeCurrency, currencySymbol } from '../../utils.js';
+import { computeTripBalances } from '../settlement/balances.js';
+import { budgetStatus, budgetTitle } from '../budgets/helpers.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Expense, Category } from '../../types';
 import { t } from '../../i18n.js';
@@ -388,12 +390,56 @@ export function Insights() {
     const pieLabels: string[] = [];
     const pieData: number[] = [];
     const pieColors: string[] = [];
-    Object.keys(catTotals).forEach((catId) => {
+    // Cap the donut at the top categories + an aggregated "Other" slice —
+    // a 50-slice ring with an overflowing legend is unreadable (audit).
+    const _catSorted = Object.keys(catTotals)
+        .map((catId) => ({ catId, total: catTotals[catId] ?? 0 }))
+        .sort((a, b) => b.total - a.total);
+    const _CAT_TOP_N = 7;
+    _catSorted.slice(0, _CAT_TOP_N).forEach(({ catId, total }) => {
         const cat = findCategory(catId);
         pieLabels.push(cat ? `${cat.icon} ${cat.name}` : t('insights.unknownCategory'));
         pieColors.push(cat ? cat.color : '#ccc');
-        pieData.push(catTotals[catId] ?? 0);
+        pieData.push(total);
     });
+    const _catRest = _catSorted.slice(_CAT_TOP_N);
+    if (_catRest.length > 0) {
+        pieLabels.push(t('insights.otherCategories'));
+        pieColors.push('#8e8e93');
+        pieData.push(_catRest.reduce((s, c) => s + c.total, 0));
+    }
+
+    // Daily-average denominator: count only real trip days (a valid date
+    // <= today). Empty-date + far-future buckets shouldn't dilute it (audit).
+    const _todayIso = new Date().toISOString().slice(0, 10);
+    const validDayCount = Object.keys(dateTotals).filter(
+        (d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= _todayIso,
+    ).length || 1;
+
+    // Net balances (who owes whom) — reuses the settlement engine (splits +
+    // settlements), shown in the home currency. Hidden when everyone's even.
+    const activeTrip = STATE.trips.find((tr: any) => tr.id === activeTripId);
+    const netBalances = activeTrip
+        ? Object.entries(computeTripBalances(activeTrip).balances)
+              .map(([name, eur]) => ({ name, home: convertCurrency(eur as number, 'EUR', targetCurr) }))
+              .filter((b) => Math.abs(b.home) >= 0.005)
+              .sort((a, b) => b.home - a.home)
+        : [];
+
+    // Budget vs. spent — planned (EUR canonical) vs actual spend per budget
+    // scope, both shown in the home currency. Reuses the budgets helpers.
+    const tripBudgets = (STATE.budgets || [])
+        .filter((b: any) => b.tripId === activeTripId || b.tripId === 'all')
+        .map((b: any) => {
+            const stat = budgetStatus(b);
+            return {
+                title: budgetTitle(b),
+                spentHome: convertCurrency(stat.spent, 'EUR', targetCurr),
+                targetHome: convertCurrency(stat.target, 'EUR', targetCurr),
+                pct: stat.pct,
+                color: stat.color,
+            };
+        });
 
     // ── Currency breakdown data ───────────────────────────────────────
     // The currency story only appears when the trip involved spend
@@ -779,6 +825,48 @@ export function Insights() {
                 </div>
             ) : null}
 
+            {/* Budget vs. spent — only when the trip has budgets. */}
+            {tripBudgets.length > 0 ? (
+                <div className="card glass in-card-pad-28 mb-8">
+                    <h2 className="card-title">{t('insights.budgetVsActualTitle')}</h2>
+                    <p className="text-secondary text-[0.85rem] mt-1 mb-5">{t('insights.budgetVsActualSub')}</p>
+                    <div className="flex flex-col gap-4">
+                        {tripBudgets.map((b, i) => (
+                            <div key={i}>
+                                <div className="flex justify-between items-baseline mb-1.5 gap-3">
+                                    <span className="font-bold text-[0.9rem]">{b.title}</span>
+                                    <span className="text-[0.85rem] whitespace-nowrap" style={{ fontWeight: 700 }}>
+                                        <span style={{ color: b.color }}>{targetSym}{formatNumberForCurrency(b.spentHome, targetCurr)}</span>
+                                        <span className="text-secondary font-normal"> / {targetSym}{formatNumberForCurrency(b.targetHome, targetCurr)}</span>
+                                    </span>
+                                </div>
+                                <div style={{ height: 8, borderRadius: 999, background: 'rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', width: `${Math.min(b.pct, 100)}%`, background: b.color, borderRadius: 999, transition: 'width 0.3s ease' }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : null}
+
+            {/* Net balances — who owes whom (after splits + settlements). */}
+            {netBalances.length > 0 ? (
+                <div className="card glass in-card-pad-28 mb-8">
+                    <h2 className="card-title">{t('insights.netBalanceTitle')}</h2>
+                    <p className="text-secondary text-[0.85rem] mt-1 mb-5">{t('insights.netBalanceSub')}</p>
+                    <div className="flex flex-col gap-2">
+                        {netBalances.map((b) => (
+                            <div className="flex items-center gap-2" key={b.name}>
+                                <span className="font-extrabold">{b.name}</span>
+                                <span className="ml-auto font-bold text-[0.9rem]" style={{ color: b.home >= 0 ? '#34c759' : '#ff3b30' }}>
+                                    {b.home >= 0 ? t('insights.balanceGetsBack') : t('insights.balanceOwes')} {targetSym}{formatNumberForCurrency(Math.abs(b.home), targetCurr)}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : null}
+
             {/* Summary Grid */}
             <div
                 className="grid-2 grid-cols-2 mb-8"
@@ -787,7 +875,7 @@ export function Insights() {
                     <h2 className="card-title metric-label">{t('insights.avgDaily')}</h2>
                     <h1 className="metric-value">
                         {targetSym}
-                        {formatNumberForCurrency(totalDisplay / (Object.keys(dateTotals).length || 1), targetCurr)}
+                        {formatNumberForCurrency(totalDisplay / validDayCount, targetCurr)}
                         <small
                             className="text-[length:var(--font-lg)] font-normal text-secondary ml-2"
                         >

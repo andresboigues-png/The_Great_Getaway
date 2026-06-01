@@ -545,6 +545,8 @@ export function ManualTab() {
                             type="date"
                             className="glass-input-light"
                             required
+                            min="2000-01-01"
+                            max={new Date().toISOString().slice(0, 10)}
                             defaultValue={STATE.draftExpense?.date || ''}
                             onChange={(e) => draft('date', e.target.value)}
                         />

@@ -680,6 +680,13 @@ export const en = {
         currencyBreakdownSub: 'What you actually paid in each currency, and its share of the trip in your home currency.',
         currencyTimelineTitle: 'Currency mix over time',
         currencyTimelineSub: 'How your spend split across currencies as the trip went on.',
+        otherCategories: 'Other',
+        budgetVsActualTitle: 'Budget vs. spent',
+        budgetVsActualSub: 'How your spending tracks against your trip budgets.',
+        netBalanceTitle: 'Who owes whom',
+        netBalanceSub: 'Net balance per person after splits and settlements.',
+        balanceGetsBack: 'gets back',
+        balanceOwes: 'owes',
         // Hero stat card.
         heroTitle: 'Total Spent on your trip',
         heroSubText: 'Spent across <strong>{count}</strong> transactions during your travels.',
