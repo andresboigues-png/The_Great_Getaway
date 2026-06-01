@@ -90,11 +90,21 @@ def upsert_trip():
         cursor = conn.cursor()
         # Existing trip? Gate on planner role (owner counts as planner).
         cursor.execute(
-            "SELECT user_id, updated_at FROM trips WHERE id = ?", (t["id"],),
+            "SELECT user_id, updated_at, is_public, public_show_expenses "
+            "FROM trips WHERE id = ?", (t["id"],),
         )
         existing = cursor.fetchone()
         if existing and not can_edit_trip(cursor, t["id"], user_id):
             return jsonify({"error": "Forbidden"}), 403
+        # BUG-35 (MK2 audit): is_public / public_show_expenses are an
+        # OWNER-only privacy decision. A non-owner planner may edit the
+        # trip's name + itinerary, but must NOT publish it (or expose its
+        # spend) to the whole internet. Pin both flags to their stored
+        # values when a non-owner edits an existing trip, so the upsert
+        # below can't change them.
+        if existing and existing["user_id"] != user_id:
+            t["isPublic"] = bool(existing["is_public"])
+            t["publicShowExpenses"] = bool(existing["public_show_expenses"])
         # R11-B5: per-user daily trip-CREATE cap. Edits don't count
         # (an existing row → just upsert). Pre-fix `Limiter` keyed on
         # IP gave a logged-in spammer 60 new trips/min indefinitely

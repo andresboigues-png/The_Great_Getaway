@@ -279,7 +279,10 @@ def sync_data():
         # through. New trip rows (no existing row) make the caller
         # the owner via the INSERT path.
         for t in trips:
-            cursor.execute("SELECT user_id FROM trips WHERE id = ?", (t["id"],))
+            cursor.execute(
+                "SELECT user_id, is_public, public_show_expenses "
+                "FROM trips WHERE id = ?", (t["id"],),
+            )
             existing = cursor.fetchone()
             # R5-B4: set lookup instead of can_edit_trip's 2-query call.
             if existing and t['id'] not in editable_trip_ids:
@@ -287,6 +290,13 @@ def sync_data():
                 # rather than 403 the whole batch (preserves partial sync
                 # of legitimately-editable rows).
                 continue
+            # BUG-35 (MK2 audit): publicness is owner-only. A non-owner
+            # planner may sync the trip's name/itinerary but must not flip
+            # is_public / public_show_expenses. Pin both to the stored
+            # values when the syncing user isn't the owner.
+            if existing and existing["user_id"] != user_id:
+                t["isPublic"] = bool(existing["is_public"])
+                t["publicShowExpenses"] = bool(existing["public_show_expenses"])
 
             # ── trip_countries_json (§4.3) — normalize before persist
             # Client may send either `countries` (top-level array we
@@ -407,11 +417,18 @@ def sync_data():
         # trips block (FIXING_ROADMAP §1.10).
         archived_trips = data.get("archived_trips", [])
         for t in archived_trips:
-            cursor.execute("SELECT user_id FROM trips WHERE id = ?", (t["id"],))
+            cursor.execute(
+                "SELECT user_id, is_public, public_show_expenses "
+                "FROM trips WHERE id = ?", (t["id"],),
+            )
             existing = cursor.fetchone()
             # R5-B4: set lookup instead of can_edit_trip's 2-query call.
             if existing and t['id'] not in editable_trip_ids:
                 continue
+            # BUG-35: publicness is owner-only (see the active-trips loop).
+            if existing and existing["user_id"] != user_id:
+                t["isPublic"] = bool(existing["is_public"])
+                t["publicShowExpenses"] = bool(existing["public_show_expenses"])
 
             # Same trip_countries_json normalization as the active path.
             arch_countries_raw = t.get('countries')

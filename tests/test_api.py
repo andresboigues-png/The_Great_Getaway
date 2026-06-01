@@ -205,6 +205,41 @@ def test_upsert_trip_rejects_non_planner_edit(
     assert res.status_code == 403
 
 
+def test_trip_isPublic_is_owner_only(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """BUG-35 (MK2 audit): is_public is an OWNER-only privacy decision. A
+    non-owner PLANNER may edit the trip's name, but their isPublic value
+    is pinned to the stored one — they can't publish someone else's trip.
+    The owner still can."""
+    from database import get_db
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-pub", "name": "Tuscany"},
+    })  # private by default
+    _seed_member("trip-pub", seed_other_user, role="planner")
+    # Non-owner planner edits the name AND tries to publish.
+    res = client.post("/api/trips", headers=other_auth_headers, json={
+        "trip": {"id": "trip-pub", "name": "Renamed", "isPublic": True},
+    })
+    assert res.status_code in (200, 409), res.get_data(as_text=True)
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT is_public FROM trips WHERE id = ?", ("trip-pub",),
+        ).fetchone()
+    assert row["is_public"] == 0, \
+        "a non-owner planner must NOT be able to publish the trip (BUG-35)"
+    # Owner CAN publish.
+    pub = client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-pub", "name": "Tuscany", "isPublic": True},
+    })
+    assert pub.status_code == 200, pub.get_data(as_text=True)
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT is_public FROM trips WHERE id = ?", ("trip-pub",),
+        ).fetchone()
+    assert row["is_public"] == 1, "the owner must be able to publish their own trip"
+
+
 def test_upsert_trip_missing_data(client, auth_headers):
     res = client.post("/api/trips", headers=auth_headers, json={})
     assert res.status_code == 400
@@ -539,6 +574,38 @@ def test_expense_splits_rejects_bad_shape(client, seed_user, auth_headers):
     assert res.status_code == 400
 
 
+def test_expense_rejects_splits_that_dont_sum_to_100(client, seed_user, auth_headers):
+    """BUG-37 (MK2 audit): /api/expenses must reject splits whose
+    percentages don't add up to ~100 — especially an all-zero split,
+    which made the expense vanish from per-person balances while still
+    crediting the payer. A valid ~100 split (incl. 33.33×3=99.99
+    rounding) still saves."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-split37", "name": "Split"},
+    })
+    base = {
+        "id": "exp-z", "tripId": "trip-split37", "who": "Alice",
+        "value": 60, "currency": "EUR", "euroValue": 60,
+        "label": "Dinner", "date": "2026-01-01",
+    }
+    # All-zero split → 400 (the vanishing-expense case).
+    z = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {**base, "splits": {"Alice": 0, "Bob": 0}},
+    })
+    assert z.status_code == 400, z.get_data(as_text=True)
+    # Non-100 sum → 400.
+    n = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {**base, "id": "exp-n", "splits": {"Alice": 30, "Bob": 30}},
+    })
+    assert n.status_code == 400, n.get_data(as_text=True)
+    # 33.33×3 = 99.99 — within the ±1pt rounding tolerance → 200.
+    ok = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {**base, "id": "exp-ok",
+                    "splits": {"A": 33.33, "B": 33.33, "C": 33.33}},
+    })
+    assert ok.status_code == 200, ok.get_data(as_text=True)
+
+
 def test_expense_receipt_url_optional(client, seed_user, auth_headers):
     """Legacy expenses (no `receiptUrl` in payload) still upsert + read
     cleanly with receiptUrl=None. Backwards compat."""
@@ -803,6 +870,43 @@ def test_upsert_budget_happy_path(client, seed_user, auth_headers):
         },
     })
     assert res.status_code == 200
+
+
+def test_budget_trip_scope_requires_money_edit_role(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """BUG-34 + BUG-36 (MK2 audit): a TRIP-scoped budget requires the
+    caller to be a member of that trip with money-edit rights. A
+    non-member (BUG-36) and a relaxer (BUG-34) are both refused; the
+    owner is allowed, and a GLOBAL (no-trip) budget stays ungated."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-bud-acl")
+
+    def bud(bid):
+        return {
+            "id": bid, "tripId": trip_id, "categoryId": "all", "user": "all",
+            "amount": 100, "originalAmount": 100, "originalCurrency": "EUR",
+        }
+
+    # Non-member → 403 (BUG-36).
+    r1 = client.post("/api/budgets", headers=other_auth_headers,
+                     json={"budget": bud("b-nonmember")})
+    assert r1.status_code == 403, r1.get_data(as_text=True)
+    # Relaxer member → still 403 (BUG-34: read-only role can't manage money).
+    _seed_member(trip_id, seed_other_user, role="relaxer")
+    r2 = client.post("/api/budgets", headers=other_auth_headers,
+                     json={"budget": bud("b-relaxer")})
+    assert r2.status_code == 403, r2.get_data(as_text=True)
+    # Owner → allowed (positive control: the gate doesn't block legit writes).
+    r3 = client.post("/api/budgets", headers=auth_headers,
+                     json={"budget": bud("b-owner")})
+    assert r3.status_code == 200, r3.get_data(as_text=True)
+    # Global budget (no trip) by the non-member → ungated, allowed.
+    g = client.post("/api/budgets", headers=other_auth_headers, json={
+        "budget": {"id": "b-global", "tripId": "all", "categoryId": "all",
+                   "user": "all", "amount": 100, "originalAmount": 100,
+                   "originalCurrency": "EUR"},
+    })
+    assert g.status_code == 200, g.get_data(as_text=True)
 
 
 def test_budget_category_scoped_duplicate_rejected(client, seed_user, auth_headers):

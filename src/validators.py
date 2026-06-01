@@ -166,7 +166,9 @@ def validate_money(value, *, field_name: str = "value",
     return f
 
 
-def validate_splits(value, *, field_name: str = "splits") -> Optional[dict]:
+def validate_splits(
+    value, *, field_name: str = "splits", require_full: bool = False,
+) -> Optional[dict]:
     """Validate an expense `splits` map. Returns:
       - None when value is None / "" / {} (caller falls back to the
         legacy equal-share path).
@@ -180,6 +182,20 @@ def validate_splits(value, *, field_name: str = "splits") -> Optional[dict]:
     sync path stored arbitrary garbage in the splits column — a
     curl-driven payload of `{"sara": "infinity"}` would land verbatim
     and crash the balance reducer on every subsequent read.
+
+    BUG-37 (MK2 audit): with `require_full=True` the percentages must
+    also add up to ~100 (±1pt, absorbing 33.33×3=99.99 rounding). A
+    split represents how the WHOLE expense is divided, so an all-zero
+    split ({a:0,b:0}) made the expense contribute nothing to every
+    per-person balance — it silently vanished from budgets while still
+    crediting the payer. The frontend already enforces sum≈100 on
+    submit; the single-write path (/api/expenses) passes require_full
+    to mirror that and reject bad data at the source. The bulk /api/sync
+    path deliberately does NOT (require_full stays False there): sync
+    deletes-then-reinserts owned trips, so rejecting an odd-but-nonzero
+    legacy split would DROP a real expense on re-sync — and the
+    frontend's balance reducer already normalises non-100 sums for
+    display, so they don't vanish.
     """
     if value is None or value == "":
         return None
@@ -202,7 +218,14 @@ def validate_splits(value, *, field_name: str = "splits") -> Optional[dict]:
                 f"{field_name} values must be in [0, 100]",
             )
         cleaned[k] = pct
-    return cleaned or None
+    result = cleaned or None
+    if require_full and result is not None:
+        total = sum(result.values())
+        if abs(total - 100.0) > 1.0:
+            raise ValidationError(
+                f"{field_name} percentages must add up to 100 (got {total:g})",
+            )
+    return result
 
 
 def validate_currency(value) -> str:

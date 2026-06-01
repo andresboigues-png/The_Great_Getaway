@@ -110,7 +110,14 @@ def upsert_expense():
         # from /api/sync's bulk loops (data.py). The helper lives in
         # validators.py now so both write paths enforce the same
         # `{str → number in [0,100]}` contract.
-        splits_clean = validate_splits(e.get('splits'))
+        #
+        # BUG-37 (MK2 audit): require_full enforces that the percentages
+        # add up to ~100 on this single-write path — rejecting all-zero
+        # splits (which made the expense vanish from per-person balances)
+        # and other malformed sums at the source with a clean 400. The
+        # bulk /api/sync path stays lenient (no require_full) to avoid
+        # dropping odd-but-nonzero legacy splits on its delete+reinsert.
+        splits_clean = validate_splits(e.get('splits'), require_full=True)
     except ValidationError as ve:
         return jsonify({"error": str(ve)}), 400
     # `splits_raw` retained below as the source-of-truth dict to

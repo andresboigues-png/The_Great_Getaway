@@ -11,7 +11,7 @@ from flask import Blueprint, jsonify, request
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
-from helpers import is_trip_archived_for
+from helpers import can_edit_expenses, is_trip_archived_for
 from validators import (
     ValidationError,
     clean_text,
@@ -115,6 +115,18 @@ def upsert_budget():
             # vs not at all — 403 collapsed to 404 keeps the anti-
             # enumeration posture consistent with /api/expenses etc.
             return jsonify({"error": "Not found"}), 404
+        # BUG-34 + BUG-36 (MK2 audit): a TRIP-SCOPED budget requires the
+        # caller to be a member of that trip with money-edit rights
+        # (planner or budgeteer). Pre-fix the only gate was
+        # "don't overwrite someone else's row", so (BUG-34) a RELAXER
+        # could create/edit budgets their role shouldn't touch, and
+        # (BUG-36) a NON-MEMBER could attach a budget to any trip_id they
+        # could guess. can_edit_expenses returns False for both (a
+        # non-member's role is None; a relaxer is excluded). Global
+        # ("all trips") budgets carry trip_id=None and stay ungated —
+        # they're the caller's own personal budget, not tied to a trip.
+        if trip_id and not can_edit_expenses(cursor, trip_id, user_id):
+            return jsonify({"error": "Forbidden"}), 403
         # R3-Fix #18: archive write gate. Only enforced when the
         # budget is trip-scoped — global ("all trips") budgets aren't
         # tied to a single trip lifecycle.
