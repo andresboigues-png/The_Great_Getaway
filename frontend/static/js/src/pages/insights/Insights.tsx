@@ -24,7 +24,7 @@ import { STATE, emit } from '../../state.js';
 import { EVENTS } from '../../constants.js';
 import { convertCurrency } from '../../utils/currency.js';
 import { fetchHistoricalRates } from '../../api.js';
-import { getIntlLocale, formatNumber } from '../../i18n.js';
+import { getIntlLocale, formatNumber, formatCurrency } from '../../i18n.js';
 import { getHomeCurrency, currencySymbol } from '../../utils.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Expense, Category } from '../../types';
@@ -309,6 +309,11 @@ export function Insights() {
         (a, b) => (currencyHomeTotals[b] ?? 0) - (currencyHomeTotals[a] ?? 0),
     );
     const hasForeignSpend = spendCurrencies.some((c) => c !== homeCurr);
+    // The donut + over-time charts only make sense with 2+ currencies
+    // (a 1-slice donut / single-series stack is pointless). A single
+    // foreign-currency trip still shows the per-currency LIST so the
+    // user sees what they actually spent in that currency.
+    const isMultiCurrency = spendCurrencies.length >= 2;
     const currencyGrandTotal = spendCurrencies.reduce(
         (s, c) => s + (currencyHomeTotals[c] ?? 0), 0,
     );
@@ -575,16 +580,18 @@ export function Insights() {
                         <p className="text-secondary text-[0.85rem] mt-1 mb-5">
                             {t('insights.currencyBreakdownSub')}
                         </p>
-                        <div className="grid-2 grid-cols-2 gap-6 items-center">
-                            <div className="relative h-[220px] w-full">
-                                <canvas ref={currencyPieRef}></canvas>
-                            </div>
+                        <div className={isMultiCurrency ? 'grid-2 grid-cols-2 gap-6 items-center' : ''}>
+                            {isMultiCurrency ? (
+                                <div className="relative h-[220px] w-full">
+                                    <canvas ref={currencyPieRef}></canvas>
+                                </div>
+                            ) : null}
                             <div className="flex flex-col gap-2">
                                 {currencyRows.map((r) => (
                                     <div className="flex items-center gap-2" key={r.code}>
                                         <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: r.color, flexShrink: 0 }} />
                                         <span className="font-extrabold" style={{ minWidth: '46px' }}>{r.code}</span>
-                                        <span className="text-secondary text-[0.85rem]">{currencySymbol(r.code)}{formatNumber(r.ownAmount)}</span>
+                                        <span className="text-secondary text-[0.85rem]">{formatCurrency(r.ownAmount, r.code)}</span>
                                         <span className="ml-auto font-extrabold" style={{ color: 'var(--text-brand-navy)' }}>{targetSym}{formatNumber(r.homeAmount)}</span>
                                         <span className="text-secondary text-[0.78rem]" style={{ minWidth: '40px', textAlign: 'right' }}>{formatNumber(r.pct, 0)}%</span>
                                     </div>
@@ -592,15 +599,17 @@ export function Insights() {
                             </div>
                         </div>
                     </div>
-                    <div className="card glass in-card-pad-28">
-                        <h2 className="card-title">{t('insights.currencyTimelineTitle')}</h2>
-                        <p className="text-secondary text-[0.85rem] mt-1 mb-5">
-                            {t('insights.currencyTimelineSub')}
-                        </p>
-                        <div className="relative h-[300px] w-full">
-                            <canvas ref={currencyTimeRef}></canvas>
+                    {isMultiCurrency ? (
+                        <div className="card glass in-card-pad-28">
+                            <h2 className="card-title">{t('insights.currencyTimelineTitle')}</h2>
+                            <p className="text-secondary text-[0.85rem] mt-1 mb-5">
+                                {t('insights.currencyTimelineSub')}
+                            </p>
+                            <div className="relative h-[300px] w-full">
+                                <canvas ref={currencyTimeRef}></canvas>
+                            </div>
                         </div>
-                    </div>
+                    ) : null}
                 </div>
             ) : null}
 

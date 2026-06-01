@@ -20,7 +20,6 @@ import {
     formatHome,
     getHomeCurrency,
     convertCurrency,
-    currencySymbol,
     esc,
     showLiquidAlert,
 } from '../../utils.js';
@@ -37,7 +36,7 @@ import {
     computeGlobalBalances,
     computeLeaderboard,
 } from './balances.js';
-import { t, tn } from '../../i18n.js';
+import { t, tn, formatCurrency } from '../../i18n.js';
 
 // §0.4 follow-up: settlement-page shared styles, extracted
 // from the inline-style template literals below. Side-effect
@@ -212,7 +211,10 @@ function tripPrimarySpendCurrency(tripId: string): string | null {
 function originalCurrencyHint(eurAmount: number, primaryCurrency: string | null): string {
     if (!primaryCurrency || primaryCurrency === getHomeCurrency()) return '';
     const inPrimary = convertCurrency(Math.abs(eurAmount), 'EUR', primaryCurrency);
-    return `<span style="display:block; font-size:0.72rem; font-weight:600; color:var(--text-secondary); margin-top:1px;">≈ ${esc(currencySymbol(primaryCurrency))}${inPrimary.toFixed(2)}</span>`;
+    // formatCurrency is locale-aware (separators + per-currency decimals,
+    // e.g. JPY has none) — was a raw `symbol + toFixed(2)` which rendered
+    // en-US ("$1234.56") on a French page where the big number is "1 234,56 €".
+    return `<span style="display:block; font-size:0.72rem; font-weight:600; color:var(--text-secondary); margin-top:1px;">≈ ${esc(formatCurrency(inPrimary, primaryCurrency))}</span>`;
 }
 
 function renderTripTab(trip: any, tripIsEditable: boolean): string {
