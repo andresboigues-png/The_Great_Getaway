@@ -146,7 +146,12 @@ export function budgetTitle(b: any): string {
         parts.push(t('budgets.titleAllTrips'));
     }
     if (b.categoryId && b.categoryId !== 'all') {
-        const cat = (STATE.categories || []).find((c) => c.id === b.categoryId);
+        // Resolve by id, then fall back to a case-insensitive NAME match so
+        // name-string categoryIds ('food') from imports/legacy/seed data still
+        // show their real label instead of dropping the category from the
+        // title (matches the Insights by-category fix).
+        const cat = (STATE.categories || []).find((c) => c.id === b.categoryId)
+            || (STATE.categories || []).find((c) => c.name.toLowerCase() === String(b.categoryId).toLowerCase());
         if (cat) parts.push(`${cat.icon ? cat.icon + ' ' : ''}${cat.name}`);
     } else {
         parts.push(t('budgets.titleAllCategories'));

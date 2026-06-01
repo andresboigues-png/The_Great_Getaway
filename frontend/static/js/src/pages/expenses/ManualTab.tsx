@@ -621,7 +621,7 @@ export function ManualTab() {
                                             onPickCountry(c);
                                         }}
                                     >
-                                        {c}
+                                        {c === 'Other' ? t('expenses.countryOther') : c}
                                     </div>
                                 ))}
                             </div>

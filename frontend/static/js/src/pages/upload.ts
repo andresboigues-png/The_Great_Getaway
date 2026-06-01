@@ -345,10 +345,9 @@ export function renderUpload() {
                 } else if (popId === 'splitwise') {
                     headers = ['Date', 'Description', 'Category', 'Cost', 'Currency'];
                     row = ['2023-10-12', 'Taxi', 'Transportation', '20.00', 'EUR'];
-                } else if (popId === 'revolut') {
-                    headers = ['Type', 'Product', 'Started Date', 'Description', 'Amount', 'Currency', 'State'];
-                    row = ['CARD_PAYMENT', 'Current', '2023-10-12', 'Restaurant', '-45.00', 'EUR', 'COMPLETED'];
                 }
+                // (Revolut preview branch removed — it was unreachable: Revolut
+                //  isn't in the format dropdown and has no parser. BUG-9.)
 
                 if (headers.length > 0) {
                     popContainer.innerHTML = `
