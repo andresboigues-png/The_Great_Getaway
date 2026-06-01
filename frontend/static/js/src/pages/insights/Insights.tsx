@@ -104,6 +104,10 @@ export function Insights() {
     const cpiCache = useStore((s) => s.cpiCache);
     // Currency-breakdown expander (multi-currency trips only).
     const [showCurrencyBreakdown, setShowCurrencyBreakdown] = useState(false);
+    // Has the CPI fetch settled (resolved or failed)? Gates the
+    // "no inflation data" note so it doesn't flash during the initial
+    // load before the World Bank series lands.
+    const [cpiChecked, setCpiChecked] = useState(false);
 
     // ── Empty: no active trip ─────────────────────────────────────────────
     if (!activeTripId) {
@@ -153,7 +157,7 @@ export function Insights() {
     // "Worth today" inflation adjustment. Re-fetches if the home
     // currency changes (a profile change between visits).
     useEffect(() => {
-        fetchCpiSeries(getHomeCurrency()).then(() => {});
+        fetchCpiSeries(getHomeCurrency()).finally(() => setCpiChecked(true));
     }, []);
 
     // Insights always reports in the viewer's HOME currency now (the
@@ -163,6 +167,13 @@ export function Insights() {
     const targetCurr = getHomeCurrency();
     const targetSym = currencySymbol(targetCurr);
     const mode = rateMode || 'at_trip';
+    // Whether the CPI fetch produced a usable series for the home currency.
+    // If it settled with no data — an unmapped currency OR a failed World
+    // Bank fetch — "Worth today" silently equals "Spent", so we surface a
+    // note instead of letting the toggle look broken. `cpiChecked` gates it
+    // so the note never flashes before the series has had a chance to land.
+    const hasCpiData = !!(cpiCache[targetCurr] && Object.keys(cpiCache[targetCurr]).length > 0);
+    const cpiUnavailable = cpiChecked && !hasCpiData;
 
     const {
         totalDisplay,
@@ -626,7 +637,6 @@ export function Insights() {
                         differs by inflation. The ⓘ explains the math. */}
                     <div
                         className="glass flex p-1 rounded-[14px] border border-[var(--glass-border)] shadow-[var(--shadow-sm)]"
-                        title={t('insights.rateModeHint')}
                     >
                         <button
                             className={`toggle-btn rate-mode-btn ${mode === 'at_trip' ? 'active' : ''}`}
@@ -649,6 +659,19 @@ export function Insights() {
                         title={t('insights.rateModeInfoAria')}
                         dangerouslySetInnerHTML={{ __html: iconSvg('info', { size: 18 }) }}
                     />
+                    {/* The toggle explainer, now visible (was a hover-only
+                        title= tooltip — invisible on touch). When the home
+                        currency has no inflation data, this becomes the
+                        "unavailable" note instead. */}
+                    <p className="basis-full text-secondary text-[0.75rem] leading-snug text-right m-0 mt-1">
+                        {cpiUnavailable
+                            ? t('insights.rateModeNoCpi', {
+                                  currency: targetCurr,
+                                  today: t('insights.rateModeToday'),
+                                  spent: t('insights.rateModeAtTrip'),
+                              })
+                            : t('insights.rateModeHint')}
+                    </p>
                 </div>
             </div>
 
@@ -711,8 +734,16 @@ export function Insights() {
                                     <div className="flex items-center gap-2" key={r.code}>
                                         <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: r.color, flexShrink: 0 }} />
                                         <span className="font-extrabold" style={{ minWidth: '46px' }}>{r.code}</span>
-                                        <span className="text-secondary text-[0.85rem]">{formatCurrency(r.ownAmount, r.code)}</span>
-                                        <span className="ml-auto font-extrabold" style={{ color: 'var(--text-brand-navy)' }}>{targetSym}{formatNumberForCurrency(r.homeAmount, targetCurr)}</span>
+                                        {/* Original-currency amount (what you paid) — only for
+                                            FOREIGN currencies; for the home-currency row it would
+                                            be the same currency as the home figure on the right,
+                                            which read as a contradiction (two numbers, one currency). */}
+                                        {r.code !== homeCurr ? (
+                                            <span className="text-secondary text-[0.85rem]">{formatCurrency(r.ownAmount, r.code)}</span>
+                                        ) : null}
+                                        {/* Home-currency value. Foreign rows get a "≈" so it
+                                            reads as a conversion, not a second price. */}
+                                        <span className="ml-auto font-extrabold" style={{ color: 'var(--text-brand-navy)' }}>{r.code !== homeCurr ? '≈ ' : ''}{targetSym}{formatNumberForCurrency(r.homeAmount, targetCurr)}</span>
                                         <span className="text-secondary text-[0.78rem]" style={{ minWidth: '40px', textAlign: 'right' }}>{formatNumber(r.pct, 0)}%</span>
                                     </div>
                                 ))}
