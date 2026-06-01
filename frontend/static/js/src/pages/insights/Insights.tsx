@@ -304,10 +304,18 @@ export function Insights() {
     // OUTSIDE the viewer's home currency. A single home-currency trip
     // has nothing to break down (and the At trip / Today toggle would be
     // a no-op), so both are hidden in that case.
-    const homeCurr = targetCurr;
+    // Uppercased so the home-vs-foreign test is case-insensitive and
+    // airtight: `spendCurrencies` are already upper-cased at aggregation
+    // time, so normalising home here guarantees a stray-case home
+    // currency can never be misread as "foreign".
+    const homeCurr = (targetCurr || 'EUR').toUpperCase();
     const spendCurrencies = Object.keys(currencyHomeTotals).sort(
         (a, b) => (currencyHomeTotals[b] ?? 0) - (currencyHomeTotals[a] ?? 0),
     );
+    // Show the breakdown whenever EVEN ONE expense was in a non-home
+    // currency — `.some` is true if any single currency differs, so a
+    // trip that's 99.9% home currency + one foreign coffee still shows
+    // it. It's hidden ONLY when every expense is the home currency.
     const hasForeignSpend = spendCurrencies.some((c) => c !== homeCurr);
     // The donut + over-time charts only make sense with 2+ currencies
     // (a 1-slice donut / single-series stack is pointless). A single

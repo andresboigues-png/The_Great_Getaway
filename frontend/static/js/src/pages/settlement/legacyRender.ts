@@ -209,7 +209,10 @@ function tripPrimarySpendCurrency(tripId: string): string | null {
  *  is no primary currency or it already equals the viewer's home
  *  currency (the hint would just repeat the big number). */
 function originalCurrencyHint(eurAmount: number, primaryCurrency: string | null): string {
-    if (!primaryCurrency || primaryCurrency === getHomeCurrency()) return '';
+    // Case-insensitive home comparison (primaryCurrency is already
+    // upper-cased upstream) so the hint can't misfire on a stray-case
+    // home currency.
+    if (!primaryCurrency || primaryCurrency === getHomeCurrency().toUpperCase()) return '';
     const inPrimary = convertCurrency(Math.abs(eurAmount), 'EUR', primaryCurrency);
     // formatCurrency is locale-aware (separators + per-currency decimals,
     // e.g. JPY has none) — was a raw `symbol + toFixed(2)` which rendered
