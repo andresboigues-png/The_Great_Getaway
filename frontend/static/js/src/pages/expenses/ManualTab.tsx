@@ -45,6 +45,7 @@ import {
     COUNTRIES,
     CONVERSION_RATES,
     COUNTRY_TO_CURRENCY,
+    CURRENCY_SYMBOLS,
 } from '../../constants.js';
 import { generateId, showLiquidAlert } from '../../utils.js';
 import { upsertExpense, uploadMedia } from '../../api.js';
@@ -91,6 +92,20 @@ export function ManualTab() {
     const dateRef = useRef<HTMLInputElement | null>(null);
     const valueRef = useRef<HTMLInputElement | null>(null);
     const currencyRef = useRef<HTMLSelectElement | null>(null);
+
+    // T3-3 (integration audit): currencies the app can't auto-convert
+    // (no live Frankfurter rate AND not in the static table — VND, EGP,
+    // ARS, …) are now selectable; when one is picked we surface a manual
+    // "amount in EUR" field instead of blocking the save. `selCurrency` is
+    // React state (not just the ref) so toggling currency re-renders the
+    // form to show/hide that field. The country auto-fill only ever picks
+    // CONVERSION_RATES currencies (which all have rates), so it can't
+    // desync this.
+    const euroValueRef = useRef<HTMLInputElement | null>(null);
+    const [selCurrency, setSelCurrency] = useState<string>(
+        () => STATE.draftExpense?.currency || '',
+    );
+    const needsManualEuro = !!selCurrency && !hasRate(selCurrency);
 
     // ── country combobox state ───────────────────────────────────
     const initialCountry = STATE.draftExpense?.country || '';
@@ -342,9 +357,19 @@ export function ManualTab() {
         // (those currencies are in the Frankfurter feed but were absent
         // from the static fallback table). Only when BOTH miss do we
         // refuse — that's the true "we cannot convert" case.
+        // T3-3: a currency with no live/static rate (VND/EGP/ARS/…) can't be
+        // auto-converted. Instead of blocking, require the user's explicit EUR
+        // amount from the manual field shown for these currencies. The server
+        // (integration audit C1) likewise accepts a positive client euroValue
+        // here, so the stored euro_value is a real number, not a 1:1 fabrication.
+        let manualEuro: number | null = null;
         if (!hasRate(curr)) {
-            showLiquidAlert(t('budgets.createUnknownCurrency', { curr }));
-            return;
+            const parsed = parseFloat(euroValueRef.current?.value ?? '');
+            if (!Number.isFinite(parsed) || parsed <= 0) {
+                showLiquidAlert(t('expenses.eurValueRequired', { curr }));
+                return;
+            }
+            manualEuro = Math.round(parsed * 10000) / 10000;
         }
 
         // R2 audit fix: euroValue MUST be computed via convertCurrency
@@ -376,7 +401,9 @@ export function ManualTab() {
             && draftCurrency === curr
             && Number.isFinite(draftEuro)
         );
-        const euroValueForRow = moneyUnchanged ? draftEuro : convertCurrency(val, curr, 'EUR');
+        const euroValueForRow = manualEuro !== null
+            ? manualEuro
+            : (moneyUnchanged ? draftEuro : convertCurrency(val, curr, 'EUR'));
         const expense: Expense = {
             id: isEdit && STATE.draftExpense.id ? STATE.draftExpense.id : generateId(),
             tripId,
@@ -664,16 +691,55 @@ export function ManualTab() {
                             onChange={(e) => {
                                 currencyManuallyChosen.current = true;
                                 draft('currency', e.target.value);
+                                setSelCurrency(e.target.value);  // T3-3: toggles the manual-EUR field
                             }}
                         >
                             <option value="">{t('expenses.currencyPlaceholder')}</option>
-                            {getSupportedCurrencies().map((c) => (
-                                <option key={c} value={c}>
-                                    {c}
-                                </option>
-                            ))}
+                            {/* T3-3: union of rate-backed currencies with the
+                                full set of symbol-known (= server-allowed)
+                                currencies, so no-rate ones (VND/EGP/ARS/…) are
+                                pickable. They get a manual EUR field below. */}
+                            {Array.from(new Set([...getSupportedCurrencies(), ...Object.keys(CURRENCY_SYMBOLS)]))
+                                .sort((a, b) => (a === 'EUR' ? -1 : b === 'EUR' ? 1 : a.localeCompare(b)))
+                                .map((c) => (
+                                    <option key={c} value={c}>
+                                        {c}
+                                    </option>
+                                ))}
                         </select>
                     </div>
+
+                    {/* T3-3: manual EUR amount — shown only for currencies we
+                        can't auto-convert (no live/static rate). The value is
+                        stored as the canonical euroValue (the server accepts a
+                        positive client euroValue for these, integration audit C1). */}
+                    {needsManualEuro ? (
+                        <div className="form-row">
+                            <label className="form-label-light" htmlFor="expEuroValue">
+                                {t('expenses.eurValueLabel')}
+                            </label>
+                            <input
+                                id="expEuroValue"
+                                ref={euroValueRef}
+                                type="number"
+                                step="0.01"
+                                min="0.01"
+                                className="glass-input-light font-bold"
+                                placeholder="0.00"
+                                defaultValue={
+                                    STATE.draftExpense?.euroValue !== undefined &&
+                                    STATE.draftExpense.euroValue !== '' &&
+                                    STATE.draftExpense.euroValue !== null
+                                        ? String(STATE.draftExpense.euroValue)
+                                        : ''
+                                }
+                                onInput={(e) => draft('euroValue', (e.target as HTMLInputElement).value)}
+                            />
+                            <p className="text-[0.8rem] text-[rgba(0,0,0,0.55)] mt-1">
+                                {t('expenses.eurValueHelp', { curr: selCurrency })}
+                            </p>
+                        </div>
+                    ) : null}
 
                     {/* Receipt picker */}
                     <div className="form-row mb-8">
