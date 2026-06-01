@@ -752,8 +752,8 @@ function ProfileInfoSection({
                     count={countryCount}
                     label={tn('profile.countriesLabel', countryCount)}
                 />
-                <ProfileStat count={followers} label="followers" />
-                <ProfileStat count={followSnap.following} label="following" />
+                <ProfileStat count={followers} label={tn('profile.followersLabel', followers)} />
+                <ProfileStat count={followSnap.following} label={tn('profile.followingLabel', followSnap.following)} />
                 {isOwnProfile ? <FriendsStat /> : null}
             </div>
 

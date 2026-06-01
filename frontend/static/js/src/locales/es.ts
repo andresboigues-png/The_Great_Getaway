@@ -344,6 +344,14 @@ export const es: Translations = {
             one: 'país',
             other: 'países',
         },
+        followersLabel: {
+            one: 'seguidor',
+            other: 'seguidores',
+        },
+        followingLabel: {
+            one: 'siguiendo',
+            other: 'siguiendo',
+        },
         friendsLabel: {
             one: 'amigo',
             other: 'amigos',

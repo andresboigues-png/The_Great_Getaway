@@ -129,6 +129,14 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                 {showFlagStrip ? (
                     <div
                         className="trip-flag-strip"
+                        // BUG-44 (MK2 audit): role="img" is REQUIRED for the
+                        // aria-label below to be announced — screen readers
+                        // ignore aria-label on a bare <div> (no role → no
+                        // accessible name), so the whole label was a no-op.
+                        // With role="img" the strip is exposed as a single
+                        // labelled image and the per-flag emoji noise is
+                        // suppressed.
+                        role="img"
                         // aria-label makes the strip readable for screen
                         // readers — they otherwise read flag emojis as
                         // raw regional-indicator pairs. The label

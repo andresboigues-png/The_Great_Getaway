@@ -828,6 +828,25 @@ def test_duplicate_day_number_returns_409_not_500(client, seed_user, auth_header
     assert "day_number" in r2.get_json()["error"].lower() or "already exists" in r2.get_json()["error"].lower()
 
 
+def test_day_rejects_fractional_day_number(client, seed_user, auth_headers):
+    """BUG-31 (MK2 audit): a fractional dayNumber (2.5) was int()-truncated
+    to 2, silently colliding with the real Day 2. It must be rejected with
+    a 400 instead. Whole-number floats (2.0) and integer strings still
+    pass."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-frac", "name": "Frac"},
+    })
+    bad = client.post("/api/days", headers=auth_headers, json={
+        "day": {"id": "day-frac", "tripId": "trip-frac", "dayNumber": 2.5, "name": "X"},
+    })
+    assert bad.status_code == 400, bad.get_data(as_text=True)
+    # A whole-number float is still a valid day number.
+    ok = client.post("/api/days", headers=auth_headers, json={
+        "day": {"id": "day-whole", "tripId": "trip-frac", "dayNumber": 2.0, "name": "Y"},
+    })
+    assert ok.status_code == 200, ok.get_data(as_text=True)
+
+
 def test_renumber_into_deleted_day_slot_succeeds(client, seed_user, auth_headers):
     """4.8 audit TRIP-2: after a day is deleted (tombstoned), renumbering
     a survivor INTO the freed (trip_id, day_number) slot must succeed.

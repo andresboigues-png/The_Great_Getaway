@@ -446,6 +446,16 @@ export const en = {
             one: 'country',
             other: 'countries',
         },
+        // BUG-41: plural-aware + localised follower/following stat labels
+        // (was hard-coded "followers"/"following" → "1 followers").
+        followersLabel: {
+            one: 'follower',
+            other: 'followers',
+        },
+        followingLabel: {
+            one: 'following',
+            other: 'following',
+        },
         friendsLabel: {
             one: 'friend',
             other: 'friends',

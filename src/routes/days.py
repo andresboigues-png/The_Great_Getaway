@@ -54,10 +54,18 @@ def upsert_day():
     # generous 999 — no trip is longer than 999 days.
     day_number = d.get("dayNumber")
     if day_number is not None:
+        # BUG-31 (MK2 audit): reject fractional values instead of
+        # silently truncating them. `int(2.5)` is 2, so a `dayNumber: 2.5`
+        # used to land on slot 2 and collide with the real Day 2. Parse
+        # as float first and require a whole number — this still accepts
+        # int 2, float 2.0, and the string "2", but rejects 2.5 / "2.5".
         try:
-            day_number_int = int(day_number)
+            day_number_f = float(day_number)
         except (TypeError, ValueError):
             return jsonify({"error": "dayNumber must be an integer"}), 400
+        if not day_number_f.is_integer():
+            return jsonify({"error": "dayNumber must be a whole number"}), 400
+        day_number_int = int(day_number_f)
         if day_number_int < 0:
             return jsonify({"error": "dayNumber must be non-negative"}), 400
         if day_number_int > 999:

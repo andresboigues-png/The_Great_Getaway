@@ -348,6 +348,14 @@ export const pt: Translations = {
             one: 'país',
             other: 'países',
         },
+        followersLabel: {
+            one: 'seguidor',
+            other: 'seguidores',
+        },
+        followingLabel: {
+            one: 'a seguir',
+            other: 'a seguir',
+        },
         friendsLabel: {
             one: 'amigo',
             other: 'amigos',

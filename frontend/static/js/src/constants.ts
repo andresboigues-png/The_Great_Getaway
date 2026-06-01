@@ -70,7 +70,7 @@ export const INSPIRATIONAL_PAIRS = [
     { i: 'https://images.unsplash.com/photo-1526772662000-3f88f10405ff', q: 'To lose yourself in a new country is to find yourself in the world.' },
     { i: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b', q: 'Traveling is finding a place where every path leads somewhere beautiful.' },
     { i: 'https://images.unsplash.com/photo-1501854140801-50d01698950b', q: 'To travel is to find peace in the untamed beauty of the world.' },
-    { i: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e', q: 'Every sunrise is a new begginning.' },
+    { i: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e', q: 'Every sunrise is a new beginning.' },
     { i: 'https://images.unsplash.com/photo-1447752875215-b2761acb3c5d', q: 'Allow yourself to wander roads that feel ancient and alive.' },
     { i: 'https://images.unsplash.com/photo-1433086966358-54859d0ed716', q: 'Traveling is the bridge that connects mind and soul' },
     { i: 'https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07', q: 'Discover hidden places in every corner.' },

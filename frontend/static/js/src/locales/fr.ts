@@ -349,6 +349,14 @@ export const fr: Translations = {
             one: 'pays',
             other: 'pays',
         },
+        followersLabel: {
+            one: 'abonné',
+            other: 'abonnés',
+        },
+        followingLabel: {
+            one: 'abonnement',
+            other: 'abonnements',
+        },
         friendsLabel: {
             one: 'ami',
             other: 'amis',
