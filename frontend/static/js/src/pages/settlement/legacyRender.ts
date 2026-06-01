@@ -20,6 +20,7 @@ import {
     formatHome,
     getHomeCurrency,
     convertCurrency,
+    currencySymbol,
     esc,
     showLiquidAlert,
 } from '../../utils.js';
@@ -182,10 +183,44 @@ function renderTabsNav(trip: any, activeTab: SettlementTab): string {
     `;
 }
 
+/** UX (canonical settlement currency): the trip's primary spend
+ *  currency — the original currency the most euros were logged in
+ *  (settlement rows excluded). Settlements are kept in each viewer's
+ *  HOME currency as the big number, but a shared "≈ original currency"
+ *  hint underneath gives a EUR-home and a USD-home co-traveler a common
+ *  reference (the number they can both quote when paying up). Returns
+ *  null when the trip has no recorded spend. */
+function tripPrimarySpendCurrency(tripId: string): string | null {
+    const byCurrency: Record<string, number> = {};
+    for (const e of STATE.expenses || []) {
+        if (e.tripId !== tripId || (e as { isSettlement?: boolean }).isSettlement) continue;
+        const cur = ((e.currency || 'EUR') as string).toUpperCase();
+        byCurrency[cur] = (byCurrency[cur] || 0) + (e.euroValue || e.value || 0);
+    }
+    let best: string | null = null;
+    let bestVal = -1;
+    for (const [cur, val] of Object.entries(byCurrency)) {
+        if (val > bestVal) { bestVal = val; best = cur; }
+    }
+    return best;
+}
+
+/** A small "≈ {symbol}{amount}" hint in the trip's primary spend
+ *  currency, rendered under a home-currency big number. Empty when there
+ *  is no primary currency or it already equals the viewer's home
+ *  currency (the hint would just repeat the big number). */
+function originalCurrencyHint(eurAmount: number, primaryCurrency: string | null): string {
+    if (!primaryCurrency || primaryCurrency === getHomeCurrency()) return '';
+    const inPrimary = convertCurrency(Math.abs(eurAmount), 'EUR', primaryCurrency);
+    return `<span style="display:block; font-size:0.72rem; font-weight:600; color:var(--text-secondary); margin-top:1px;">≈ ${esc(currencySymbol(primaryCurrency))}${inPrimary.toFixed(2)}</span>`;
+}
+
 function renderTripTab(trip: any, tripIsEditable: boolean): string {
     const { balances, removedFromRoster } = computeTripBalances(trip);
     const removedSet = new Set(removedFromRoster || []);
     const debts = simplifyDebts(balances);
+    // Shared "original currency" hint reference for this trip's amounts.
+    const primaryCurrency = tripPrimarySpendCurrency(trip.id);
     const board = computeLeaderboard(trip);
     const totalPaid = board.reduce((s, b) => s + b.paid, 0);
 
@@ -269,8 +304,8 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
                     ${esc(person.charAt(0).toUpperCase())}
                 </div>
                 <div style="flex:1; min-width:0; font-weight:800; color: var(--text-brand-navy); font-size:0.95rem; overflow:hidden; text-overflow:ellipsis;">${esc(person)}${removedTag}</div>
-                <div style="font-weight:800; color: ${isCredit ? '#1a6b3c' : isDebt ? '#a30000' : 'var(--text-secondary)'}; font-size:1rem;">
-                    ${isCredit ? '+' : ''}${formatHome(bal, 'EUR')}
+                <div style="font-weight:800; color: ${isCredit ? '#1a6b3c' : isDebt ? '#a30000' : 'var(--text-secondary)'}; font-size:1rem; text-align:right;">
+                    ${isCredit ? '+' : ''}${formatHome(bal, 'EUR')}${originalCurrencyHint(bal, primaryCurrency)}
                 </div>
             </div>
         `;
@@ -291,7 +326,7 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
                         <span style="color:rgba(0,0,0,0.3);">→</span>
                         <span class="stl-heading-3">${esc(d.to)}</span>
                     </div>
-                    <div style="font-size:1.3rem; font-weight:800; color: var(--text-brand-navy); letter-spacing:-0.01em; margin-top:2px;">${formatHome(d.amount, 'EUR')}</div>
+                    <div style="font-size:1.3rem; font-weight:800; color: var(--text-brand-navy); letter-spacing:-0.01em; margin-top:2px;">${formatHome(d.amount, 'EUR')}${originalCurrencyHint(d.amount, primaryCurrency)}</div>
                 </div>
                 ${
                     tripIsEditable

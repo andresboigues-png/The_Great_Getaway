@@ -286,6 +286,20 @@
                 </svg>
                 <span data-i18n-key="nav.budgets">Budgets</span>
             </a>
+            <!-- Insights had no nav entry — it was reachable only as an
+                 Expenses sub-tab (Upload | Insights | History). The
+                 data-page="insights" route redirects to Expenses with the
+                 Insights tab active (pages/insights/mount.ts), so this
+                 entry surfaces the buried analytics view directly. -->
+            <a href="#" class="sidebar-item" data-page="insights">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 3v18h18" />
+                    <path d="M18 17V9" />
+                    <path d="M13 17V5" />
+                    <path d="M8 17v-3" />
+                </svg>
+                <span data-i18n-key="nav.insights">Insights</span>
+            </a>
             <a href="#" class="sidebar-item" data-page="settlement">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
