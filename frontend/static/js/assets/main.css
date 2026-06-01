@@ -2140,6 +2140,10 @@
         --tw-tracking: 0.12em;
         letter-spacing: 0.12em;
     }
+    .tracking-\[1px\] {
+        --tw-tracking: 1px;
+        letter-spacing: 1px;
+    }
     .tracking-normal {
         --tw-tracking: var(--tracking-normal);
         letter-spacing: var(--tracking-normal);
