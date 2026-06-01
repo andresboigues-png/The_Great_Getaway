@@ -45,11 +45,11 @@ import{i as e}from"./rolldown-runtime-Kw0j5LDr.js";import{r as t,t as n}from"./v
             ${r(`history`,s(`settlement.tabHistory`),n)}
             ${r(`global`,s(`settlement.tabCrossTrip`))}
         </nav>
-    `}function I(e){let t={};for(let n of _.expenses||[]){if(n.tripId!==e||n.isSettlement)continue;let r=(n.currency||`EUR`).toUpperCase();t[r]=(t[r]||0)+(n.euroValue||n.value||0)}let n=null,r=-1;for(let[e,i]of Object.entries(t))i>r&&(r=i,n=e);return n}function L(e,t){return!t||t===T().toUpperCase()?``:`<span style="display:block; font-size:0.72rem; font-weight:600; color:var(--text-secondary); margin-top:1px;">≈ ${d(l(y(Math.abs(e),`EUR`,t),t))}</span>`}function R(e,t){let{balances:n,removedFromRoster:r}=m(e),i=new Set(r||[]),a=g(n),o=I(e.id),c=D(e),l=c.reduce((e,t)=>e+t.paid,0),u=[...c].sort((e,t)=>t.paid-e.paid)[0],f=[...c].sort((e,t)=>e.net-t.net)[0],p=[...c].sort((e,t)=>t.net-e.net)[0],h=d(e?.name||`Trip`),_=l>0?`
+    `}function I(e){let t={};for(let n of _.expenses||[]){if(n.tripId!==e||n.isSettlement)continue;let r=(n.currency||`EUR`).toUpperCase();t[r]=(t[r]||0)+(n.euroValue||n.value||0)}let n=null,r=-1;for(let[e,i]of Object.entries(t))i>r&&(r=i,n=e);return n}function L(e,t){return!t||t===T().toUpperCase()?``:`<span style="display:block; font-size:0.72rem; font-weight:600; color:var(--text-secondary); margin-top:1px;">≈ ${d(l(y(Math.abs(e),`EUR`,t),t))}</span>`}function R(e,t){let{balances:n,removedFromRoster:r}=m(e),i=new Set(r||[]),a=g(n),o=I(e.id),c=D(e),l=c.reduce((e,t)=>e+t.paid,0),u=[...c].sort((e,t)=>t.paid-e.paid)[0],f=Object.entries(n).map(([e,t])=>({name:e,net:t})),p=[...f].sort((e,t)=>e.net-t.net)[0],h=[...f].sort((e,t)=>t.net-e.net)[0],_=d(e?.name||`Trip`),v=l>0?`
         <div class="card glass" style="margin-bottom: 18px; padding: 22px 26px; border-radius: 28px; background: linear-gradient(135deg, rgba(255,214,10,0.05), rgba(255,159,10,0.03)); border:1px solid rgba(255,159,10,0.18);">
             <div style="display:flex; flex-wrap:wrap; gap:24px; align-items:center; justify-content:space-between;">
                 <div style="min-width:0;">
-                    <div style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-secondary); margin-bottom:6px;">${s(`settlement.tripTotal`)} · ${h}</div>
+                    <div style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-secondary); margin-bottom:6px;">${s(`settlement.tripTotal`)} · ${_}</div>
                     <div style="font-size:2rem; font-weight:800; color: var(--text-brand-navy); letter-spacing:-0.02em;">${S(l,`EUR`)}</div>
                 </div>
                 ${u?`
@@ -59,23 +59,23 @@ import{i as e}from"./rolldown-runtime-Kw0j5LDr.js";import{r as t,t as n}from"./v
                         <div style="font-size:0.78rem; font-weight:700; color:var(--text-secondary);">${S(u.paid,`EUR`)}</div>
                     </div>
                 `:``}
-                ${p&&p.net>.01?`
+                ${h&&h.net>.01?`
                     <div class="stl-center-min-120">
                         <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#34c759;">${s(`settlement.topOwed`)}</div>
-                        <div class="stl-heading-2">${d(p.name)}</div>
-                        <div style="font-size:0.78rem; font-weight:700; color:#1a6b3c;">+${S(p.net,`EUR`)}</div>
+                        <div class="stl-heading-2">${d(h.name)}</div>
+                        <div style="font-size:0.78rem; font-weight:700; color:#1a6b3c;">+${S(h.net,`EUR`)}</div>
                     </div>
                 `:``}
-                ${f&&f.net<-.01?`
+                ${p&&p.net<-.01?`
                     <div class="stl-center-min-120">
                         <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#ff3b30;">${s(`settlement.topOwes`)}</div>
-                        <div class="stl-heading-2">${d(f.name)}</div>
-                        <div style="font-size:0.78rem; font-weight:700; color:#a30000;">${S(f.net,`EUR`)}</div>
+                        <div class="stl-heading-2">${d(p.name)}</div>
+                        <div style="font-size:0.78rem; font-weight:700; color:#a30000;">${S(p.net,`EUR`)}</div>
                     </div>
                 `:``}
             </div>
         </div>
-    `:``,v=Object.entries(n).map(([e,t])=>{let n=t>.01,r=t<-.01,a=i.has(e)?`<span style="margin-left:6px; padding:1px 6px; border-radius:6px; background:rgba(0,0,0,0.06); color:var(--text-secondary); font-size:0.7rem; font-weight:700; text-transform:uppercase;">removed</span>`:``;return`
+    `:``,y=Object.entries(n).map(([e,t])=>{let n=t>.01,r=t<-.01,a=i.has(e)?`<span style="margin-left:6px; padding:1px 6px; border-radius:6px; background:rgba(0,0,0,0.06); color:var(--text-secondary); font-size:0.7rem; font-weight:700; text-transform:uppercase;">removed</span>`:``;return`
             <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:14px;">
                 <div style="width:34px; height:34px; border-radius:50%; background: ${n?`rgba(52,199,89,0.18)`:r?`rgba(255,59,48,0.18)`:`var(--surface-subtle)`}; color: ${n?`#1a6b3c`:r?`#a30000`:`var(--text-secondary)`}; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">
                     ${d(e.charAt(0).toUpperCase())}
@@ -85,7 +85,7 @@ import{i as e}from"./rolldown-runtime-Kw0j5LDr.js";import{r as t,t as n}from"./v
                     ${n?`+`:``}${S(t,`EUR`)}${L(t,o)}
                 </div>
             </div>
-        `}).join(``)||`<p class="text-muted" style="padding: 20px; text-align:center;">${s(`settlement.emptyNoCompanions`)}</p>`,y=a.length===0?`<div style="text-align:center; padding: 40px 20px;"><div style="font-size:2.2rem; margin-bottom:8px;">🥂</div><p style="margin:0; font-weight:800; color:#1a6b3c;">${s(`settlement.allSettledTitle`)}</p><p style="margin:6px 0 0; color:var(--text-secondary); font-size:0.85rem;">${s(`settlement.allSettledBody`)}</p></div>`:a.map(n=>`
+        `}).join(``)||`<p class="text-muted" style="padding: 20px; text-align:center;">${s(`settlement.emptyNoCompanions`)}</p>`,x=a.length===0?`<div style="text-align:center; padding: 40px 20px;"><div style="font-size:2.2rem; margin-bottom:8px;">🥂</div><p style="margin:0; font-weight:800; color:#1a6b3c;">${s(`settlement.allSettledTitle`)}</p><p style="margin:6px 0 0; color:var(--text-secondary); font-size:0.85rem;">${s(`settlement.allSettledBody`)}</p></div>`:a.map(n=>`
             <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:16px;">
                 <div class="stl-flex-grow-truncate">
                     <div class="stl-flex-row-wrap-6">
@@ -101,27 +101,27 @@ import{i as e}from"./rolldown-runtime-Kw0j5LDr.js";import{r as t,t as n}from"./v
                 `:``}
             </div>
         `).join(``);return`
-        ${_}
+        ${v}
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:18px; margin-bottom:24px;">
             <div class="card glass stl-card-major">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                    <h3 class="stl-heading-1">${s(`settlement.tripBalancesTitle`)} · ${h}</h3>
+                    <h3 class="stl-heading-1">${s(`settlement.tripBalancesTitle`)} · ${_}</h3>
                     <span class="stl-section-label">${b(`settlement.peopleCount`,Object.keys(n).length)}</span>
                 </div>
                 <div class="stl-flex-col-8">
-                    ${v}
+                    ${y}
                 </div>
             </div>
             <div class="card glass stl-card-major">
                 <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
                     <div style="min-width:0;">
-                        <h3 class="stl-heading-1">${s(`settlement.suggestedPaymentsTitle`)} · ${h}</h3>
+                        <h3 class="stl-heading-1">${s(`settlement.suggestedPaymentsTitle`)} · ${_}</h3>
                         <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">${s(`settlement.suggestedPaymentsSubtitle`)}</div>
                     </div>
                     <span class="stl-section-label--shrink-0">${b(`settlement.paymentsCount`,a.length)}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:10px;">
-                    ${y}
+                    ${x}
                 </div>
             </div>
         </div>
@@ -273,4 +273,4 @@ import{i as e}from"./rolldown-runtime-Kw0j5LDr.js";import{r as t,t as n}from"./v
                 </div>
             </form>
         `});h(u,`#cancelEditSettleBtn`).onclick=()=>f(),h(u,`#editSettlementForm`).onsubmit=e=>{e.preventDefault();let n=h(u,`#editSettleFrom`).value,i=h(u,`#editSettleTo`).value,a=parseFloat(h(u,`#editSettleAmount`).value),o=h(u,`#editSettleDate`).value;if(n===i){E(s(`settlement.toastSenderEqualsReceiver`));return}t.who=n,t.splits={[i]:100},t.value=a,t.currency=l,t.euroValue=y(a,l,`EUR`),t.date=o,t.label=s(`settlement.settlementLabel`,{from:n,to:i}),C(r.STATE_CHANGED),w(t),f()}}var Y=n();function X(){let e=k(e=>e.trips),t=k(e=>e.activeTripId),n=k(e=>e.expenses),i=k(e=>e.settlements),[a,o]=(0,j.useState)(`trip`),[c,l]=(0,j.useState)(()=>t||(e.length>0?e[0].id:null));(0,j.useEffect)(()=>{t&&t!==c&&l(t)},[t,c]),(0,j.useEffect)(()=>{if(c&&!e.find(e=>e.id===c)){let t=e.length>0?e[0].id:null;l(t),t&&(_.activeTripId=t,C(r.STATE_CHANGED))}},[e,c]);let u=e=>{l(e),_.activeTripId=e,C(r.STATE_CHANGED),a===`global`&&o(`trip`)},{trip:d,canEditExpenses:f}=A(c),p=(0,j.useMemo)(()=>N(d,f,a,c),[d,f,a,c,n,i]),m=(0,j.useRef)(null),h=e=>{let t=e.target;if(!t)return;let n=t.closest(`.settlement-trip-pill`);if(n?.dataset.tripId){u(n.dataset.tripId);return}let r=t.closest(`.settle-tab`);if(r?.dataset.tab){o(r.dataset.tab);return}let i=t.closest(`.settle-debt-btn`);if(i?.dataset.tripId&&i.dataset.from&&i.dataset.to&&i.dataset.amount&&!i.disabled){i.disabled=!0,i.textContent=s(`settlement.recordingBtn`),U(i.dataset.tripId,i.dataset.from,i.dataset.to,parseFloat(i.dataset.amount),`EUR`);return}let a=t.closest(`.open-manual-settle-btn`);if(a?.dataset.tripId){K(a.dataset.tripId);return}let c=t.closest(`.edit-settlement-btn`);if(c?.dataset.settlementId){J(c.dataset.settlementId);return}let l=t.closest(`.unsettle-settlement-btn`);if(l?.dataset.settlementId){let e=l.dataset.source===`settlement`?`settlement`:`expense`;W(l.dataset.settlementId,e);return}},g=(0,j.useRef)(u);return g.current=u,(0,j.useEffect)(()=>{let e=m.current;if(!e)return;let t=e=>{let t=e.target;if(t?.id===`settlementTripSelect`){let e=t;e.value&&g.current(e.value)}};return e.addEventListener(`change`,t),()=>e.removeEventListener(`change`,t)},[]),(0,Y.jsx)(`div`,{ref:m,onClick:h,dangerouslySetInnerHTML:{__html:p}})}function Z(e){p(e,(0,j.createElement)(X))}export{Z as mountSettlement};
-//# sourceMappingURL=mount-B2xBKwNT.js.map
+//# sourceMappingURL=mount-0dWy1fwb.js.map
