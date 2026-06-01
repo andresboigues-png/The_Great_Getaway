@@ -21,10 +21,10 @@ import { useStore } from '../../react/store.js';
 import { useActiveTrip } from '../../react/TripContext.js';
 import { useNavigate } from '../../react/useNavigate.js';
 import { STATE, emit } from '../../state.js';
-import { EVENTS } from '../../constants.js';
+import { EVENTS, CURRENCY_SYMBOLS } from '../../constants.js';
 import { convertCurrency } from '../../utils/currency.js';
 import { fetchHistoricalRates, fetchCpiSeries } from '../../api.js';
-import { getIntlLocale, formatNumber, formatNumberForCurrency, formatCurrency } from '../../i18n.js';
+import { getIntlLocale, formatNumber, formatNumberForCurrency } from '../../i18n.js';
 import { getHomeCurrency, currencySymbol } from '../../utils.js';
 import { computeTripBalances } from '../settlement/balances.js';
 import { budgetStatus, budgetTitle } from '../budgets/helpers.js';
@@ -384,9 +384,22 @@ export function Insights() {
     // match — so name-string categoryIds from imports / legacy / external
     // writes (e.g. 'food') resolve to the real "Food" category instead of
     // collapsing the whole by-category view to "Unknown" (audit BUG).
-    const findCategory = (catId: string) =>
-        categories.find((c: Category) => c.id === catId) ||
-        categories.find((c: Category) => c.name.toLowerCase() === String(catId).toLowerCase());
+    const findCategory = (catId: string): { id: string; name: string; icon: string; color: string } => {
+        const match =
+            categories.find((c: Category) => c.id === catId) ||
+            categories.find((c: Category) => c.name.toLowerCase() === String(catId).toLowerCase());
+        if (match) return match;
+        // T3-1: never collapse an unmatched categoryId (from imports / legacy /
+        // API / seed slugs like 'flights') to a bare gray "Unknown" — show the
+        // key's own name with a STABLE hashed colour so the donut + ranking
+        // stay readable and consistent across renders.
+        const raw = String(catId || '').trim();
+        if (!raw) return { id: '', name: t('insights.unknownCategory'), icon: '🏷️', color: '#8e8e93' };
+        const _palette = ['#0071e3', '#9b59b6', '#ff9500', '#34c759', '#ff2d55', '#5ac8fa', '#ffd60a', '#8e8e93'];
+        let h = 0;
+        for (let i = 0; i < raw.length; i++) h = (h * 31 + raw.charCodeAt(i)) >>> 0;
+        return { id: raw, name: raw.charAt(0).toUpperCase() + raw.slice(1), icon: '🏷️', color: _palette[h % _palette.length]! };
+    };
 
     // Pie data — matched to category lookups for color/label display.
     const pieLabels: string[] = [];
@@ -399,9 +412,9 @@ export function Insights() {
         .sort((a, b) => b.total - a.total);
     const _CAT_TOP_N = 7;
     _catSorted.slice(0, _CAT_TOP_N).forEach(({ catId, total }) => {
-        const cat = findCategory(catId);
-        pieLabels.push(cat ? `${cat.icon} ${cat.name}` : t('insights.unknownCategory'));
-        pieColors.push(cat ? cat.color : '#ccc');
+        const cat = findCategory(catId);  // T3-1: always resolves (synthetic fallback)
+        pieLabels.push(`${cat.icon} ${cat.name}`);
+        pieColors.push(cat.color);
         pieData.push(total);
     });
     const _catRest = _catSorted.slice(_CAT_TOP_N);
@@ -812,7 +825,7 @@ export function Insights() {
                                             be the same currency as the home figure on the right,
                                             which read as a contradiction (two numbers, one currency). */}
                                         {r.code !== homeCurr ? (
-                                            <span className="text-secondary text-[0.85rem]">{formatCurrency(r.ownAmount, r.code)}</span>
+                                            <span className="text-secondary text-[0.85rem]">{(CURRENCY_SYMBOLS[r.code] || '') + formatNumberForCurrency(r.ownAmount, r.code)}</span>
                                         ) : null}
                                         {/* Home-currency value. Foreign rows get a "≈" so it
                                             reads as a conversion, not a second price. */}
@@ -957,7 +970,7 @@ export function Insights() {
                             return (
                                 <div className="ranking-row" key={catId}>
                                     <span className="ranking-row__label">
-                                        {index + 2}. {cat ? cat.icon + ' ' + cat.name : t('insights.unknownCategory')}
+                                        {index + 2}. {cat.icon} {cat.name}
                                     </span>
                                     <span className="ranking-row__value">{count} {t('insights.transactionsAbbrev')}</span>
                                 </div>

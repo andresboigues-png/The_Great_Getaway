@@ -157,7 +157,15 @@ export function budgetTitle(b: any): string {
         // title (matches the Insights by-category fix).
         const cat = (STATE.categories || []).find((c) => c.id === b.categoryId)
             || (STATE.categories || []).find((c) => c.name.toLowerCase() === String(b.categoryId).toLowerCase());
-        if (cat) parts.push(`${cat.icon ? cat.icon + ' ' : ''}${cat.name}`);
+        if (cat) {
+            parts.push(`${cat.icon ? cat.icon + ' ' : ''}${cat.name}`);
+        } else {
+            // T3-1: show the raw category key (prettified) instead of dropping
+            // it, so a budget scoped to an import/legacy/seed slug still reads
+            // right (matches the Insights by-category synthetic fallback).
+            const raw = String(b.categoryId).trim();
+            if (raw) parts.push(raw.charAt(0).toUpperCase() + raw.slice(1));
+        }
     } else {
         parts.push(t('budgets.titleAllCategories'));
     }
