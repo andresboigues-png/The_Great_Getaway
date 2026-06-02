@@ -38,7 +38,8 @@ const PHOTO_2026_06_02 = path.join(FIXTURE_DIR, 'photo-2026-06-02.jpg');
 let _idCounter = 0;
 function uniqueId(prefix) {
     _idCounter += 1;
-    return `${prefix}-${Date.now()}-${_idCounter}`;
+    // `test-` prefix required: test-mode login rejects non-test- user_ids.
+    return `test-${prefix}-${Date.now()}-${_idCounter}`;
 }
 
 /** Seed a trip + an anchor day + N numbered days at the given dates.

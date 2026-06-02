@@ -33,7 +33,8 @@ import { getAuthForApi, createTripViaApi, openFreshApp } from './helpers.js';
 let _idCounter = 0;
 function uniqueId(prefix) {
     _idCounter += 1;
-    return `${prefix}-${Date.now()}-${_idCounter}`;
+    // `test-` prefix required: test-mode login rejects non-test- user_ids.
+    return `test-${prefix}-${Date.now()}-${_idCounter}`;
 }
 
 // Same-origin photo URLs — see photo-lightbox.spec.js for the rationale.

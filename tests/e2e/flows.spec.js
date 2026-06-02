@@ -37,7 +37,8 @@ import { openFreshApp, getAuthForApi, createTripViaApi, befriend, navigateTo } f
 let _idCounter = 0;
 function uniqueId(prefix) {
     _idCounter += 1;
-    return `${prefix}-${Date.now()}-${_idCounter}`;
+    // `test-` prefix required: test-mode login rejects non-test- user_ids.
+    return `test-${prefix}-${Date.now()}-${_idCounter}`;
 }
 
 // All flow tests are desktop-only — mobile layout has the New Trip

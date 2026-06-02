@@ -16,6 +16,15 @@
 import { test, expect } from '@playwright/test';
 import { openFreshApp, createTrip } from './helpers.js';
 
+// Unique user per test so each starts trip-less (shared dev DB otherwise
+// accumulates trips across tests). `test-` prefix is required by the
+// test-mode login guard.
+let _idCounter = 0;
+function uniqueId(prefix) {
+    _idCounter += 1;
+    return `test-${prefix}-${Date.now()}-${_idCounter}`;
+}
+
 /** @type {Array<{
  *   name: string,
  *   navTarget: string,
@@ -58,6 +67,13 @@ const IGNORED_NOISE = [
     /sentry-cdn/i,
     /sentry\.io/i,
     /GSI_LOGGER/i,
+    // Navigation between pages cancels in-flight boot fetches (e.g.
+    // /api/notifications/list); the app aborts them via AbortController and
+    // the resulting AbortError is expected navigation noise, not a fault.
+    /AbortError: signal is aborted/i,
+    // Same class, surfaced via the app's apiFetch wrapper when a boot
+    // fetch is cancelled by navigation. Expected test noise.
+    /\[apiFetch\] network failure/i,
 ];
 
 test.describe('Per-page render smoke', () => {
@@ -79,11 +95,13 @@ test.describe('Per-page render smoke', () => {
                 if (msg.type() === 'error') errors.push(`console.error: ${msg.text()}`);
             });
 
-            await openFreshApp(page);
+            await openFreshApp(page, uniqueId('user'));
             if (needsActiveTrip) {
                 await createTrip(page, {
                     name: `${name} setup trip`,
-                    country: 'Test Country',
+                    // Must be a real country: createTrip selects it from the
+                    // Maps-fallback country <select> (MK3-1 mandatory country).
+                    country: 'Italy',
                 });
             }
 

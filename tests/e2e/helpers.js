@@ -123,7 +123,12 @@ export async function openFreshApp(page, userId = 'test-user-1') {
     await page.goto('/');
     await loginAsTestUser(page, userId);
     await page.goto('/');
-    await expect(page.locator('#sidebar')).toBeVisible();
+    // App booted + authed = the static navbar chrome is rendered. (Was
+    // `#sidebar` — but post nav-restructure `#sidebar` is a slide-out DRAWER
+    // that's hidden by default and only opens via the hamburger/swipe, so it's
+    // never visible on a fresh boot. `.navbar` is always present from
+    // index.html on both desktop + mobile.)
+    await expect(page.locator('.navbar')).toBeVisible();
 }
 
 /**
@@ -149,28 +154,46 @@ export async function createTrip(page, { name, country }) {
         document.getElementById('sidebar')?.classList.remove('open');
         document.getElementById('sidebarOverlay')?.classList.remove('open');
     });
-    // Two locations for the +New Trip button:
-    //   - Desktop: in the top navbar (#newTripBtn)
-    //   - Mobile:  inside the navbar's compass-trigger popover
-    //              (#tripControlsPopover) — the controls used to live
-    //              at the top of the burger drawer; per-user request
-    //              they moved to a one-tap navbar popover. The IDs
-    //              are unchanged (`#newTripBtnSidebar` etc.) so the
-    //              dual-instance mirroring + JS handlers don't need
-    //              an update; only the host element changed.
+    // Open the +New Trip modal. Entry point depends on app state + viewport:
+    //   - Empty state (no trips yet — e.g. the smoke flows' FIRST trip):
+    //     the hero CTA #homeCreateFirstTripBtn, present on BOTH desktop +
+    //     mobile and wired to openNewTripModal() (WelcomePage.tsx). This is
+    //     the only first-trip entry on mobile, where the navbar compass
+    //     (#tripControlsBtn) stays hidden until there's an active trip.
+    //   - Trips already exist: desktop navbar #newTripBtn; mobile compass
+    //     popover (#tripControlsBtn → #newTripBtnSidebar).
     const viewportWidth = page.viewportSize()?.width ?? 1280;
-    if (viewportWidth <= 720) {
-        // Mobile: compass-popover path. See openMobileTripControlsPopover
-        // for the chunk-load race the retry loop is defending against.
+    const firstTripCta = page.locator('#homeCreateFirstTripBtn');
+    // Wait for the empty-state CTA to mount — on mobile the home content
+    // mounts a beat after `.navbar`, so an immediate isVisible() check
+    // raced ahead of it and fell through to the (hidden) compass path.
+    const hasFirstTripCta = await firstTripCta
+        .waitFor({ state: 'visible', timeout: 8000 })
+        .then(() => true)
+        .catch(() => false);
+    if (hasFirstTripCta) {
+        // Poll the click: main.ts's listener attachment can lag a fresh
+        // page-load click, which would no-op and leave #tripName unmounted.
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+            await firstTripCta.click();
+            if (
+                await page
+                    .locator('#tripName')
+                    .isVisible()
+                    .catch(() => false)
+            )
+                break;
+            await page.waitForTimeout(250);
+        }
+    } else if (viewportWidth <= 720) {
+        // Mobile, trip already exists: compass-popover path. See
+        // openMobileTripControlsPopover for the chunk-load race it guards.
         await openMobileTripControlsPopover(page);
         await page.click('#newTripBtnSidebar');
     } else {
-        // Same chunk-load race as mobile: when the suite runs late and
-        // user state is heavy (many trips/days/expenses already in
-        // play), main.ts's modal-listener attachment can lag behind a
-        // fresh-page-load click on #newTripBtn. The click fires with
-        // no listener and #tripName never mounts. Poll for the modal
-        // to actually appear before falling through to the fill.
+        // Desktop navbar. Same chunk-load race: main.ts's modal-listener
+        // attachment can lag a click on #newTripBtn, leaving #tripName
+        // unmounted. Poll until the modal appears.
         for (let attempt = 0; attempt < 12; attempt += 1) {
             await page.click('#newTripBtn');
             const opened = await page
@@ -183,6 +206,12 @@ export async function createTrip(page, { name, country }) {
     }
     await page.fill('#tripName', name);
     await page.fill('#tripPlaceInput', country);
+    // MK3-1: new-trip submit now gates on a real ISO countryCode. With Google
+    // Maps stubbed out (above), modals.ts injects a country <select> right
+    // after the place input; selecting a country is what calls setPicked()
+    // with a countryCode and enables Create. This mirrors the real
+    // Maps-unavailable user flow (type destination + pick country).
+    await page.selectOption('#tripPlaceInput + select', { label: country });
     // Wait for the manual-fallback to enable the submit button.
     await page.locator('#newTripSubmitBtn:not([disabled])').waitFor({ timeout: 5000 });
     await page.click('#newTripSubmitBtn');
@@ -207,17 +236,16 @@ export async function addCompanion(page, name) {
         document.getElementById('sidebar')?.classList.remove('open');
         document.getElementById('sidebarOverlay')?.classList.remove('open');
     });
-    // The companions card sits inside the Companions tab on the home
-    // sub-tab nav (Path / Companions / Documents / Photos). Default
-    // tab is Path, which means #tripCompanionsBtn is in the DOM but
-    // its parent .home-tab-content[data-home-tab="companions"] doesn't
-    // have .is-active so it's display:none. Click the Companions tab
-    // first so the button becomes visible + clickable.
-    await page.click('.trip-tabnav__tab[data-home-tab="companions"]');
+    // The companions card sits inside the Companions tab of the trip
+    // tab-nav (Path / Companions). It's React-rendered now (TripBody.tsx)
+    // as role="tab" buttons with no data-* hook, so select by accessible
+    // role + label. Switching tabs makes #tripCompanionsBtn visible +
+    // clickable (the Path tab's content is display:none when inactive).
+    await page.getByRole('tab', { name: 'Companions' }).click();
     // The companions card lives lower on the home page; the trip-cards
     // row above it pushes it past the initial viewport. Scroll the
     // edit-companions button into view so playwright can click it.
-    const btn = page.locator('#tripCompanionsBtn');
+    const btn = page.locator('.trip-companions-card__cta');
     await btn.scrollIntoViewIfNeeded();
     await btn.click();
     await page.waitForSelector('#companionPickerAddInput', { state: 'visible' });
@@ -260,7 +288,13 @@ export async function getAuthForApi(page, userId = 'test-user-1') {
     return {
         token: body.token,
         user: body.user,
-        headers: { Authorization: `Bearer ${body.token}` },
+        // `Origin` satisfies the 2026-05-27 CSRF same-origin gate on mutating
+        // routes. page.request (APIRequestContext) doesn't send one
+        // automatically, so without it every authed API POST 403s.
+        headers: {
+            Authorization: `Bearer ${body.token}`,
+            Origin: 'http://localhost:5001',
+        },
     };
 }
 

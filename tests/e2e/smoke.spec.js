@@ -6,7 +6,29 @@
 // To re-record on flake, run `npx playwright test --debug`.
 
 import { test, expect } from '@playwright/test';
-import { openFreshApp, createTrip, addCompanion, navigateTo, openMobileTripControlsPopover } from './helpers.js';
+import {
+    openFreshApp,
+    createTrip,
+    addCompanion,
+    navigateTo,
+    openMobileTripControlsPopover,
+    getAuthForApi,
+} from './helpers.js';
+
+// Each test signs in as a UNIQUE user so it starts from a clean,
+// trip-less state. Critical because all tests share one dev DB + one
+// server: with the old fixed `test-user-1`, trips accumulated across
+// tests, so the empty-state "create your first trip" CTA (the only
+// first-trip entry on mobile) vanished after the first creation and
+// trip-creation flows fell through to the hidden compass. Fresh user =
+// empty state = CTA present on both viewports. (Mirrors flows.spec.js.)
+let _idCounter = 0;
+function uniqueId(prefix) {
+    // Test-mode login (GG_ALLOW_TEST_LOGIN) rejects any user_id that
+    // doesn't start with `test-`, so bake that prefix in.
+    _idCounter += 1;
+    return `test-${prefix}-${Date.now()}-${_idCounter}`;
+}
 
 test.describe('The Great Getaway — smoke', () => {
     test('app loads with no console errors and renders the navbar', async ({ page }) => {
@@ -17,7 +39,7 @@ test.describe('The Great Getaway — smoke', () => {
             if (msg.type() === 'error') errors.push(msg.text());
         });
 
-        await openFreshApp(page);
+        await openFreshApp(page, uniqueId('user'));
 
         // Static navbar bits — these come from index.html, not pages/.
         await expect(page.locator('.nav-brand')).toContainText('The Great Getaway');
@@ -72,6 +94,18 @@ test.describe('The Great Getaway — smoke', () => {
             // The test signs in via the test-mode shortcut anyway, so
             // GSI's warning is irrelevant.
             /GSI_LOGGER/i,
+            // openFreshApp navigates twice in quick succession (goto →
+            // seed localStorage → goto), which cancels any in-flight boot
+            // fetch (e.g. /api/notifications/list). The app correctly aborts
+            // them via AbortController; the resulting AbortError is expected
+            // navigation noise, not an app fault.
+            /AbortError: signal is aborted/i,
+            // Same navigation-cancellation class, surfaced via the app's
+            // apiFetch wrapper (a boot fetch — fx-rates / notifications /
+            // data — cancelled when the test navigates). The wrapper logs
+            // it as a network failure; it's expected test noise, and a real
+            // feature break would still fail the feature's own assertion.
+            /\[apiFetch\] network failure/i,
         ];
         const real = errors.filter((e) => !ignored.some((re) => re.test(e)));
         expect(real, 'unexpected console errors').toEqual([]);
@@ -83,7 +117,7 @@ test.describe('The Great Getaway — smoke', () => {
         // button now sits comfortably on a 375px viewport. The
         // mobile-skip that was here is gone — desktop and mobile now
         // share the same flow.
-        await openFreshApp(page);
+        await openFreshApp(page, uniqueId('user'));
         await createTrip(page, { name: 'Lisbon Spring', country: 'Portugal' });
 
         // Selector now lists the trip and marks it active. The empty-state
@@ -103,14 +137,14 @@ test.describe('The Great Getaway — smoke', () => {
     // navbar lets createTrip work at 375px), so the test now runs on
     // both projects.
     test('can add a companion to a trip', async ({ page }) => {
-        await openFreshApp(page);
+        await openFreshApp(page, uniqueId('user'));
         await createTrip(page, { name: 'Madrid Days', country: 'Spain' });
         await addCompanion(page, 'Maria');
         await expect(page.locator('text=Maria').first()).toBeVisible();
     });
 
     test('can add a day to a trip', async ({ page }) => {
-        await openFreshApp(page);
+        await openFreshApp(page, uniqueId('user'));
         await createTrip(page, { name: 'Tokyo Run', country: 'Japan' });
 
         // Day creation moved into the Path row's "+ Day" chip; the
@@ -140,7 +174,7 @@ test.describe('The Great Getaway — smoke', () => {
         // 380px, and is anchored to the bottom of the viewport.
         if (testInfo.project.name !== 'chromium-mobile') test.skip();
 
-        await openFreshApp(page);
+        await openFreshApp(page, uniqueId('user'));
 
         // Open the New Trip modal — its cardStyle is `width: 380px`,
         // which the mobile sheet overrides via descendant selector
@@ -153,11 +187,22 @@ test.describe('The Great Getaway — smoke', () => {
         await page.evaluate(() => {
             /** @type {any} */ (window).google = undefined;
         });
-        // Use the chunk-load-race-tolerant helper instead of a single
-        // click — late in a heavy suite the listener attachment can
-        // lag behind the click. See openMobileTripControlsPopover.
-        await openMobileTripControlsPopover(page);
-        await page.click('#newTripBtnSidebar');
+        // Fresh user (no trip yet) → the New Trip modal opens from the
+        // empty-state hero CTA, which is present on mobile. (The compass
+        // popover #tripControlsBtn only appears once a trip exists, so it
+        // can't open the FIRST trip's modal.) Poll the click: the listener
+        // is attached on mount and can lag a fresh page-load click.
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+            await page.locator('#homeCreateFirstTripBtn').click();
+            if (
+                await page
+                    .locator('#tripName')
+                    .isVisible()
+                    .catch(() => false)
+            )
+                break;
+            await page.waitForTimeout(250);
+        }
         const card = page.locator('.modal-overlay .card-glass-modal').first();
         await card.waitFor({ state: 'visible', timeout: 5000 });
 
@@ -183,19 +228,20 @@ test.describe('The Great Getaway — smoke', () => {
     });
 
     test('mobile bottom-tab nav navigates between primary pages', async ({ page }, testInfo) => {
-        // Bottom-tab nav houses the four most-used "task" pages:
-        // Todo, Plan with AI, Expenses, Insights. Mobile only —
+        // Bottom-tab nav houses the primary pages: Home, To-do, Plan
+        // with AI, Expenses (Insights was folded into Expenses on
+        // 2026-05-14). Mobile only —
         // skipped on chromium-desktop. Click each tab and assert
         // (a) the URL hash updates, (b) the active class lands on
         // the right tab.
         if (testInfo.project.name !== 'chromium-mobile') test.skip();
 
-        await openFreshApp(page);
+        await openFreshApp(page, uniqueId('user'));
 
+        const home = page.locator('.mobile-bottom-nav__item[data-page="home"]');
         const todo = page.locator('.mobile-bottom-nav__item[data-page="todo"]');
         const ai = page.locator('.mobile-bottom-nav__item[data-page="ai"]');
         const expenses = page.locator('.mobile-bottom-nav__item[data-page="expenses"]');
-        const insights = page.locator('.mobile-bottom-nav__item[data-page="insights"]');
 
         // Bottom-tab nav renders all four task-pages with matching
         // data-page attributes. (Bouncing through all four
@@ -206,10 +252,10 @@ test.describe('The Great Getaway — smoke', () => {
         // existence + the data-page wiring + ONE navigation round-
         // trip is enough to catch a regression in the bottom-tab
         // markup or the router's class-toggle.)
+        await expect(home).toBeVisible();
         await expect(todo).toBeVisible();
         await expect(ai).toBeVisible();
         await expect(expenses).toBeVisible();
-        await expect(insights).toBeVisible();
 
         // Single round-trip: hash-route to Todo, assert URL + active
         // class. Avoids the cumulative pointer-event interception
@@ -219,9 +265,9 @@ test.describe('The Great Getaway — smoke', () => {
         });
         await expect(page).toHaveURL(/#todo$/);
         await expect(todo).toHaveClass(/active/);
+        await expect(home).not.toHaveClass(/active/);
         await expect(ai).not.toHaveClass(/active/);
         await expect(expenses).not.toHaveClass(/active/);
-        await expect(insights).not.toHaveClass(/active/);
     });
 
     // Re-enabled now that addCompanion works (Companions tab switch in
@@ -229,30 +275,71 @@ test.describe('The Great Getaway — smoke', () => {
     // gone. Form submit validates `#expCurrency` non-empty — earlier
     // version of this test omitted that and silently no-op'd.
     test('can add an expense end-to-end', async ({ page }) => {
-        await openFreshApp(page);
-        await createTrip(page, { name: 'Rome Weekend', country: 'Italy' });
-        await addCompanion(page, 'Andres');
+        // Server-persist the trip + companion up front via the API so the
+        // expense UI flow isn't racing the optimistic-trip-vs-background-sync
+        // window: the UI New-Trip POST aborts on modal-close (trip persists
+        // only via the periodic /api/sync), and a change-detection pull in
+        // that gap could transiently drop the not-yet-synced trip, nulling
+        // activeTripId right before the expense submit (onSubmit bails on
+        // `!STATE.activeTripId`). API setup is server-truth from the start.
+        // Mirrors flows.spec.js. Trip/companion UI creation is covered by the
+        // dedicated create-trip / add-companion tests above.
+        const userId = uniqueId('user');
+        const auth = await getAuthForApi(page, userId);
+        const res = await page.request.post('/api/trips', {
+            headers: auth.headers,
+            data: {
+                trip: {
+                    id: uniqueId('trip'),
+                    name: 'Rome Weekend',
+                    country: 'Italy',
+                    companions: [{ name: 'Andres' }],
+                },
+            },
+        });
+        expect(res.status()).toBe(200);
+        // Seed a category too: #expCategory is a `required` <select> with no
+        // placeholder option, so with zero categories it stays empty and
+        // native form validation blocks submit before onSubmit ever fires.
+        const catRes = await page.request.post('/api/categories', {
+            headers: auth.headers,
+            data: { categories: [{ id: uniqueId('cat'), name: 'Food', icon: '🍔', color: '#ff3b30' }] },
+        });
+        expect(catRes.status()).toBe(200);
+        await openFreshApp(page, userId);
 
         await navigateTo(page, 'expenses');
         await page.selectOption('#expWho', 'Andres');
         await page.selectOption('#expCategory', { index: 0 });
         await page.fill('#expLabel', 'Pizza al Forno');
-        await page.fill('#expDate', '2026-06-15');
+        // Expense date must be <= today: the form caps #expDate at max=today
+        // (no future expenses). Use today so it's always valid regardless of
+        // when the suite runs (the old hard-coded future date silently failed
+        // native validation, blocking submit before onSubmit even fired).
+        await page.fill('#expDate', new Date().toISOString().slice(0, 10));
         // Country uses a custom autocomplete: click the input to open
         // the dropdown, then click the matching item once it's visible.
         await page.click('#expCountry');
         await page.fill('#expCountry', 'Italy');
-        const italyItem = page.locator('#countryDropdownList .dropdown-item[data-value="Italy"]');
+        // Dropdown items are React-rendered with the country name as text
+        // (role="option"); the old data-value attr is gone. Match by text.
+        const italyItem = page.locator('#countryDropdownList .dropdown-item', { hasText: 'Italy' }).first();
         await italyItem.waitFor({ state: 'visible' });
         await italyItem.click();
         await page.fill('#expValue', '14.50');
         await page.selectOption('#expCurrency', 'EUR');
-        await page.click('#expenseForm button[type="submit"]');
+        // Submit by accessible role + label: the React expense form dropped
+        // its #expenseForm id in the refactor, so the old
+        // `#expenseForm button[type="submit"]` matched nothing.
+        await page.getByRole('button', { name: 'Save Expense' }).click();
+        // Confirm the save landed (toast) before switching tabs.
+        await expect(page.getByText('Expense saved', { exact: false })).toBeVisible({ timeout: 6000 });
 
         // After submit the manual tab just shows "✓ Saved — view in
         // History" — the expense row itself lives in the History tab.
         // Click over there to assert the row exists.
-        await page.click('.expenses-tabnav__tab[data-tab="history"]');
+        // History tab is a React role="tab" button now (no data-tab attr).
+        await page.getByRole('tab', { name: 'History' }).click();
         await expect(page.locator('text=Pizza al Forno').first()).toBeVisible();
     });
 });
