@@ -355,7 +355,17 @@ export function subscribe(event: EventName, fn: Subscriber): () => void {
     return () => _subscribers.get(event)?.delete(fn);
 }
 
+// MK3-11: monotonic version bumped on every state:changed emit. Lets pure
+// derived-value helpers (e.g. computeGlobalBalances) memoize their result and
+// recompute only when state actually changed — without coupling to the React
+// store layer (which keeps its own counter on top of this same signal).
+let _stateVersion = 0;
+export function getStateVersion(): number {
+    return _stateVersion;
+}
+
 export function emit(event: EventName, payload?: unknown): void {
+    if (event === EVENTS.STATE_CHANGED) _stateVersion++;
     _subscribers.get(event)?.forEach(fn => {
         try { fn(payload); }
         catch (e) { console.error(`Subscriber for "${event}" threw:`, e); }

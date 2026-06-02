@@ -9,7 +9,7 @@
 // implementations, which is why they're factored at this level
 // rather than inlined into one of the renderers.
 
-import { STATE } from '../../state.js';
+import { STATE, getStateVersion } from '../../state.js';
 import {
     getTripCompanionNames,
     findTripCompanionByLinkedUser,
@@ -330,8 +330,16 @@ export function simplifyDebts(balances: Record<string, number>): SettlementDebt[
  *
  *  Audit fix (2026-05-26): also seed with every name referenced in
  *  expenses (`who` or split keys) so removed-companion expenses
- *  don't silently vanish — same logic as computeTripBalances. */
-export function computeGlobalBalances() {
+ *  don't silently vanish — same logic as computeTripBalances.
+ *
+ *  MK3-11: memoized on the state version — this is O(trips × expenses) and is
+ *  called on every render, so recompute only when state actually changed. A
+ *  fresh shallow copy is returned each call so a mutating caller can never
+ *  corrupt the cache (the copy is O(people), negligible vs the compute). */
+let _globalBalCache: { v: number; result: Record<string, number> } | null = null;
+export function computeGlobalBalances(): Record<string, number> {
+    const _v = getStateVersion();
+    if (_globalBalCache && _globalBalCache.v === _v) return { ..._globalBalCache.result };
     const globalBalances: Record<string, number> = {};
     for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
         for (const name of getTripCompanionNames(t)) {
@@ -489,7 +497,8 @@ export function computeGlobalBalances() {
         applySettlementToBalances(globalBalances, s, trip || null);
     }
 
-    return globalBalances;
+    _globalBalCache = { v: _v, result: globalBalances };
+    return { ...globalBalances };
 }
 
 /** Per-companion paid/share leaderboard for a trip — used by the
