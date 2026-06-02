@@ -944,11 +944,34 @@ def _compute_data_version(cursor, user_id, visible_trip_ids):
 
     def probe(label, table, scope, scope_params):
         cols = _cols(table)
-        ts = "updated_at" if "updated_at" in cols else (
-            "created_at" if "created_at" in cols else "rowid")
         where = scope
         if "deleted_at" in cols:
             where = f"{where} AND deleted_at IS NULL" if where else "deleted_at IS NULL"
+        # Pick the best monotonic column. A table with NEITHER updated_at NOR
+        # created_at (only `categories` today) can't be tracked by
+        # MAX(rowid)+COUNT: its save path is delete-all-then-reinsert, so an
+        # in-place edit (rename/recolour, same row count) leaves both MAX(rowid)
+        # AND COUNT unchanged → the version wouldn't move and a peer device
+        # polling ?knownVersion= would stay stale. For those tables hash the row
+        # CONTENT instead — they're tiny per-user config tables, so the full
+        # scan is cheap.
+        if "updated_at" in cols:
+            ts = "updated_at"
+        elif "created_at" in cols:
+            ts = "created_at"
+        else:
+            ts = None
+        if ts is None:
+            sql = f"SELECT * FROM {table}"
+            if where:
+                sql += f" WHERE {where}"
+            sql += " ORDER BY rowid"
+            cursor.execute(sql, scope_params)
+            digest = hashlib.sha1(
+                repr([tuple(r) for r in cursor.fetchall()]).encode()
+            ).hexdigest()
+            parts.append(f"{label}:{digest}")
+            return
         sql = f"SELECT MAX({ts}), COUNT(*) FROM {table}"
         if where:
             sql += f" WHERE {where}"

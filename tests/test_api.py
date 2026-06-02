@@ -1558,6 +1558,49 @@ def test_data_returns_populated_payload(client, seed_user, auth_headers):
     assert len(body["budgets"]) == 1
 
 
+def test_data_version_detects_in_place_category_edit(client, seed_user, auth_headers):
+    """MK3-10 change-detection regression.
+
+    `categories` has no updated_at/created_at column, and its save path is
+    delete-all-then-reinsert. So an in-place edit (rename / recolour / new
+    icon) that keeps the row COUNT constant can also leave MAX(rowid)
+    constant — meaning _compute_data_version would emit the SAME hash, a
+    peer device polling `?knownVersion=OLD` would get {unchanged:true}, and
+    it would show the stale category name/colour until some unrelated
+    mutation happened to move the version. The fix hashes category CONTENT
+    for timestamp-less tables.
+
+    Also pins the basic short-circuit (matching version → unchanged), which
+    previously had no coverage at all."""
+    client.post("/api/categories", headers=auth_headers, json={
+        "categories": [{"id": "c1", "name": "Food", "icon": "🍔", "color": "#ff3b30"}],
+    })
+    v1 = client.get("/api/data", headers=auth_headers).get_json()["version"]
+
+    # Matching version → unchanged short-circuit.
+    same = client.get(
+        f"/api/data?knownVersion={v1}", headers=auth_headers
+    ).get_json()
+    assert same.get("unchanged") is True
+
+    # In-place edit: SAME count (1), new name + icon + colour.
+    client.post("/api/categories", headers=auth_headers, json={
+        "categories": [{"id": "c1", "name": "Dining", "icon": "🍽️", "color": "#34c759"}],
+    })
+
+    # The version MUST move — the edit can't be silently swallowed.
+    after = client.get(
+        f"/api/data?knownVersion={v1}", headers=auth_headers
+    ).get_json()
+    assert after.get("unchanged") is not True, (
+        "in-place category edit was missed by change-detection (stale-peer bug)"
+    )
+    assert after["version"] != v1
+    cats = {c["id"]: c for c in after["categories"]}
+    assert cats["c1"]["name"] == "Dining"
+    assert cats["c1"]["color"] == "#34c759"
+
+
 # ── /api/sync ────────────────────────────────────────────────────────────────
 # Bulk "replace everything in one POST" path. Most write traffic goes
 # through delta endpoints now (routes/expenses.py, routes/days.py, etc.)
