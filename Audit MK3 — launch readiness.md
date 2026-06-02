@@ -374,19 +374,31 @@ Effort: XS (<1h) · S (≤½day) · M (~1–2 days) · L (multi-day).
 | ✅  | **MK3-2** ISO territories missing from map                 | Full ISO coverage (250) — **DONE (b26f724)**                                    | Low         | Low              | XS     |
 | ✅  | **MK3-6** Year-album gradient collisions                   | Index by year value — **DONE (b26f724)**                                        | Low         | Low              | XS     |
 | ✅  | **MK3-8** Settlement currency for multi-currency trips     | Per-currency debts + settle + manual picker — **DONE (f82c947), verified live** | Med         | Med              | M      |
-| 1   | **MK3-10** `/api/data` ships everything each poll          | Incremental sync / pagination (architectural)                                   | Med (grows) | **High** (scale) | L      |
-| 2   | **MK3-11** O(trips×expenses) balance recompute             | Memoize — do alongside MK3-10                                                   | Low         | Low              | S      |
+| ✅  | **MK3-10** `/api/data` ships everything each poll          | gzip (~87%) + change-detection polling — **DONE (c4269e5), verified live**      | Med (grows) | **High** (scale) | L      |
+| ✅  | **MK3-11** O(trips×expenses) balance recompute             | Memoized on state version — **DONE (915498c)**                                  | Low         | Low              | S      |
 | ✅  | **MK3-3** Turkey/Caucasus → "Asia"                         | Kept UN scheme + drill-in flags — **DONE (2befb79)**                            | Low         | Low              | XS     |
 | ⏸   | **MK3-9** Refund balances unlabeled                        | Won't-fix cleanly (math is correct; label needs provenance)                     | Med         | Med              | —      |
 | ⏸   | **MK3-12** Cross-device over-settle (bounded, recoverable) | Server pairwise check — deferred (false-reject risk)                            | Low–Med     | Med              | M–L    |
 | —   | **MK3-7** No-rate settlement 1:1 (latent)                  | Optional defensive `hasRate` guard                                              | —           | latent           | XS     |
 
-**Status:** 8 items shipped (MK3-1, MK3-13, MK3-4, MK3-5, MK3-2, MK3-6, MK3-3,
-and **MK3-8 per-currency settlements** — built as a per-currency debt engine +
-settle UI, verified live on a EUR+CHF+ARS trip). MK3-7 + MK3-12 downgraded on
-verification (not reachable / already-mitigated + recoverable). MK3-9 won't-fix
-cleanly (the math is correct; a "refund" label needs provenance the balance
-model doesn't track). **Only one item remains, and it's the big architectural
-one:** MK3-10 (incremental `/api/data` sync for scale; fold MK3-11 memoization
-into it) — to be done as a careful phased change (A: memoize, B: additive
-`?since=`, C: client merge), given the prior R12 data-loss history in this area.
+**Status: all items addressed.** Shipped + verified: MK3-1, MK3-13, MK3-4,
+MK3-5, MK3-2, MK3-6, MK3-3, **MK3-8** (per-currency settlements — debt engine +
+settle UI, verified live on a EUR+CHF+ARS trip), and **MK3-10 + MK3-11**
+(scale: balance memoization + gzip ~87% + change-detection polling — verified
+live: idle polls return a tiny `{unchanged}`, real changes still full-fetch).
+MK3-7 + MK3-12 were downgraded on verification (not reachable / already-mitigated
+
+- recoverable). MK3-9 is won't-fix-cleanly (the math is correct; a "refund"
+  label needs provenance the balance model doesn't track).
+
+> Note on the chosen scale path: the original "full delta-merge incremental
+> sync" was **rejected on evidence** — trip visibility is a `UNION`
+> (owned + membership), so a row-level `?since=` delta would hand a
+> newly-shared trip with _zero_ expenses (they predate the cursor). Change-
+> detection polling avoids that class of bug entirely (it does the proven full
+> fetch whenever anything changed), so it's the correct "incremental" design
+> here. See `data.py:_compute_data_version`.
+
+> **Unrelated pre-existing failure noticed:** `test_pdf_budget_table_labels_and_
+original_currency` fails on a clean tree (confirmed via stash) — not caused by
+> any MK3 work; worth a separate look.
