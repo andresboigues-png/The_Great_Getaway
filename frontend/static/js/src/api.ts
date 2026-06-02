@@ -1729,25 +1729,26 @@ export async function fetchGeminiHostKeyStatus(): Promise<GeminiHostKeyStatus | 
 export async function fetchHistoricalRates(dates: string[]) {
     if (dates.length === 0) return;
 
-    // Sort dates to find range
-    const sorted = [...dates].sort();
-    const start = sorted[0];
-    const end = sorted[sorted.length - 1];
-
+    // The dates we ACTUALLY need (the unique expense dates). We fetch the
+    // [min..max] range in one request (Frankfurter's time-series endpoint
+    // is range-based), but cache ONLY these dates — see the MK2 fix below.
+    const requested = [...new Set(dates.filter(Boolean))].sort();
+    const start = requested[0];
+    const end = requested[requested.length - 1];
     if (!start || !end) return;
 
-    // §2.19: thread the nav signal so an outdated rate fetch from
-    // a previous page doesn't keep running after the user navigated.
-    // Also bound the cache size — without this, a user editing many
-    // trips spanning years could push localStorage past Safari's
-    // 5MB quota with rate entries alone. Cap at 5000 dated entries
-    // (≈ 13 currencies × 365 days = one trip-year's worth).
+    // §2.19: thread the nav signal so an outdated rate fetch from a
+    // previous page doesn't keep running after the user navigated. Also
+    // bound the cache against localStorage's ~5MB quota. With per-date
+    // caching (below) this rarely fires — a year-long trip is only
+    // ≈ dates × ~35 currencies.
     const CACHE_MAX = 5000;
     try {
         // Frankfurter migrated api.frankfurter.app -> api.frankfurter.dev/v1
         // (the .app host now 301-redirects). The browser re-checks CSP on a
         // redirect target, so we hit the canonical .dev/v1 URL directly.
-        // Same response shape: { rates: { "YYYY-MM-DD": { CUR: rate } } }.
+        // Same response shape: { rates: { "YYYY-MM-DD": { CUR: rate } } } —
+        // business days only.
         const url = `https://api.frankfurter.dev/v1/${start}..${end}`;
         const sig = currentNavSignal();
         const resp = await fetch(url, sig ? { signal: sig } : {});
@@ -1762,27 +1763,59 @@ export async function fetchHistoricalRates(dates: string[]) {
             return;
         }
         const data: { rates: Record<string, Record<string, number>> } = await resp.json();
-        // data.rates is { "YYYY-MM-DD": { "USD": 1.1, ... } }
+        // data.rates is { "YYYY-MM-DD": { "USD": 1.1, ... } }.
         // Build a NEW cache object instead of mutating in place. Consumers
         // (e.g. Insights) read rateCache through a useStore selector and
         // memoize derived totals on its REFERENCE; an in-place mutation
         // leaves the reference unchanged, so the useMemo wouldn't recompute
-        // when these async rates land — the page would keep showing the
-        // pre-fetch values until an unrelated re-render. Replacing the
-        // reference makes the very next render pick the new rates up.
+        // when these async rates land. Replacing the reference makes the
+        // very next render pick the new rates up.
+        //
+        // MK2 audit fix (FX across far-apart dates): cache ONLY the
+        // requested expense dates, not every business day in the range.
+        // Pre-fix this stored the whole range (a 2015→2026 trip ≈ 92k
+        // entries) and the CACHE_MAX trim — which drops the OLDEST date
+        // keys first — then silently evicted the very dates the Insights
+        // "Spent / Worth-today" calc needed, so old expenses fell back to
+        // TODAY's rate despite the UI promising the at-the-time cost.
+        // Caching just the requested dates keeps the cache tiny, and those
+        // keys are protected from the trim below.
+        //
+        // Frankfurter returns business days only, so an expense on a
+        // weekend/holiday has no exact-date row; map it to the nearest
+        // PRIOR available business day (Frankfurter's own convention) and
+        // store it UNDER the requested date so the exact-date lookup in
+        // Insights still resolves.
+        const availableDates = Object.keys(data.rates).sort();
         const nextRateCache: Record<string, number> = { ...STATE.rateCache };
-        Object.entries(data.rates).forEach(([date, rates]) => {
-            Object.entries(rates).forEach(([curr, rate]) => {
-                nextRateCache[`${date}_${curr}_EUR`] = 1 / rate;
-            });
-        });
-        // Trim the cache if it grew past the cap. Pure-string keys
-        // sort lexicographically by date prefix so the oldest entries
-        // drop first.
+        const requestedPrefixes = new Set<string>();
+        for (const reqDate of requested) {
+            let rates = data.rates[reqDate];
+            if (!rates) {
+                let chosen: string | undefined;
+                for (let i = availableDates.length - 1; i >= 0; i -= 1) {
+                    const d = availableDates[i]!;
+                    if (d <= reqDate) { chosen = d; break; }
+                }
+                if (chosen) rates = data.rates[chosen];
+            }
+            if (!rates) continue;
+            requestedPrefixes.add(reqDate);
+            for (const [curr, rate] of Object.entries(rates)) {
+                if (typeof rate === 'number' && Number.isFinite(rate) && rate > 0) {
+                    nextRateCache[`${reqDate}_${curr}_EUR`] = 1 / rate;
+                }
+            }
+        }
+        // Trim if a long cumulative history pushed us over the cap — but
+        // NEVER evict a key for a date we just resolved (those are exactly
+        // what the current view needs). Drop oldest among the rest.
         const keys = Object.keys(nextRateCache);
         if (keys.length > CACHE_MAX) {
-            keys.sort();
-            for (const k of keys.slice(0, keys.length - CACHE_MAX)) {
+            const droppable = keys
+                .filter((k) => !requestedPrefixes.has(k.slice(0, 10)))
+                .sort();
+            for (const k of droppable.slice(0, keys.length - CACHE_MAX)) {
                 delete nextRateCache[k];
             }
         }

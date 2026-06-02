@@ -535,22 +535,33 @@ export function Insights() {
 
     useEffect(() => {
         if (!timeCanvasRef.current || tripExps.length === 0) return;
+        // MK2 audit fix (timeline must represent TIME): plot points on a
+        // numeric (epoch-ms) x-axis so expenses that are days vs YEARS
+        // apart are spaced proportionally. Pre-fix this used a CATEGORY
+        // axis (one evenly-spaced slot per date) + a smoothing spline, so
+        // a 2015 and a 2018 expense rendered side-by-side as if adjacent.
+        // Undated expenses (the "unknown date" bucket) have no position on
+        // a time axis, so they're omitted here (still counted in the
+        // totals/breakdowns above).
         const sortedDates = Object.keys(dateTotals).sort();
-        const timeData = sortedDates.map((d) => dateTotals[d]);
         const includeYear = datesSpanMultipleYears(sortedDates);
-        const chartLabels = sortedDates.map((d) => timelineDateLabel(d, includeYear));
+        const points = sortedDates
+            .map((d) => ({ x: Date.parse(`${d}T00:00:00Z`), y: dateTotals[d]! }))
+            .filter((p) => Number.isFinite(p.x));
         const chart = new Chart(timeCanvasRef.current, {
             type: 'line',
             data: {
-                labels: chartLabels,
                 datasets: [
                     {
                         label: targetCurr + ' ' + t(mode === 'today' ? 'insights.rateModeToday' : 'insights.rateModeAtTrip'),
-                        data: timeData,
+                        data: points,
                         borderColor: '#0071e3',
                         backgroundColor: 'rgba(0, 113, 227, 0.1)',
                         fill: true,
-                        tension: 0.4,
+                        // Straight segments between real data points — a
+                        // spline would imply spend on dates that had none,
+                        // misleading once points are far apart in time.
+                        tension: 0,
                         pointRadius: 4,
                         pointBackgroundColor: '#0071e3',
                         borderWidth: 3,
@@ -564,14 +575,32 @@ export function Insights() {
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
+                            title: (items: any[]) => {
+                                const v = items && items[0] ? Number(items[0].parsed.x) : NaN;
+                                if (!Number.isFinite(v)) return '';
+                                return timelineDateLabel(new Date(v).toISOString().slice(0, 10), includeYear);
+                            },
                             label: (ctx: any) => targetSym + formatNumberForCurrency(ctx.parsed.y, targetCurr),
                         },
                     },
                 },
                 scales: {
                     x: {
+                        // Numeric time axis (no Chart.js date-adapter on the
+                        // CDN build): x values are epoch-ms; ticks are
+                        // formatted back to date labels.
+                        type: 'linear',
                         grid: { display: false },
-                        ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 7 },
+                        ticks: {
+                            maxRotation: 0,
+                            autoSkip: true,
+                            maxTicksLimit: 7,
+                            callback: (value: number | string) => {
+                                const v = Number(value);
+                                if (!Number.isFinite(v)) return '';
+                                return timelineDateLabel(new Date(v).toISOString().slice(0, 10), includeYear);
+                            },
+                        },
                     },
                     y: {
                         beginAtZero: true,
