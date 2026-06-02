@@ -676,11 +676,11 @@ export const en = {
         rateInfoWorthToday: 'that cost adjusted for inflation since then, using real World Bank consumer-price (CPI) data for your home currency’s region.',
         rateInfoNote: 'Inflation figures are published once a year and lag a year or two — so a trip from the last couple of years usually shows little or no change yet.',
         valueTodayInfoTitle: 'Value today',
-        valueTodayInfoIntro: '<strong>{spent}</strong> is what you actually paid at the time of the trip. <strong>{today}</strong> takes that and applies inflation and the exchange rate from each expense’s date — an estimate of <strong>how much it would cost to do the same journey today</strong>.',
-        valueTodayInfoInflation: 'Inflation applied is up to about {pct}% for your home currency, based on the years you travelled.',
+        valueTodayInfoIntro: '<strong>{spent}</strong> is what you actually paid at the time. <strong>{today}</strong> converts each expense at <strong>today’s exchange rate</strong> and grows it by that currency’s own inflation since then — an estimate of <strong>what that spending is worth now</strong>.',
+        valueTodayInfoInflation: 'Each currency uses its own region’s inflation (up to about {pct}% here), based on the years you travelled.',
         valueTodayInfoSources: 'Inflation comes from World Bank consumer-price (CPI) data and exchange rates from the European Central Bank — these are estimates, so take them with a grain of salt.',
-        // D-2: old/unsupported-currency expenses have no historical rate.
-        valueTodayInfoOldRates: 'Very old expenses (before 1999), or currencies we have no rate for, fall back to today’s exchange rate — so their “value today” is a rough approximation.',
+        // D-2: currencies/years without CPI data simply aren't inflation-adjusted.
+        valueTodayInfoOldRates: 'Currencies or years we have no inflation data for aren’t adjusted — treat their “value today” as a rough estimate.',
         valueTodayManualCta: 'Set the rates yourself →',
         overrideTitle: 'Your own rates',
         overrideIntro: 'Set the inflation and exchange rate for each currency you used. This only changes “{today}” — your balances and budgets never change. Leave a row as-is to keep our estimate.',

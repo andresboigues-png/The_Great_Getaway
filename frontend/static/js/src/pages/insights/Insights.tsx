@@ -92,6 +92,41 @@ function timelineDateLabel(isoKey: string, includeYear: boolean): string {
     }
 }
 
+/** Build a CPI inflation-factor lookup from a year→index series (World
+ *  Bank FP.CPI.TOTL). `factor(date)` = CPI(latest available year) /
+ *  CPI(expense's year), clamped to the series: recent / undated / future
+ *  years clamp to the latest (factor 1 — no inflation), and gaps walk down
+ *  to the nearest year with data. Returns 1 when there's no usable series
+ *  (→ "worth today" == as-spent for that currency). Pure + per-series, so
+ *  the same helper drives BOTH the main calc and the override-panel auto
+ *  figures — each indexed by the EXPENSE's own currency, not a single
+ *  home-region figure smeared across every currency. */
+function makeInflationFactor(cpi: Record<number, number> | undefined): (date: string) => number {
+    let latestYear = 0;
+    let latestVal = 0;
+    let earliestYear = 0;
+    if (cpi) {
+        const ys = Object.keys(cpi).map(Number).filter((y) => Number.isFinite(y));
+        if (ys.length) {
+            latestYear = Math.max(...ys);
+            earliestYear = Math.min(...ys);
+            latestVal = cpi[latestYear] || 0;
+        }
+    }
+    return (date: string): number => {
+        if (!cpi || !latestVal) return 1;
+        let y = Number((date || '').slice(0, 4));
+        if (!Number.isFinite(y) || y < 1900 || y > latestYear + 1) y = latestYear;
+        let baseYear = Math.max(earliestYear, Math.min(latestYear, y));
+        let baseCpi = cpi[baseYear];
+        while (baseCpi == null && baseYear > earliestYear) {
+            baseYear -= 1;
+            baseCpi = cpi[baseYear];
+        }
+        return baseCpi ? latestVal / baseCpi : 1;
+    };
+}
+
 export function Insights() {
     const navigate = useNavigate();
     // §3.4 — `useActiveTrip` provides the activeTripId + the
@@ -183,12 +218,20 @@ export function Insights() {
         };
     }, [tripExps]);
 
-    // Background fetch for the home-currency CPI series — powers the
-    // "Worth today" inflation adjustment. Re-fetches if the home
-    // currency changes (a profile change between visits).
+    // Background fetch for the CPI series that power "Worth today". Each
+    // expense now inflates on ITS OWN currency-region CPI (not a single
+    // home-region figure applied to everything), so we fetch the home
+    // currency AND every currency the trip spent in. Each fetch is
+    // dedupe-guarded + cached; cpiChecked flips once they all settle (gates
+    // the hero "calculating…" placeholder in today mode).
     useEffect(() => {
-        fetchCpiSeries(getHomeCurrency()).finally(() => setCpiChecked(true));
-    }, []);
+        const curs = Array.from(new Set([
+            getHomeCurrency().toUpperCase(),
+            ...tripExps.map((e: Expense) => (e.currency || 'EUR').toUpperCase()),
+        ]));
+        setCpiChecked(false);
+        Promise.all(curs.map((c) => fetchCpiSeries(c))).finally(() => setCpiChecked(true));
+    }, [tripExps]);
 
     // Insights always reports in the viewer's HOME currency now (the
     // selectable display currency was removed — the original-currency
@@ -224,41 +267,19 @@ export function Insights() {
         // in `today` mode (uppercase-keyed). `at_trip` (Spent) is always the
         // at-the-time figure and ignores overrides.
         const tripOverrides = fxOverridesByTrip[activeTripId] || {};
-        // ── Inflation ("Worth today") factor ──────────────────────────
-        // Real CPI for the home currency's region (World Bank FP.CPI.TOTL,
-        // cached in cpiCache). Factor = CPI(latest available year) /
-        // CPI(expense's year). Recent years (e.g. the current one, whose
-        // CPI isn't published yet) clamp to the latest available, so a
-        // brand-new trip shows ~no inflation, which is correct. Returns 1
-        // when we have no CPI data (→ "Worth today" == as-spent).
-        const cpi = cpiCache[targetCurr];
-        let cpiLatestYear = 0;
-        let cpiLatestVal = 0;
-        let cpiEarliestYear = 0;
-        if (cpi) {
-            const ys = Object.keys(cpi).map(Number).filter((y) => Number.isFinite(y));
-            if (ys.length) {
-                cpiLatestYear = Math.max(...ys);
-                cpiEarliestYear = Math.min(...ys);
-                cpiLatestVal = cpi[cpiLatestYear] || 0;
-            }
-        }
-        const inflationFactor = (date: string): number => {
-            if (!cpi || !cpiLatestVal) return 1;
-            let y = Number((date || '').slice(0, 4));
-            // Guard against an empty/garbage date: `Number('')` is 0
-            // (finite!), which would otherwise clamp to the earliest year
-            // and apply max inflation. Treat any implausible year as the
-            // latest (→ factor 1, no inflation) instead.
-            if (!Number.isFinite(y) || y < 1900 || y > cpiLatestYear + 1) y = cpiLatestYear;
-            let baseYear = Math.max(cpiEarliestYear, Math.min(cpiLatestYear, y));
-            let baseCpi = cpi[baseYear];
-            // Walk down to the nearest year that has data (gaps are rare).
-            while (baseCpi == null && baseYear > cpiEarliestYear) {
-                baseYear -= 1;
-                baseCpi = cpi[baseYear];
-            }
-            return baseCpi ? cpiLatestVal / baseCpi : 1;
+        // ── Inflation ("Worth today") — PER CURRENCY ──────────────────
+        // Each expense is grown by ITS OWN currency-region CPI (World Bank
+        // FP.CPI.TOTL — CAD→Canada, USD→USA, EUR→Germany proxy), memoised
+        // per currency. Pre-fix a single home-region figure was smeared
+        // across every currency (a CAD expense inflated on German CPI),
+        // which the user flagged ("inflation happened for the other
+        // currencies as well"). makeInflationFactor returns 1 for a
+        // currency whose series hasn't loaded / doesn't exist.
+        const _factorByCur: Record<string, (d: string) => number> = {};
+        const inflationFactorFor = (cur: string, date: string): number => {
+            const c = (cur || 'EUR').toUpperCase();
+            if (!_factorByCur[c]) _factorByCur[c] = makeInflationFactor(cpiCache[c]);
+            return _factorByCur[c]!(date);
         };
 
         const convertedExps: ConvertedExpense[] = tripExps.map((e: Expense) => {
@@ -288,23 +309,31 @@ export function Insights() {
                 const euroVal = e.euroValue ?? convertCurrency(e.value, e.currency, 'EUR');
                 spentHome = targetCurr === 'EUR' ? euroVal : convertCurrency(euroVal, 'EUR', targetCurr);
             }
-            // "Worth today" = that as-spent home cost, adjusted for the
-            // home currency's inflation since the expense's year — UNLESS the
-            // user set a manual override for this currency, in which case
-            // we use their numbers: original amount × their exchange rate ×
-            // (1 + their inflation%). `at_trip` is always the as-spent value.
+            // "Worth today" = the foreign amount converted at TODAY'S FX,
+            // grown by that currency's OWN inflation since the expense's year
+            // — UNLESS the user set a manual override for this currency, in
+            // which case we use their numbers (original amount × their rate ×
+            // (1 + their inflation%)). `at_trip` (Spent) stays the at-the-time
+            // cost (historical FX, no inflation). User feedback: current FX is
+            // the right lens for "what's it worth now", and inflation is
+            // per-currency — not one home-region figure for every currency.
+            // This unifies the auto path with the manual-override formula.
             let displayValue: number;
             if (mode === 'today') {
-                const ov = tripOverrides[(e.currency || 'EUR').toUpperCase()];
+                const curUp = (e.currency || 'EUR').toUpperCase();
+                const ov = tripOverrides[curUp];
                 // IA-1: only trust an override whose numbers are actually finite.
                 // A corrupt/hand-edited localStorage entry (NaN, Infinity, string)
                 // would otherwise turn displayValue into NaN and poison the total,
                 // donut, and timeline with no recovery — validateLoadedState never
                 // inspects this field. Bad override ⇒ fall back to the auto estimate.
                 const ovValid = ov && Number.isFinite(ov.fxToHome) && Number.isFinite(ov.inflationPct);
-                displayValue = ovValid
-                    ? e.value * ov.fxToHome * (1 + ov.inflationPct / 100)
-                    : spentHome * inflationFactor(e.date);
+                if (ovValid) {
+                    displayValue = e.value * ov.fxToHome * (1 + ov.inflationPct / 100);
+                } else {
+                    const currentHome = convertCurrency(e.value, e.currency, targetCurr);
+                    displayValue = currentHome * inflationFactorFor(curUp, e.date);
+                }
             } else {
                 displayValue = spentHome;
             }
@@ -585,8 +614,12 @@ export function Insights() {
     // we show a "calculating…" placeholder while either is in-flight. Foreign
     // spend is the only thing that needs historical FX; an all-home-currency
     // trip in "at trip" mode is final immediately (no flicker to hide).
-    const heroCalculating =
-        (hasForeignSpend && !ratesSettled) || (mode === 'today' && !cpiChecked);
+    // Today mode = current FX (synchronous via convertCurrency) + per-currency
+    // CPI (async) → gate purely on the CPI fetches. At-trip mode = historical
+    // FX (async) → gate on the rate fetch (only matters with foreign spend).
+    const heroCalculating = mode === 'today'
+        ? !cpiChecked
+        : (hasForeignSpend && !ratesSettled);
 
     // ── Chart.js side-effects ─────────────────────────────────────────────
     const pieCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -819,21 +852,6 @@ export function Insights() {
     // and the manual-override panel's pre-filled inputs. Computed on demand
     // (the modals open on click), so no extra render cost.
     const computeCurrencyAutos = () => {
-        const cpi = cpiCache[targetCurr];
-        let latestYear = 0, latestVal = 0, earliestYear = 0;
-        if (cpi) {
-            const ys = Object.keys(cpi).map(Number).filter((y) => Number.isFinite(y));
-            if (ys.length) { latestYear = Math.max(...ys); earliestYear = Math.min(...ys); latestVal = cpi[latestYear] || 0; }
-        }
-        const factorForYear = (y: number): number => {
-            if (!cpi || !latestVal) return 1;
-            let yy = y;
-            if (!Number.isFinite(yy) || yy < 1900 || yy > latestYear + 1) yy = latestYear;
-            let by = Math.max(earliestYear, Math.min(latestYear, yy));
-            let bc = cpi[by];
-            while (bc == null && by > earliestYear) { by -= 1; bc = cpi[by]; }
-            return bc ? latestVal / bc : 1;
-        };
         const byCur: Record<string, { years: number[]; count: number }> = {};
         for (const e of tripExps) {
             const cur = (e.currency || 'EUR').toUpperCase();
@@ -846,9 +864,12 @@ export function Insights() {
         return Object.keys(byCur).sort().map((cur) => {
             const yrs = byCur[cur]!.years;
             const avgYear = yrs.length ? Math.round(yrs.reduce((a, b) => a + b, 0) / yrs.length) : new Date().getFullYear();
+            // Per-currency CPI (each currency's own region), matching the main
+            // calc — so the override prefill IS the auto "worth today" figure.
+            const factor = makeInflationFactor(cpiCache[cur]);
             return {
                 code: cur,
-                autoInflationPct: Math.round((factorForYear(avgYear) - 1) * 1000) / 10,
+                autoInflationPct: Math.round((factor(`${avgYear}-06-15`) - 1) * 1000) / 10,
                 // IA-3: 6 significant figures, not 4 decimals. A fixed 4dp can't
                 // represent tiny-unit currencies (JPY/KRW/IDR/VND/HUF ≈ 0.005…) —
                 // it rounded 1 JPY = 0.00537374 → 0.0054 (+0.79%), so saving the

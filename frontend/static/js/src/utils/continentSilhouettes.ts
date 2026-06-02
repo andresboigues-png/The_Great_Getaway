@@ -25,13 +25,24 @@ export const CONTINENT_SILHOUETTES: Record<string, string> = {
         'L60 60 Q57 70 53 80 L50 92 Q48 96 46 92 L42 78 Q38 66 37 56 ' +
         'L31 47 Q25 42 27 34 L29 24 Q29 12 36 12 Z',
 
-    // Compact, jagged: Scandinavia peninsula up top, the boot of Italy +
-    // Iberia + the Balkans hanging off the south, Britain to the left.
+    // Composed from overlapping sub-shapes (the old single blob read as a
+    // star, not Europe): a central body, the Scandinavian peninsula rising
+    // out of its north, the Iberian bulge SW, the Italian boot pointing
+    // down, a small Greek/Balkan nub SE, and the British Isles + Ireland as
+    // detached islands W. NOTE: every sub-path winds the SAME direction as
+    // the body — a reversed sub-path would punch a nonzero-fill HOLE where
+    // it overlaps (the Scandinavia base did exactly that before it was
+    // flipped). Keep winding consistent if you edit these.
     Europe:
-        'M40 14 Q44 8 48 16 L52 26 L60 22 Q66 20 66 28 L72 34 Q78 38 72 44 ' +
-        'L66 48 L70 56 Q72 62 64 60 L58 56 L54 66 Q52 72 48 64 L46 56 ' +
-        'L38 60 Q30 62 32 54 L28 46 Q24 40 32 38 L30 30 Q30 22 38 24 Z ' +
-        'M20 40 Q16 38 19 34 Q24 34 23 40 Q22 46 20 40 Z',
+        'M33 46 Q28 50 34 57 Q42 64 57 62 Q74 61 79 51 Q82 44 71 43 ' +
+        'Q62 38 51 39 Q42 40 33 46 Z ' +                                  // body
+        'M45 46 Q49 47 54 47 Q58 46 60 36 Q63 23 56 15 Q49 10 47 18 ' +
+        'Q43 33 45 46 Z ' +                                               // Scandinavia
+        'M30 58 Q24 61 27 69 Q31 75 39 70 Q46 66 41 58 Q38 53 33 55 Z ' + // Iberia
+        'M54 60 Q57 70 53 76 Q50 78 49 72 Q48 64 50 59 Q52 57 54 60 Z ' + // Italy
+        'M62 60 Q66 62 63 66 Q59 67 59 63 Q59 59 62 60 Z ' +             // Greece/Balkans
+        'M22 48 Q16 50 19 58 Q23 64 26 56 Q29 49 22 48 Z ' +             // Britain
+        'M14 50 Q11 51 13 55 Q16 57 17 53 Q18 49 14 50 Z',               // Ireland
 
     // Broad Siberian top, Arabian + Indian peninsulas pointing down, the
     // long South-East-Asia tail to the lower-right.
