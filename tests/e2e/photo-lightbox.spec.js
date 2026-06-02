@@ -23,7 +23,7 @@
 //     enough that we'd want a Python-side fixture-generation step too.
 
 import { test, expect } from '@playwright/test';
-import { openFreshApp, getAuthForApi, createTripViaApi } from './helpers.js';
+import { openTripWithMedia, getAuthForApi, createTripViaApi } from './helpers.js';
 
 // Same uniqueId pattern as flows.spec.js + share-public.spec.js — the
 // dev server's SQLite persists across runs, so per-test unique IDs
@@ -55,13 +55,6 @@ async function seedTripWithPhotos(page, headers, photoSrcs) {
         id: uniqueId('trip'),
         name: 'Lightbox e2e trip',
         country: 'Portugal',
-        // photos is a JSON-serialized array of {id, src, dayId}.
-        // dayId is set below after we create the anchor day.
-        // For now, leave dayId out — Anchor-bucket photos are fine.
-        photos: photoSrcs.map((src, i) => ({
-            id: `photo-lb-${Date.now()}-${i}`,
-            src,
-        })),
     });
     // Anchor day — required for the Path component to expose the
     // Photos button. dayNumber=0 is the Anchor convention.
@@ -77,6 +70,20 @@ async function seedTripWithPhotos(page, headers, photoSrcs) {
             },
         },
     });
+    // Photos are trip-MEDIA: upsert_trip ignores them and /api/data never
+    // ships them (R12 write-path invariant). Seed via the dedicated media
+    // endpoint; the client's fetchTripMedia() loads them once the trip is
+    // active (api.ts). Anchor-bucket photos (no dayId) are fine.
+    const mediaRes = await page.request.post(`/api/trips/${tripId}/media`, {
+        headers,
+        data: {
+            photos: photoSrcs.map((src, i) => ({
+                id: `photo-lb-${Date.now()}-${i}`,
+                src,
+            })),
+        },
+    });
+    expect(mediaRes.status()).toBe(200);
     return tripId;
 }
 
@@ -92,28 +99,11 @@ test.describe('Photo lightbox gallery (§4.9)', () => {
         const auth = await getAuthForApi(page, uniqueId('owner'));
         const tripId = await seedTripWithPhotos(page, auth.headers, [PHOTO_A, PHOTO_B, PHOTO_C]);
 
-        // openFreshApp re-uses the seed token + boots into Home.
-        await openFreshApp(page, auth.user.id);
-        // Sometimes the dev DB has leftover trips from prior runs; set
-        // the active trip explicitly so the Path component shows OUR
-        // seeded trip rather than whatever was active for this user
-        // previously. Drives the trip-selector dropdown that exists at
-        // both navbar + sidebar (whichever is visible at this viewport).
-        await page.evaluate((id) => {
-            // @ts-ignore — STATE is on window in dev/test (state.ts)
-            window.STATE = window.STATE || {};
-            // The state-loader hydrates from localStorage on boot; mutate
-            // there too so a router-triggered re-render picks it up.
-            try {
-                const raw = localStorage.getItem('theGreatEscapeState');
-                const parsed = raw ? JSON.parse(raw) : {};
-                parsed.activeTripId = id;
-                localStorage.setItem('theGreatEscapeState', JSON.stringify(parsed));
-            } catch (_) {
-                /* ignore */
-            }
-        }, tripId);
-        await page.goto('/');
+        // Boot + activate the seeded trip + WAIT for its media GET to land
+        // before any modal-open. Opening the photos modal before
+        // fetchTripMedia() resolves renders an empty grid that never
+        // repopulates (R12 media is a separate read path). See helpers.js.
+        await openTripWithMedia(page, auth.user.id, tripId);
 
         // The Path tab is the default landing on a trip; click the
         // 📸 Photos button. It lives on the Anchor day's options stack.
@@ -140,18 +130,7 @@ test.describe('Photo lightbox gallery (§4.9)', () => {
     test('next/prev chevrons + counter cycle through the gallery', async ({ page }) => {
         const auth = await getAuthForApi(page, uniqueId('owner'));
         const tripId = await seedTripWithPhotos(page, auth.headers, [PHOTO_A, PHOTO_B, PHOTO_C]);
-        await openFreshApp(page, auth.user.id);
-        await page.evaluate((id) => {
-            try {
-                const raw = localStorage.getItem('theGreatEscapeState');
-                const parsed = raw ? JSON.parse(raw) : {};
-                parsed.activeTripId = id;
-                localStorage.setItem('theGreatEscapeState', JSON.stringify(parsed));
-            } catch (_) {
-                /* ignore */
-            }
-        }, tripId);
-        await page.goto('/');
+        await openTripWithMedia(page, auth.user.id, tripId);
         await page.locator('.path-photos-btn').first().click();
         await page.locator('.trip-photo-card[data-photo-kind="image"]').first().click();
 
@@ -185,18 +164,7 @@ test.describe('Photo lightbox gallery (§4.9)', () => {
     test('keyboard ArrowRight/ArrowLeft navigates, Escape closes', async ({ page }) => {
         const auth = await getAuthForApi(page, uniqueId('owner'));
         const tripId = await seedTripWithPhotos(page, auth.headers, [PHOTO_A, PHOTO_B, PHOTO_C]);
-        await openFreshApp(page, auth.user.id);
-        await page.evaluate((id) => {
-            try {
-                const raw = localStorage.getItem('theGreatEscapeState');
-                const parsed = raw ? JSON.parse(raw) : {};
-                parsed.activeTripId = id;
-                localStorage.setItem('theGreatEscapeState', JSON.stringify(parsed));
-            } catch (_) {
-                /* ignore */
-            }
-        }, tripId);
-        await page.goto('/');
+        await openTripWithMedia(page, auth.user.id, tripId);
         await page.locator('.path-photos-btn').first().click();
         await page.locator('.trip-photo-card[data-photo-kind="image"]').first().click();
 
@@ -222,18 +190,7 @@ test.describe('Photo lightbox gallery (§4.9)', () => {
     test('explicit close button + backdrop click both dismiss the lightbox', async ({ page }) => {
         const auth = await getAuthForApi(page, uniqueId('owner'));
         const tripId = await seedTripWithPhotos(page, auth.headers, [PHOTO_A, PHOTO_B]);
-        await openFreshApp(page, auth.user.id);
-        await page.evaluate((id) => {
-            try {
-                const raw = localStorage.getItem('theGreatEscapeState');
-                const parsed = raw ? JSON.parse(raw) : {};
-                parsed.activeTripId = id;
-                localStorage.setItem('theGreatEscapeState', JSON.stringify(parsed));
-            } catch (_) {
-                /* ignore */
-            }
-        }, tripId);
-        await page.goto('/');
+        await openTripWithMedia(page, auth.user.id, tripId);
         await page.locator('.path-photos-btn').first().click();
         await page.locator('.trip-photo-card[data-photo-kind="image"]').first().click();
         await expect(page.locator('#lbImg')).toBeVisible();
@@ -262,18 +219,7 @@ test.describe('Photo lightbox gallery (§4.9)', () => {
     test('single-photo trip shows no nav controls but still opens cleanly', async ({ page }) => {
         const auth = await getAuthForApi(page, uniqueId('owner'));
         const tripId = await seedTripWithPhotos(page, auth.headers, [PHOTO_A]);
-        await openFreshApp(page, auth.user.id);
-        await page.evaluate((id) => {
-            try {
-                const raw = localStorage.getItem('theGreatEscapeState');
-                const parsed = raw ? JSON.parse(raw) : {};
-                parsed.activeTripId = id;
-                localStorage.setItem('theGreatEscapeState', JSON.stringify(parsed));
-            } catch (_) {
-                /* ignore */
-            }
-        }, tripId);
-        await page.goto('/');
+        await openTripWithMedia(page, auth.user.id, tripId);
         await page.locator('.path-photos-btn').first().click();
         await page.locator('.trip-photo-card[data-photo-kind="image"]').first().click();
 

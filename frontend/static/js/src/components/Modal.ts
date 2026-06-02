@@ -29,6 +29,49 @@ type ModalVariant = keyof typeof VARIANT_CLASS;
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+// ── Back-button sentinel coordination (R7-F4, hardened for stacks) ──────
+// Each open modal pushes a history "sentinel" entry so the hardware back
+// button / swipe-back gesture closes the modal instead of navigating the
+// SPA route or exiting the installed PWA. A SINGLE module-level popstate
+// listener owns the close decision for the whole (possibly stacked) modal
+// stack, with the open modals' back-button closers held on _modalBackClosers.
+//
+// Why a shared listener + stack instead of one popstate listener per
+// modal (the pre-fix design): with per-modal listeners on `window`,
+//   (a) ONE real back-press fired EVERY modal's handler — closing the
+//       entire stack at once instead of one level; and
+//   (b) closing the TOP modal programmatically (e.g. the lightbox ✕ over
+//       the photos grid) issued a history.back() whose echo popstate was
+//       caught by the modal BENEATH it and closed that one too.
+// Both are wrong: a back-press should close one level, and closing the
+// top should leave the one beneath open. The stack + an
+// "expected programmatic pops" counter fix both.
+//
+// Assumes modals close top-down (the only pattern in the app): a
+// programmatic close pops the most-recent sentinel, which pairs with the
+// top of the stack.
+const _modalBackClosers: Array<() => void> = [];
+let _expectedSentinelPops = 0;
+let _modulePopListenerWired = false;
+
+function _wireModulePopListener(): void {
+    if (_modulePopListenerWired || typeof window === 'undefined') return;
+    _modulePopListenerWired = true;
+    window.addEventListener('popstate', () => {
+        if (_expectedSentinelPops > 0) {
+            // Echo of a programmatic history.back() from some modal's
+            // close() — consume it without treating it as a back-press
+            // (which would wrongly close the modal beneath the one that
+            // just closed).
+            _expectedSentinelPops -= 1;
+            return;
+        }
+        // Genuine hardware / gesture back → close ONLY the topmost modal.
+        const closeTop = _modalBackClosers[_modalBackClosers.length - 1];
+        if (closeTop) closeTop();
+    });
+}
+
 /**
  * @param {object} opts
  * @param {'glass'|'glass-light'|'confirm'} [opts.variant]
@@ -105,64 +148,41 @@ export function showModal(opts: {
         card.setAttribute('aria-labelledby', firstHeading.id);
     }
 
-    // R7-F4: push a sentinel history entry on open so the hardware
-    // back button / swipe-back gesture closes the modal instead of
-    // navigating the SPA route or exiting the installed PWA. Common
-    // pre-fix scenario: user opens "Add Day" modal on Android, taps
-    // back to dismiss, gets kicked out of the app. The sentinel is
-    // a no-op route change (we push the current URL with a marker
-    // state object) so back-navigation can be intercepted without
-    // affecting the URL the user sees in the address bar.
+    // R7-F4: push a sentinel history entry on open so the hardware back
+    // button / swipe-back gesture closes the modal instead of navigating
+    // the SPA route or exiting the installed PWA. Common pre-fix scenario:
+    // user opens "Add Day" modal on Android, taps back to dismiss, gets
+    // kicked out of the app. The sentinel is a no-op route change (we push
+    // the current URL with a marker state object) so back-navigation can
+    // be intercepted without affecting the URL the user sees.
     //
-    // popstate fires when the user goes back; we close the modal +
-    // remove the listener (so a subsequent back doesn't double-fire).
-    // If the modal is closed PROGRAMMATICALLY (Esc, backdrop, action
-    // button), we go back ourselves to pop the sentinel — but
-    // suppressed via `_poppedBySentinel` so the popstate handler
-    // doesn't re-close.
-    let _poppedBySentinel = false;
+    // The close decision for (possibly stacked) modals lives in the
+    // module-level popstate listener — see _wireModulePopListener above
+    // for why a shared listener + stack replaced per-modal listeners.
     const hasHistory = typeof window !== 'undefined'
         && typeof window.history?.pushState === 'function';
-    if (hasHistory) {
-        try {
-            window.history.pushState(
-                { ggModal: true }, '', window.location.href,
-            );
-        } catch { /* private mode rarely throws here, ignore */ }
-    }
-    const onPopState = () => {
-        // Back button pressed → close the modal. _poppedBySentinel
-        // means WE just popped via close(), so this is the matching
-        // popstate firing — don't recursively close.
-        if (_poppedBySentinel) {
-            _poppedBySentinel = false;
-            return;
-        }
-        // Mark so close() doesn't try to pop again (history is
-        // already at the pre-modal entry after this event).
-        _poppedBySentinel = true;
-        close();
-    };
-    if (hasHistory) {
-        window.addEventListener('popstate', onPopState);
-    }
 
     let closed = false;
-    const close = () => {
+    // viaBackButton=true means the module popstate listener invoked us
+    // because the user pressed the hardware/gesture back button — the
+    // browser already popped our sentinel, so we must NOT call
+    // history.back() again. viaBackButton=false is every programmatic
+    // close (✕, action button, backdrop, Esc): we pop our own sentinel
+    // and flag the resulting popstate so it isn't mistaken for a
+    // back-press against the modal beneath us.
+    const _doClose = (viaBackButton: boolean) => {
         if (closed) return;
         closed = true;
         document.removeEventListener('keydown', onKeyDown, true);
         if (hasHistory) {
-            window.removeEventListener('popstate', onPopState);
-            // Programmatic close — pop the sentinel ourselves so the
-            // history stack stays clean (otherwise back-navigation
-            // after close would re-fire popstate against a dead
-            // listener and look like the user went back twice).
-            // Skip if we got here via popstate (the entry's already
-            // gone from the stack).
-            if (!_poppedBySentinel) {
-                _poppedBySentinel = true;
-                try { window.history.back(); } catch { /* ignore */ }
+            // Unhook from the back-button stack first so a racing
+            // popstate can't re-enter us.
+            const idx = _modalBackClosers.lastIndexOf(backCloser);
+            if (idx !== -1) _modalBackClosers.splice(idx, 1);
+            if (!viaBackButton) {
+                _expectedSentinelPops += 1;
+                try { window.history.back(); }
+                catch { _expectedSentinelPops -= 1; }
             }
         }
         overlay.remove();
@@ -181,6 +201,24 @@ export function showModal(opts: {
         }
         onClose?.();
     };
+    // Public close is ALWAYS programmatic. Defined as a zero-arg wrapper
+    // (not a direct alias to _doClose) so callers that wire it as an
+    // event handler — e.g. addEventListener('click', close) — don't pass
+    // the event object in as `viaBackButton` and accidentally skip the
+    // sentinel pop, which would leave a stale history entry.
+    const close = () => _doClose(false);
+    // The stack stores the back-button variant so the module popstate
+    // listener can close the top modal without double-popping history.
+    const backCloser = () => _doClose(true);
+    if (hasHistory) {
+        _wireModulePopListener();
+        try {
+            window.history.pushState(
+                { ggModal: true }, '', window.location.href,
+            );
+        } catch { /* private mode rarely throws here, ignore */ }
+        _modalBackClosers.push(backCloser);
+    }
 
     // Esc closes; Tab traps focus inside the modal.
     const onKeyDown = (e: KeyboardEvent) => {

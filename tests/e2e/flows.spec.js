@@ -458,21 +458,41 @@ test.describe('Critical flows — UI-driven', () => {
             id: tripId,
             name: 'Todo Test Trip',
             country: 'Spain',
-            markedPlaces: [
-                {
-                    placeId: 'p-1',
-                    name: 'Test Place',
-                    icon: '📍',
-                    color: '#0071e3',
-                    forManual: true,
-                    forAI: false,
-                },
-            ],
         });
+        // markedPlaces are trip-MEDIA: seed via the dedicated endpoint
+        // (upsert_trip ignores media + /api/data won't ship it).
+        const mediaRes = await page.request.post(`/api/trips/${tripId}/media`, {
+            headers: auth.headers,
+            data: {
+                markedPlaces: [
+                    {
+                        placeId: 'p-1',
+                        name: 'Test Place',
+                        icon: '📍',
+                        color: '#0071e3',
+                        forManual: true,
+                        forAI: false,
+                    },
+                ],
+            },
+        });
+        expect(mediaRes.status()).toBe(200);
         await openFreshApp(page, userId);
-        // Pick the seeded trip via the trip selector (mirrors both
-        // navbar + sidebar selectors).
-        await page.locator('#tripSelector, #tripSelectorSidebar').first().selectOption(tripId);
+        // Activate the seeded trip + re-boot so the boot-time pull fires
+        // fetchTripMedia(activeTrip) and loads the marked place. (Media isn't
+        // shipped by /api/data; selecting via the dropdown alone won't reload
+        // it.) Mirrors the photo-spec setup.
+        await page.evaluate((id) => {
+            try {
+                const raw = localStorage.getItem('theGreatEscapeState');
+                const parsed = raw ? JSON.parse(raw) : {};
+                parsed.activeTripId = id;
+                localStorage.setItem('theGreatEscapeState', JSON.stringify(parsed));
+            } catch (_) {
+                /* ignore */
+            }
+        }, tripId);
+        await page.goto('/');
 
         // Navigate to the to-do list.
         await page.evaluate(() => {
@@ -486,14 +506,14 @@ test.describe('Critical flows — UI-driven', () => {
         const checkbox = page.locator('input.todo-ai-tick').first();
         await checkbox.waitFor({ state: 'visible', timeout: 5000 });
         await expect(checkbox).not.toBeChecked();
-        await expect(page.locator('text=0/1 ticked for AI consideration')).toBeVisible();
+        await expect(page.locator('text=0 of 1 marked for AI')).toBeVisible();
 
         // Click the checkbox: flips entry.forAI true, the React
         // store re-renders, the checkbox visually flips checked AND
         // the counter row updates to "1/1".
         await checkbox.click();
         await expect(checkbox).toBeChecked();
-        await expect(page.locator('text=1/1 ticked for AI consideration')).toBeVisible();
+        await expect(page.locator('text=1 of 1 marked for AI')).toBeVisible();
 
         // Click again: flips back to false. Both the checkbox and
         // the counter must follow the underlying data — same shape
@@ -501,7 +521,7 @@ test.describe('Critical flows — UI-driven', () => {
         // the store re-render is broken.
         await checkbox.click();
         await expect(checkbox).not.toBeChecked();
-        await expect(page.locator('text=0/1 ticked for AI consideration')).toBeVisible();
+        await expect(page.locator('text=0 of 1 marked for AI')).toBeVisible();
     });
 
     test('desktop sidebar rail is visible and clicks navigate to deep pages', async ({ page }) => {

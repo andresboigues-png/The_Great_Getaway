@@ -132,6 +132,45 @@ export async function openFreshApp(page, userId = 'test-user-1') {
 }
 
 /**
+ * Boot the app, activate `tripId`, and WAIT for that trip's media
+ * (photos / markedPlaces / documents) to finish loading before returning.
+ *
+ * Media is a separate write/read path (R12 invariant): /api/data never
+ * ships it; the client lazy-loads the active trip's media via
+ * fetchTripMedia() on the boot pull (api.ts). If a test opens the photos
+ * modal before that GET lands, the modal renders an empty grid and does
+ * NOT repopulate when the arrays arrive — so the first card never appears.
+ * Awaiting the media GET makes the seed deterministic.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {string} userId
+ * @param {string} tripId
+ */
+export async function openTripWithMedia(page, userId, tripId) {
+    await openFreshApp(page, userId);
+    // Mark the seeded trip active in the persisted snapshot so the next
+    // boot's pull picks it up and triggers fetchTripMedia(activeTrip).
+    await page.evaluate((id) => {
+        try {
+            const raw = localStorage.getItem('theGreatEscapeState');
+            const parsed = raw ? JSON.parse(raw) : {};
+            parsed.activeTripId = id;
+            localStorage.setItem('theGreatEscapeState', JSON.stringify(parsed));
+        } catch (_) {
+            /* ignore */
+        }
+    }, tripId);
+    // Arm the media-GET wait BEFORE the navigation that triggers it.
+    const mediaLoaded = page
+        .waitForResponse((r) => r.url().includes(`/api/trips/${tripId}/media`) && r.request().method() === 'GET', {
+            timeout: 10000,
+        })
+        .catch(() => null);
+    await page.goto('/');
+    await mediaLoaded;
+}
+
+/**
  * Create a trip via the +New Trip modal in the navbar.
  *
  * The destination input is wired to Google Places Autocomplete in

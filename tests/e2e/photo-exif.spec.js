@@ -172,7 +172,9 @@ test.describe('EXIF auto-day-assign (§4.9)', () => {
             const sel = /** @type {HTMLSelectElement} */ (el);
             return sel.options[sel.selectedIndex]?.textContent?.trim() || '';
         });
-        // The option label for the Anchor includes the anchor glyph.
-        expect(selectedLabel).toContain('Anchor');
+        // The Anchor bucket renders in UI copy as the "⭐ Hub" pill
+        // (tripMedia.dayBucketAnchorShort) — the data concept is the
+        // anchor day (dayNumber 0), but the user-facing label is "Hub".
+        expect(selectedLabel).toContain('Hub');
     });
 });

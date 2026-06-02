@@ -52,7 +52,6 @@ async function seedTripWithPhotos(page, headers, photoSrcs) {
         id: uniqueId('trip'),
         name: 'Drag-reorder e2e trip',
         country: 'Portugal',
-        photos: photoSrcs.map((src, i) => ({ id: photoIds[i], src })),
     });
     await page.request.post('/api/days', {
         headers,
@@ -66,6 +65,14 @@ async function seedTripWithPhotos(page, headers, photoSrcs) {
             },
         },
     });
+    // Photos are trip-MEDIA: seed via the dedicated endpoint, not the trip
+    // payload (upsert_trip ignores media + /api/data doesn't ship it). The
+    // client's fetchTripMedia() loads them once the trip is active.
+    const mediaRes = await page.request.post(`/api/trips/${tripId}/media`, {
+        headers,
+        data: { photos: photoSrcs.map((src, i) => ({ id: photoIds[i], src })) },
+    });
+    expect(mediaRes.status()).toBe(200);
     return { tripId, photoIds };
 }
 
