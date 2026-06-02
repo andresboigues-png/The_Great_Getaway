@@ -386,6 +386,14 @@ export async function createTripViaApi(ctx, headers, trip = {}) {
 export async function befriend(page, userIdA, userIdB) {
     const a = await getAuthForApi(page, userIdA);
     const b = await getAuthForApi(page, userIdB);
+    // Each /api/auth/google login Set-Cookies a gg_session into the SHARED
+    // page.request cookie jar, so after B's login the jar holds B's
+    // session. The server resolves identity cookie-OVER-Bearer (auth.py
+    // _extract_token: `_cookie_token() or _bearer_token()`), so an A→B
+    // request authed with A's Bearer would be mis-read as B (→ 400
+    // "Can't friend yourself"). Drop the cookie so every request below is
+    // identified purely by its Authorization: Bearer header.
+    await page.context().clearCookies();
     const addRes = await page.request.post('/api/friends/add', {
         headers: a.headers,
         data: { friend_id: userIdB },

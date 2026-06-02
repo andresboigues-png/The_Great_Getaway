@@ -90,7 +90,16 @@ test.describe('Cookie session (§0.4 v2)', () => {
         // gg_session, which Playwright's cookie jar honours by removing
         // the entry (or marking it deleted — either way it stops being
         // visible to context.cookies()).
-        const logoutRes = await page.request.post('/api/auth/logout');
+        //
+        // Origin header required: logout is a mutating POST that carries
+        // the gg_session cookie, so it falls through the CSRF gate's
+        // Bearer-only short-circuit (main.py _csrf_origin_check) and must
+        // present a same-origin Origin/Referer or it 403s. A real browser
+        // sends Origin automatically on a same-origin fetch; page.request
+        // does not, so we set it explicitly to mirror the browser.
+        const logoutRes = await page.request.post('/api/auth/logout', {
+            headers: { Origin: 'http://localhost:5001' },
+        });
         expect(logoutRes.status()).toBe(200);
 
         const after = await context.cookies();

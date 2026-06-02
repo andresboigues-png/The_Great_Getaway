@@ -190,9 +190,11 @@ test.describe('Critical flows — API-driven', () => {
         expect(list[0].body).toBe('Looks amazing!');
     });
 
-    test('accept friend transitions pending → accepted', async ({ page }) => {
-        // Unique user IDs so the friendship row doesn't collide with
-        // a previous run's residue.
+    test('mutual follow makes each user appear in the other friend list', async ({ page }) => {
+        // Model B (follow graph): befriend() makes A follow B AND B follow
+        // A, so the pair is now MUTUAL. /api/friends/list returns mutuals,
+        // so each must see the other. (There is no pending/accept state —
+        // see the reject test below for that contract.)
         const userA = uniqueId('userA');
         const userB = uniqueId('userB');
         const { a, b } = await befriend(page, userA, userB);
@@ -207,33 +209,40 @@ test.describe('Critical flows — API-driven', () => {
         expect(bFriends.some((f) => f.id === userA)).toBe(true);
     });
 
-    test('reject friend deletes pending row + leaves no friendship', async ({ page }) => {
-        // Mirror of the accept flow. userA sends a request to userB;
-        // userB rejects. Pin: pending list goes empty, friend list
-        // stays empty, AND the row genuinely deletes (not flipped to
-        // some "rejected" state — the comment in friends.py is
-        // explicit about deleting so re-sends are allowed later).
+    test('reject is a no-op under the follow model (pending stays empty, no mutual formed)', async ({ page }) => {
+        // friends.py is "Model B": a follow graph, NOT a pending/accept/
+        // reject request dance. add = follow (immediate, idempotent),
+        // /api/friends/pending ALWAYS returns [] (kept only so the bell
+        // badge poller doesn't error), reject is a no-op success (so old
+        // clients clicking a stale "Reject" notification don't toast an
+        // error), and /api/friends/list returns MUTUALS. This test pins
+        // that contract: a one-way follow does NOT create a friendship,
+        // and reject changes nothing.
         const userA = uniqueId('userA');
         const userB = uniqueId('userB');
         const aAuth = await getAuthForApi(page, userA);
         const bAuth = await getAuthForApi(page, userB);
+        // Drop the gg_session cookie left by the two logins — the server
+        // resolves cookie OVER Bearer (auth.py _extract_token), so the
+        // stale B-cookie would mis-identify A's Bearer-authed requests as
+        // B (→ self-friend 400). Bearer-only after this. See befriend().
+        await page.context().clearCookies();
 
-        // userA sends a request to userB.
+        // A follows B (B does NOT follow back).
         const addRes = await page.request.post('/api/friends/add', {
             headers: aAuth.headers,
             data: { friend_id: userB },
         });
         expect(addRes.status()).toBe(200);
 
-        // Confirm B sees the pending request before rejecting (else
-        // the reject would 404 and we'd be testing nothing useful).
+        // Model B contract: pending is always empty — there is no
+        // pending state for B to see, even though A just followed.
         const pendingBefore = await page.request.get('/api/friends/pending', {
             headers: bAuth.headers,
         });
-        const pendingList = await pendingBefore.json();
-        expect(pendingList.some((p) => p.id === userA)).toBe(true);
+        expect(await pendingBefore.json()).toEqual([]);
 
-        // B rejects.
+        // B "rejects" — a no-op that still returns success.
         const rejectRes = await page.request.post('/api/friends/reject', {
             headers: bAuth.headers,
             data: { friend_id: userA },
@@ -241,18 +250,20 @@ test.describe('Critical flows — API-driven', () => {
         expect(rejectRes.status()).toBe(200);
         expect((await rejectRes.json()).status).toBe('success');
 
-        // Post-conditions: pending list empty, friends list empty for both.
+        // Post-conditions: pending still empty, and NEITHER appears in the
+        // other's friend list — a one-way follow is not a mutual, and
+        // reject didn't (and couldn't) change that.
         const pendingAfter = await page.request.get('/api/friends/pending', {
             headers: bAuth.headers,
         });
-        expect((await pendingAfter.json()).some((p) => p.id === userA)).toBe(false);
+        expect(await pendingAfter.json()).toEqual([]);
 
         const aFriends = await (await page.request.get('/api/friends/list', { headers: aAuth.headers })).json();
         const bFriends = await (await page.request.get('/api/friends/list', { headers: bAuth.headers })).json();
         expect(aFriends.some((f) => f.id === userB)).toBe(false);
         expect(bFriends.some((f) => f.id === userA)).toBe(false);
 
-        // Re-send works — rejection is "not now," not "blocked."
+        // Re-follow is idempotent — Model B has no "blocked" state.
         const reAddRes = await page.request.post('/api/friends/add', {
             headers: aAuth.headers,
             data: { friend_id: userB },
@@ -323,11 +334,18 @@ test.describe('Critical flows — API-driven', () => {
         expect(matches[0].label).toBe('Cafe with friends');
         expect(matches[0].value).toBe(25);
         expect(matches[0].currency).toBe('GBP');
-        // /api/data now returns camelCase `euroValue` (post-Phase-C
-        // expense read-mapping fix; was previously inconsistent — the
-        // server wrote camelCase via /api/expenses but read it back as
-        // `euro_value` snake_case, breaking client-side filters).
-        expect(matches[0].euroValue).toBeCloseTo(29, 5);
+        // euroValue is SERVER-computed, not stored verbatim: expenses.py
+        // (R3-Fix #6) runs compute_euro_value() and overrides the client's
+        // euroValue hint whenever a live FX rate exists — so a tampered
+        // `{value:1, currency:JPY, euroValue:1000000}` can't poison
+        // Insights. The posted 29 is therefore ignored; the server stamps
+        // 25 GBP × today's GBP→EUR rate. We assert the camelCase
+        // read-mapping contract (field is `euroValue`, not snake_case
+        // `euro_value`) + a plausible conversion band rather than an exact
+        // value that drifts with the daily rate.
+        expect(typeof matches[0].euroValue).toBe('number');
+        expect(matches[0].euroValue).toBeGreaterThan(20);
+        expect(matches[0].euroValue).toBeLessThan(40);
     });
 
     test('settle-shape expense round-trips with country=Settlement marker', async ({ page }) => {
@@ -377,25 +395,36 @@ test.describe('Critical flows — API-driven', () => {
         expect(settlement.label).toBe('Settlement: Alice → Bob');
     });
 
-    test('companions round-trip both linked + unlinked shapes intact', async ({ page }) => {
+    test('companions: unlinked survives, spoofed link stripped, verified-member link round-trips', async ({ page }) => {
         // Trips carry a `companions` JSON array of two shapes:
-        //   - unlinked: `{ name: 'Maria' }` — typed by the user
-        //     directly into the picker, no real account behind it
-        //   - linked:   `{ name: 'Andres', linkedUserId: 'uid-...' }`
-        //     — auto-promoted when the picker matches a friend (or
-        //     the auto-stamp for the trip owner in api.ts).
+        //   - unlinked: `{ name: 'Maria' }` — typed into the picker, no
+        //     real account behind it.
+        //   - linked:   `{ name, linkedUserId }` — promoted when the
+        //     picker matches a real trip member.
         //
-        // Pin: POSTing both shapes through /api/trips and round-
-        // tripping via /api/data preserves the linkedUserId where
-        // present without leaking it to unlinked rows. A regression
-        // that JSON.stringify-flattens the array to plain strings
-        // (the legacy shape that pre-Phase-G surfaced as a string[])
-        // would lose the linkedUserId distinction silently.
+        // R2 audit fix (clean_companions + _cleaned_companions in
+        // trips.py): a linkedUserId is preserved ONLY if it belongs to a
+        // VERIFIED trip member (a row in trip_members). Any other
+        // linkedUserId — a client trying to plant a spoofed link — is
+        // coerced to null; the name + UI presence survive but the fake
+        // link silently disappears. This pins all three outcomes.
         const auth = await getAuthForApi(page, uniqueId('user'));
+        const ownerId = auth.user.id;
         const tripId = uniqueId('trip-companions');
+        const spoofId = uniqueId('not-a-member');
 
-        const linkedFriendId = uniqueId('linked-friend');
+        // First POST creates the trip. The owner-self-stamp
+        // (ensure_owner_member_row) adds ownerId to trip_members — but it
+        // runs AFTER companions are cleaned on this insert, so we set the
+        // companions on a SECOND POST below where ownerId is already a
+        // verified member.
         const createRes = await page.request.post('/api/trips', {
+            headers: auth.headers,
+            data: { trip: { id: tripId, name: 'Companions trip', country: 'Spain' } },
+        });
+        expect(createRes.status()).toBe(200);
+
+        const updateRes = await page.request.post('/api/trips', {
             headers: auth.headers,
             data: {
                 trip: {
@@ -404,12 +433,13 @@ test.describe('Critical flows — API-driven', () => {
                     country: 'Spain',
                     companions: [
                         { name: 'Maria' }, // unlinked
-                        { name: 'Andres', linkedUserId: linkedFriendId }, // linked
+                        { name: 'Spoof', linkedUserId: spoofId }, // unverified → stripped
+                        { name: 'Owner', linkedUserId: ownerId }, // verified member → survives
                     ],
                 },
             },
         });
-        expect(createRes.status()).toBe(200);
+        expect(updateRes.status()).toBe(200);
 
         const dataRes = await page.request.get('/api/data', { headers: auth.headers });
         const data = await dataRes.json();
@@ -418,14 +448,18 @@ test.describe('Critical flows — API-driven', () => {
         const companions = trip.companions || [];
 
         const maria = companions.find((c) => c.name === 'Maria');
-        const andres = companions.find((c) => c.name === 'Andres');
+        const spoof = companions.find((c) => c.name === 'Spoof');
+        const owner = companions.find((c) => c.name === 'Owner');
         expect(maria).toBeTruthy();
-        expect(andres).toBeTruthy();
+        expect(spoof).toBeTruthy();
+        expect(owner).toBeTruthy();
 
         // Unlinked stays unlinked (no linkedUserId leaked from elsewhere).
         expect(maria.linkedUserId).toBeFalsy();
-        // Linked preserves the linkedUserId verbatim.
-        expect(andres.linkedUserId).toBe(linkedFriendId);
+        // Spoofed link to a non-member is stripped (R2 security fix).
+        expect(spoof.linkedUserId).toBeFalsy();
+        // Link to a verified trip member (the owner) round-trips verbatim.
+        expect(owner.linkedUserId).toBe(ownerId);
     });
 });
 
@@ -845,9 +879,12 @@ test.describe('Critical flows — UI-driven', () => {
         const themeAfterLight = await page.evaluate(() => document.documentElement.dataset.theme);
         expect(themeAfterLight).toBeFalsy();
 
-        // Persistence: the choice lives in STATE.preferences.theme,
-        // saved to localStorage on every state:changed emit. Verify
-        // by reading localStorage directly.
+        // Persistence: the choice lives in STATE.preferences.theme.
+        // setTheme() emits state:changed synchronously, but the
+        // localStorage write itself is DEBOUNCED 250ms (state.ts
+        // saveState) — so wait past the debounce before reading, else
+        // we'd see the pre-click snapshot (no theme key → undefined).
+        await page.waitForTimeout(350);
         const persistedTheme = await page.evaluate(() => {
             const raw = localStorage.getItem('theGreatEscapeState');
             if (!raw) return null;
@@ -889,8 +926,12 @@ test.describe('Critical flows — UI-driven', () => {
         await ptBtn.click();
         await expect(homeLink).toHaveText('Início');
 
-        // Persistence: the choice lives in STATE.preferences.locale,
-        // saved to localStorage on every state:changed emit.
+        // Persistence: the choice lives in STATE.preferences.locale.
+        // setLocale() emits state:changed, but the localStorage write is
+        // DEBOUNCED 250ms (state.ts saveState) — wait past the debounce
+        // before reading, else we'd see the pre-click snapshot (no locale
+        // key → undefined).
+        await page.waitForTimeout(350);
         const persistedLocale = await page.evaluate(() => {
             const raw = localStorage.getItem('theGreatEscapeState');
             if (!raw) return null;
@@ -899,8 +940,11 @@ test.describe('Critical flows — UI-driven', () => {
         });
         expect(persistedLocale).toBe('pt');
 
-        // Switching back to English re-paints the original copy.
-        const enBtn = page.locator('.theme-option-card[data-locale-value="en"]');
+        // Switching back to English re-paints the original copy. The card
+        // is label-identified by its native name span ('English'), which
+        // stays constant regardless of the active locale (the data-locale-
+        // value attr was dropped in the settings refactor).
+        const enBtn = page.locator('.theme-option-card', { hasText: 'English' });
         await enBtn.click();
         await expect(homeLink).toHaveText('Home');
     });
@@ -986,11 +1030,16 @@ test.describe('Critical flows — UI-driven', () => {
         await navigateTo(page, 'expenses');
         await page.getByRole('tab', { name: 'History' }).click();
 
-        // The history row carries .expense-receipt-btn when receiptUrl
-        // is set; data-receipt-url is the same URL we wrote.
-        const receiptBtn = page.locator('.expense-receipt-btn');
+        // The history row renders a "View receipt" icon button ONLY when
+        // receiptUrl is set (HistoryTab.tsx: `{e.receiptUrl ? <button…> }`).
+        // The React refactor replaced the old `.expense-receipt-btn` +
+        // `data-receipt-url` with a generic `icon-action-btn` whose URL is
+        // wired into a window.open onClick — so we identify it by its
+        // accessible name and assert presence. The exact URL round-trip is
+        // already pinned above via /api/data (receipt_url → receiptUrl).
+        const receiptBtn = page.getByRole('button', { name: 'View receipt' });
         await receiptBtn.waitFor({ state: 'visible', timeout: 5000 });
-        await expect(receiptBtn).toHaveAttribute('data-receipt-url', receiptUrl);
+        await expect(receiptBtn).toHaveCount(1);
     });
 
     test('trip cover photo renders on the collections card', async ({ page }) => {
@@ -1036,6 +1085,16 @@ test.describe('Critical flows — UI-driven', () => {
             document.getElementById('sidebarOverlay')?.classList.remove('open');
         });
         await navigateTo(page, 'collections');
+        // Collections defaults to the grouped "album" view
+        // (groupBy='continent'), which renders fanned album stacks — the
+        // flat per-trip `.archived-trip-card` rows only appear under
+        // groupBy='none'. Switch to the flat list via the group-by select
+        // (the only one with an `option[value="none"]`) so the individual
+        // card + its cover thumb are directly assertable.
+        await page
+            .locator('select')
+            .filter({ has: page.locator('option[value="none"]') })
+            .selectOption('none');
         // The card thumbnail uses class="archived-card-cover" + the
         // src attribute carries the URL. Wait for the page to render
         // the archived card first.
@@ -1252,37 +1311,55 @@ test.describe('Critical flows — UI-driven (mobile)', () => {
         if (testInfo.project.name !== 'chromium-mobile') test.skip();
     });
 
-    test('mobile trip-controls compass: opens popover with +New Trip, selector, actions', async ({ page }) => {
-        // Per-user request the trip controls (+New Trip, selector,
-        // complete + delete) moved out of the burger drawer to a
-        // navbar-anchored popover triggered by the compass icon
-        // (#tripControlsBtn). Mobile-only — desktop still shows the
-        // controls inline in .nav-trips--desktop-only.
+    test('mobile trip-switcher opens the trip-controls popover with +New Trip, selector, actions', async ({ page }) => {
+        // The trip controls (+New Trip, selector, complete + delete) live
+        // in a popover (#tripControlsPopover). On mobile the navbar compass
+        // (#tripControlsBtn) was REMOVED (2026-05-21, per user request:
+        // "shouldn't be a button in the top banner at all" — it's now
+        // display:none !important ≤720px). The trigger is the in-content
+        // circular-arrow #mobileTripSwitcherBtn beside the trip name
+        // (TripBody.tsx), wired to the SAME popover via the delegated
+        // click handler in nav-chrome.ts. The switcher only renders when a
+        // trip is active, so seed + activate one first.
         const userId = uniqueId('user');
-        await getAuthForApi(page, userId);
+        const auth = await getAuthForApi(page, userId);
+        const tripId = await createTripViaApi(page, auth.headers, {
+            id: uniqueId('trip-mobile'),
+            name: 'Switcher Trip',
+            country: 'Portugal',
+        });
         await openFreshApp(page, userId);
+        await page.evaluate((id) => {
+            try {
+                const raw = localStorage.getItem('theGreatEscapeState');
+                const parsed = raw ? JSON.parse(raw) : {};
+                parsed.activeTripId = id;
+                localStorage.setItem('theGreatEscapeState', JSON.stringify(parsed));
+            } catch (_) {
+                /* ignore */
+            }
+        }, tripId);
+        await page.goto('/');
 
-        const compass = page.locator('#tripControlsBtn');
+        const switcher = page.locator('#mobileTripSwitcherBtn');
         const popover = page.locator('#tripControlsPopover');
-        await expect(compass).toBeVisible();
+        await switcher.waitFor({ state: 'visible', timeout: 8000 });
         await expect(popover).toBeHidden();
 
         // Open the popover.
-        await compass.click({ timeout: 5000 });
+        await switcher.click({ timeout: 5000 });
         await expect(popover).toBeVisible();
-        await expect(compass).toHaveAttribute('aria-expanded', 'true');
 
-        // The relocated controls all live inside the popover with
-        // the same IDs the burger-drawer block used — so the
-        // dual-instance mirroring (#tripSelector ↔ #tripSelectorSidebar)
-        // and the existing JS handlers continue to work without any
-        // change at the wiring layer.
+        // The relocated controls all live inside the popover with the same
+        // IDs the burger-drawer block used — so the dual-instance mirroring
+        // (#tripSelector ↔ #tripSelectorSidebar) and the existing JS
+        // handlers keep working without any wiring-layer change.
         await expect(popover.locator('#newTripBtnSidebar')).toBeVisible();
         await expect(popover.locator('#tripSelectorSidebar')).toBeVisible();
 
-        // Click outside closes the popover.
+        // Click outside closes the popover (nav-chrome.ts outside-click
+        // handler: not the switcher + not inside the popover → hide).
         await page.locator('main#app-container').click({ position: { x: 50, y: 400 } });
         await expect(popover).toBeHidden();
-        await expect(compass).toHaveAttribute('aria-expanded', 'false');
     });
 });
