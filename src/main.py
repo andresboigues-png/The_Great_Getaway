@@ -420,6 +420,46 @@ def _inject_csp_nonce():
 
 
 @app.after_request
+def _gzip_response(response):
+    """MK3-10: gzip large text/JSON responses. `/api/data` is JSON (~85%
+    compressible) and shipped uncompressed on every 15s poll. Registered
+    before add_security_headers so it runs LAST (Flask runs after_request in
+    reverse registration order) — i.e. it's the final body transform.
+
+    Skips: clients that don't accept gzip, already-encoded or streamed
+    (`direct_passthrough`, e.g. PDF/file downloads) responses, non-compressible
+    content types, and tiny bodies. Wrapped in try/except so a compression
+    failure can never corrupt a response (falls back to uncompressed)."""
+    try:
+        if "gzip" not in (request.headers.get("Accept-Encoding") or "").lower():
+            return response
+        if response.direct_passthrough or response.headers.get("Content-Encoding"):
+            return response
+        ctype = response.headers.get("Content-Type", "") or ""
+        if not (
+            ctype.startswith("application/json")
+            or ctype.startswith("text/")
+            or "javascript" in ctype
+        ):
+            return response
+        body = response.get_data()
+        if len(body) < 1024:  # not worth the CPU for tiny bodies
+            return response
+        import gzip as _gzip
+        compressed = _gzip.compress(body, 6)
+        response.set_data(compressed)
+        response.headers["Content-Encoding"] = "gzip"
+        response.headers["Content-Length"] = str(len(compressed))
+        vary = response.headers.get("Vary")
+        response.headers["Vary"] = (
+            f"{vary}, Accept-Encoding" if vary else "Accept-Encoding"
+        )
+    except Exception:
+        return response
+    return response
+
+
+@app.after_request
 def add_security_headers(response):
     nonce = getattr(g, "csp_nonce", "")
     # Defensive: every request goes through before_request first, so
