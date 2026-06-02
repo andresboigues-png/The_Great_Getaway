@@ -528,12 +528,17 @@ export function Insights() {
         .filter((b: any) => b.tripId === activeTripId || b.tripId === 'all')
         .map((b: any) => {
             const stat = budgetStatus(b);
+            const spentHome = convertCurrency(stat.spent, 'EUR', targetCurr);
+            const targetHome = convertCurrency(stat.target, 'EUR', targetCurr);
             return {
                 title: budgetTitle(b),
-                spentHome: convertCurrency(stat.spent, 'EUR', targetCurr),
-                targetHome: convertCurrency(stat.target, 'EUR', targetCurr),
+                spentHome,
+                targetHome,
                 pct: stat.pct,
                 color: stat.color,
+                // D-4 (MK3 audit): how far PAST the target (home currency) for
+                // the over-budget callout. Non-zero only when actually over.
+                overHome: stat.pct > 100 ? spentHome - targetHome : 0,
             };
         });
 
@@ -734,23 +739,44 @@ export function Insights() {
         if (!showCurrencyBreakdown || !currencyTimeRef.current || spendCurrencies.length === 0) return;
         // IA-5 (MK3 audit): drop the undated bucket — keyed in via
         // `e.date || t('insights.unknownDate')`, that localized sentinel has
-        // no place on a date-ordered axis. Pre-fix it rendered as a literal
-        // rightmost "Unknown" column here, while the main timeline above
-        // already excludes undated (its Number.isFinite(x) guard). Match that
-        // by keeping only keys that parse as real dates.
-        const allDates = Array.from(
+        // no place on a date-ordered axis (pre-fix it rendered a literal
+        // "Unknown" column). Keep only keys that parse as real dates.
+        const realDates = Array.from(
             new Set(spendCurrencies.flatMap((c) => Object.keys(currencyDateTotals[c] || {}))),
-        )
-            .filter((d) => Number.isFinite(Date.parse(`${d}T00:00:00Z`)))
-            .sort();
-        const includeYear = datesSpanMultipleYears(allDates);
-        const labels = allDates.map((d) => timelineDateLabel(d, includeYear));
-        const datasets = currencyRows.map((r) => ({
-            label: r.code,
-            data: allDates.map((d) => (currencyDateTotals[r.code]?.[d]) || 0),
-            backgroundColor: r.color,
-            borderWidth: 0,
-        }));
+        ).filter((d) => Number.isFinite(Date.parse(`${d}T00:00:00Z`)));
+        // IA-6 (MK3 audit): bucket by PERIOD rather than plotting one bar per
+        // exact date on a category axis. Per-exact-date bars spaced far-apart
+        // dates EVENLY (a 2016 bar sitting next to a 2026 bar), contradicting
+        // the time-proportional main timeline one card up. Honest reframe (the
+        // audit's suggested option): group into YEAR buckets when the trip
+        // spans multiple years, else MONTH buckets — discrete, correctly-
+        // labelled "currency mix per period" bars where even spacing is the
+        // right encoding (one slot per period, not per calendar day).
+        const multiYear = datesSpanMultipleYears(realDates);
+        const bucketKey = (iso: string) => (multiYear ? iso.slice(0, 4) : iso.slice(0, 7));
+        const bucketLabel = (key: string): string => {
+            if (multiYear) return key; // 'YYYY'
+            const dt = new Date(`${key}-01T00:00:00Z`); // key = 'YYYY-MM'
+            if (Number.isNaN(dt.getTime())) return key;
+            try {
+                return new Intl.DateTimeFormat(getIntlLocale(), { month: 'short', timeZone: 'UTC' }).format(dt);
+            } catch { return key; }
+        };
+        const buckets = Array.from(new Set(realDates.map(bucketKey))).sort();
+        const labels = buckets.map(bucketLabel);
+        const datasets = currencyRows.map((r) => {
+            const byDate = currencyDateTotals[r.code] || {};
+            return {
+                label: r.code,
+                data: buckets.map((bk) =>
+                    Object.keys(byDate)
+                        .filter((d) => Number.isFinite(Date.parse(`${d}T00:00:00Z`)) && bucketKey(d) === bk)
+                        .reduce((s, d) => s + (byDate[d] || 0), 0),
+                ),
+                backgroundColor: r.color,
+                borderWidth: 0,
+            };
+        });
         const chart = new Chart(currencyTimeRef.current, {
             type: 'bar',
             data: { labels, datasets },
@@ -849,7 +875,7 @@ export function Insights() {
                     ${t('insights.overrideRatePrefix', { cur: esc(a.code) })}
                     <input type="number" class="vt-fx" step="any" value="${a.ov ? a.ov.fxToHome : a.autoFx}" style="width:90px; padding:5px 8px; border:1px solid var(--glass-border); border-radius:8px;"> ${esc(targetCurr)}
                 </label>
-                <span style="font-size:0.72rem; color:var(--text-tertiary, var(--text-secondary)); margin-left:auto;">${t('insights.overrideAutoNote')}: ${a.autoInflationPct}% · ${a.autoFx}</span>
+                <span style="font-size:0.72rem; color:var(--text-tertiary, var(--text-secondary)); margin-left:auto;">${t('insights.overrideAutoNote')}: ${a.autoInflationPct}% · 1 ${esc(a.code)} = ${a.autoFx} ${esc(targetCurr)}</span>
             </div>
         `).join('');
         const { root, close } = showModal({
@@ -898,6 +924,7 @@ export function Insights() {
                         <p style="margin:0;">${t('insights.valueTodayInfoIntro', { spent: esc(t('insights.rateModeAtTrip')), today: esc(t('insights.rateModeToday')) })}</p>
                         <p style="margin:0;">${t('insights.valueTodayInfoInflation', { pct: String(repInflation) })}</p>
                         <p style="margin:4px 0 0; font-size:0.82rem; color:var(--text-secondary);">${t('insights.valueTodayInfoSources')}</p>
+                        <p style="margin:4px 0 0; font-size:0.82rem; color:var(--text-secondary);">${t('insights.valueTodayInfoOldRates')}</p>
                     </div>
                     <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:20px; flex-wrap:wrap;">
                         <button id="vtManual" class="btn-ghost" style="padding:9px 16px; border-radius:999px; font-weight:700; color:var(--accent-blue);">${t('insights.valueTodayManualCta')}</button>
@@ -1117,9 +1144,22 @@ export function Insights() {
                                 <div style={{ height: 8, borderRadius: 999, background: 'rgba(0,0,0,0.08)', overflow: 'hidden' }}>
                                     <div style={{ height: '100%', width: `${Math.min(b.pct, 100)}%`, background: b.color, borderRadius: 999, transition: 'width 0.3s ease' }} />
                                 </div>
+                                {/* D-4: the bar caps at 100%, so an overspend is
+                                    otherwise invisible beyond the colour flip — spell
+                                    out how far over the target the spend went. */}
+                                {b.overHome > 0 ? (
+                                    <div className="text-[0.75rem] font-bold mt-1" style={{ color: '#ff3b30' }}>
+                                        {t('insights.budgetOverBy', { amount: targetSym + formatNumberForCurrency(b.overHome, targetCurr) })}
+                                    </div>
+                                ) : null}
                             </div>
                         ))}
                     </div>
+                    {/* D-3: budgets are NOMINAL — original amounts vs amount spent,
+                        never inflation-/FX-re-adjusted (unlike the figures above).
+                        On a non-EUR home this stops the same "food spend" reading
+                        two different numbers on one page with no explanation. */}
+                    <p className="text-secondary text-[0.72rem] mt-4 italic">{t('insights.budgetBasisNote')}</p>
                 </div>
             ) : null}
 

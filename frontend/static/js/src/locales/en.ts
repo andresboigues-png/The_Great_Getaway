@@ -679,6 +679,8 @@ export const en = {
         valueTodayInfoIntro: '<strong>{spent}</strong> is what you actually paid at the time of the trip. <strong>{today}</strong> takes that and applies inflation and the exchange rate from each expense’s date — an estimate of <strong>how much it would cost to do the same journey today</strong>.',
         valueTodayInfoInflation: 'Inflation applied is up to about {pct}% for your home currency, based on the years you travelled.',
         valueTodayInfoSources: 'Inflation comes from World Bank consumer-price (CPI) data and exchange rates from the European Central Bank — these are estimates, so take them with a grain of salt.',
+        // D-2: old/unsupported-currency expenses have no historical rate.
+        valueTodayInfoOldRates: 'Very old expenses (before 1999), or currencies we have no rate for, fall back to today’s exchange rate — so their “value today” is a rough approximation.',
         valueTodayManualCta: 'Set the rates yourself →',
         overrideTitle: 'Your own rates',
         overrideIntro: 'Set the inflation and exchange rate for each currency you used. This only changes “{today}” — your balances and budgets never change. Leave a row as-is to keep our estimate.',
@@ -699,6 +701,9 @@ export const en = {
         otherCategories: 'Other',
         budgetVsActualTitle: 'Budget vs. spent',
         budgetVsActualSub: 'How your spending tracks against your trip budgets.',
+        // D-4 over-budget callout · D-3 nominal-basis footnote
+        budgetOverBy: '{amount} over budget',
+        budgetBasisNote: 'Budgets compare original amounts against what you spent — they’re not adjusted for inflation or today’s exchange rates like the figures above.',
         netBalanceTitle: 'Who owes whom',
         netBalanceSub: 'Net balance per person after splits and settlements.',
         balanceGetsBack: 'gets back',
