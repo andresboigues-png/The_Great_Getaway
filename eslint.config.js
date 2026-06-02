@@ -12,6 +12,10 @@ export default [
             'node_modules/**',
             'frontend/static/js/app.bundle.js',
             'frontend/static/js/app.bundle.js.map',
+            // Vite-bundled output: content-hashed JS chunks + extracted CSS.
+            // Generated, not authored — linting it produces only noise.
+            'frontend/static/js/chunks/**',
+            'frontend/static/js/assets/**',
             'facts_dict.js',
             'scratch/**',
             'tests/**',
@@ -25,7 +29,7 @@ export default [
 
     // Node-side files (build config, scripts, playwright config) get Node globals.
     {
-        files: ['vite.config.js', 'eslint.config.js', 'playwright.config.js'],
+        files: ['vite.config.js', 'eslint.config.js', 'playwright.config.js', 'scripts/**/*.js', 'scripts/**/*.mjs'],
         languageOptions: {
             ecmaVersion: 2024,
             sourceType: 'module',

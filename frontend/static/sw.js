@@ -64,38 +64,35 @@ const CURRENT_CACHES = new Set([SHELL_CACHE, API_CACHE, UPLOADS_CACHE]);
 // Hashed bundle chunks (mount-*, vendor-react-*) are caught at runtime
 // by the shell strategy below — listing them here would require keeping
 // the SW in lockstep with the vite build output, not worth it.
-const PRECACHE_URLS = [
-    '/',
-    '/static/manifest.json',
-    '/static/favicon.svg',
-    '/static/js/app.bundle.js',
-];
+const PRECACHE_URLS = ['/', '/static/manifest.json', '/static/favicon.svg', '/static/js/app.bundle.js'];
 
 self.addEventListener('install', (event) => {
-    event.waitUntil((async () => {
-        const cache = await caches.open(SHELL_CACHE);
-        // Best-effort precache. If one URL fails (e.g. fresh deploy in
-        // flight), still install — runtime fetches will populate the
-        // rest. addAll is all-or-nothing, hence the Promise.allSettled
-        // wrapper around individual adds.
-        await Promise.allSettled(PRECACHE_URLS.map((url) => cache.add(url)));
-        self.skipWaiting();
-    })());
+    event.waitUntil(
+        (async () => {
+            const cache = await caches.open(SHELL_CACHE);
+            // Best-effort precache. If one URL fails (e.g. fresh deploy in
+            // flight), still install — runtime fetches will populate the
+            // rest. addAll is all-or-nothing, hence the Promise.allSettled
+            // wrapper around individual adds.
+            await Promise.allSettled(PRECACHE_URLS.map((url) => cache.add(url)));
+            self.skipWaiting();
+        })()
+    );
 });
 
 self.addEventListener('activate', (event) => {
-    event.waitUntil((async () => {
-        // Prune any cache from a previous SW_VERSION. Keeps storage
-        // bounded — the old shell + api caches don't linger after a
-        // version bump.
-        const names = await caches.keys();
-        await Promise.all(
-            names
-                .filter((n) => n.startsWith('gg-') && !CURRENT_CACHES.has(n))
-                .map((n) => caches.delete(n)),
-        );
-        await self.clients.claim();
-    })());
+    event.waitUntil(
+        (async () => {
+            // Prune any cache from a previous SW_VERSION. Keeps storage
+            // bounded — the old shell + api caches don't linger after a
+            // version bump.
+            const names = await caches.keys();
+            await Promise.all(
+                names.filter((n) => n.startsWith('gg-') && !CURRENT_CACHES.has(n)).map((n) => caches.delete(n))
+            );
+            await self.clients.claim();
+        })()
+    );
 });
 
 // ── Cache key helpers ────────────────────────────────────────────────
@@ -155,11 +152,15 @@ async function _cachedApiResponse(request) {
     const cachedAtHeader = cached.headers.get('x-sw-cached-at');
     if (cachedAtHeader) {
         const cachedAt = Number(cachedAtHeader);
-        if (Number.isFinite(cachedAt) && (Date.now() - cachedAt) > API_CACHE_MAX_AGE_MS) {
+        if (Number.isFinite(cachedAt) && Date.now() - cachedAt > API_CACHE_MAX_AGE_MS) {
             // Stale — evict + return null so the caller can choose
             // what to do (`_networkFirst` propagates the network
             // error rather than serving the stale page).
-            try { await cache.delete(url.toString()); } catch { /* ignore */ }
+            try {
+                await cache.delete(url.toString());
+            } catch {
+                /* ignore */
+            }
             return null;
         }
     }
@@ -203,7 +204,11 @@ async function _putApiResponse(request, response, epochAtStart) {
         // as-is so we at least have something for the offline
         // path. Without the timestamp it'll never expire, but
         // that matches the pre-fix behaviour.
-        try { await cache.put(url.toString(), response); } catch { /* quota */ }
+        try {
+            await cache.put(url.toString(), response);
+        } catch {
+            /* quota */
+        }
     }
 }
 
@@ -233,14 +238,16 @@ async function _networkFirst(request, cacheName, keyer) {
                 await keyer(request, fresh.clone(), epochAtStart);
             } else {
                 const cache = await caches.open(cacheName);
-                try { await cache.put(request, fresh.clone()); } catch { /* quota */ }
+                try {
+                    await cache.put(request, fresh.clone());
+                } catch {
+                    /* quota */
+                }
             }
         }
         return fresh;
     } catch (networkErr) {
-        const cached = keyer
-            ? await _cachedApiResponse(request)
-            : await (await caches.open(cacheName)).match(request);
+        const cached = keyer ? await _cachedApiResponse(request) : await (await caches.open(cacheName)).match(request);
         if (cached) return cached;
         // Last-resort fallback for app-shell navigations: serve the
         // cached `/` if there is one, so a cold-load while offline
@@ -275,7 +282,11 @@ async function _cacheFirst(request, cacheName, perUser) {
     if (cached) return cached;
     const fresh = await fetch(request);
     if (fresh.ok) {
-        try { await cache.put(cacheKey, fresh.clone()); } catch { /* quota */ }
+        try {
+            await cache.put(cacheKey, fresh.clone());
+        } catch {
+            /* quota */
+        }
     }
     return fresh;
 }
@@ -327,7 +338,7 @@ self.addEventListener('fetch', (event) => {
     // — the page is privacy-sensitive and rarely re-loaded. Pass
     // through to the network unmodified.
     if (url.pathname.startsWith('/share/')) {
-        return;  // pass-through to network (no event.respondWith)
+        return; // pass-through to network (no event.respondWith)
     }
 
     // App shell — `/`, `/static/*` (bundle / chunks / CSS / manifest),
@@ -391,10 +402,9 @@ self.addEventListener('message', (event) => {
         // NEW writes from leaking; this wipe ensures the historic
         // residue (anything cached pre-R3-Fix-#7 ship) is purged.
         _logoutEpoch++;
-        _logoutLock = Promise.all([
-            caches.delete(API_CACHE),
-            caches.delete(UPLOADS_CACHE),
-        ]).catch(() => { /* best-effort */ });
+        _logoutLock = Promise.all([caches.delete(API_CACHE), caches.delete(UPLOADS_CACHE)]).catch(() => {
+            /* best-effort */
+        });
         if (event.waitUntil) {
             event.waitUntil(_logoutLock);
         }
@@ -418,7 +428,9 @@ self.addEventListener('message', (event) => {
         // (if any) lands first, then SET_USER overwrites it cleanly.
         if (data.userId && typeof data.userId === 'string') {
             const newId = data.userId;
-            const set = _logoutLock.then(() => { _currentUserId = newId; });
+            const set = _logoutLock.then(() => {
+                _currentUserId = newId;
+            });
             if (event.waitUntil) {
                 event.waitUntil(set);
             }
@@ -430,7 +442,9 @@ self.addEventListener('message', (event) => {
         // wipe to settle first so we don't reset to null while the
         // delete is mid-flight (which would race against any
         // /api/data response landing in the wipe window).
-        const reset = _logoutLock.then(() => { _currentUserId = null; });
+        const reset = _logoutLock.then(() => {
+            _currentUserId = null;
+        });
         if (event.waitUntil) {
             event.waitUntil(reset);
         }

@@ -16,10 +16,10 @@
 // Run via `npm run check:bundle-size` (after `npm run build`). CI
 // chains: `npm run build && npm run check:bundle-size`.
 
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
-import { resolve, basename } from 'node:path';
+import { resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const JS_DIR = resolve(ROOT, 'frontend/static/js');
@@ -34,21 +34,21 @@ const CHUNKS_DIR = resolve(JS_DIR, 'chunks');
 // load lazily on navigation and don't affect time-to-interactive on
 // first visit.
 const LIMITS = {
-    entry: 115 * 1024,            // 115 KB gzip — currently ~112 KB
-    vendorReact: 65 * 1024,       // 65 KB gzip — currently ~58 KB
-    pageChunkMax: 15 * 1024,      // 15 KB gzip per page chunk — currently top is ~12 KB
+    entry: 115 * 1024, // 115 KB gzip — currently ~112 KB
+    vendorReact: 65 * 1024, // 65 KB gzip — currently ~58 KB
+    pageChunkMax: 15 * 1024, // 15 KB gzip per page chunk — currently top is ~12 KB
     firstPaintGzipMax: 184 * 1024, // 184 KB gzip first-paint.
-                                   // i18n session 4 sweep across collections /
-                                   // ai / todo / search / insights / budgets /
-                                   // settlement added ~3 KB of t() call sites
-                                   // + the en.ts source-of-truth growth (every
-                                   // new key ships its English copy in the
-                                   // entry chunk, even though pt/es/fr load
-                                   // lazily). Adding a 5th locale (if we ever
-                                   // expand beyond EN/PT/ES/FR) costs ~0 KB at
-                                   // first-paint thanks to the lazy-load
-                                   // refactor in session 2 — only en.ts growth
-                                   // moves this number.
+    // i18n session 4 sweep across collections /
+    // ai / todo / search / insights / budgets /
+    // settlement added ~3 KB of t() call sites
+    // + the en.ts source-of-truth growth (every
+    // new key ships its English copy in the
+    // entry chunk, even though pt/es/fr load
+    // lazily). Adding a 5th locale (if we ever
+    // expand beyond EN/PT/ES/FR) costs ~0 KB at
+    // first-paint thanks to the lazy-load
+    // refactor in session 2 — only en.ts growth
+    // moves this number.
 };
 
 function gzipSize(filePath) {
@@ -72,7 +72,7 @@ if (entryGz > LIMITS.entry) {
 }
 
 // 2 + 3. Walk chunks.
-const chunkFiles = readdirSync(CHUNKS_DIR).filter(f => f.endsWith('.js'));
+const chunkFiles = readdirSync(CHUNKS_DIR).filter((f) => f.endsWith('.js'));
 let vendorReactGz = 0;
 const oversizedPages = [];
 
@@ -82,7 +82,13 @@ for (const f of chunkFiles) {
     totalGzip += gz;
     if (f.startsWith('vendor-react-')) {
         vendorReactGz = gz;
-    } else if (f.startsWith('mount-') || f.startsWith('Empty') || f.startsWith('store-') || f.startsWith('useNavigate-') || f.startsWith('rolldown-runtime-')) {
+    } else if (
+        f.startsWith('mount-') ||
+        f.startsWith('Empty') ||
+        f.startsWith('store-') ||
+        f.startsWith('useNavigate-') ||
+        f.startsWith('rolldown-runtime-')
+    ) {
         // Per-page or shared infra chunk.
         if (gz > largestPageChunk) largestPageChunk = gz;
         if (gz > LIMITS.pageChunkMax) {
@@ -106,7 +112,9 @@ if (oversizedPages.length > 0) {
 // route"). This is the actually-downloaded payload on a cold visit.
 const firstPaintGz = entryGz + vendorReactGz + largestPageChunk;
 if (firstPaintGz > LIMITS.firstPaintGzipMax) {
-    failures.push(`First-paint gzip ${fmt(firstPaintGz)} (entry + vendor-react + largest page chunk) exceeds ${fmt(LIMITS.firstPaintGzipMax)}`);
+    failures.push(
+        `First-paint gzip ${fmt(firstPaintGz)} (entry + vendor-react + largest page chunk) exceeds ${fmt(LIMITS.firstPaintGzipMax)}`
+    );
 }
 
 // Report.
@@ -115,7 +123,9 @@ console.log(`  Entry app.bundle.js:    ${fmt(entryGz).padStart(10)}  / ${fmt(LIM
 console.log(`  vendor-react chunk:     ${fmt(vendorReactGz).padStart(10)}  / ${fmt(LIMITS.vendorReact)} budget`);
 console.log(`  Largest page chunk:     ${fmt(largestPageChunk).padStart(10)}  / ${fmt(LIMITS.pageChunkMax)} budget`);
 console.log(`  First-paint estimate:   ${fmt(firstPaintGz).padStart(10)}  / ${fmt(LIMITS.firstPaintGzipMax)} budget`);
-console.log(`  Total all chunks:       ${fmt(totalGzip).padStart(10)}  (informational; chunks beyond first-paint are lazy)`);
+console.log(
+    `  Total all chunks:       ${fmt(totalGzip).padStart(10)}  (informational; chunks beyond first-paint are lazy)`
+);
 console.log('');
 
 if (failures.length > 0) {

@@ -1,6 +1,9 @@
 node_modules
 frontend/static/js/app.bundle.js
 frontend/static/js/app.bundle.js.map
+# Vite-bundled output: content-hashed JS chunks + extracted CSS. Generated.
+frontend/static/js/chunks
+frontend/static/js/assets
 facts_dict.js
 scratch
 tests/__init__.py
@@ -18,3 +21,11 @@ frontend/templates/index.html
 # block comments and {% %} control statements are non-standard.
 # Server-rendered share page; doesn't ship to the client bundle.
 frontend/templates/share.html
+
+# Hand-written narrative docs — maintained by hand, not worth enforcing
+# Prettier on (and its markdown reformatting is non-idempotent on
+# ROADMAP.md, so --check would stay red even after --write). Same posture
+# as the legacy CSS/HTML above.
+ROADMAP.md
+FUTURE_FEATURES.md
+migrations/README

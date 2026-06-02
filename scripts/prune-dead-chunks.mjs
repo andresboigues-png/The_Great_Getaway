@@ -26,7 +26,7 @@
 // Audit 2026-05-18 LOW-tier hygiene item.
 
 import { readFileSync, readdirSync, statSync, unlinkSync } from 'node:fs';
-import { join, basename, dirname, relative } from 'node:path';
+import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
