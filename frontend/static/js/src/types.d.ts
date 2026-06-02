@@ -546,6 +546,10 @@ export interface AppState {
      *  calc, shape `{ [currency]: { [year]: cpiIndex } }`. Fetched
      *  browser-direct from the World Bank (FP.CPI.TOTL). */
     cpiCache: Record<string, Record<number, number>>;
+    /** Per-trip manual overrides for the Insights "Value today" calc:
+     *  `{ [tripId]: { [CURRENCY]: { inflationPct, fxToHome } } }`. Client-only
+     *  display preference — settlements/budgets stay nominal. */
+    fxOverridesByTrip: Record<string, Record<string, { inflationPct: number; fxToHome: number }>>;
     user: User | null;
     hasLoggedInBefore: boolean;
     excelMapping: Record<string, string>;

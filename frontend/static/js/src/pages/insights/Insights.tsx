@@ -24,6 +24,7 @@ import { STATE, emit } from '../../state.js';
 import { EVENTS, CURRENCY_SYMBOLS } from '../../constants.js';
 import { convertCurrency } from '../../utils/currency.js';
 import { fetchHistoricalRates, fetchCpiSeries } from '../../api.js';
+import { getTripFxOverrides, setTripFxOverride, clearTripFxOverrides } from '../../utils/fxOverrides.js';
 import { getIntlLocale, formatNumber, formatNumberForCurrency } from '../../i18n.js';
 import { getHomeCurrency, currencySymbol } from '../../utils.js';
 import { computeTripBalances } from '../settlement/balances.js';
@@ -104,6 +105,11 @@ export function Insights() {
     const rateMode = useStore((s) => s.rateMode);
     const rateCache = useStore((s) => s.rateCache);
     const cpiCache = useStore((s) => s.cpiCache);
+    // Per-trip manual FX/inflation overrides for "Value today" (F2). The
+    // whole map is the useStore selector so a save (which replaces the
+    // reference) recomputes the calc useMemo below; the active trip's slice
+    // is read inside it.
+    const fxOverridesByTrip = useStore((s) => s.fxOverridesByTrip);
     // Currency-breakdown expander (multi-currency trips only).
     const [showCurrencyBreakdown, setShowCurrencyBreakdown] = useState(false);
     // Has the CPI fetch settled (resolved or failed)? Gates the
@@ -190,6 +196,12 @@ export function Insights() {
         currencyOwnTotals,
         currencyDateTotals,
     } = useMemo(() => {
+        // F2 — per-currency manual overrides for "Value today". When the
+        // user has set their own inflation %/exchange-rate for a currency,
+        // it REPLACES the auto CPI+historical-FX estimate for that currency
+        // in `today` mode (uppercase-keyed). `at_trip` (Spent) is always the
+        // at-the-time figure and ignores overrides.
+        const tripOverrides = fxOverridesByTrip[activeTripId] || {};
         // ── Inflation ("Worth today") factor ──────────────────────────
         // Real CPI for the home currency's region (World Bank FP.CPI.TOTL,
         // cached in cpiCache). Factor = CPI(latest available year) /
@@ -255,10 +267,19 @@ export function Insights() {
                 spentHome = targetCurr === 'EUR' ? euroVal : convertCurrency(euroVal, 'EUR', targetCurr);
             }
             // "Worth today" = that as-spent home cost, adjusted for the
-            // home currency's inflation since the expense's year.
-            const displayValue = mode === 'today'
-                ? spentHome * inflationFactor(e.date)
-                : spentHome;
+            // home currency's inflation since the expense's year — UNLESS the
+            // user set a manual override for this currency, in which case
+            // we use their numbers: original amount × their exchange rate ×
+            // (1 + their inflation%). `at_trip` is always the as-spent value.
+            let displayValue: number;
+            if (mode === 'today') {
+                const ov = tripOverrides[(e.currency || 'EUR').toUpperCase()];
+                displayValue = ov
+                    ? e.value * ov.fxToHome * (1 + ov.inflationPct / 100)
+                    : spentHome * inflationFactor(e.date);
+            } else {
+                displayValue = spentHome;
+            }
             return { ...e, displayValue };
         });
 
@@ -350,7 +371,7 @@ export function Insights() {
             currencyOwnTotals,
             currencyDateTotals,
         };
-    }, [tripExps, mode, targetCurr, rateCache, cpiCache]);
+    }, [tripExps, mode, targetCurr, rateCache, cpiCache, fxOverridesByTrip, activeTripId]);
 
     // ── Empty: trip has no expenses ───────────────────────────────────────
     if (tripExps.length === 0) {
@@ -700,7 +721,123 @@ export function Insights() {
         emit(EVENTS.STATE_CHANGED);
     };
     // ⓘ explainer — how "Spent" and "Worth today" are calculated.
+    // Per-currency AUTO figures (World-Bank CPI inflation + today's FX) for
+    // the currencies this trip used — powers both the info popover's numbers
+    // and the manual-override panel's pre-filled inputs. Computed on demand
+    // (the modals open on click), so no extra render cost.
+    const computeCurrencyAutos = () => {
+        const cpi = cpiCache[targetCurr];
+        let latestYear = 0, latestVal = 0, earliestYear = 0;
+        if (cpi) {
+            const ys = Object.keys(cpi).map(Number).filter((y) => Number.isFinite(y));
+            if (ys.length) { latestYear = Math.max(...ys); earliestYear = Math.min(...ys); latestVal = cpi[latestYear] || 0; }
+        }
+        const factorForYear = (y: number): number => {
+            if (!cpi || !latestVal) return 1;
+            let yy = y;
+            if (!Number.isFinite(yy) || yy < 1900 || yy > latestYear + 1) yy = latestYear;
+            let by = Math.max(earliestYear, Math.min(latestYear, yy));
+            let bc = cpi[by];
+            while (bc == null && by > earliestYear) { by -= 1; bc = cpi[by]; }
+            return bc ? latestVal / bc : 1;
+        };
+        const byCur: Record<string, { years: number[]; count: number }> = {};
+        for (const e of tripExps) {
+            const cur = (e.currency || 'EUR').toUpperCase();
+            const y = Number((e.date || '').slice(0, 4));
+            if (!byCur[cur]) byCur[cur] = { years: [], count: 0 };
+            if (Number.isFinite(y) && y > 1900) byCur[cur].years.push(y);
+            byCur[cur].count += 1;
+        }
+        const overrides = getTripFxOverrides(activeTripId);
+        return Object.keys(byCur).sort().map((cur) => {
+            const yrs = byCur[cur]!.years;
+            const avgYear = yrs.length ? Math.round(yrs.reduce((a, b) => a + b, 0) / yrs.length) : new Date().getFullYear();
+            return {
+                code: cur,
+                autoInflationPct: Math.round((factorForYear(avgYear) - 1) * 1000) / 10,
+                autoFx: Math.round(convertCurrency(1, cur, targetCurr) * 10000) / 10000,
+                ov: overrides[cur],
+            };
+        });
+    };
+
+    // Manual-override panel: per-currency inflation % + exchange rate, pre-
+    // filled with the auto figures. Only affects "Value today" (the info
+    // popover links here). Settlements/budgets never read these.
+    const openOverridePanel = () => {
+        const autos = computeCurrencyAutos();
+        const rowsHtml = autos.map((a) => `
+            <div class="vt-ov-row" data-cur="${esc(a.code)}" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 0; border-bottom:1px solid var(--glass-border);">
+                <span style="font-weight:800; min-width:46px; color:var(--text-brand-navy);">${esc(a.code)}</span>
+                <label style="display:inline-flex; align-items:center; gap:5px; font-size:0.82rem; color:var(--text-secondary);">
+                    ${t('insights.overrideInflationLabel')}
+                    <input type="number" class="vt-inf" step="0.1" value="${a.ov ? a.ov.inflationPct : a.autoInflationPct}" style="width:70px; padding:5px 8px; border:1px solid var(--glass-border); border-radius:8px;">%
+                </label>
+                <label style="display:inline-flex; align-items:center; gap:5px; font-size:0.82rem; color:var(--text-secondary);">
+                    ${t('insights.overrideRatePrefix', { cur: esc(a.code) })}
+                    <input type="number" class="vt-fx" step="0.0001" value="${a.ov ? a.ov.fxToHome : a.autoFx}" style="width:90px; padding:5px 8px; border:1px solid var(--glass-border); border-radius:8px;"> ${esc(targetCurr)}
+                </label>
+                <span style="font-size:0.72rem; color:var(--text-tertiary, var(--text-secondary)); margin-left:auto;">${t('insights.overrideAutoNote')}: ${a.autoInflationPct}% · ${a.autoFx}</span>
+            </div>
+        `).join('');
+        const { root, close } = showModal({
+            variant: 'glass',
+            cardStyle: 'width: 520px; max-width: calc(100vw - 32px); padding: 26px; border-radius: 24px;',
+            innerHTML: `
+                <h2 style="margin:0 0 6px; font-size:1.3rem; font-weight:800; color:var(--text-brand-navy); letter-spacing:-0.02em;">${t('insights.overrideTitle')}</h2>
+                <p style="margin:0 0 14px; font-size:0.85rem; line-height:1.5; color:var(--text-secondary);">${t('insights.overrideIntro', { today: esc(t('insights.rateModeToday')) })}</p>
+                <div style="display:flex; flex-direction:column;">${rowsHtml || `<p style="color:var(--text-secondary);">—</p>`}</div>
+                <div style="display:flex; justify-content:space-between; gap:10px; margin-top:20px;">
+                    <button id="vtReset" class="btn-ghost" style="padding:9px 16px; border-radius:999px;">${t('insights.overrideReset')}</button>
+                    <button id="vtSave" class="btn-primary" style="padding:9px 20px; border-radius:999px;">${t('insights.overrideSave')}</button>
+                </div>
+            `,
+        });
+        (root.querySelector('#vtSave') as HTMLButtonElement | null)?.addEventListener('click', () => {
+            root.querySelectorAll('.vt-ov-row').forEach((rowEl) => {
+                const cur = (rowEl as HTMLElement).dataset.cur || '';
+                const inf = parseFloat((rowEl.querySelector('.vt-inf') as HTMLInputElement).value);
+                const fx = parseFloat((rowEl.querySelector('.vt-fx') as HTMLInputElement).value);
+                if (cur && Number.isFinite(inf) && Number.isFinite(fx) && fx > 0) {
+                    setTripFxOverride(activeTripId, cur, { inflationPct: inf, fxToHome: fx });
+                }
+            });
+            close();
+        });
+        (root.querySelector('#vtReset') as HTMLButtonElement | null)?.addEventListener('click', () => {
+            clearTripFxOverrides(activeTripId);
+            close();
+        });
+    };
+
+    // ⓘ explainer. In "Worth today" mode it explains the inflation + FX
+    // logic and offers the manual-override link; otherwise the original
+    // Spent-vs-Worth-today explanation.
     const openRateModeInfo = () => {
+        if (mode === 'today') {
+            const autos = computeCurrencyAutos();
+            const repInflation = autos.length ? Math.max(...autos.map((a) => a.autoInflationPct), 0) : 0;
+            const { root, close } = showModal({
+                variant: 'glass',
+                cardStyle: 'width: 480px; max-width: calc(100vw - 32px); padding: 26px; border-radius: 24px;',
+                innerHTML: `
+                    <h2 style="margin:0 0 14px; font-size:1.3rem; font-weight:800; color:var(--text-brand-navy); letter-spacing:-0.02em;">${t('insights.valueTodayInfoTitle')}</h2>
+                    <div style="display:flex; flex-direction:column; gap:11px; font-size:0.92rem; line-height:1.55; color:var(--text-brand-navy);">
+                        <p style="margin:0;">${t('insights.valueTodayInfoIntro', { spent: esc(t('insights.rateModeAtTrip')), today: esc(t('insights.rateModeToday')) })}</p>
+                        <p style="margin:0;">${t('insights.valueTodayInfoInflation', { pct: String(repInflation) })}</p>
+                        <p style="margin:4px 0 0; font-size:0.82rem; color:var(--text-secondary);">${t('insights.valueTodayInfoSources')}</p>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:20px; flex-wrap:wrap;">
+                        <button id="vtManual" class="btn-ghost" style="padding:9px 16px; border-radius:999px; font-weight:700; color:var(--accent-blue);">${t('insights.valueTodayManualCta')}</button>
+                        <button id="rateInfoClose" class="btn-primary" style="padding:9px 20px; border-radius:999px;">${t('common.close')}</button>
+                    </div>
+                `,
+            });
+            (root.querySelector('#rateInfoClose') as HTMLButtonElement | null)?.addEventListener('click', close);
+            (root.querySelector('#vtManual') as HTMLButtonElement | null)?.addEventListener('click', () => { close(); openOverridePanel(); });
+            return;
+        }
         const { root, close } = showModal({
             variant: 'glass',
             cardStyle: 'width: 460px; max-width: calc(100vw - 32px); padding: 26px; border-radius: 24px;',

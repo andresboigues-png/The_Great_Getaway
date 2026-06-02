@@ -41,6 +41,11 @@ export const STATE: AppState = {
     rateMode: 'at_trip', // 'at_trip' or 'today'
     rateCache: {}, // { 'YYYY-MM-DD_FROM_TO': rate }
     cpiCache: {}, // { [currency]: { [year]: cpiIndex } } — World Bank CPI
+    // Per-trip manual overrides for the Insights "Value today" calc:
+    // { [tripId]: { [CURRENCY]: { inflationPct, fxToHome } } }. Client-only
+    // (a display preference; settlements/budgets stay nominal). Empty ⇒ the
+    // auto CPI + historical-FX estimate is used for that currency.
+    fxOverridesByTrip: {},
     user: null, // Stores { id, name, email, picture }
     hasLoggedInBefore: false, // Tracks if user has ever signed in
     /** User's personal Gemini API key for the AI planner. Bring-your-own
@@ -132,6 +137,7 @@ export function loadState() {
     if (!STATE.savedFormats) STATE.savedFormats = [];
     if (!STATE.tripDays) STATE.tripDays = [];
     if (!STATE.archivedTrips) STATE.archivedTrips = [];
+    if (!STATE.fxOverridesByTrip || typeof STATE.fxOverridesByTrip !== 'object') STATE.fxOverridesByTrip = {};
     if (!STATE.preferences) STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'], poiFilters: {}, pillEpicenters: {}, poiAnchoring: {}, poiVisible: {}, enabledPois: {} };
     if (!Array.isArray(STATE.preferences.mapDefaultPois)) {
         STATE.preferences.mapDefaultPois = ['sights', 'parks', 'transit'];
