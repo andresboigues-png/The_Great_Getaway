@@ -783,7 +783,7 @@ export function Insights() {
         `).join('');
         const { root, close } = showModal({
             variant: 'glass',
-            cardStyle: 'width: 520px; max-width: calc(100vw - 32px); padding: 26px; border-radius: 24px;',
+            cardStyle: 'width: 520px; max-width: calc(100vw - 32px); padding: 26px; border-radius: 24px; background: var(--glass-bg);',
             innerHTML: `
                 <h2 style="margin:0 0 6px; font-size:1.3rem; font-weight:800; color:var(--text-brand-navy); letter-spacing:-0.02em;">${t('insights.overrideTitle')}</h2>
                 <p style="margin:0 0 14px; font-size:0.85rem; line-height:1.5; color:var(--text-secondary);">${t('insights.overrideIntro', { today: esc(t('insights.rateModeToday')) })}</p>
@@ -820,7 +820,7 @@ export function Insights() {
             const repInflation = autos.length ? Math.max(...autos.map((a) => a.autoInflationPct), 0) : 0;
             const { root, close } = showModal({
                 variant: 'glass',
-                cardStyle: 'width: 480px; max-width: calc(100vw - 32px); padding: 26px; border-radius: 24px;',
+                cardStyle: 'width: 480px; max-width: calc(100vw - 32px); padding: 26px; border-radius: 24px; background: var(--glass-bg);',
                 innerHTML: `
                     <h2 style="margin:0 0 14px; font-size:1.3rem; font-weight:800; color:var(--text-brand-navy); letter-spacing:-0.02em;">${t('insights.valueTodayInfoTitle')}</h2>
                     <div style="display:flex; flex-direction:column; gap:11px; font-size:0.92rem; line-height:1.55; color:var(--text-brand-navy);">
@@ -840,7 +840,7 @@ export function Insights() {
         }
         const { root, close } = showModal({
             variant: 'glass',
-            cardStyle: 'width: 460px; max-width: calc(100vw - 32px); padding: 26px; border-radius: 24px;',
+            cardStyle: 'width: 460px; max-width: calc(100vw - 32px); padding: 26px; border-radius: 24px; background: var(--glass-bg);',
             innerHTML: `
                 <h2 style="margin:0 0 14px; font-size:1.3rem; font-weight:800; color:var(--text-brand-navy); letter-spacing:-0.02em;">${t('insights.rateInfoTitle')}</h2>
                 <div style="display:flex; flex-direction:column; gap:12px; font-size:0.92rem; line-height:1.5; color:var(--text-brand-navy);">
