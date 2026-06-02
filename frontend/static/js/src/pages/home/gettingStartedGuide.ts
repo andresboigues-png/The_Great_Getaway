@@ -136,8 +136,8 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
         // rendered, so navigate first and switch the tab on the
         // next tick.
         { text: t('home.guideStep4'), done: !!STATE.guideProgress.categories, iconName: 'tag', action: () => { navigate('personalization'); setTimeout(() => showPersTab('categories'), 50); } },
-        { text: `${t('home.guideStep5')}<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(${t('home.guideStep5Prefix')} — ${planSubLink})</span>`, done: !!STATE.guideProgress.plan, iconName: 'sparkles', action: () => navigate('ai') },
-        { text: `${t('home.guideStep6')}<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(${expenseManual} ${t('home.guideStep6Or')} ${expenseBatch})</span>`, done: !!STATE.guideProgress.expenses, iconName: 'wallet', action: () => navigate('expenses') },
+        { text: `${t('home.guideStep5')}<br><span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">(${t('home.guideStep5Prefix')} — ${planSubLink})</span>`, done: !!STATE.guideProgress.plan, iconName: 'sparkles', action: () => navigate('ai') },
+        { text: `${t('home.guideStep6')}<br><span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">(${expenseManual} ${t('home.guideStep6Or')} ${expenseBatch})</span>`, done: !!STATE.guideProgress.expenses, iconName: 'wallet', action: () => navigate('expenses') },
         { text: t('home.guideStep7'), done: !!STATE.guideProgress.budgets, iconName: 'barChart', action: () => navigate('budgets') },
         { text: t('home.guideStep8'), done: !!STATE.guideProgress.settlement, iconName: 'handshake', action: () => navigate('settlement') },
         { text: t('home.guideStep9'), done: !!STATE.guideProgress.collections, iconName: 'folder', action: () => navigate('collections') },
@@ -189,9 +189,17 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
     // 2026-05-15 dark-mode sweep — every hardcoded color literal
     // (#002d5b, white, rgba(0,0,0,*), rgba(0,45,91,*)) replaced
     // with theme tokens so the card stays readable on both light
-    // and dark surfaces. The green-tick state keeps its #34c759
-    // accent (intentional — green is the success color in both
-    // themes and reads fine against either background).
+    // and dark surfaces. The green-tick state keeps its bright
+    // #34c759 accent on the NON-TEXT chrome (card tint, border,
+    // circle ring) — green is the success colour in both themes.
+    //
+    // a11y (WCAG AA): bright #34c759 is too light for SMALL TEXT —
+    // it fails the 4.5:1 contrast gate even on white (~2.2:1), and
+    // worse on the light-green ticked-card tint (~2.0:1). So the
+    // "Step N" label + the ✓ glyph use a darker success green that
+    // clears 4.5:1 while still reading as green. The visual identity
+    // (bright-green tint/ring) is unchanged.
+    const SUCCESS_TEXT = '#166534';
     guideContainer.innerHTML = `
         <div class="card glass" style="padding: 32px; border-radius: 28px; border: 1.5px solid ${allDone ? 'var(--border-subtle)' : 'rgba(0, 122, 255, 0.25)'}; background: var(--card-bg); position: relative;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
@@ -213,12 +221,12 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
                             ${allDone ? `
                             <div style="flex-shrink: 0; line-height: 1; color: var(--accent-blue); display: inline-flex;">${iconSvg(step.iconName, { size: 22 })}</div>
                             ` : `
-                            <div style="width: 24px; height: 24px; border-radius: 50%; border: 2px solid ${showTick ? '#34c759' : 'var(--border-subtle)'}; display: flex; align-items: center; justify-content: center; color: ${showTick ? '#34c759' : 'var(--text-secondary)'}; font-weight: 800; font-size: 0.8rem; background: ${showTick ? 'var(--card-bg)' : 'var(--surface-subtle)'}; flex-shrink: 0;">
+                            <div style="width: 24px; height: 24px; border-radius: 50%; border: 2px solid ${showTick ? '#34c759' : 'var(--border-subtle)'}; display: flex; align-items: center; justify-content: center; color: ${showTick ? SUCCESS_TEXT : 'var(--text-secondary)'}; font-weight: 800; font-size: 0.8rem; background: ${showTick ? 'var(--card-bg)' : 'var(--surface-subtle)'}; flex-shrink: 0;">
                                 ${showTick ? '✓' : iconSvg(step.iconName, { size: 14 })}
                             </div>
                             `}
                             <div style="display: flex; flex-direction: column;">
-                                ${!allDone ? `<div style="font-size: 0.75rem; font-weight: 800; color: ${showTick ? '#34c759' : 'var(--text-secondary)'}; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Step ${i + 1}</div>` : ''}
+                                ${!allDone ? `<div style="font-size: 0.75rem; font-weight: 800; color: ${showTick ? SUCCESS_TEXT : 'var(--text-secondary)'}; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Step ${i + 1}</div>` : ''}
                                 <div style="font-size: 1rem; font-weight: 700; color: ${showTick ? 'var(--text-secondary)' : 'var(--text-brand-navy)'}; text-decoration: ${showTick ? 'line-through' : 'none'};">
                                     ${step.text}
                                 </div>

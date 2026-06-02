@@ -416,8 +416,12 @@ function ProfileContent({
 
             {/* Footprint label */}
             <div className="flex justify-center mb-6">
+                {/* a11y: -deep (#005bb8) not plain accent-blue (#0071e3) —
+                    this small bold label sits on the #f5f5f7 subtle surface
+                    where #0071e3 is only 4.31:1 (fails WCAG AA). The deep
+                    token clears it and matches Settings.tsx's label pattern. */}
                 <div
-                    className="flex items-center gap-2 font-bold text-[0.9rem] tracking-wider uppercase text-accent-blue"
+                    className="flex items-center gap-2 font-bold text-[0.9rem] tracking-wider uppercase text-accent-blue-deep"
                 >
                     {/* Literal footprint glyph (sole + 5 toes). */}
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
