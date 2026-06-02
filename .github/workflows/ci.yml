@@ -78,7 +78,7 @@ jobs:
               with:
                   python-version: '3.12'
                   cache: 'pip'
-            - run: pip install -r requirements.txt pytest pytest-cov
+            - run: pip install -r requirements.txt pytest pytest-cov pypdf
             # `--cov-fail-under=92` — coverage gate stepped
             # 60→80→85→90→92 across N+8 / N+9 as the suite grew from
             # 54 → 157 tests. Codebase now sits at ~95% with the
