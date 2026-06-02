@@ -9597,7 +9597,11 @@ def test_pdf_budget_table_labels_and_original_currency(
     EUR-normalised total. Skips if the PDF builder can't fetch the static
     cover map (offline CI), since we need a real 200 to read the bytes."""
     import io
-    import pypdf
+    # pypdf is a test-only PDF parser (not a prod dep). Skip cleanly if it's
+    # not installed instead of erroring — CI installs it explicitly so this
+    # test still runs there. (Was a bare `import pypdf` → ModuleNotFoundError
+    # on any env without it.)
+    pypdf = pytest.importorskip("pypdf")
     trip_id = _create_trip(client, auth_headers, trip_id="trip-pdf-budget")
     # Trip-total budget (categoryId 'all' → "Overall"), typed as USD so
     # the per-row currency must read USD while the total is EUR.
@@ -9616,7 +9620,6 @@ def test_pdf_budget_table_labels_and_original_currency(
         json={"includeBudgets": True},
     )
     if res.status_code != 200:
-        import pytest
         pytest.skip(f"PDF builder returned {res.status_code} (offline map fetch?)")
 
     text = "\n".join(
