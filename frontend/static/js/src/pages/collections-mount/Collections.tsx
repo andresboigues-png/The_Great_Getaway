@@ -30,6 +30,7 @@ import { t, tn } from '../../i18n.js';
 import { iconSvg } from '../../icons.js';
 import { toggleTripPrivacy, restoreTrip, deleteArchivedTrip } from '../collections/handlers.js';
 import { viewArchivedDetails } from '../collections.js';
+import { CONTINENT_SILHOUETTES, CONTINENT_VIEWBOX } from '../../utils/continentSilhouettes.js';
 import {
     tripStartDate,
     tripYear,
@@ -439,6 +440,7 @@ export function Collections() {
                                 key={album.key}
                                 album={album}
                                 label={albumLabel(album.key, groupBy)}
+                                groupBy={groupBy}
                                 onOpen={() => setOpenAlbumKey(album.key)}
                             />
                         ))}
@@ -734,8 +736,11 @@ function albumGradient(key: string): string {
  *  a single-photo album still reads as a stack. Click / Enter / Space
  *  drills into the album. */
 function AlbumStack(
-    { album, label, onOpen }: { album: TripAlbum; label: string; onOpen: () => void },
+    { album, label, groupBy, onOpen }: { album: TripAlbum; label: string; groupBy: GroupBy; onOpen: () => void },
 ) {
+    // Group-identity watermark over the stack: a continent silhouette when
+    // grouping by continent, the year number when grouping by year.
+    const silhouette = groupBy === 'continent' ? CONTINENT_SILHOUETTES[album.key] : undefined;
     // Up to 3 distinct cover photos for the fan.
     const covers: (string | null)[] = [];
     for (const trip of album.trips) {
@@ -790,6 +795,20 @@ function AlbumStack(
                         />
                     ),
                 )}
+                {silhouette ? (
+                    <svg
+                        className="album-stack__watermark"
+                        viewBox={CONTINENT_VIEWBOX}
+                        preserveAspectRatio="xMidYMid meet"
+                        aria-hidden="true"
+                    >
+                        <path d={silhouette} />
+                    </svg>
+                ) : groupBy === 'year' ? (
+                    <span className="album-stack__year" aria-hidden="true">
+                        {album.key}
+                    </span>
+                ) : null}
                 <span className="album-stack__count">{album.trips.length}</span>
             </div>
             <div className="album-card__meta">
