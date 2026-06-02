@@ -921,6 +921,56 @@ def sync_data():
 # point.
 
 
+def _compute_data_version(cursor, user_id, visible_trip_ids):
+    """MK3-10 change-detection signal: a hash over everything /api/data returns
+    — MAX(timestamp) + COUNT(live rows) per table, scoped to the caller's
+    currently-visible trips. Any insert/update/tombstone/hard-delete changes a
+    MAX or a COUNT; and because the per-trip probes are scoped to the *current*
+    visible set, a membership change (a trip entering/leaving your view via a
+    share/accept/revoke) flows through the trip + expense COUNTs automatically.
+    Conservative by design: a false 'changed' costs one full fetch, it can
+    never go stale. (Verified the relevant routes bump updated_at: per-row
+    upserts via R8-B4, plus archive/unarchive/share/revoke.)"""
+    import hashlib
+    parts: list[str] = []
+
+    # Column sets differ across tables (and between the test baseline schema and
+    # the migrated prod schema), so introspect: pick the best monotonic column
+    # (updated_at > created_at > rowid) and only add `deleted_at IS NULL` when
+    # the column actually exists. A hard-delete still drops COUNT(*), so deletes
+    # are caught either way.
+    def _cols(table):
+        return {r[1] for r in cursor.execute(f"PRAGMA table_info({table})")}
+
+    def probe(label, table, scope, scope_params):
+        cols = _cols(table)
+        ts = "updated_at" if "updated_at" in cols else (
+            "created_at" if "created_at" in cols else "rowid")
+        where = scope
+        if "deleted_at" in cols:
+            where = f"{where} AND deleted_at IS NULL" if where else "deleted_at IS NULL"
+        sql = f"SELECT MAX({ts}), COUNT(*) FROM {table}"
+        if where:
+            sql += f" WHERE {where}"
+        cursor.execute(sql, scope_params)
+        row = cursor.fetchone()
+        mx = row[0] if row and row[0] is not None else ""
+        cnt = row[1] if row and row[1] is not None else 0
+        parts.append(f"{label}:{mx}:{cnt}")
+
+    if visible_trip_ids:
+        ph = ",".join(["?"] * len(visible_trip_ids))
+        probe("t", "trips", f"id IN ({ph})", visible_trip_ids)
+        probe("e", "expenses", f"trip_id IN ({ph})", visible_trip_ids)
+        probe("s", "settlements", f"trip_id IN ({ph})", visible_trip_ids)
+        probe("d", "trip_days", f"trip_id IN ({ph})", visible_trip_ids)
+    else:
+        parts.append("empty")
+    probe("b", "budgets", "user_id = ?", [user_id])
+    probe("c", "categories", "user_id = ?", [user_id])
+    return hashlib.sha1("|".join(parts).encode()).hexdigest()
+
+
 @bp.route("/api/data", methods=["GET"])
 @limiter.limit("60/minute")
 @require_auth
@@ -980,6 +1030,15 @@ def get_data():
         # the request thread. Now: one batched query for each, grouped
         # in Python.
         all_trip_ids = [r['id'] for r in trips_rows]
+        # MK3-10: change-detection short-circuit. If the caller's known version
+        # matches the current one, nothing they can see has changed — return a
+        # tiny "unchanged" body and skip member batching, row serialization, and
+        # the achievement sweep. The client then leaves STATE untouched (no
+        # re-parse, no re-render). Backward-compatible: no knownVersion → full.
+        current_version = _compute_data_version(cursor, user_id, all_trip_ids)
+        known_version = request.args.get("knownVersion")
+        if known_version and known_version == current_version:
+            return jsonify({"unchanged": True, "version": current_version})
         my_member_by_trip = {}
         members_by_trip = {}
         if all_trip_ids:
@@ -1256,6 +1315,7 @@ def get_data():
             "tripDays": trip_days,
             "achievements": achievements,
             "newlyEarnedAchievements": newly_earned,
+            "version": current_version,
         })
 
 

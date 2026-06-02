@@ -51,6 +51,11 @@ const LEGACY_TOKEN_KEY = 'gg_auth_token';
  *    a stale /api/data with Alice's trips before the network round-
  *    trip completes.
  */
+// MK3-10 change-detection: the last /api/data version the client successfully
+// applied. Sent back as ?knownVersion so the server can short-circuit a poll
+// when nothing changed. Reset on logout so a new user starts from a full pull.
+let _lastDataVersion: string | null = null;
+
 export const clearAuthToken = (): void => {
     try { localStorage.removeItem(LEGACY_TOKEN_KEY); }
     catch { /* private mode: nothing to clear */ }
@@ -102,6 +107,7 @@ export const clearAuthToken = (): void => {
     STATE.settlements = [];
     STATE.achievements = [];
     STATE.lastImportBatch = null;
+    _lastDataVersion = null; // MK3-10: drop the change-detection cursor on logout
     STATE.rateMode = 'at_trip';
     STATE.insightCurrency = 'EUR';
     // `preferences` is reset to defaults rather than wiped — POI pills
@@ -327,8 +333,16 @@ export async function syncWithServer() {
 export async function pullFromServer() {
     if (!STATE.user) return;
     try {
-        const res = await apiFetch('/api/data');
+        const _url = _lastDataVersion
+            ? `/api/data?knownVersion=${encodeURIComponent(_lastDataVersion)}`
+            : '/api/data';
+        const res = await apiFetch(_url);
         const raw = await res.json();
+        // MK3-10 change-detection: nothing in the caller's view changed since
+        // the last successful pull — leave STATE untouched (no re-parse, no
+        // re-render). This is the idle-poll win (most 15s windows are idle).
+        if (raw && raw.unchanged) return;
+        const _incomingVersion = (raw && typeof raw.version === 'string') ? raw.version : null;
         // Schema gate: a malformed response (HTML error page, partial outage,
         // schema drift) used to silently overwrite STATE with junk. Now we
         // log + skip the update so the next pull can retry against good data.
@@ -498,6 +512,9 @@ export async function pullFromServer() {
         }
 
         emit(EVENTS.STATE_CHANGED);          // saveState + updateTripSelector via subscriber
+        // MK3-10: cache the version ONLY after a successful apply, so a failed
+        // apply can never make the next poll skip a real change.
+        if (_incomingVersion) _lastDataVersion = _incomingVersion;
 
         // R12-B4 Phase 2: hydrate the ACTIVE trip's media if it hasn't
         // loaded yet (cold start / first paint after login). Cheap +
