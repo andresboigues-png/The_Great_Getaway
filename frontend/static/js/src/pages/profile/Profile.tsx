@@ -995,6 +995,7 @@ function BioBlock({
                             <select
                                 ref={homeCountryRef}
                                 className="brand-select pf-pill-sm"
+                                aria-label="Home country"
                                 defaultValue={user.homeCountry || ''}
                                 onChange={() => setDirty(true)}
                             >
@@ -1024,6 +1025,7 @@ function BioBlock({
                             <select
                                 ref={homeCurrencyRef}
                                 className="brand-select pf-pill-sm"
+                                aria-label="Home currency"
                                 defaultValue={getHomeCurrency()}
                                 onChange={() => setDirty(true)}
                             >

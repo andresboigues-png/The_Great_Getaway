@@ -722,12 +722,15 @@ test.describe('Critical flows — UI-driven', () => {
         await nameInput.waitFor({ state: 'visible', timeout: 5000 });
         await nameInput.fill('Renamed Trip');
 
-        // The trip we created via API has no placeId/lat/lng, so the
-        // place picker's `initialPlace` is null and the submit button
-        // is disabled until the manual-fallback fires. Type into the
-        // place input to set a "picked" place via the fallback path
-        // (modals.ts:_wirePlacePicker). Two characters is enough.
-        await page.fill('#editTripPlaceInput', 'Portugal');
+        // Edit mode starts with submit ENABLED — _wirePlacePicker keeps the
+        // trip's existing place as the picked place ("the user might only
+        // want to rename"), and the submit handler allows a pure rename when
+        // the destination is unchanged (modals.ts: `placeChanged` gate). So
+        // we deliberately DON'T touch #editTripPlaceInput: with Maps stubbed
+        // off the edit picker wires no free-text fallback, and if the Maps
+        // script happens to race in, typing a new destination would null the
+        // countryCode and re-disable submit — the old source of this test's
+        // flake. Renaming via the name field alone is the deterministic path.
         await page.locator('#editTripSubmitBtn:not([disabled])').waitFor({ timeout: 5000 });
         await page.click('#editTripSubmitBtn');
 

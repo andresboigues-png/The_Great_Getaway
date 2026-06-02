@@ -424,8 +424,13 @@ export function Friends() {
                 home.css) so the visual rhythm matches the rest of the
                 app. Each tab carries a small count chip so the bucket
                 size is legible without clicking in. */}
-            <div className="trip-tabnav-wrap" role="tablist" aria-label="Network filter">
-                <nav className="trip-tabnav network-tabnav">
+            {/* a11y: role="tablist" goes on the <nav> (the DIRECT parent of
+                the role="tab" buttons), not the outer wrap — ARIA requires
+                tab → tablist to be a direct parent/child relationship, and
+                an intervening <nav> breaks it (aria-required-parent /
+                aria-required-children). Mirrors TripBody.tsx's tabnav. */}
+            <div className="trip-tabnav-wrap">
+                <nav className="trip-tabnav network-tabnav" role="tablist" aria-label="Network filter">
                     {([
                         { id: 'followers', label: t('friends.followersOnlyTitle'), short: t('friends.tabFollowers'), count: followers.length },
                         { id: 'following', label: t('friends.followingOnlyTitle'), short: t('friends.tabFollowing'), count: following.length },
