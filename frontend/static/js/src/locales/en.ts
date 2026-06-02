@@ -705,6 +705,9 @@ export const en = {
         balanceOwes: 'owes',
         // Hero stat card.
         heroTitle: 'Total Spent on your trip',
+        // IA-4: placeholder shown in place of the hero figure while the
+        // async FX/CPI inputs are still loading (so it never flickers).
+        calculating: 'Calculating…',
         heroSubText: 'Spent across <strong>{count}</strong> transactions during your travels.',
         // Summary metrics.
         avgDaily: 'Avg. Daily Spend',

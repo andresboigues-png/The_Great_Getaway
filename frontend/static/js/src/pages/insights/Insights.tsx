@@ -116,6 +116,12 @@ export function Insights() {
     // "no inflation data" note so it doesn't flash during the initial
     // load before the World Bank series lands.
     const [cpiChecked, setCpiChecked] = useState(false);
+    // IA-4 (MK3 audit): has the historical-FX fetch for THIS trip's dates
+    // settled? The hero total leans on rateCache; until it lands, spentHome
+    // falls back to the write-time euroValue and the figure renders ~12% off,
+    // then visibly jumps. We show a "calculating…" placeholder until this is
+    // true so the headline never displays a number that's about to move.
+    const [ratesSettled, setRatesSettled] = useState(false);
 
     // ── Empty: no active trip ─────────────────────────────────────────────
     if (!activeTripId) {
@@ -158,7 +164,23 @@ export function Insights() {
         const uniqueDates = [
             ...new Set(tripExps.map((e: Expense) => e.date).filter((d) => !!d)),
         ] as string[];
-        if (uniqueDates.length > 0) fetchHistoricalRates(uniqueDates).then(() => {});
+        // IA-4: with no dated expenses there's nothing to fetch — the figure
+        // is already final, so mark settled immediately. Otherwise reset to
+        // "pending", fetch, and flip settled when the request resolves (or
+        // fails). The `cancelled` guard stops a stale trip's resolve from
+        // un-gating the figure after the user switches trips mid-flight.
+        if (uniqueDates.length === 0) {
+            setRatesSettled(true);
+            return;
+        }
+        let cancelled = false;
+        setRatesSettled(false);
+        fetchHistoricalRates(uniqueDates).finally(() => {
+            if (!cancelled) setRatesSettled(true);
+        });
+        return () => {
+            cancelled = true;
+        };
     }, [tripExps]);
 
     // Background fetch for the home-currency CPI series — powers the
@@ -274,7 +296,13 @@ export function Insights() {
             let displayValue: number;
             if (mode === 'today') {
                 const ov = tripOverrides[(e.currency || 'EUR').toUpperCase()];
-                displayValue = ov
+                // IA-1: only trust an override whose numbers are actually finite.
+                // A corrupt/hand-edited localStorage entry (NaN, Infinity, string)
+                // would otherwise turn displayValue into NaN and poison the total,
+                // donut, and timeline with no recovery — validateLoadedState never
+                // inspects this field. Bad override ⇒ fall back to the auto estimate.
+                const ovValid = ov && Number.isFinite(ov.fxToHome) && Number.isFinite(ov.inflationPct);
+                displayValue = ovValid
                     ? e.value * ov.fxToHome * (1 + ov.inflationPct / 100)
                     : spentHome * inflationFactor(e.date);
             } else {
@@ -316,8 +344,23 @@ export function Insights() {
         const currencyHomeTotals: Record<string, number> = {};
         const currencyOwnTotals: Record<string, number> = {};
         const currencyDateTotals: Record<string, Record<string, number>> = {};
+        // IA-8 (MK3 audit): collapse category keys that resolve to the SAME
+        // category before aggregating, so the donut + ranking don't render
+        // two slices for e.g. "food" and "Food" (both later resolved to
+        // "🍔 Food" by findCategory, double-counting the slice/label). Key by
+        // the canonical id — matched by id, then case-insensitive name —
+        // falling back to a trimmed-lowercase form so case-only variants of
+        // an UNmatched id (imports / legacy slugs) still merge into one key.
+        const canonicalCatId = (catId: string): string => {
+            const raw = String(catId ?? '');
+            const match =
+                categories.find((c: Category) => c.id === raw) ||
+                categories.find((c: Category) => c.name.toLowerCase() === raw.toLowerCase());
+            return match ? match.id : raw.trim().toLowerCase();
+        };
         convertedExps.forEach((e) => {
-            catTotals[e.categoryId] = (catTotals[e.categoryId] || 0) + e.displayValue;
+            const catKey = canonicalCatId(e.categoryId);
+            catTotals[catKey] = (catTotals[catKey] || 0) + e.displayValue;
             spenderTotals[e.who] = (spenderTotals[e.who] || 0) + e.displayValue;
             const d = e.date || t('insights.unknownDate');
             dateTotals[d] = (dateTotals[d] || 0) + e.displayValue;
@@ -344,7 +387,8 @@ export function Insights() {
         // Category counts use raw tripExps (unconverted) — same as legacy.
         const catCounts: Record<string, number> = {};
         tripExps.forEach((e: Expense) => {
-            catCounts[e.categoryId] = (catCounts[e.categoryId] || 0) + 1;
+            const catKey = canonicalCatId(e.categoryId);
+            catCounts[catKey] = (catCounts[catKey] || 0) + 1;
         });
         const sortedCats = Object.entries(catCounts)
             .sort((a, b) => b[1] - a[1])
@@ -371,7 +415,7 @@ export function Insights() {
             currencyOwnTotals,
             currencyDateTotals,
         };
-    }, [tripExps, mode, targetCurr, rateCache, cpiCache, fxOverridesByTrip, activeTripId]);
+    }, [tripExps, mode, targetCurr, rateCache, cpiCache, fxOverridesByTrip, activeTripId, categories]);
 
     // ── Empty: trip has no expenses ───────────────────────────────────────
     if (tripExps.length === 0) {
@@ -416,7 +460,12 @@ export function Insights() {
         // stay readable and consistent across renders.
         const raw = String(catId || '').trim();
         if (!raw) return { id: '', name: t('insights.unknownCategory'), icon: '🏷️', color: '#8e8e93' };
-        const _palette = ['#0071e3', '#9b59b6', '#ff9500', '#34c759', '#ff2d55', '#5ac8fa', '#ffd60a', '#8e8e93'];
+        // IA-9 (MK3 audit): NO #8e8e93 here — that exact gray is the "Other"
+        // slice color (pushed below), so a hashed synthetic category landing
+        // on it would be visually indistinguishable from the aggregate slice.
+        // Widened with extra distinct hues to keep collisions rare now that
+        // the gray is gone.
+        const _palette = ['#0071e3', '#9b59b6', '#ff9500', '#34c759', '#ff2d55', '#5ac8fa', '#ffd60a', '#af52de', '#ff6482', '#30b0c7'];
         let h = 0;
         for (let i = 0; i < raw.length; i++) h = (h * 31 + raw.charCodeAt(i)) >>> 0;
         return { id: raw, name: raw.charAt(0).toUpperCase() + raw.slice(1), icon: '🏷️', color: _palette[h % _palette.length]! };
@@ -523,6 +572,16 @@ export function Insights() {
         homeAmount: currencyHomeTotals[c] ?? 0,
         pct: currencyGrandTotal > 0 ? ((currencyHomeTotals[c] ?? 0) / currencyGrandTotal) * 100 : 0,
     }));
+
+    // IA-4 (MK3 audit): is the hero total still settling? It depends on
+    // async data that arrives AFTER first paint — historical FX (rateCache)
+    // in both modes, plus CPI in "today" mode. Until those land the figure
+    // renders off the write-time fallback and then jumps (~12% measured), so
+    // we show a "calculating…" placeholder while either is in-flight. Foreign
+    // spend is the only thing that needs historical FX; an all-home-currency
+    // trip in "at trip" mode is final immediately (no flicker to hide).
+    const heroCalculating =
+        (hasForeignSpend && !ratesSettled) || (mode === 'today' && !cpiChecked);
 
     // ── Chart.js side-effects ─────────────────────────────────────────────
     const pieCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -673,9 +732,17 @@ export function Insights() {
     // trip is visible at a glance.
     useEffect(() => {
         if (!showCurrencyBreakdown || !currencyTimeRef.current || spendCurrencies.length === 0) return;
+        // IA-5 (MK3 audit): drop the undated bucket — keyed in via
+        // `e.date || t('insights.unknownDate')`, that localized sentinel has
+        // no place on a date-ordered axis. Pre-fix it rendered as a literal
+        // rightmost "Unknown" column here, while the main timeline above
+        // already excludes undated (its Number.isFinite(x) guard). Match that
+        // by keeping only keys that parse as real dates.
         const allDates = Array.from(
             new Set(spendCurrencies.flatMap((c) => Object.keys(currencyDateTotals[c] || {}))),
-        ).sort();
+        )
+            .filter((d) => Number.isFinite(Date.parse(`${d}T00:00:00Z`)))
+            .sort();
         const includeYear = datesSpanMultipleYears(allDates);
         const labels = allDates.map((d) => timelineDateLabel(d, includeYear));
         const datasets = currencyRows.map((r) => ({
@@ -756,7 +823,11 @@ export function Insights() {
             return {
                 code: cur,
                 autoInflationPct: Math.round((factorForYear(avgYear) - 1) * 1000) / 10,
-                autoFx: Math.round(convertCurrency(1, cur, targetCurr) * 10000) / 10000,
+                // IA-3: 6 significant figures, not 4 decimals. A fixed 4dp can't
+                // represent tiny-unit currencies (JPY/KRW/IDR/VND/HUF ≈ 0.005…) —
+                // it rounded 1 JPY = 0.00537374 → 0.0054 (+0.79%), so saving the
+                // panel UNCHANGED silently shifted the "Value today" total.
+                autoFx: Number(convertCurrency(1, cur, targetCurr).toPrecision(6)),
                 ov: overrides[cur],
             };
         });
@@ -776,7 +847,7 @@ export function Insights() {
                 </label>
                 <label style="display:inline-flex; align-items:center; gap:5px; font-size:0.82rem; color:var(--text-secondary);">
                     ${t('insights.overrideRatePrefix', { cur: esc(a.code) })}
-                    <input type="number" class="vt-fx" step="0.0001" value="${a.ov ? a.ov.fxToHome : a.autoFx}" style="width:90px; padding:5px 8px; border:1px solid var(--glass-border); border-radius:8px;"> ${esc(targetCurr)}
+                    <input type="number" class="vt-fx" step="any" value="${a.ov ? a.ov.fxToHome : a.autoFx}" style="width:90px; padding:5px 8px; border:1px solid var(--glass-border); border-radius:8px;"> ${esc(targetCurr)}
                 </label>
                 <span style="font-size:0.72rem; color:var(--text-tertiary, var(--text-secondary)); margin-left:auto;">${t('insights.overrideAutoNote')}: ${a.autoInflationPct}% · ${a.autoFx}</span>
             </div>
@@ -933,11 +1004,22 @@ export function Insights() {
                 <div className="card glass hero-stat-card">
                     <h2 className="card-title hero-stat-card__title">{t('insights.heroTitle')}</h2>
                     <div className="flex items-baseline gap-3">
-                        <h1 className="hero-stat-card__value">
-                            {targetSym}
-                            {formatNumberForCurrency(totalDisplay, targetCurr)}
-                        </h1>
-                        <span className="hero-stat-card__currency">{targetCurr}</span>
+                        {/* IA-4: hold a "calculating…" placeholder until the
+                            async FX/CPI inputs land, so the headline never
+                            shows a number that's about to jump. */}
+                        {heroCalculating ? (
+                            <h1 className="hero-stat-card__value" style={{ opacity: 0.55 }}>
+                                {t('insights.calculating')}
+                            </h1>
+                        ) : (
+                            <>
+                                <h1 className="hero-stat-card__value">
+                                    {targetSym}
+                                    {formatNumberForCurrency(totalDisplay, targetCurr)}
+                                </h1>
+                                <span className="hero-stat-card__currency">{targetCurr}</span>
+                            </>
+                        )}
                     </div>
                     <p
                         className="hero-stat-card__sub"

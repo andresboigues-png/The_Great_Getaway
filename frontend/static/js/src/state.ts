@@ -137,7 +137,26 @@ export function loadState() {
     if (!STATE.savedFormats) STATE.savedFormats = [];
     if (!STATE.tripDays) STATE.tripDays = [];
     if (!STATE.archivedTrips) STATE.archivedTrips = [];
-    if (!STATE.fxOverridesByTrip || typeof STATE.fxOverridesByTrip !== 'object') STATE.fxOverridesByTrip = {};
+    if (!STATE.fxOverridesByTrip || typeof STATE.fxOverridesByTrip !== 'object') {
+        STATE.fxOverridesByTrip = {};
+    } else {
+        // IA-1 (MK3 audit): validateLoadedState doesn't inspect this field, so a
+        // hand-edited / corrupt localStorage override could carry NaN/Infinity
+        // into the Insights calc and poison every total. Drop any non-finite
+        // entry on boot (the render path also guards, belt-and-braces).
+        const all = STATE.fxOverridesByTrip as Record<string, Record<string, { inflationPct: number; fxToHome: number }>>;
+        for (const tid of Object.keys(all)) {
+            const byCur = all[tid];
+            if (!byCur || typeof byCur !== 'object') { delete all[tid]; continue; }
+            for (const cur of Object.keys(byCur)) {
+                const ov = byCur[cur] as { inflationPct?: unknown; fxToHome?: unknown } | undefined;
+                if (!ov || !Number.isFinite(ov.inflationPct) || !Number.isFinite(ov.fxToHome) || (ov.fxToHome as number) <= 0) {
+                    delete byCur[cur];
+                }
+            }
+            if (Object.keys(byCur).length === 0) delete all[tid];
+        }
+    }
     if (!STATE.preferences) STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'], poiFilters: {}, pillEpicenters: {}, poiAnchoring: {}, poiVisible: {}, enabledPois: {} };
     if (!Array.isArray(STATE.preferences.mapDefaultPois)) {
         STATE.preferences.mapDefaultPois = ['sights', 'parks', 'transit'];

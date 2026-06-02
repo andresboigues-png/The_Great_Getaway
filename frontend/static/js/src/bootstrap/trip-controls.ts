@@ -185,6 +185,11 @@ export function deleteActiveTrip(): void {
             // delete was the missed sibling.
             STATE.settlements = (STATE.settlements || []).filter(s => s.tripId !== trip.id);
             STATE.budgets = (STATE.budgets || []).filter(b => b.tripId !== trip.id);
+            // IA-7 (MK3 audit): a permanently-deleted trip's Insights FX/inflation
+            // override is otherwise orphaned forever in STATE.fxOverridesByTrip.
+            // (Archive doesn't need this — the trip persists in archivedTrips with
+            // the same id, so its override stays owned + restorable.)
+            if (STATE.fxOverridesByTrip) delete STATE.fxOverridesByTrip[trip.id];
             STATE.activeTripId = STATE.trips.length > 0 ? STATE.trips[0]!.id : null;
 
             emit('state:changed');               // saveState + updateTripSelector via subscriber

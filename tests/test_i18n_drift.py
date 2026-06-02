@@ -174,6 +174,17 @@ _INTENTIONAL_ENGLISH = {
     'dayView.photos':            'fr: identical "Photos"',
     'dayView.documents':         'fr: identical "Documents"',
     'dayView.documentFallback':  'fr: identical "Document"',
+
+    # ── F2 override panel + continents (Insights MK3 drift sweep) ──────
+    # None of these are leaks: pt/es ARE translated where a translation
+    # exists (Inflação/Inflación, Europa). What matches en is either a
+    # format template with no translatable words, a compact universal
+    # marker, or a French cognate spelled identically to English.
+    'insights.overrideRatePrefix':     'format template "1 {cur} =", no words',
+    'insights.overrideAutoNote':       'compact universal "auto" marker (cf. addDayDateAuto)',
+    'insights.overrideInflationLabel': 'fr: "Inflation" identical (pt/es translated)',
+    'collections.continents.europe':   'fr: "Europe" identical (pt/es: "Europa")',
+    'collections.continents.asia':     'es: "Asia" identical (the Spanish spelling; pt/fr translated)',
 }
 
 

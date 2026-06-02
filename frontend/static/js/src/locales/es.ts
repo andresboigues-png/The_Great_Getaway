@@ -554,6 +554,7 @@ export const es: Translations = {
         balanceGetsBack: 'recibe',
         balanceOwes: 'debe',
         heroTitle: 'Total gastado en tu viaje',
+        calculating: 'Calculando…',
         heroSubText: 'Gastado en <strong>{count}</strong> transacciones durante tu viaje.',
         avgDaily: 'Gasto medio diario',
         avgDailySuffix: '/ día',

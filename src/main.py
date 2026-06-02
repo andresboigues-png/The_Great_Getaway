@@ -1370,4 +1370,7 @@ if __name__ == "__main__":
     # which (post-PIN-prompt) is a remote-code-execution console. Default
     # off; opt in with FLASK_DEBUG=1 in your local dev shell.
     debug_mode = os.getenv("FLASK_DEBUG") == "1"
-    app.run(host="0.0.0.0", port=5001, debug=debug_mode)
+    # GG_PORT lets parallel local servers (e.g. multi-agent test runs) bind
+    # distinct ports without colliding. Defaults to 5001 — prod is unaffected
+    # (it serves via wsgi_pythonanywhere.py, not this __main__ block).
+    app.run(host="0.0.0.0", port=int(os.getenv("GG_PORT", "5001")), debug=debug_mode)

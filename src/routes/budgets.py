@@ -11,6 +11,7 @@ from flask import Blueprint, jsonify, request
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
+from fx_rates import get_rate_eur
 from helpers import can_edit_expenses, is_trip_archived_for
 from validators import (
     ValidationError,
@@ -52,6 +53,22 @@ def upsert_budget():
         )
     except ValidationError as ve:
         return jsonify({"error": str(ve)}), 400
+
+    # IA-10 (Insights audit MK3): mirror the expense C1 gate. A budget in a
+    # non-EUR currency we have NO live FX rate for can't be converted to the
+    # home currency for the "spent vs budget" comparison — the frontend would
+    # fall back to a 1:1 / €0 reading and the card would silently lie. Reject
+    # it so a stored budget always carries a currency we can actually convert.
+    # The create-budget modal already blocks this (its hasRate check), so this
+    # only bites the raw API / CSV-import / legacy paths.
+    if currency != "EUR" and get_rate_eur(currency) is None:
+        return jsonify({
+            "error": (
+                "No live exchange rate is available for this currency — "
+                "choose a currency we can convert to your home currency."
+            ),
+            "currency": currency,
+        }), 400
 
     # 2026-05-25 (audit B2): the frontend's "All trips" option carries
     # tripId='all'. Writing 'all' to budgets.trip_id triggers a FK

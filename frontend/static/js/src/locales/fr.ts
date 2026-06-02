@@ -559,6 +559,7 @@ export const fr: Translations = {
         balanceGetsBack: 'récupère',
         balanceOwes: 'doit',
         heroTitle: 'Total dépensé pour ton voyage',
+        calculating: 'Calcul en cours…',
         heroSubText: 'Dépensé sur <strong>{count}</strong> transactions pendant ton voyage.',
         avgDaily: 'Dépense quotidienne moyenne',
         avgDailySuffix: '/ jour',

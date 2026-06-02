@@ -606,6 +606,27 @@ def test_expense_rejects_splits_that_dont_sum_to_100(client, seed_user, auth_hea
     assert ok.status_code == 200, ok.get_data(as_text=True)
 
 
+def test_validate_splits_drops_all_zero_on_lenient_path():
+    """IA-2 (Insights audit MK3): an all-zero split is degenerate — the
+    balance reducer's `denom = total>0 ? total : 100` fallback credits the
+    payer while debiting nobody, breaking Σ balances = 0. validate_splits now
+    collapses all-zero to None on BOTH paths (the lenient bulk/sync path used
+    to STORE it verbatim), so the expense falls back to the Σ-safe equal-share
+    path. Odd-but-NONZERO sums still pass through unchanged on the lenient path.
+    """
+    from validators import ValidationError, validate_splits
+
+    # Lenient (sync) path: all-zero → None (was: stored verbatim → Σ break).
+    assert validate_splits({"a": 0, "b": 0}) is None
+    # Strict (per-row) path: all-zero → ValidationError (must sum ~100).
+    with pytest.raises(ValidationError):
+        validate_splits({"a": 0, "b": 0}, require_full=True)
+    # Odd-but-nonzero legacy sum survives the lenient path unchanged.
+    assert validate_splits({"a": 99, "b": 1}) == {"a": 99.0, "b": 1.0}
+    # A single tiny nonzero value is NOT all-zero → survives.
+    assert validate_splits({"a": 0, "b": 0.5}) == {"a": 0.0, "b": 0.5}
+
+
 def test_expense_receipt_url_optional(client, seed_user, auth_headers):
     """Legacy expenses (no `receiptUrl` in payload) still upsert + read
     cleanly with receiptUrl=None. Backwards compat."""
@@ -1669,6 +1690,33 @@ def test_sync_skips_uncomputable_no_rate_currency_expense(client, seed_user, aut
         fx_rates._cache_set_at = 0.0
 
 
+def test_sync_all_zero_split_falls_back_to_equal_share(client, seed_user, auth_headers):
+    """IA-2 (Insights audit MK3): the lenient /api/sync path used to store an
+    all-zero split ({A:0,B:0}) verbatim, which the balance reducer then read as
+    "credit the payer, debit nobody" → Σ balances = +full amount (the only
+    money-integrity break the audit found). The expense is still a real outflow
+    so it's KEPT — but its degenerate split is dropped so it falls back to the
+    Σ-safe equal-share path. The per-row /api/expenses path already 400s it."""
+    res = client.post("/api/sync", headers=auth_headers, json={
+        "trips": [{"id": "trip-ia2", "name": "Lisbon", "country": "Portugal"}],
+        "expenses": [
+            {
+                "id": "exp-ia2-zero", "tripId": "trip-ia2", "who": "Alice",
+                "value": 100, "currency": "EUR", "euroValue": 100,
+                "label": "Dinner", "date": "2026-01-01",
+                "splits": {"Alice": 0, "Bob": 0},
+            },
+        ],
+    })
+    assert res.status_code == 200, res.get_data(as_text=True)
+    body = client.get("/api/data", headers=auth_headers).get_json()
+    kept = [e for e in body["expenses"] if e["id"] == "exp-ia2-zero"]
+    assert len(kept) == 1, "a real expense with a degenerate split should be kept"
+    # serialize_expense_row ships a dropped/empty split as {} → falsy.
+    assert not kept[0].get("splits"), \
+        "the all-zero split must be dropped (empty), not stored verbatim"
+
+
 def test_sync_rejects_trip_in_both_active_and_archived_lists(
     client, seed_user, auth_headers,
 ):
@@ -2349,6 +2397,37 @@ def test_expense_rejects_uncomputable_currency_and_echoes_euro_value(
         })
         assert ok_rate.status_code == 200, ok_rate.get_data(as_text=True)
         assert ok_rate.get_json().get("euroValue") == 10.0
+    finally:
+        fx_rates._cache = {}
+        fx_rates._cache_set_at = 0.0
+
+
+def test_budget_rejects_no_rate_currency(client, seed_user, auth_headers):
+    """IA-10 (Insights audit MK3): mirror the expense C1 gate on budgets. A
+    budget in a non-EUR currency with NO live FX rate can't be converted to the
+    home currency for the spent-vs-budget comparison (the frontend would fall to
+    a 1:1 / €0 reading), so it's rejected (400) with the offending currency
+    echoed. A currency WITH a live rate saves. The create-budget modal already
+    blocks this; the gate covers the raw API / CSV-import paths."""
+    import fx_rates
+    fx_rates._cache = {"EUR": 1.0, "USD": 0.5}  # JPY deliberately rate-less
+    fx_rates._cache_set_at = __import__('time').time()
+    try:
+        reject = client.post("/api/budgets", headers=auth_headers, json={
+            "budget": {
+                "id": "bud-ia10-jpy", "amount": 50000, "currency": "JPY",
+                "label": "Tokyo food",
+            },
+        })
+        assert reject.status_code == 400, reject.get_data(as_text=True)
+        assert reject.get_json().get("currency") == "JPY"
+        ok = client.post("/api/budgets", headers=auth_headers, json={
+            "budget": {
+                "id": "bud-ia10-usd", "amount": 100, "currency": "USD",
+                "label": "USD budget",
+            },
+        })
+        assert ok.status_code == 200, ok.get_data(as_text=True)
     finally:
         fx_rates._cache = {}
         fx_rates._cache_set_at = 0.0

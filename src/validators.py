@@ -225,6 +225,15 @@ def validate_splits(
             raise ValidationError(
                 f"{field_name} percentages must add up to 100 (got {total:g})",
             )
+    elif result is not None and sum(result.values()) <= 1e-9:
+        # IA-2 (MK3 audit): an all-zero split ({a:0, b:0}) is degenerate — the
+        # balance reducer's `denom = total>0 ? total : 100` fallback then debits
+        # NOBODY while still crediting the payer, breaking Σ balances = 0. The
+        # single-write path rejects it via require_full; the lenient bulk/sync
+        # path (require_full=False) used to STORE it verbatim. Drop it to None so
+        # the expense falls to the Σ-safe equal-share path. Odd-but-NONZERO sums
+        # (legacy 99/101 rounding) still pass through unchanged.
+        return None
     return result
 
 
