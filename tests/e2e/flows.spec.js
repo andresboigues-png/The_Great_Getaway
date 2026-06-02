@@ -527,10 +527,11 @@ test.describe('Critical flows — UI-driven', () => {
         await railSettings.click({ timeout: 5000 });
         await expect.poll(() => page.evaluate(() => location.hash)).toBe('#settings');
 
-        // Click Personalization via the rail.
-        const railPers = rail.locator('.sidebar-rail__item[data-page="personalization"]');
-        await railPers.click({ timeout: 5000 });
-        await expect.poll(() => page.evaluate(() => location.hash)).toBe('#personalization');
+        // Click Collections via the rail. (Personalization was folded into
+        // Settings on 2026-05-14, so it's no longer a rail item.)
+        const railCollections = rail.locator('.sidebar-rail__item[data-page="collections"]');
+        await railCollections.click({ timeout: 5000 });
+        await expect.poll(() => page.evaluate(() => location.hash)).toBe('#collections');
 
         // Click Friends via the rail.
         const railFriends = rail.locator('.sidebar-rail__item[data-page="friends"]');
@@ -543,7 +544,7 @@ test.describe('Critical flows — UI-driven', () => {
         await expect(railFriends).toHaveClass(/active/);
     });
 
-    test('sidebar Settings + Personalization items are clickable (no overlay intercept)', async ({ page }) => {
+    test('sidebar Settings + Settlement items are clickable (no overlay intercept)', async ({ page }) => {
         // Regression for a layout bug where a flex spacer
         // `<div style="flex: 1;">` in the sidebar competed with
         // `.sidebar-middle` (which already has flex: 1) for the
@@ -575,11 +576,12 @@ test.describe('Critical flows — UI-driven', () => {
         await expect.poll(() => page.evaluate(() => location.hash)).toBe('#settings');
 
         // Re-open the drawer (closed automatically on nav) and click
-        // Personalization — same flex-spacer area, same hit-test.
+        // Settlement — same bottom flex-spacer area, same hit-test.
+        // (Personalization was folded into Settings on 2026-05-14.)
         await page.click('#hamburgerBtn');
         await page.waitForSelector('.sidebar.open', { state: 'visible', timeout: 5000 });
-        await page.locator('.sidebar.open .sidebar-item[data-page="personalization"]:visible').click({ timeout: 5000 });
-        await expect.poll(() => page.evaluate(() => location.hash)).toBe('#personalization');
+        await page.locator('.sidebar.open .sidebar-item[data-page="settlement"]:visible').click({ timeout: 5000 });
+        await expect.poll(() => page.evaluate(() => location.hash)).toBe('#settlement');
     });
 
     test('archive then unarchive a trip', async ({ page }) => {
@@ -791,19 +793,21 @@ test.describe('Critical flows — UI-driven', () => {
             document.getElementById('sidebarOverlay')?.classList.remove('open');
         });
         await navigateTo(page, 'settings');
-        const generalCard = page.locator('.settings-tab-card[data-tab="general"]');
-        await generalCard.waitFor({ state: 'visible', timeout: 5000 });
-        await generalCard.click();
-        const appearanceSubTab = page.locator('.general-subtab[data-general-sub="appearance"]');
-        await appearanceSubTab.waitFor({ state: 'visible', timeout: 5000 });
-        await appearanceSubTab.click();
+        // Settings is a menu of cards now; open the General Settings card,
+        // then its Appearance sub-tab (role=tab). The old
+        // .settings-tab-card[data-tab] / .general-subtab[data-general-sub]
+        // selectors were dropped in the settings refactor.
+        await page.locator('.management-card', { hasText: 'General Settings' }).click();
+        await page.getByRole('tab', { name: 'Appearance' }).click();
 
         // The three options should render with System the default
         // active state (legacy snapshots without preferences.theme
         // default to 'system' in the theme manager).
-        const lightBtn = page.locator('.theme-option-card[data-theme-value="light"]');
-        const darkBtn = page.locator('.theme-option-card[data-theme-value="dark"]');
-        const systemBtn = page.locator('.theme-option-card[data-theme-value="system"]');
+        // Theme cards are label-identified now (the data-theme-value attr
+        // was dropped in the settings refactor).
+        const lightBtn = page.locator('.theme-option-card', { has: page.getByText('Light', { exact: true }) });
+        const darkBtn = page.locator('.theme-option-card', { has: page.getByText('Dark', { exact: true }) });
+        const systemBtn = page.locator('.theme-option-card', { has: page.getByText('System', { exact: true }) });
         await expect(lightBtn).toBeVisible();
         await expect(systemBtn).toHaveClass(/is-active/);
 
@@ -853,16 +857,14 @@ test.describe('Critical flows — UI-driven', () => {
             document.getElementById('sidebarOverlay')?.classList.remove('open');
         });
         await navigateTo(page, 'settings');
-        const generalCard = page.locator('.settings-tab-card[data-tab="general"]');
-        await generalCard.waitFor({ state: 'visible', timeout: 5000 });
-        await generalCard.click();
-        const languageSubTab = page.locator('.general-subtab[data-general-sub="language"]');
-        await languageSubTab.waitFor({ state: 'visible', timeout: 5000 });
-        await languageSubTab.click();
+        // Settings menu → General Settings card → Language sub-tab (role=tab).
+        await page.locator('.management-card', { hasText: 'General Settings' }).click();
+        await page.getByRole('tab', { name: 'Language' }).click();
 
         // Click Português; expect the navbar text to update without a
         // page reload (paintI18nBindings re-runs on state:changed).
-        const ptBtn = page.locator('.theme-option-card[data-locale-value="pt"]');
+        // Locale cards are label-identified now (no data-locale-value attr).
+        const ptBtn = page.locator('.theme-option-card', { hasText: 'Português' });
         await ptBtn.waitFor({ state: 'visible', timeout: 5000 });
         await ptBtn.click();
         await expect(homeLink).toHaveText('Início');
@@ -962,7 +964,7 @@ test.describe('Critical flows — UI-driven', () => {
             document.getElementById('sidebarOverlay')?.classList.remove('open');
         });
         await navigateTo(page, 'expenses');
-        await page.click('.expenses-tabnav__tab[data-tab="history"]');
+        await page.getByRole('tab', { name: 'History' }).click();
 
         // The history row carries .expense-receipt-btn when receiptUrl
         // is set; data-receipt-url is the same URL we wrote.
@@ -1202,7 +1204,7 @@ test.describe('Critical flows — UI-driven', () => {
         // ── Suggest path: pick Japan → currency flips to JPY. ──
         await country.click();
         await country.fill('Japan');
-        await page.locator('#countryDropdownList .dropdown-item[data-value="Japan"]').click();
+        await page.locator('#countryDropdownList .dropdown-item', { hasText: 'Japan' }).first().click();
         await expect(currency).toHaveValue('JPY');
 
         // ── Manual-pick wins: change currency to USD, then re-pick a
@@ -1215,7 +1217,7 @@ test.describe('Critical flows — UI-driven', () => {
         // hide the France row.
         await country.fill('');
         await country.fill('France');
-        await page.locator('#countryDropdownList .dropdown-item[data-value="France"]').click();
+        await page.locator('#countryDropdownList .dropdown-item', { hasText: 'France' }).first().click();
         await expect(currency).toHaveValue('USD');
     });
 });
