@@ -1,9 +1,14 @@
+// pages/upload.ts — batch-import (CSV/XLSX) parsing helpers + the
+// row→Expense import routine. The page UI migrated to JSX in
+// expenses/BatchUpload.tsx (#4); what's left here is the pure-ish logic
+// the component imports: the cell parsers + category inference, and
+// runBatchImport (the data-creating path), kept out of the component so
+// it stays isolated + unit-testable.
+
 import { STATE, emit } from '../state.js';
 import { convertCurrency, hasRate } from '../utils/currency.js';
-import { generateId, q, showLiquidAlert, esc } from '../utils.js';
+import { generateId } from '../utils.js';
 import { syncWithServer, upsertExpense } from '../api.js';
-import { navigate } from '../router.js';
-import { showSettingsTab } from './settings.js';
 import { addTripCompanion, getTripCompanionNames } from '../companions.js';
 import { t } from '../i18n.js';
 
@@ -201,439 +206,188 @@ function parseCellDate(cell: unknown): string {
     return '';
 }
 
-export function renderUpload() {
-    const div = document.createElement('div');
-    div.innerHTML = `
-        <h1>${esc(t('upload.pageTitle'))}</h1>
-        <div class="card glass" style="border-color: rgba(33, 115, 70, 0.3); box-shadow: 0 0 15px rgba(33, 115, 70, 0.1);">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
-                <h2 class="card-title" style="color: #217346; margin: 0;">${esc(t('upload.sectionHeading'))}</h2>
-            </div>
+/** Run the batch import: turn already-parsed spreadsheet rows into
+ *  expenses on the active trip.
+ *
+ *  Extracted verbatim from the legacy renderUpload() upload-button
+ *  handler when the batch-import page migrated to JSX (expenses/
+ *  BatchUpload.tsx). The data-creating path is the risky part, so it
+ *  lives here as one function rather than buried in the component —
+ *  the row → Expense mapping (per-format parsing, category inference,
+ *  split defaulting, FX euroValue, skip-on-reject) is unchanged.
+ *
+ *  The caller (BatchUpload) guarantees STATE.activeTripId is set and
+ *  `parsedRows` is non-null before calling, then renders the status
+ *  message from the returned { added, skipped }. Throws on a malformed
+ *  custom format; the caller catches it + shows the generic parse error. */
+export function runBatchImport(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SheetJS sheet_to_json rows: heterogeneous cells (string|number|Date) coerced at use; unknown[][] would break parseFloat(row[n]) without a runtime change
+    parsedRows: any[][],
+    formatVal: string,
+): { added: number; skipped: string[] } {
+    const activeTripId = STATE.activeTripId!;
+    const activeTrip = STATE.trips.find(t => t.id === activeTripId);
+    if (activeTrip && !Array.isArray(activeTrip.companions)) activeTrip.companions = [];
+    const isPopular = formatVal.startsWith('popular:');
+    const popularFormat = formatVal.split(':')[1];
 
-            <!-- Format Selector -->
-            <div style="margin-bottom: 20px;">
-                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:8px;">${esc(t('upload.labelImportFormat'))}</label>
-                <select id="formatSelect" class="glass-input" style="width:100%;">
-                    ${(() => {
-            const sf = STATE.savedFormats || [];
-            const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId);
-            const activeId = activeTrip?.activeFormatId;
-            const activeType = activeTrip?.activeFormatType || 'popular';
+    let added = 0;
+    let mappings: { variable: string; column: string }[] = [];
+    /** Collected so the user can hit "Undo last batch" on the expenses
+     *  page and revert this import in one shot. */
+    const importedIds = ([] as string[]);
+    /** Rows we refused to import (server would reject them) — reported to
+     *  the user instead of silently over-counting. */
+    const skipped = ([] as string[]);
 
-            const populars = [
-                { id: 'tricount', name: 'Tricount Export (CSV/XLSX)' },
-                { id: 'splitwise', name: 'Splitwise Export' },
-                // BUG-9 (MK2 audit): Revolut removed — only tricount/splitwise
-                // are actually parsed (see ~line 464). Picking Revolut fell
-                // through to €0 ghost rows + a false "Imported N" toast, then
-                // the server rejected them all (looked like data loss).
-                // Re-add only with a real parsing branch + abs()'d amounts.
-            ];
+    if (!isPopular) {
+        const formatId = formatVal.split(':')[1];
+        const format = STATE.savedFormats.find(f => f.id === formatId);
+        if (!format) throw new Error("Format not found");
+        mappings = format.mappings;
+    }
 
-            const popOpts = populars.map(p =>
-                `<option value="popular:${p.id}" ${activeType === 'popular' && activeId === p.id ? 'selected' : ''}>${p.name}</option>`
-            ).join('');
+    parsedRows.forEach((row, rowIndex) => {
+        let who = '', catName = '', label = '', date = '', country = '';
+        let value = 0, currency = 'EUR';
+        // Splits + settlement flag. Custom formats can map the new
+        // 'splits' / 'isSettlement' variables; popular formats use
+        // hard-coded conventions filled in below.
+        let splits = (null as Record<string, number> | null);
+        let isSettlement = false;
 
-            const custOpts = sf.length === 0
-                ? `<option disabled>${esc(t('upload.noCustomFormats'))}</option>`
-                : sf.map(f =>
-                    `<option value="custom:${f.id}" ${activeType === 'custom' && activeId === f.id ? 'selected' : ''}>${f.name}</option>`
-                ).join('');
-
-            return `
-                            <optgroup label="${esc(t('upload.groupPopular'))}">${popOpts}</optgroup>
-                            <optgroup label="${esc(t('upload.groupCustom'))}">${custOpts}</optgroup>
-                        `;
-        })()}
-                </select>
-                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 12px; line-height: 1.5;">
-                    ${t('upload.helperText')}
-                </p>
-                <p id="formatNote" style="font-size:0.8rem; color:var(--text-secondary); margin-top:8px;"></p>
-            </div>
-
-            <!-- Column reference for custom formats -->
-            <div id="customFormatPreview" class="callout-tinted" style="display:none; margin-bottom: var(--space-4); --accent: 255,149,0;">
-                <p class="callout-tinted__label">${esc(t('upload.activeFormatMapping'))}</p>
-                <div id="customFormatTable"></div>
-            </div>
-
-            <!-- Popular format note -->
-            <div id="popularNote" class="callout-tinted callout-tinted--lg" style="margin-bottom: var(--space-5); --accent: 0,113,227;">
-                <span class="callout-tinted__label">${esc(t('upload.previewCalloutLabel'))}</span>
-                <p class="callout-tinted__body">${esc(t('upload.previewCalloutBody'))}</p>
-                <div id="popularFormatTableContainer" style="margin-top: var(--space-4); overflow-x: auto; background: var(--card-bg); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"></div>
-            </div>
-
-            <div class="callout-tinted" style="margin-bottom: 15px; --accent: 0,113,227;">
-                <p class="callout-tinted__label">${esc(t('upload.dateCalloutLabel'))}</p>
-                <p class="callout-tinted__body">${t('upload.dateCalloutBody')}</p>
-            </div>
-
-            <div class="callout-tinted" style="margin-bottom: 15px; --accent: 52,199,89;">
-                <p class="callout-tinted__label">${esc(t('upload.splitsCalloutLabel'))}</p>
-                <p class="callout-tinted__body">${t('upload.splitsCalloutBody')}</p>
-            </div>
-
-            <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" class="glass-input" style="margin-bottom: 15px; width: 100%;">
-
-            <div id="previewContainer" style="display: none; margin-bottom: 15px;">
-                <h3 style="margin-bottom: 10px;">${esc(t('upload.previewHeading'))}</h3>
-                <div style="overflow-x: auto;">
-                    <table class="liquid-table" id="previewTable">
-                        <thead></thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <br>
-            <button class="btn" id="uploadBtn">${esc(t('upload.uploadBtn'))}</button>
-            <div id="uploadStatus" style="margin-top: 15px; font-weight: bold;"></div>
-        </div>
-    `;
-
-    setTimeout(() => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SheetJS sheet_to_json rows: heterogeneous cells (string|number|Date) coerced at use; unknown[][] would break parseFloat(row[n]) without a runtime change
-                let parsedRows: any[][] | null = null;
-
-        div.querySelector('#uploadFormatSettingsLink')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            navigate('settings');
-            // Settings DOM doesn't exist until navigate renders it.
-            setTimeout(() => showSettingsTab('format'), 50);
-        });
-
-        const formatSelect = (q(div, '#formatSelect') as HTMLSelectElement);
-        const popularNote = q(div, '#popularNote');
-        const customFormatPreview = q(div, '#customFormatPreview');
-        const customFormatTable = q(div, '#customFormatTable');
-
-        const updateUI = () => {
-            const val = formatSelect.value;
-            const isPopular = val.startsWith('popular:');
-            popularNote.style.display = isPopular ? 'block' : 'none';
-
-            if (!isPopular) {
-                const formatId = val.split(':')[1];
-                const format = (STATE.savedFormats || []).find(f => f.id === formatId);
-                if (format) {
-                    customFormatPreview.style.display = 'block';
-                    customFormatTable.innerHTML = `<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap:8px;">
-                        ${format.mappings.map(m => `<div style="font-size:0.75rem;"><span style="color:var(--text-secondary);">${m.variable}:</span> <strong>${m.column}</strong></div>`).join('')}
-                    </div>`;
-
-                    const trip = STATE.trips.find(t => t.id === STATE.activeTripId);
-                    if (trip && formatId) {
-                        trip.activeFormatId = formatId;
-                        trip.activeFormatType = 'custom';
-                        emit('state:changed');
-                    }
-                } else {
-                    customFormatPreview.style.display = 'none';
-                }
-            } else {
-                customFormatPreview.style.display = 'none';
-
-                const popId = val.split(':')[1];
-                const popContainer = q(div, '#popularFormatTableContainer');
-
-                                let headers: string[] = [];
-                                let row: string[] = [];
-                if (popId === 'tricount') {
-                    headers = ['Title', 'Amount', 'Currency', 'Date', 'Paid by'];
-                    row = ['Dinner', '45.00', 'EUR', '2023-10-12', 'Alice'];
-                } else if (popId === 'splitwise') {
-                    headers = ['Date', 'Description', 'Category', 'Cost', 'Currency'];
-                    row = ['2023-10-12', 'Taxi', 'Transportation', '20.00', 'EUR'];
-                }
-                // (Revolut preview branch removed — it was unreachable: Revolut
-                //  isn't in the format dropdown and has no parser. BUG-9.)
-
-                if (headers.length > 0) {
-                    popContainer.innerHTML = `
-                        <table class="liquid-table" style="font-size: 0.75rem; margin: 0;">
-                            <thead>
-                                <tr>${headers.map(h => `<th style="padding: 8px 12px;">${h}</th>`).join('')}</tr>
-                            </thead>
-                            <tbody>
-                                <tr>${row.map(d => `<td style="padding: 8px 12px; color: var(--text-secondary);">${d}</td>`).join('')}</tr>
-                            </tbody>
-                        </table>
-                    `;
-                } else {
-                    popContainer.innerHTML = '';
-                }
-
-                const trip = STATE.trips.find(t => t.id === STATE.activeTripId);
-                if (trip && popId) {
-                    trip.activeFormatId = popId;
-                    trip.activeFormatType = 'popular';
-                    emit('state:changed');
-                }
+        if (isPopular) {
+            if (popularFormat === 'tricount') {
+                label = String(row[0] || '').trim();
+                value = parseFloat(row[1]) || 0;
+                currency = String(row[2] || 'EUR').trim().toUpperCase();
+                date = parseCellDate(row[3]);
+                // Tricount columns are [Title, Amount, Currency, Date,
+                // Paid by] — index 4 is the PAYER, and there is NO
+                // category column. (audit P0)
+                who = String(row[4] || '').trim();
+                catName = '';
+                country = 'Unknown';
+            } else if (popularFormat === 'splitwise') {
+                date = parseCellDate(row[0]);
+                label = String(row[1] || '').trim();
+                catName = String(row[2] || '').trim();
+                value = parseFloat(row[3]) || 0;
+                currency = String(row[4] || 'EUR').trim().toUpperCase();
+                who = 'Me';
+                country = 'Unknown';
             }
-        };
-
-        formatSelect.addEventListener('change', updateUI);
-        updateUI();
-
-        q(div, '#excelFile').addEventListener('change', (e) => {
-            const file = (e.target as HTMLInputElement).files?.[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function (evt) {
-                try {
-                    const data = new Uint8Array((evt.target?.result as ArrayBuffer));
-                    // cellDates: true tells SheetJS to convert XLSX-typed
-                    // date cells into JS Date objects instead of returning
-                    // the raw Excel serial number (days since 1900-01-01).
-                    // Without it `String(row[dateCol])` gives '45357' which
-                    // later parses as an invalid Date and falls back to
-                    // Jan 1 — every imported expense looked the same.
-                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
-                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SheetJS sheet_to_json returns heterogeneous cell rows; see parsedRows note above
-                                        const json: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-                    if (json.length < 2) return;
-
-                    const header = json[0]!;
-                    parsedRows = json.slice(1).filter(r => r.length > 0 && r[0]);
-
-                    const previewContainer = q(div, '#previewContainer');
-                    const thead = q(div, '#previewTable thead');
-                    const tbody = q(div, '#previewTable tbody');
-
-                    thead.innerHTML = '<tr>' + header.map((h) => `<th>${h || ''}</th>`).join('') + '</tr>';
-
-                    const previewRows = parsedRows.slice(0, 3);
-                    tbody.innerHTML = previewRows.map((row) => {
-                        return '<tr>' + header.map((_, i) => `<td>${row[i] || ''}</td>`).join('') + '</tr>';
-                    }).join('');
-
-                    previewContainer.style.display = 'block';
-                } catch (err) {
-                    console.error("Preview error", err);
-                }
+        } else {
+            const colToIdx = (letter: string) => letter ? letter.toUpperCase().charCodeAt(0) - 65 : -1;
+            const get = (varName: string) => {
+                const mapping = mappings.find((m: { variable: string; column: string }) => m.variable === varName);
+                if (!mapping) return '';
+                return String(row[colToIdx(mapping.column)] || '').trim();
             };
-            reader.readAsArrayBuffer(file);
-        });
+            /** Raw cell read for date — keeps Date objects intact rather
+             *  than stringifying first and losing them. */
+            const getRaw = (varName: string) => {
+                const mapping = mappings.find((m: { variable: string; column: string }) => m.variable === varName);
+                if (!mapping) return null;
+                return row[colToIdx(mapping.column)];
+            };
 
-        q(div, '#uploadBtn').addEventListener('click', () => {
-            if (!STATE.activeTripId) {
-                // Round 6 audit fix — toast instead of native alert().
-                // i18n session 1: pipe through t() for localization.
-                showLiquidAlert(t('validation.selectTripFirst'));
-                return;
+            who = get('who');
+            // 'category' is the current variable name; older saved formats
+            // called it 'categoryId'. Read whichever exists.
+            catName = get('category') || get('categoryId');
+            label = get('label');
+            date = parseCellDate(getRaw('date'));
+            country = get('country') || 'Unknown';
+            value = parseFloat(get('value')) || 0;
+            currency = get('currency').toUpperCase() || 'EUR';
+            splits = parseSplitsCell(get('splits'));
+            isSettlement = parseFlagCell(get('isSettlement'));
+        }
+
+        // Skip rows the server would reject anyway (audit P1): filter here
+        // and report what we skipped instead of optimistically over-counting.
+        if (!Number.isFinite(value) || value <= 0 || !hasRate(currency)) {
+            skipped.push(label || `#${rowIndex + 2}`);
+            return;
+        }
+
+        // Register `who` on both rosters: the account-level master list AND
+        // this trip's roster (UNLINKED — `who` is just a CSV string; the
+        // user can promote it to a linked friend later).
+        if (who && activeTrip) {
+            addTripCompanion(activeTrip, who);
+        }
+        if (splits && activeTrip) {
+            for (const name of Object.keys(splits)) {
+                if (!name) continue;
+                addTripCompanion(activeTrip, name);
             }
-            const activeTripId = STATE.activeTripId;
-            const activeTrip = STATE.trips.find(t => t.id === activeTripId);
-            if (activeTrip && !Array.isArray(activeTrip.companions)) activeTrip.companions = [];
-            const statusDiv = q(div, '#uploadStatus');
-            const formatVal = formatSelect.value;
-            const isPopular = formatVal.startsWith('popular:');
-            const popularFormat = formatVal.split(':')[1];
+        }
 
-            if (!parsedRows) {
-                statusDiv.innerText = t('upload.errorSelectFile');
-                statusDiv.style.color = "red";
-                return;
+        if (!splits) {
+            // Tricount/Splitwise are sharing apps — equal split across THIS
+            // TRIP'S companions matches user intent. Custom formats with no
+            // splits column default to "no debt".
+            const tripRoster = activeTrip ? getTripCompanionNames(activeTrip) : [];
+            if (isPopular && (popularFormat === 'tricount' || popularFormat === 'splitwise') && tripRoster.length > 0) {
+                const pct = 100 / tripRoster.length;
+                splits = {};
+                tripRoster.forEach(g => { (splits as Record<string, number>)[g] = pct; });
+            } else {
+                splits = who ? { [who]: 100 } : {};
             }
+        }
 
-            try {
-                let added = 0;
-                let mappings: { variable: string; column: string }[] = [];
-                /** Collected so the user can hit "Undo last batch" on
-                 *  the expenses page and revert this import in one shot. */
-                const importedIds = ([] as string[]);
-                /** Rows we refused to import (server would reject them) —
-                 *  reported to the user instead of silently over-counting. */
-                const skipped = ([] as string[]);
+        let category = STATE.categories.find(c => c.name.toLowerCase() === catName.toLowerCase());
+        if (!category && catName) {
+            const style = inferCategoryStyle(catName);
+            category = { id: generateId(), name: catName, icon: style.icon, color: style.color };
+            STATE.categories.push(category);
+        }
+        // No category match + no category column (e.g. Tricount): leave it
+        // uncategorized rather than dumping every row into the first category.
+        const categoryId = category ? category.id : '';
 
-                if (!isPopular) {
-                    const formatId = formatVal.split(':')[1];
-                    const format = STATE.savedFormats.find(f => f.id === formatId);
-                    if (!format) throw new Error("Format not found");
-                    mappings = format.mappings;
-                }
+        const expense: import('../types').Expense = {
+            id: generateId(),
+            tripId: activeTripId,
+            who,
+            categoryId,
+            label: isSettlement && !label ? t('settlement.settlementLabel', { from: who, to: Object.keys(splits)[0] || '' }) : label,
+            date,
+            country,
+            value,
+            currency,
+            // R2 audit fix: route through convertCurrency so the live FX
+            // overlay wins over the stale static table.
+            euroValue: convertCurrency(value, currency, 'EUR'),
+            splits: splits ?? undefined,
+        };
+        if (isSettlement) expense.isSettlement = true;
+        STATE.expenses.push(expense);
+        importedIds.push(expense.id);
+        added++;
+        // Persist per-row (audit P0): syncWithServer() below only sends
+        // categories, so without this the import lived in localStorage only
+        // and vanished on the next /api/data poll.
+        void upsertExpense(expense);
+    });
 
-                parsedRows.forEach((row, rowIndex) => {
-                    let who = '', catName = '', label = '', date = '', country = '';
-                    let value = 0, currency = 'EUR';
-                    // Splits + settlement flag. Custom formats can map the new
-                    // 'splits' / 'isSettlement' variables; popular formats use
-                    // hard-coded conventions filled in below.
-                    let splits = (null as Record<string, number> | null);
-                    let isSettlement = false;
+    // Capture the batch so the user can undo it from the expenses History
+    // tab. Replaces any previous batch (only the most recent import is
+    // undoable).
+    if (importedIds.length > 0) {
+        STATE.lastImportBatch = {
+            tripId: activeTripId,
+            expenseIds: importedIds,
+            importedAt: new Date().toISOString(),
+        };
+    }
 
-                    if (isPopular) {
-                        if (popularFormat === 'tricount') {
-                            label = String(row[0] || '').trim();
-                            value = parseFloat(row[1]) || 0;
-                            currency = String(row[2] || 'EUR').trim().toUpperCase();
-                            date = parseCellDate(row[3]);
-                            // Tricount columns are [Title, Amount, Currency,
-                            // Date, Paid by] — index 4 is the PAYER, and there
-                            // is NO category column. Pre-fix read row[4] as the
-                            // category (→ categories named after people) and
-                            // row[5] (nonexistent) as `who` (→ empty payer). (audit P0)
-                            who = String(row[4] || '').trim();
-                            catName = '';
-                            country = 'Unknown';
-                        } else if (popularFormat === 'splitwise') {
-                            date = parseCellDate(row[0]);
-                            label = String(row[1] || '').trim();
-                            catName = String(row[2] || '').trim();
-                            value = parseFloat(row[3]) || 0;
-                            currency = String(row[4] || 'EUR').trim().toUpperCase();
-                            who = 'Me';
-                            country = 'Unknown';
-                        }
-                    } else {
-                        const colToIdx = (letter: string) => letter ? letter.toUpperCase().charCodeAt(0) - 65 : -1;
-                        const get = (varName: string) => {
-                            const mapping = mappings.find((m: { variable: string; column: string }) => m.variable === varName);
-                            if (!mapping) return '';
-                            return String(row[colToIdx(mapping.column)] || '').trim();
-                        };
-                        /** Raw cell read for date — keeps Date objects
-                         *  intact rather than stringifying first and
-                         *  losing them. */
-                        const getRaw = (varName: string) => {
-                            const mapping = mappings.find((m: { variable: string; column: string }) => m.variable === varName);
-                            if (!mapping) return null;
-                            return row[colToIdx(mapping.column)];
-                        };
-
-                        who = get('who');
-                        // 'category' is the current variable name; older saved
-                        // formats called it 'categoryId'. Read whichever exists.
-                        catName = get('category') || get('categoryId');
-                        label = get('label');
-                        date = parseCellDate(getRaw('date'));
-                        country = get('country') || 'Unknown';
-                        value = parseFloat(get('value')) || 0;
-                        currency = get('currency').toUpperCase() || 'EUR';
-                        splits = parseSplitsCell(get('splits'));
-                        isSettlement = parseFlagCell(get('isSettlement'));
-                    }
-
-                    // Skip rows the server would reject anyway. Pre-fix every
-                    // parsed row was optimistically counted + pushed, then
-                    // /api/sync silently dropped the bad ones — so "Imported N"
-                    // over-counted and rows vanished on reload. Filter here and
-                    // report what we skipped. (audit P1)
-                    if (!Number.isFinite(value) || value <= 0 || !hasRate(currency)) {
-                        skipped.push(label || `#${rowIndex + 2}`);
-                        return;
-                    }
-
-                    // Register `who` on both rosters: the account-level master
-                    // list (so it shows in personalization for re-use) AND this
-                    // trip's roster (UNLINKED — `who` is just a string from a
-                    // CSV/XLSX, no friend account behind it; the user can
-                    // promote any of these to a linked-friend later via the
-                    // companion picker on Home).
-                    if (who && activeTrip) {
-                        addTripCompanion(activeTrip, who);
-                    }
-                    if (splits && activeTrip) {
-                        for (const name of Object.keys(splits)) {
-                            if (!name) continue;
-                            addTripCompanion(activeTrip, name);
-                        }
-                    }
-
-                    if (!splits) {
-                        // Tricount/Splitwise are sharing apps — equal split across
-                        // THIS TRIP'S companions matches user intent. Revolut is a
-                        // bank export (personal); custom formats with no splits
-                        // column also default to "no debt" so untagged imports
-                        // don't spawn settlements out of nowhere.
-                        const tripRoster = activeTrip ? getTripCompanionNames(activeTrip) : [];
-                        if (isPopular && (popularFormat === 'tricount' || popularFormat === 'splitwise') && tripRoster.length > 0) {
-                            const pct = 100 / tripRoster.length;
-                            splits = {};
-                            tripRoster.forEach(g => { (splits as Record<string, number>)[g] = pct; });
-                        } else {
-                            splits = who ? { [who]: 100 } : {};
-                        }
-                    }
-
-                    let category = STATE.categories.find(c => c.name.toLowerCase() === catName.toLowerCase());
-                    if (!category && catName) {
-                        const style = inferCategoryStyle(catName);
-                        category = { id: generateId(), name: catName, icon: style.icon, color: style.color };
-                        STATE.categories.push(category);
-                    }
-                    // No category match + no category column (e.g. Tricount):
-                    // leave it uncategorized rather than silently dumping every
-                    // row into the first category (was STATE.categories[0] →
-                    // "Food", so a Tricount hotel imported as Food). Insights
-                    // shows these honestly as "Uncategorized".
-                    const categoryId = category ? category.id : '';
-
-                    const expense: import('../types').Expense = {
-                        id: generateId(),
-                        tripId: activeTripId,
-                        who,
-                        categoryId,
-                        label: isSettlement && !label ? t('settlement.settlementLabel', { from: who, to: Object.keys(splits)[0] || '' }) : label,
-                        date,
-                        country,
-                        value,
-                        currency,
-                        // R2 audit fix: route through convertCurrency so the
-                        // live FX overlay wins over the stale static table.
-                        // Pre-fix the static `CONVERSION_RATES[currency] || 1`
-                        // would silently coerce missing currencies to 1:1 EUR
-                        // (100 EGP stored as €100) and even for known codes
-                        // shipped 2-year-old rates.
-                        euroValue: convertCurrency(value, currency, 'EUR'),
-                        splits: splits ?? undefined,
-                    };
-                    if (isSettlement) expense.isSettlement = true;
-                    STATE.expenses.push(expense);
-                    importedIds.push(expense.id);
-                    added++;
-                    // Persist per-row (audit P0): syncWithServer() below only
-                    // sends categories, so without this the import lived in
-                    // localStorage only and vanished on the next /api/data poll.
-                    void upsertExpense(expense);
-                });
-
-                // Capture the batch so the user can undo it from the
-                // expenses History tab. Replaces any previous batch (only
-                // the most recent import is undoable — keeping a stack
-                // would require schema work for cross-device persistence).
-                if (importedIds.length > 0) {
-                    STATE.lastImportBatch = {
-                        tripId: activeTripId,
-                        expenseIds: importedIds,
-                        importedAt: new Date().toISOString(),
-                    };
-                }
-
-                emit('state:changed');
-                // Persists the categories the import created; the expenses
-                // themselves were persisted per-row via upsertExpense above.
-                void syncWithServer();
-                statusDiv.innerText = skipped.length === 0
-                    ? t('upload.successImported', { count: added })
-                    : `${t('upload.successImported', { count: added })} ${t('upload.skippedRows', { count: skipped.length, rows: skipped.join(', ') })}`;
-                statusDiv.style.color = "green";
-                parsedRows = null;
-                q(div, '#previewContainer').style.display = 'none';
-            } catch (error) {
-                console.error(error);
-                statusDiv.innerText = t('upload.errorParsing');
-                statusDiv.style.color = "red";
-            }
-        });
-    }, 0);
-
-    return div;
+    emit('state:changed');
+    // Persists the categories the import created; the expenses themselves
+    // were persisted per-row via upsertExpense above.
+    void syncWithServer();
+    return { added, skipped };
 }
-

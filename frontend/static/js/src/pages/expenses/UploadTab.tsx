@@ -6,13 +6,14 @@
 // Expenses.tsx wraps this whole tab in a ReadOnlyNotice when the
 // caller isn't allowed to edit.
 //
-// The actual form (ManualTab) and the legacy renderUpload() output
-// (BatchTabHost) are unchanged — UploadTab is purely structural,
-// adding the toggle on top so users see one entry point ("Upload")
-// rather than two separately-labelled tabs that did similar things.
+// Both modes are now JSX — ManualTab (the single-expense form) and
+// BatchUpload (the CSV/XLSX import, migrated off the legacy
+// renderUpload() emitter in #4). UploadTab is purely structural, adding
+// the toggle on top so users see one entry point ("Upload") rather than
+// two separately-labelled tabs that did similar things.
 
-import { useEffect, useRef, useSyncExternalStore } from 'react';
-import { renderUpload } from '../upload.js';
+import { useSyncExternalStore } from 'react';
+import { BatchUpload } from './BatchUpload.js';
 import { ManualTab } from './ManualTab.js';
 import { t } from '../../i18n.js';
 import {
@@ -40,7 +41,7 @@ export function UploadTab() {
     return (
         <div>
             <UploadModeSwitch mode={mode} onChange={setUploadMode} />
-            {mode === 'manual' ? <ManualTab /> : <BatchTabHost />}
+            {mode === 'manual' ? <ManualTab /> : <BatchUpload />}
         </div>
     );
 }
@@ -115,22 +116,4 @@ function SwitchButton({
             {label}
         </button>
     );
-}
-
-
-// ── Batch mode host (was inline in Expenses.tsx) ─────────────
-// Imperative bridge to the legacy renderUpload() emitter from
-// pages/upload.ts. The upload page hasn't migrated to JSX yet —
-// when it does, this can fold into a <UploadPage /> import.
-function BatchTabHost() {
-    const hostRef = useRef<HTMLDivElement | null>(null);
-
-    useEffect(() => {
-        const host = hostRef.current;
-        if (!host) return;
-        host.innerHTML = '';
-        host.appendChild(renderUpload());
-    }, []);
-
-    return <div ref={hostRef} />;
 }

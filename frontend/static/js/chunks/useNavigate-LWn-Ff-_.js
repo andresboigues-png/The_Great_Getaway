@@ -1,2 +1,2 @@
 import{i as e}from"./rolldown-runtime-Kw0j5LDr.js";import{r as t}from"./vendor-react-mHyv4XDd.js";import{gt as n}from"../app.bundle.js";var r=e(t(),1);function i(){return(0,r.useCallback)((e,t=null,r=!1)=>n(e,t,r),[])}export{i as t};
-//# sourceMappingURL=useNavigate-ink1r_3S.js.map
+//# sourceMappingURL=useNavigate-LWn-Ff-_.js.map
