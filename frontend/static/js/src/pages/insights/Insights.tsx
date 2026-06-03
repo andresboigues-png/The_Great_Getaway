@@ -137,28 +137,10 @@ export function Insights() {
     // true so the headline never displays a number that's about to move.
     const [ratesSettled, setRatesSettled] = useState(false);
 
-    // ── Empty: no active trip ─────────────────────────────────────────────
-    if (!activeTripId) {
-        return (
-            <div>
-                <h1
-                    className="inline-block [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
-                >
-                    {t('insights.title')}
-                </h1>
-                {/* MK2 UX: was a bare "Please select a trip." in a card — route
-                    through EmptyState with a create-trip CTA. */}
-                <EmptyState
-                    variant="tall"
-                    iconName="barChart"
-                    title={t('validation.selectTripFirst')}
-                    body=""
-                    ctaLabel={t('todo.emptyNoTripCta')}
-                    onCta={() => openNewTripModal()}
-                />
-            </div>
-        );
-    }
+    // ── Empty states are rendered AFTER all hooks (see the guarded returns
+    //    just before the main return below). react-hooks/rules-of-hooks: hooks
+    //    must run in the same order every render, so we never `return` before a
+    //    hook. Every derived const below no-ops safely on absent/empty data.
 
     // ── Compute trip slice + derived stats (memoized so chart effects
     //    don't thrash on unrelated re-renders) ────────────────────────────
@@ -255,7 +237,9 @@ export function Insights() {
         // it REPLACES the auto CPI+historical-FX estimate for that currency
         // in `today` mode (uppercase-keyed). `at_trip` (Spent) is always the
         // at-the-time figure and ignores overrides.
-        const tripOverrides = fxOverridesByTrip[activeTripId] || {};
+        // activeTripId can be null here now (the calc runs before the empty-state
+        // returns below); fall back to no overrides in that case.
+        const tripOverrides = (activeTripId && fxOverridesByTrip[activeTripId]) || {};
         // ── Per-expense present value (Spent + Worth today) ───────────────
         // The pure money math lives in utils/presentValue (unit-tested). We bind
         // a calculator to the live caches + this trip's overrides, then map it
@@ -390,29 +374,7 @@ export function Insights() {
         };
     }, [tripExps, mode, targetCurr, rateCache, cpiCache, fxOverridesByTrip, manualRates, activeTripId, categories]);
 
-    // ── Empty: trip has no expenses ───────────────────────────────────────
-    if (tripExps.length === 0) {
-        return (
-            <div>
-                <h1
-                    className="inline-block [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
-                >
-                    {t('insights.title')}
-                </h1>
-                <EmptyState
-                    variant="tall"
-                    iconName="barChart"
-                    title={t('insights.emptyNoExpensesTitle')}
-                    // Body holds inline <b> markup; render as HTML so the
-                    // bold renders. Source string is from our own
-                    // translation tables (no user input), safe to inject.
-                    body={<span dangerouslySetInnerHTML={{ __html: t('insights.emptyNoExpensesBody') }} />}
-                    ctaLabel={t('insights.emptyNoExpensesCta')}
-                    onCta={() => navigate('expenses')}
-                />
-            </div>
-        );
-    }
+    // (no-expenses empty state moved below the hooks — see main return)
 
     const topEntry = sortedSpenders[0];
     const topSpender = topEntry ? topEntry[0] : 'N/A';
@@ -867,6 +829,9 @@ export function Insights() {
     // filled with the auto figures. Only affects "Value today" (the info
     // popover links here). Settlements/budgets never read these.
     const openOverridePanel = () => {
+        // Narrows activeTripId (const) for the per-trip override writes in the
+        // handlers below — the panel is only reachable with an active trip.
+        if (!activeTripId) return;
         const autos = computeCurrencyAutos();
         const rowsHtml = autos.map((a) => `
             <div class="vt-ov-row" data-cur="${esc(a.code)}" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 0; border-bottom:1px solid var(--glass-border);">
@@ -977,6 +942,54 @@ export function Insights() {
         });
         (root.querySelector('#rateInfoClose') as HTMLButtonElement | null)?.addEventListener('click', close);
     };
+
+    // ── Empty states (rendered AFTER all hooks, so hook order is identical
+    //    every render — react-hooks/rules-of-hooks). No active trip → "select a
+    //    trip"; trip with no expenses → "add expenses". ────────────────────────
+    if (!activeTripId) {
+        return (
+            <div>
+                <h1
+                    className="inline-block [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
+                >
+                    {t('insights.title')}
+                </h1>
+                {/* MK2 UX: was a bare "Please select a trip." in a card — route
+                    through EmptyState with a create-trip CTA. */}
+                <EmptyState
+                    variant="tall"
+                    iconName="barChart"
+                    title={t('validation.selectTripFirst')}
+                    body=""
+                    ctaLabel={t('todo.emptyNoTripCta')}
+                    onCta={() => openNewTripModal()}
+                />
+            </div>
+        );
+    }
+
+    if (tripExps.length === 0) {
+        return (
+            <div>
+                <h1
+                    className="inline-block [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
+                >
+                    {t('insights.title')}
+                </h1>
+                <EmptyState
+                    variant="tall"
+                    iconName="barChart"
+                    title={t('insights.emptyNoExpensesTitle')}
+                    // Body holds inline <b> markup; render as HTML so the
+                    // bold renders. Source string is from our own
+                    // translation tables (no user input), safe to inject.
+                    body={<span dangerouslySetInnerHTML={{ __html: t('insights.emptyNoExpensesBody') }} />}
+                    ctaLabel={t('insights.emptyNoExpensesCta')}
+                    onCta={() => navigate('expenses')}
+                />
+            </div>
+        );
+    }
 
     return (
         <div>

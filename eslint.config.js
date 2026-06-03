@@ -182,17 +182,6 @@ export default tseslint.config(
         },
     },
 
-    // Insights.tsx calls several hooks AFTER early returns (a pre-existing
-    // structural issue, surfaced the moment typed lint turned on). The proper
-    // fix — hoisting every hook above the early returns — is a sizeable,
-    // separately-tested refactor, so downgrade rules-of-hooks to a WARN *for
-    // this one file* (tracked debt). The rule stays an ERROR everywhere else,
-    // so no new component can regress while this is outstanding.
-    {
-        files: ['frontend/static/js/src/pages/insights/Insights.tsx'],
-        rules: { 'react-hooks/rules-of-hooks': 'warn' },
-    },
-
     // Must be last: turns off any eslint rules that conflict with prettier.
     prettier
 );
