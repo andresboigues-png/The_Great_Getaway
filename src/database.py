@@ -484,6 +484,20 @@ def init_db():
             )
         ''')
 
+        # Trip tombstones — record a (global) trip deletion so a member's
+        # offline upsert can't resurrect a trip the owner hard-deleted (the
+        # cascade removes the row + trip_members, so an upsert would
+        # otherwise re-create it as a childless zombie). Keyed by trip_id
+        # alone — trips are shared, so a deletion is global. Also the
+        # Phase-2 `?since=` trip-deletion channel. Migration d4f6b8c0e2a1
+        # adds this for existing DBs.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS trip_deletes (
+                trip_id TEXT PRIMARY KEY,
+                deleted_at TEXT NOT NULL DEFAULT ''
+            )
+        ''')
+
         # Notifications Table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS notifications (

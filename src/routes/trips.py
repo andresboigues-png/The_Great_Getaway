@@ -88,6 +88,17 @@ def upsert_trip():
     bind_trip_context(t.get("id"))
     with get_db() as conn:
         cursor = conn.cursor()
+        # Sync Phase 1: refuse to resurrect a tombstoned trip. A member's
+        # offline outbox can replay an upsert for a trip the owner deleted;
+        # after the cascade there's no row to gate on, so without this the
+        # replay re-creates a childless zombie trip (stamping the replayer
+        # as owner). Terminal by id — trips always get a fresh uuid on
+        # create, so a legit re-create never reuses a tombstoned id.
+        # Idempotent ok so the offline client doesn't error-loop; its next
+        # /api/data pull drops the trip locally.
+        cursor.execute("SELECT 1 FROM trip_deletes WHERE trip_id = ?", (t["id"],))
+        if cursor.fetchone():
+            return jsonify({"status": "ok", "updatedAt": None})
         # Existing trip? Gate on planner role (owner counts as planner).
         cursor.execute(
             "SELECT user_id, updated_at, is_public, public_show_expenses "
@@ -421,6 +432,18 @@ def delete_trip(trip_id):
         #      truth replaces the per-endpoint cleanup that drifted
         #      out of sync with the schema.
         cursor.execute("DELETE FROM trips WHERE id = ? AND user_id = ?", (trip_id, user_id))
+        # Sync Phase 1: record a tombstone so a member's offline outbox
+        # can't resurrect this trip as a childless zombie (upsert_trip
+        # refuses any tombstoned id), and so the Phase-2 `?since=` delta can
+        # propagate the deletion to every former member's other tabs. Global
+        # (keyed by trip_id) — the trip is shared, so the deletion applies
+        # to everyone.
+        cursor.execute(
+            "INSERT INTO trip_deletes (trip_id, deleted_at) "
+            "VALUES (?, strftime('%Y-%m-%d %H:%M:%f', 'now')) "
+            "ON CONFLICT(trip_id) DO UPDATE SET deleted_at = excluded.deleted_at",
+            (trip_id,),
+        )
         check_user_achievements(cursor, user_id)
         conn.commit()
     # R3-Fix #12: clean disk files. Outside the transaction so a
