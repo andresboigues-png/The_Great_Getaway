@@ -43,6 +43,9 @@ export interface Category {
     name: string;
     icon: string;
     color: string;
+    /** Epoch-ms version stamp for the #3 per-row delta sync. Set by the
+     *  server on each write; the client bases its delta upserts on it. */
+    updatedAt?: number;
 }
 
 /** Phase 3 — `Trip.role` is intentionally a string union with a fallback so

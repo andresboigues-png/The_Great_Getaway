@@ -14,7 +14,8 @@ import { validateServerData } from './schemas.js';
 import { normalizeTripCompanions } from './companions.js';
 import { showLiquidAlert } from './utils.js';
 import { t } from './i18n.js';
-import type { Trip, Expense, Budget, TripDay } from './types';
+import type { Trip, Expense, Budget, TripDay, Category } from './types';
+import { computeCategoryDelta } from './utils/categoryDelta.js';
 import {
     apiFetch,
     _post,
@@ -67,13 +68,16 @@ export async function syncWithServer() {
         //
         // The full migration to per-row deltas with timestamp
         // reconciliation is queued as a follow-up task.
+        // #3: categories moved OFF this bulk path to the per-row delta endpoint
+        // (/api/categories). Sending them here would re-run the legacy
+        // DELETE+reinsert (updated_at=0) and clobber the delta-reconciled
+        // state every 15s. Nothing else rides /api/sync anymore, so the body
+        // is empty — the POST stays as a lightweight connectivity probe that
+        // drives the offline/back-online toast logic below.
         const res = await apiFetch('/api/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                // Phase G: caller's user_id is derived from the JWT.
-                categories: STATE.categories || [],
-            })
+            body: JSON.stringify({}),
         });
         if (!res.ok) throw new Error(`sync HTTP ${res.status}`);
         // Success path — if we'd previously warned the user about an
@@ -222,6 +226,9 @@ export async function pullFromServer() {
         // Account-level companions (data.companions) is no longer used —
         // companions live per-trip on `trip.companions`.
         STATE.categories = data.categories || [];
+        // Re-baseline the category delta sync to server truth so the next
+        // edit diffs against what the server actually has (#3).
+        setCategorySyncBaseline(STATE.categories);
         STATE.budgets = data.budgets || [];
         STATE.tripDays = data.tripDays || [];
 
@@ -534,10 +541,38 @@ export function deleteExpenseOnServer(expenseId: string) {
     return _delete(`/api/expenses/${expenseId}`, {});
 }
 
-/** Replace the full category list on the server. */
-export function syncCategories() {
+// Last-synced category truth — the baseline the delta computation diffs
+// against. Set from /api/data on load and from each successful sync.
+let _categorySyncBaseline: Category[] = [];
+
+/** Reset the category delta baseline (called when categories load from the
+ *  server so the next edit diffs against server truth, not a stale set). */
+function setCategorySyncBaseline(cats: Category[]): void {
+    _categorySyncBaseline = (cats || []).map((c) => ({ ...c }));
+}
+
+/** Sync category edits as a per-row delta (#3) instead of a full-list
+ *  replace. Diffs STATE.categories against the last-synced baseline:
+ *  changed/new rows become timestamped upserts, rows that vanished become
+ *  timestamped deletes. The server reconciles by last-write-wins +
+ *  tombstones, so two tabs editing categories concurrently merge instead of
+ *  one wholesale-clobbering the other. Adopts the server's reconciled list as
+ *  the new truth + baseline. */
+export function syncCategories(): Promise<ApiJsonResult> | undefined {
     if (!STATE.user) return;
-    return _post('/api/categories', { categories: STATE.categories });
+    const { upserts, deletes } = computeCategoryDelta(
+        _categorySyncBaseline,
+        STATE.categories || [],
+        Date.now(),
+    );
+    return _postJson('/api/categories', { upserts, deletes }).then((res) => {
+        if (res.ok && res.body && Array.isArray(res.body.categories)) {
+            STATE.categories = res.body.categories as Category[];
+            setCategorySyncBaseline(STATE.categories);
+            emit(EVENTS.STATE_CHANGED);
+        }
+        return res;
+    });
 }
 
 /** Upsert a single budget to the server. See upsertTrip for
