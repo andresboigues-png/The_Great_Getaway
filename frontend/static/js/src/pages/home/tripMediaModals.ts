@@ -53,6 +53,7 @@ import {
 } from '../../tripMedia.js';
 import { openPdfPreview, looksLikePdfUrl, openPhotoLightbox } from './lightbox.js';
 import { iconSvg } from '../../icons.js';
+import type { Trip, TripPhoto } from '../../types';
 
 
 /** Documents popup modal — opened from Anchor option button.
@@ -62,7 +63,7 @@ import { iconSvg } from '../../icons.js';
  *  navigate('home') on save (which would leave this modal
  *  stale otherwise). In-modal mutations (remove, day-reassign)
  *  repaint the body in place so the user can keep working. */
-export const openTripDocumentsModal = (trip: any): void => {
+export const openTripDocumentsModal = (trip: Trip): void => {
     if (!trip) return;
     const tripIsEditable = canEdit(trip);
 
@@ -91,7 +92,7 @@ export const openTripDocumentsModal = (trip: any): void => {
                 ? `<span style="background:rgba(0,113,227,0.08); color:#005bb8; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(lbl)}</span>`
                 : `<span style="background:rgba(0,0,0,0.05); color:rgba(0,0,0,0.45); padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">Unsorted</span>`;
         };
-        const groups: Map<string, any[]> = new Map();
+        const groups: Map<string, ReturnType<typeof getAllTripDocuments>> = new Map();
         docs.forEach(d => {
             const key = d.dayId || '__orphan__';
             let bucket = groups.get(key);
@@ -277,7 +278,7 @@ export const openTripDocumentsModal = (trip: any): void => {
  *  handled inline (re-wire after each repaint since the input
  *  element gets recreated). Lightbox / external-link click goes
  *  through the existing helpers. */
-export const openTripPhotosModal = (trip: any): void => {
+export const openTripPhotosModal = (trip: Trip): void => {
     if (!trip) return;
     const tripIsEditable = canEdit(trip);
 
@@ -651,11 +652,11 @@ export const openTripPhotosModal = (trip: any): void => {
         if (!targetId || targetId === draggedId) return;
         if (!Array.isArray(trip.photos)) return;
 
-        const fromIdx = trip.photos.findIndex((p: any) => p.id === draggedId);
-        const toIdx = trip.photos.findIndex((p: any) => p.id === targetId);
+        const fromIdx = trip.photos.findIndex((p: TripPhoto) => p.id === draggedId);
+        const toIdx = trip.photos.findIndex((p: TripPhoto) => p.id === targetId);
         if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
         const [moved_item] = trip.photos.splice(fromIdx, 1);
-        trip.photos.splice(toIdx, 0, moved_item);
+        trip.photos.splice(toIdx, 0, moved_item!);
         emit('state:changed');
         upsertTrip(trip);
         repaint();
@@ -698,7 +699,7 @@ export const openTripPhotosModal = (trip: any): void => {
  *  numbered days are alternatives the user can pick. The legacy
  *  "Trip-wide" sentinel was retired — Anchor owns that role
  *  throughout the app now. */
-export const openAddTripDocumentModal = (trip: any): void => {
+export const openAddTripDocumentModal = (trip: Trip): void => {
     if (!trip) return;
     const anchorDay = (STATE.tripDays || [])
         .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);
@@ -796,7 +797,7 @@ export const openAddTripDocumentModal = (trip: any): void => {
  *  dropdown only shows for trip-level entries because legacy
  *  ones can't be moved between days without breaking their
  *  index-based id (matches the inline-row dropdown behaviour). */
-export const openEditTripDocumentModal = (trip: any, docId: string): void => {
+export const openEditTripDocumentModal = (trip: Trip, docId: string): void => {
     if (!trip) return;
     const all = getAllTripDocuments(trip);
     const doc = all.find(d => d.id === docId);
@@ -912,7 +913,7 @@ export const openEditTripDocumentModal = (trip: any, docId: string): void => {
  *  served files); for share-page links the photo card will be
  *  empty until the user pastes a direct-image URL. We surface
  *  both options in the help text below the input. */
-export const openAddTripPhotoUrlModal = (trip: any): void => {
+export const openAddTripPhotoUrlModal = (trip: Trip): void => {
     if (!trip) return;
     const anchorDay = (STATE.tripDays || [])
         .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);

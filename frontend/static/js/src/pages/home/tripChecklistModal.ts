@@ -21,6 +21,7 @@ import { canEdit } from '../../permissions.js';
 import { showModal } from '../../components/Modal.js';
 import { esc, generateId } from '../../utils.js';
 import { t } from '../../i18n.js';
+import type { Trip } from '../../types';
 
 
 type ChecklistItem = {
@@ -40,7 +41,7 @@ type ChecklistItem = {
  *  every change so the user can rip through additions without
  *  re-opening. Read-only when the current user lacks canEdit
  *  on the trip. */
-export const openTripChecklistModal = (trip: any): void => {
+export const openTripChecklistModal = (trip: Trip): void => {
     if (!trip) return;
     if (!Array.isArray(trip.checklist)) trip.checklist = [];
 
@@ -81,7 +82,7 @@ export const openTripChecklistModal = (trip: any): void => {
     };
 
     const renderBody = () => {
-        const items: ChecklistItem[] = trip.checklist;
+        const items: ChecklistItem[] = trip.checklist as ChecklistItem[];
         const remaining = items.filter(i => !i.done).length;
         const summary = items.length === 0
             ? t('checklist.emptySummary')
@@ -142,7 +143,7 @@ export const openTripChecklistModal = (trip: any): void => {
                 const input = (root.querySelector('#checklistAddInput') as HTMLInputElement | null);
                 const body = (input?.value || '').trim();
                 if (!body) return;
-                trip.checklist.push({
+                (trip.checklist as ChecklistItem[]).push({
                     id: generateId(),
                     body: body.slice(0, 200),
                     done: false,
@@ -162,7 +163,7 @@ export const openTripChecklistModal = (trip: any): void => {
         root.querySelectorAll('.checklist-toggle-btn').forEach(btn => {
             (btn as HTMLButtonElement).onclick = () => {
                 const id = (btn as HTMLElement).dataset.itemId;
-                const item = trip.checklist.find((i: ChecklistItem) => i.id === id);
+                const item = (trip.checklist as ChecklistItem[]).find((i: ChecklistItem) => i.id === id);
                 if (!item) return;
                 item.done = !item.done;
                 persist();
@@ -173,11 +174,11 @@ export const openTripChecklistModal = (trip: any): void => {
         root.querySelectorAll('.checklist-item-text').forEach(btn => {
             (btn as HTMLButtonElement).onclick = () => {
                 const id = (btn as HTMLElement).dataset.itemId;
-                const item = trip.checklist.find((i: ChecklistItem) => i.id === id);
+                const item = (trip.checklist as ChecklistItem[]).find((i: ChecklistItem) => i.id === id);
                 if (!item || !editable) return;
                 // Clear any other in-flight edits so only one row
                 // is editing at a time (keeps the UI legible).
-                trip.checklist.forEach((i: ChecklistItem) => { if (i._editing && i.id !== id) delete i._editing; });
+                (trip.checklist as ChecklistItem[]).forEach((i: ChecklistItem) => { if (i._editing && i.id !== id) delete i._editing; });
                 item._editing = true;
                 repaint();
                 const input = (root.querySelector(`.checklist-edit-input[data-item-id="${id}"]`) as HTMLInputElement | null);
@@ -189,7 +190,7 @@ export const openTripChecklistModal = (trip: any): void => {
         });
         // Save edit (button or Enter key).
         const commitEdit = (id: string) => {
-            const item = trip.checklist.find((i: ChecklistItem) => i.id === id);
+            const item = (trip.checklist as ChecklistItem[]).find((i: ChecklistItem) => i.id === id);
             if (!item) return;
             const input = (root.querySelector(`.checklist-edit-input[data-item-id="${id}"]`) as HTMLInputElement | null);
             if (input) {
@@ -216,7 +217,7 @@ export const openTripChecklistModal = (trip: any): void => {
                 } else if (k === 'Escape') {
                     e.preventDefault();
                     const id = (inp as HTMLElement).dataset.itemId;
-                    const item = trip.checklist.find((i: ChecklistItem) => i.id === id);
+                    const item = (trip.checklist as ChecklistItem[]).find((i: ChecklistItem) => i.id === id);
                     if (item) { delete item._editing; repaint(); }
                 }
             };
@@ -225,7 +226,7 @@ export const openTripChecklistModal = (trip: any): void => {
         root.querySelectorAll('.checklist-delete-btn').forEach(btn => {
             (btn as HTMLButtonElement).onclick = () => {
                 const id = (btn as HTMLElement).dataset.itemId;
-                trip.checklist = trip.checklist.filter((i: ChecklistItem) => i.id !== id);
+                trip.checklist = (trip.checklist as ChecklistItem[]).filter((i: ChecklistItem) => i.id !== id);
                 persist();
                 repaint();
             };

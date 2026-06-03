@@ -23,6 +23,7 @@
 
 import { esc, formatDayDate } from '../../utils.js';
 import { streetViewUrl } from '../../googleMapsServices.js';
+import type { Trip, TripDay } from '../../types';
 
 /** Inputs `paintDayMarkers` needs from renderHome. The caller owns
  *  the `markers` output (used as a quick lookup elsewhere — pin
@@ -30,12 +31,12 @@ import { streetViewUrl } from '../../googleMapsServices.js';
  *  passed-in dict. */
 export interface DayMarkersContext {
     map: google.maps.Map;
-    activeTrip: any;
+    activeTrip: Trip;
     /** Trip's days, already filtered to the active trip. The function
      *  filters inside for entries with lat/lng — passing them all
      *  in keeps the caller's filter logic free of marker-shape
      *  knowledge. */
-    days: any[];
+    days: TripDay[];
     /** Day id currently in pin-edit mode (or null). Drives the
      *  draggable + red-fill marker variant. */
     editingDayId: string | null;
@@ -81,14 +82,14 @@ export function paintDayMarkers(ctx: DayMarkersContext): Record<string, google.m
     // independent IWs that could all be open simultaneously and only
     // close when their own marker was clicked again.
     let dayPinInfoWindow: google.maps.InfoWindow | null = null;
-    const openDayPinInfoWindow = (marker: google.maps.Marker, day: any) => {
+    const openDayPinInfoWindow = (marker: google.maps.Marker, day: TripDay) => {
         const iw = ctx.getInfoWindow ? ctx.getInfoWindow() : (() => {
             if (!dayPinInfoWindow) dayPinInfoWindow = new google.maps.InfoWindow();
             return dayPinInfoWindow;
         })();
         const lat = day.lat;
         const lng = day.lng || day.lon;
-        const url = streetViewUrl({ lat, lng }, { width: 280, height: 160, fov: 90 });
+        const url = streetViewUrl({ lat, lng } as { lat: number; lng: number }, { width: 280, height: 160, fov: 90 });
         const isStartingPoint = day.dayNumber === 0;
         const headerLabel = isStartingPoint
             ? '⭐ Trip Hub'
@@ -173,8 +174,8 @@ export function paintDayMarkers(ctx: DayMarkersContext): Record<string, google.m
                 // expectation across every marker type.
                 const iw = ctx.getInfoWindow ? ctx.getInfoWindow() : (dayPinInfoWindow ?? null);
                 if (iw) {
-                    const anchor = (iw as any).getAnchor?.();
-                    const iwIsOpen = !!(iw as any).getMap?.();
+                    const anchor = iw.getAnchor?.();
+                    const iwIsOpen = !!iw.getMap?.();
                     if (iwIsOpen && anchor === marker) {
                         iw.close();
                         return;

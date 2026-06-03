@@ -39,6 +39,7 @@ import {
 } from './balances.js';
 import { hasRate } from '../../utils/currency.js';
 import { t, tn, formatCurrency } from '../../i18n.js';
+import type { Trip } from '../../types';
 
 // §0.4 follow-up: settlement-page shared styles, extracted
 // from the inline-style template literals below. Side-effect
@@ -81,7 +82,7 @@ function settledStatsForTrip(tripId: string): { count: number; eurTotal: number 
 // ── Markup ────────────────────────────────────────────────────────────
 
 export function buildPageHtml(
-    trip: any,
+    trip: Trip | null,
     tripIsEditable: boolean,
     activeTab: SettlementTab,
     currentTripId: string | null,
@@ -163,7 +164,7 @@ function renderTripsStrip(currentTripId: string | null): string {
     `;
 }
 
-function renderTabsNav(trip: any, activeTab: SettlementTab): string {
+function renderTabsNav(trip: Trip, activeTab: SettlementTab): string {
     const settlementsCount = settledStatsForTrip(trip.id).count;
     // D3 contrast: active tab text uses #005bb8 (darker brand blue,
     // 5.3:1) instead of var(--accent-blue) (#0071e3, 4.31:1) so the
@@ -223,7 +224,7 @@ function originalCurrencyHint(eurAmount: number, primaryCurrency: string | null)
     return `<span style="display:block; font-size:0.72rem; font-weight:600; color:var(--text-secondary); margin-top:1px;">≈ ${esc(formatCurrency(inPrimary, primaryCurrency))}</span>`;
 }
 
-function renderTripTab(trip: any, tripIsEditable: boolean): string {
+function renderTripTab(trip: Trip, tripIsEditable: boolean): string {
     const { balances, removedFromRoster } = computeTripBalances(trip);
     const removedSet = new Set(removedFromRoster || []);
     // MK3-8: per-currency debts for the suggested-payments list. The standing
@@ -439,7 +440,7 @@ interface HistoryItem {
 /** Merge legacy isSettlement expense rows + server-side settlement
  *  rows into a single sorted (newest-first) list. The renderer in
  *  renderHistoryTab walks this unified shape. */
-function collectSettlementHistory(trip: any): HistoryItem[] {
+function collectSettlementHistory(trip: Trip): HistoryItem[] {
     const items: HistoryItem[] = [];
 
     // Source A — legacy isSettlement expense rows. These remain in
@@ -499,7 +500,7 @@ function collectSettlementHistory(trip: any): HistoryItem[] {
 }
 
 
-function renderHistoryTab(trip: any, tripIsEditable: boolean): string {
+function renderHistoryTab(trip: Trip, tripIsEditable: boolean): string {
     const past = collectSettlementHistory(trip);
 
     if (past.length === 0) {
@@ -1091,7 +1092,7 @@ export function openManualSettleModal(tripId: string): void {
  *  if the direct from→to edge exists, that's the answer, otherwise 0
  *  (no direct debt; the user is paying into a chain we can't simplify
  *  without re-running netting from scratch). */
-function _pairwiseOwed(trip: any, from: string, to: string, currency: string): number {
+function _pairwiseOwed(trip: Trip | undefined, from: string, to: string, currency: string): number {
     if (!trip) return 0;
     // MK3-8: per-currency. Net debts within the requested currency only and
     // return the direct from→to edge in that currency (no conversion), so the

@@ -73,8 +73,8 @@ export function Developer() {
             }
             const body = await res.json();
             setStats(body as AdminStats);
-        } catch (e: any) {
-            setError(e?.message || 'Network error');
+        } catch (e: unknown) {
+            setError((e as Error)?.message || 'Network error');
         } finally {
             setLoading(false);
         }

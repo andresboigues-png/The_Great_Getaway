@@ -72,6 +72,7 @@ import {
     commentRowHtml,
     type FeedEvent,
     type FeedComment,
+    type Actor,
 } from './render.js';
 import {
     getCachedEvents,
@@ -91,7 +92,7 @@ import {
     type FeedTab,
 } from './state.js';
 import { ExploreCard } from './ExploreCard.js';
-import { BundleCard } from './BundleCard.js';
+import { BundleCard, type BundleCardProps } from './BundleCard.js';
 // Page-scoped CSS — avatar button :hover, trip-card :hover, tabs row
 // + mobile-stack override. FIXING_ROADMAP §3.1 fifth slice. Vite
 // chunks this alongside the Feed JS bundle so users who never visit
@@ -607,7 +608,7 @@ export function Feed() {
                             role="tab"
                             type="button"
                             onClick={() => onSwitchTab('posts')}
-                            style={{ ['--accent' as any]: '88, 86, 214' }}
+                            style={{ ['--accent' as string]: '88, 86, 214' }}
                         >
                             {t('feed.tabPosts')}
                         </button>
@@ -617,7 +618,7 @@ export function Feed() {
                             role="tab"
                             type="button"
                             onClick={() => onSwitchTab('actions')}
-                            style={{ ['--accent' as any]: '255, 149, 0' }}
+                            style={{ ['--accent' as string]: '255, 149, 0' }}
                         >
                             {t('feed.tabActions')}
                         </button>
@@ -627,7 +628,7 @@ export function Feed() {
                             role="tab"
                             type="button"
                             onClick={() => onSwitchTab('explore')}
-                            style={{ ['--accent' as any]: '0, 199, 190' }}
+                            style={{ ['--accent' as string]: '0, 199, 190' }}
                         >
                             Explore
                         </button>
@@ -702,7 +703,7 @@ interface FeedListBodyProps {
      *  code = restrict to that country. */
     exploreCountry: string | null;
     onPickExploreCountry: (code: string | null) => void;
-    renderedItems: Array<FeedEvent | { bundled: true; id: string; type: string; actor: any; when: string | null; members: FeedEvent[] }>;
+    renderedItems: Array<FeedEvent | { bundled: true; id: string; type: string; actor: Actor; when: string | null; members: FeedEvent[] }>;
     openThreadIds: Set<string>;
     threads: Record<string, FeedComment[]>;
     threadLoading: Record<string, boolean>;
@@ -985,8 +986,8 @@ function FeedListBody(props: FeedListBodyProps) {
     return (
         <>
             {renderedItems.map((item) => {
-                if ((item as any).bundled) {
-                    const bundle = item as any;
+                if ((item as { bundled?: boolean }).bundled) {
+                    const bundle = item as BundleCardProps['bundle'];
                     return (
                         <BundleCard
                             key={bundle.id}
@@ -1639,7 +1640,7 @@ function ActionButton({
             <button
                 type="button"
                 className={`icon-btn-circle feed-${kind}-btn`}
-                style={{ ['--accent' as any]: accentColor }}
+                style={{ ['--accent' as string]: accentColor }}
                 data-active={active ? '1' : '0'}
                 title={title}
                 aria-label={title}

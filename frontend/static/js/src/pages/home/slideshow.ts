@@ -35,6 +35,7 @@
 import { INSPIRATIONAL_PAIRS } from '../../constants.js';
 import { getMediaForTrip } from '../../utils.js';
 import { localizeFact } from '../../utils/place-names.js';
+import type { Trip } from '../../types';
 
 
 // One shared timer for the whole module. router.ts calls
@@ -80,7 +81,7 @@ export interface SlideshowController {
  *  same arrays — addDiscoveredCountry mutates the
  *  discoveredCodes set but doesn't replace the in-flight
  *  roster (intentional, see header comment). */
-export function setupSlideshow(activeTrip: any): SlideshowController {
+export function setupSlideshow(activeTrip: Trip | null): SlideshowController {
     let images: string[] = [];
     let quotes: string[] = [];
     let currentPhotoIdx = 0;

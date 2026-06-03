@@ -222,8 +222,8 @@ export function Settings() {
                 <h1
                     className="gradient-text"
                     style={{
-                        ['--g-from' as any]: '#1a6b3c',
-                        ['--g-to' as any]: '#34c759',
+                        ['--g-from' as string]: '#1a6b3c',
+                        ['--g-to' as string]: '#34c759',
                     }}
                 >
                     {t('settings.systemControlTitle')}
@@ -790,7 +790,7 @@ function ResetView() {
                 <button
                     type="button"
                     className="themed-block-btn"
-                    style={{ ['--accent' as any]: '255,149,0' }}
+                    style={{ ['--accent' as string]: '255,149,0' }}
                     onClick={confirmResetTrips}
                 >
                     {t('settings.resetTripsBtn')}
@@ -802,7 +802,7 @@ function ResetView() {
                 <button
                     type="button"
                     className="themed-block-btn"
-                    style={{ ['--accent' as any]: '88,86,214' }}
+                    style={{ ['--accent' as string]: '88,86,214' }}
                     onClick={confirmResetCategories}
                 >
                     {t('settings.resetCategoriesBtn')}

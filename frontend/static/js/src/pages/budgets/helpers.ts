@@ -21,6 +21,7 @@ import { upsertBudget, deleteBudgetOnServer } from '../../api.js';
 import { getTripCompanionNames } from '../../companions.js';
 import { showModal } from '../../components/Modal.js';
 import { t } from '../../i18n.js';
+import type { Budget } from '../../types';
 
 /** Sum (in EUR) the trip/category/user-filtered expenses for a budget.
  *
@@ -49,7 +50,7 @@ import { t } from '../../i18n.js';
  *  correct: the trip's spend is the sum of all expenses, regardless of
  *  who paid).
  */
-export function spentForBudget(budget: any): number {
+export function spentForBudget(budget: Budget): number {
     const personScope: string | null =
         budget.user && budget.user !== 'all' ? budget.user : null;
     let spent = 0;
@@ -76,7 +77,7 @@ export function spentForBudget(budget: any): number {
         if (splits && Object.keys(splits).length > 0) {
             const pct = splits[personScope];
             if (pct === undefined) continue; // budget-holder isn't on this split
-            const denom = Object.values(splits).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
+            const denom = Object.values(splits).reduce((a: number, b: number) => a + (Number(b) || 0), 0);
             if (denom <= 0) continue;
             spent += (euroValue * pct) / denom;
             continue;
@@ -98,7 +99,7 @@ export function spentForBudget(budget: any): number {
  *  full euroValue. (Person-scoped budgets count a share in their own card; the
  *  at-a-glance Overall intentionally uses the full value of each covered
  *  expense once.) */
-export function spentAcrossBudgets(budgets: any[]): number {
+export function spentAcrossBudgets(budgets: Budget[]): number {
     const seen = new Set<string>();
     let sum = 0;
     for (const e of STATE.expenses || []) {
@@ -125,7 +126,7 @@ export function spentAcrossBudgets(budgets: any[]): number {
  *  yellow instead of red. Tightened to `spent >= target` so hitting
  *  the ceiling exactly is treated as "over" (the spirit of the budget
  *  has been spent in full). */
-export function budgetStatus(budget: any) {
+export function budgetStatus(budget: Budget) {
     const spent = spentForBudget(budget);
     const target = budget.amount || 0;
     const pct = target > 0 ? (spent / target) * 100 : 0;
@@ -138,7 +139,7 @@ export function budgetStatus(budget: any) {
 
 /** Build a human-readable title for a budget's combination of filters.
  *  Always shows all three dimensions (trip, category, person). */
-export function budgetTitle(b: any): string {
+export function budgetTitle(b: Budget): string {
     const parts: string[] = [];
     if (b.tripId && b.tripId !== 'all') {
         // Renamed local from `t` to `trip` to avoid shadowing the

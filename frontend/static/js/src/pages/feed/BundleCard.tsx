@@ -124,7 +124,7 @@ export function BundleCard({ bundle, isExpanded, onToggleExpand, onBookmark }: B
                                 type="button"
                                 className="icon-btn-circle feed-bookmark-btn"
                                 style={{
-                                    ['--accent' as any]: bookmarked
+                                    ['--accent' as string]: bookmarked
                                         ? ACTION_ACCENTS.bookmark
                                         : ACTION_ACCENTS.muted,
                                 }}

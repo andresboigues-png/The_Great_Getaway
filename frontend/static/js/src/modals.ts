@@ -24,6 +24,7 @@ import { showConfirmModal } from './utils.js';
 import { mountDateRangePicker } from './utils/dateRangePicker.js';
 import { localizeNotificationMessage } from './bootstrap/notifications.js';
 import { getCountryOptions } from './utils/place-names.js';
+import type { Trip } from './types';
 
 // Trip-roster modals moved to ./modals/companions.ts in the B1 split.
 // Re-exported here so existing imports (`from '../modals.js'`) keep
@@ -180,7 +181,7 @@ function _wirePlacePicker(
         if (tone) hint.classList.add(`form-hint--${tone}`);
     };
 
-    const setPicked = (place: any) => {
+    const setPicked = (place: PickedPlace | null) => {
         pickedPlace = place;
         if (place && place.countryCode) {
             submitBtn.disabled = false;
@@ -268,7 +269,7 @@ function _wirePlacePicker(
         const vp = place.geometry.viewport;
         // The country component's short_name is the ISO 3166-1 alpha-2 code
         // ("FR", "PT", "US") — locale-invariant by definition.
-        const countryComp = (place.address_components || []).find((c: any) => (c.types || []).includes('country'));
+        const countryComp = (place.address_components || []).find((c: google.maps.GeocoderAddressComponent) => (c.types || []).includes('country'));
         const countryCode = countryComp ? (countryComp.short_name || null) : null;
         setPicked({
             placeId: place.place_id || '',
@@ -481,7 +482,7 @@ export const openNewTripModal = () => {
  *
  * @param {any} trip — must be a reference to a trip already in STATE.trips
  */
-export const openEditTripModal = (trip: any) => {
+export const openEditTripModal = (trip: Trip) => {
     if (!trip) return;
 
     const { root, close } = showModal({
@@ -885,7 +886,7 @@ export const openEditTripModal = (trip: any) => {
  *  The endpoint defaults to "include everything" so the modal's
  *  unchecked-by-default state is meaningful — anything the user
  *  unticks gets omitted server-side. */
-export const openPdfExportModal = (trip: any) => {
+export const openPdfExportModal = (trip: Trip) => {
     if (!trip || !trip.id) {
         showLiquidAlert(t('modals.pdfErrorNoTrip'));
         return;
@@ -1268,7 +1269,7 @@ export const openTripInviteResponseModal = (notification: { related_id?: string 
 // the financial story of the trip (which IS the killer move for
 // cost-as-content, but should never be the default).
 
-export const openShareTripModal = (trip: any) => {
+export const openShareTripModal = (trip: Trip) => {
     if (!trip) return;
     // Resolve the local trip object so we have the most recent
     // shareToken / shareShowCost state — caller may have passed a
@@ -1543,7 +1544,7 @@ export const openShareTripModal = (trip: any) => {
 interface ShareChooserOpts {
     /** The trip to share. Must carry id, name, isPublic, ownerId,
      *  shareToken (if any). */
-    trip: any;
+    trip: Trip;
     /** Callback the "Share to feed" option fires the share-to-feed
      *  flow through. The caller owns the actual share-to-feed plumbing
      *  (shareTripToFeed POST, optimistic update, etc.) because that

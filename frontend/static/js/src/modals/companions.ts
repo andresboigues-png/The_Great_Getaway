@@ -28,6 +28,7 @@ import { computeTripBalances } from '../pages/settlement/balances.js';
 import { ROLE_PLANNER, ROLE_BUDGETEER, ROLE_RELAXER, canManageRoster } from '../permissions.js';
 import { showModal } from '../components/Modal.js';
 import { iconSvg } from '../icons.js';
+import type { TripMember } from '../types';
 
 /**
  * Trip-companions picker — the single hub for managing who's on a trip.
@@ -74,7 +75,7 @@ export const openCompanionPickerModal = (tripId: string) => {
 
     // Members on the trip already (accepted invitations). Used to render
     // role badges on linked rows.
-    const membersByUserId = new Map((trip.members || []).map((m: any) => [m.userId, m] as const));
+    const membersByUserId = new Map((trip.members || []).map((m: TripMember) => [m.userId, m] as const));
 
     let cachedFriends: FriendListEntry[] = [];
 
@@ -385,8 +386,8 @@ export const openTripMembersModal = (tripId: string) => {
     if (!trip) return;
 
     const members = trip.members || [];
-    const owner = members.find((m: any) => m.userId === trip.ownerId);
-    const others = members.filter((m: any) => m.userId !== trip.ownerId);
+    const owner = members.find((m: TripMember) => m.userId === trip.ownerId);
+    const others = members.filter((m: TripMember) => m.userId !== trip.ownerId);
 
     const roleLabel = (role: string) =>
         role === ROLE_PLANNER ? t('companions.rolePlanner')

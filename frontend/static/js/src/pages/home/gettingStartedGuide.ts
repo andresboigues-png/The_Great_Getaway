@@ -30,6 +30,7 @@ import { showPersTab } from '../settings.js';
 import { t } from '../../i18n.js';
 import { esc } from '../../utils.js';
 import { iconSvg } from '../../icons.js';
+import type { TripDay, Expense } from '../../types';
 
 
 type GuideStep = {
@@ -51,10 +52,10 @@ export interface GettingStartedGuideOptions {
     /** Trip days for the active trip. Used only to derive the
      *  `hasPlan` step flag (pre-computed by renderHome to avoid
      *  re-filtering STATE.tripDays). */
-    tripDays: any[];
+    tripDays: TripDay[];
     /** Trip expenses for the active trip. Same rationale —
      *  drives `hasExpenses`. */
-    tripExpenses: any[];
+    tripExpenses: Expense[];
 }
 
 
@@ -70,7 +71,7 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
 
     if (!STATE.guideProgress) STATE.guideProgress = {};
 
-    const hasLogin = !!STATE.user || (window as any).isGoogleAuthenticated === true;
+    const hasLogin = !!STATE.user || window.isGoogleAuthenticated === true;
     const hasTrip = STATE.trips.length > 0;
     // Companions are per-trip now — for the getting-started
     // checklist, count "any trip with any companions" as having
@@ -92,7 +93,7 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
     const hasBudgets = !!(STATE.budgets && STATE.budgets.length > 0);
     const hasCollections = !!(STATE.archivedTrips && STATE.archivedTrips.length > 0);
     const hasCategories = (STATE.categories || []).length > 3; // Default is 3
-    const hasSettlement = STATE.expenses.some((e: any) => e.isSettlement);
+    const hasSettlement = STATE.expenses.some((e: Expense) => e.isSettlement);
     const hasFriends = false;
 
     if (hasLogin) STATE.guideProgress.login = true;

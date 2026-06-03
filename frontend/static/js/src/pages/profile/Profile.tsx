@@ -228,7 +228,7 @@ function OwnProfileView() {
     const user = useStore((s) => s.user)!;
     const trips = useStore((s) => s.trips) || [];
     const archivedTrips = useStore((s) => s.archivedTrips) || [];
-    const achievements = useStore((s) => (s as any).achievements as ProfileAchievement[]) || [];
+    const achievements = useStore((s) => s.achievements as ProfileAchievement[]) || [];
 
     // "Completed trips" = archived OR past dateTo. Drives the
     // trip-count stat and the map's pin set.

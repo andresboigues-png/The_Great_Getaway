@@ -64,7 +64,7 @@ export function Budgets() {
     return (
         <div>
             <div className="ai-page-header">
-                <h1 className="gradient-text" style={{ ['--g-from' as any]: '#ffd60a', ['--g-to' as any]: '#ff9f0a' }}>
+                <h1 className="gradient-text" style={{ ['--g-from' as string]: '#ffd60a', ['--g-to' as string]: '#ff9f0a' }}>
                     {t('budgets.title')}
                 </h1>
                 <p>{t('budgets.subtitle')}</p>

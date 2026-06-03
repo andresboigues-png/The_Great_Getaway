@@ -99,7 +99,7 @@ export function isDarkMode(): boolean {
  *  coastlines still read at zoom-out. POI hidden / shown is left to
  *  the per-page `featureType: poi` styles — we only restyle here,
  *  don't toggle visibility. */
-export function getDarkMapStyles(): any[] {
+export function getDarkMapStyles(): google.maps.MapTypeStyle[] {
     return [
         { elementType: 'geometry', stylers: [{ color: '#1d2733' }] },
         { elementType: 'labels.text.stroke', stylers: [{ color: '#1d2733' }] },
@@ -128,8 +128,8 @@ export function getDarkMapStyles(): any[] {
  *  theme flips; the simpler init-only call covers the common case
  *  where the user picks a theme and reloads. */
 export function applyMapTheme(
-    map: { setOptions: (opts: { styles: any[] }) => void } | null | undefined,
-    baseStyles: any[] = [],
+    map: { setOptions: (opts: { styles: google.maps.MapTypeStyle[] }) => void } | null | undefined,
+    baseStyles: google.maps.MapTypeStyle[] = [],
 ): void {
     if (!map) return;
     const styles = isDarkMode() ? [...getDarkMapStyles(), ...baseStyles] : baseStyles;

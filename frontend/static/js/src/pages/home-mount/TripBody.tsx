@@ -58,7 +58,7 @@ import {
     setActiveHomeTab,
     editingDayId,
 } from './handlers.js';
-import type { Trip } from '../../types';
+import type { Trip, TripDay } from '../../types';
 import { t, tn } from '../../i18n.js';
 
 
@@ -380,9 +380,9 @@ export function TripBody({ activeTrip }: TripBodyProps) {
 
     // ── Reset map view ─────────────────────────────────────────
     const onResetMapView = () => {
-        const map = (window as any).activeMap;
+        const map = window.activeMap as google.maps.Map;
         if (!map) return;
-        const _g: any = google;
+        const _g = google;
         const bounds = new _g.maps.LatLngBounds();
         if (typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
             bounds.extend({ lat: activeTrip.lat, lng: activeTrip.lng });
@@ -551,7 +551,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                         title={t('tripActions.downloadPdf')}
                         aria-label={t('tripActions.downloadPdf')}
                         onClick={() => openPdfExportModal(activeTrip)}
-                        style={{ ['--accent' as any]: '52,199,89' }}
+                        style={{ ['--accent' as string]: '52,199,89' }}
                     >
                         <svg
                             width="14"
@@ -586,7 +586,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                             // visually shouted compared to the other two
                             // neutral-baseline buttons.
                             style={{
-                                ['--accent' as any]: '255,59,48',
+                                ['--accent' as string]: '255,59,48',
                                 ...(activeTrip.actionsHidden
                                     ? {
                                           background: 'rgba(255,59,48,0.12)',
@@ -664,7 +664,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                         "N Day{s} of adventure". `tn()` picks the
                         correct plural/singular form per locale. */}
                     {(() => {
-                        const plannedDayCount = tripDays.filter((d: any) => (d.dayNumber || 0) > 0).length;
+                        const plannedDayCount = tripDays.filter((d: TripDay) => (d.dayNumber || 0) > 0).length;
                         return (
                             <span>{tn('home.daysOfAdventure', plannedDayCount, { count: plannedDayCount })}</span>
                         );

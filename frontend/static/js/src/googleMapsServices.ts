@@ -11,7 +11,7 @@
 // (4 decimal places ≈ 11 m) so micro-drags don't trigger refetch
 // for what's effectively the same location.
 
-const _apiKey = () => /** @type {any} */ (window).googleMapsApiKey || '';
+const _apiKey = () => window.googleMapsApiKey || '';
 
 
 // ── Async-script readiness gate ──────────────────────────────────────
@@ -236,6 +236,7 @@ const _WEATHER_GLYPH: Record<string, { icon: string; label: string }> = {
  *  @param {any} forecastDay  the daypart object from the API
  *  @returns {{ icon: string, label: string, tempC: number | null, tempF: number | null } | null}
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped Google Weather API forecastDay JSON; navigated defensively via optional chaining
 export function pickDaySummary(forecastDay: any): { icon: string; label: string; tempC: number | null; tempF: number | null } | null {
     if (!forecastDay) return null;
     // Per-day summary lives on `daytimeForecast` (the morning →

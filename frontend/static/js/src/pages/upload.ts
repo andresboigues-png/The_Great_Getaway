@@ -294,6 +294,7 @@ export function renderUpload() {
     `;
 
     setTimeout(() => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SheetJS sheet_to_json rows: heterogeneous cells (string|number|Date) coerced at use; unknown[][] would break parseFloat(row[n]) without a runtime change
                 let parsedRows: any[][] | null = null;
 
         div.querySelector('#uploadFormatSettingsLink')?.addEventListener('click', (e) => {
@@ -393,6 +394,7 @@ export function renderUpload() {
                     const workbook = XLSX.read(data, { type: 'array', cellDates: true });
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SheetJS sheet_to_json returns heterogeneous cell rows; see parsedRows note above
                                         const json: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
                     if (json.length < 2) return;
@@ -404,11 +406,11 @@ export function renderUpload() {
                     const thead = q(div, '#previewTable thead');
                     const tbody = q(div, '#previewTable tbody');
 
-                    thead.innerHTML = '<tr>' + header.map((/** @type {any} */ h) => `<th>${h || ''}</th>`).join('') + '</tr>';
+                    thead.innerHTML = '<tr>' + header.map((h) => `<th>${h || ''}</th>`).join('') + '</tr>';
 
                     const previewRows = parsedRows.slice(0, 3);
-                    tbody.innerHTML = previewRows.map((/** @type {any[]} */ row) => {
-                        return '<tr>' + header.map((/** @type {any} */ _, /** @type {number} */ i) => `<td>${row[i] || ''}</td>`).join('') + '</tr>';
+                    tbody.innerHTML = previewRows.map((row) => {
+                        return '<tr>' + header.map((_, i) => `<td>${row[i] || ''}</td>`).join('') + '</tr>';
                     }).join('');
 
                     previewContainer.style.display = 'block';
@@ -457,7 +459,7 @@ export function renderUpload() {
                     mappings = format.mappings;
                 }
 
-                parsedRows.forEach((row: any[], rowIndex: number) => {
+                parsedRows.forEach((row, rowIndex) => {
                     let who = '', catName = '', label = '', date = '', country = '';
                     let value = 0, currency = 'EUR';
                     // Splits + settlement flag. Custom formats can map the new

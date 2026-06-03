@@ -175,8 +175,11 @@ export function ManualTab() {
     }, [activeIdx]);
 
     // ── helper: write a single draft field + emit ────────────────
-    const draft = (key: keyof typeof STATE.draftExpense, value: any) => {
-        (STATE.draftExpense as any)[key] = value;
+    const draft = <K extends keyof typeof STATE.draftExpense>(
+        key: K,
+        value: (typeof STATE.draftExpense)[K],
+    ) => {
+        STATE.draftExpense[key] = value;
         emit('state:changed');
     };
 

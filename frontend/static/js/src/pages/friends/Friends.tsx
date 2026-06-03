@@ -289,7 +289,7 @@ export function Friends() {
             <div className="ai-page-header">
                 <h1
                     className="gradient-text"
-                    style={{ ['--g-from' as any]: '#007aff', ['--g-to' as any]: '#5856d6' }}
+                    style={{ ['--g-from' as string]: '#007aff', ['--g-to' as string]: '#5856d6' }}
                 >
                     {t('friends.title')}
                 </h1>

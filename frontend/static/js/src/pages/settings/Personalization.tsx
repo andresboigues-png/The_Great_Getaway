@@ -103,7 +103,7 @@ export function Personalization() {
                                     <div className="cat-list__empty">{t('settings.categoriesEmpty')}</div>
                                 ) : (
                                     categories.map((c) => (
-                                        <div key={c.id} className="cat-row" style={{ ['--cat-color' as any]: c.color }}>
+                                        <div key={c.id} className="cat-row" style={{ ['--cat-color' as string]: c.color }}>
                                             <span className="cat-row__stripe" aria-hidden="true"></span>
                                             <span className="cat-row__icon">{c.icon}</span>
                                             <span className="cat-row__name">{c.name}</span>

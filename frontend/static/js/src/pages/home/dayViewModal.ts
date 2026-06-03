@@ -18,6 +18,7 @@ import { esc, q, formatDayDate } from '../../utils.js';
 import { openPdfPreview, looksLikePdfUrl } from './lightbox.js';
 import { t } from '../../i18n.js';
 import { iconSvg } from '../../icons.js';
+import type { TripDay, TripPhoto, TripDocument } from '../../types';
 
 
 /** Open the read-only day view. Pulls photos and documents
@@ -27,7 +28,7 @@ import { iconSvg } from '../../icons.js';
  *  old archived data continues to surface even if its trip
  *  never got the trip.photos/documents backfill on the server
  *  side. */
-export const openDayView = (day: any): void => {
+export const openDayView = (day: TripDay): void => {
     if (!day) return;
     // The trip the day belongs to:
     //   - Active trip: STATE.trips
@@ -39,11 +40,11 @@ export const openDayView = (day: any): void => {
         || (STATE.archivedTrips || []).find(t => t.id === day.tripId);
     const photoSrcs: string[] = [
         ...(Array.isArray(day.photos) ? day.photos : []),
-        ...((trip?.photos || []).filter((p: any) => p.dayId === day.id).map((p: any) => p.src)),
+        ...((trip?.photos || []).filter((p: TripPhoto) => p.dayId === day.id).map((p: TripPhoto) => p.src)),
     ];
     const docs: { name: string; url: string }[] = [
         ...(Array.isArray(day.tickets) ? day.tickets : []),
-        ...((trip?.documents || []).filter((d: any) => d.dayId === day.id).map((d: any) => ({ name: d.name, url: d.url }))),
+        ...((trip?.documents || []).filter((d: TripDocument) => d.dayId === day.id).map((d: TripDocument) => ({ name: d.name, url: d.url }))),
     ];
     const renderParagraph = (text: string | null | undefined) => {
         if (!text || !text.trim()) {

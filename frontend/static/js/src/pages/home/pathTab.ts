@@ -29,6 +29,7 @@ import { t, tn } from '../../i18n.js';
 // on the Trip Hub buttons. stripLeadingEmoji drops the emoji from the
 // (locale) label at render so we don't have to edit every locale file.
 import { iconSvg, stripLeadingEmoji } from '../../icons.js';
+import type { Trip, TripDay, TripDocument, TripPhoto } from '../../types';
 
 // Icon + de-emoji'd label wrapped in an inline-flex span so the glyph
 // and text stay centred with a consistent gap regardless of the button's
@@ -106,10 +107,10 @@ export interface PathTabContext {
     /** The currently active trip. Already validated non-null at the
      *  call site in renderHome (the path tab only shows when a trip
      *  is selected). */
-    activeTrip: any;
+    activeTrip: Trip;
     /** Days that belong to the active trip, in any order — the
      *  builder sorts them by `dayNumber` internally. */
-    tripDays: any[];
+    tripDays: TripDay[];
     /** True if the current user has planner-or-owner rights on the
      *  trip. Drives whether the option-stack action buttons render
      *  + whether the `+ add day` chip appears. */
@@ -127,9 +128,9 @@ export interface PathTabContext {
  *  any). Anchor gets the trip-wide doc/photo count chips it always
  *  had. */
 function buildDayCardBody(
-    day: any,
+    day: TripDay,
     flags: { isAnchor: boolean; isSelected: boolean },
-    activeTrip: any,
+    activeTrip: Trip,
 ): string {
     const { isAnchor, isSelected } = flags;
     const badge = isAnchor
@@ -149,8 +150,8 @@ function buildDayCardBody(
     if (isAnchor) {
         subtitleParts.push(activeTrip && activeTrip.country ? esc(shortPlaceName(activeTrip.country)) : esc(t('pathTab.hubSubtitleFallback')));
         // Trip-wide doc/photo counts on Anchor (its long-standing role).
-        const docs = (activeTrip.documents || []).filter((d: any) => d.dayId === day.id);
-        const photos = (activeTrip.photos || []).filter((p: any) => p.dayId === day.id);
+        const docs = (activeTrip.documents || []).filter((d: TripDocument) => d.dayId === day.id);
+        const photos = (activeTrip.photos || []).filter((p: TripPhoto) => p.dayId === day.id);
         const totalDocs = docs.length + (day.tickets || []).length;
         const totalPhotos = photos.length + (day.photos || []).length;
         if (totalPhotos) subtitleParts.push(`<span style="display:inline-flex; align-items:center; gap:4px; background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">${iconSvg('photo', { size: 13 })}${totalPhotos}</span>`);
@@ -228,7 +229,7 @@ function buildDayCardBody(
  *  storage; the entry point to set/clear it will move into the
  *  pin-edit options in a future pass. */
 function buildOptionsStack(
-    day: any,
+    day: TripDay,
     flags: { isAnchor: boolean },
     tripIsEditable: boolean,
     editingDayId: string | null,

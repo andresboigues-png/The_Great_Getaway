@@ -149,7 +149,7 @@ export function setSelectedDay(tripId: string, dayId: string): void {
     // map hasn't initialised yet, this just no-ops — selection
     // still updates and persists, the next visit to /home will
     // reflect it.
-    const map = (window as any).activeMap;
+    const map = window.activeMap as google.maps.Map;
     if (!map) return;
     const day = (STATE.tripDays || []).find(d => d.id === dayId);
     if (!day) return;

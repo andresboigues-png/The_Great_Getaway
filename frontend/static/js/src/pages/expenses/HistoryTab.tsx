@@ -326,7 +326,7 @@ export function HistoryTab() {
                                             className="icon-action-btn"
                                             aria-label="View receipt"
                                             title="View receipt"
-                                            style={{ ['--accent' as any]: '138,86,190' }}
+                                            style={{ ['--accent' as string]: '138,86,190' }}
                                             onClick={() =>
                                                 window.open(e.receiptUrl!, '_blank', 'noopener,noreferrer')
                                             }
@@ -372,7 +372,7 @@ export function HistoryTab() {
                                                 type="button"
                                                 className="icon-action-btn"
                                                 aria-label="Edit expense"
-                                                style={{ ['--accent' as any]: '0,113,227' }}
+                                                style={{ ['--accent' as string]: '0,113,227' }}
                                                 onClick={() => openEditExpenseModal(e.id)}
                                             >
                                                 <svg
@@ -394,7 +394,7 @@ export function HistoryTab() {
                                                 type="button"
                                                 className="icon-action-btn"
                                                 aria-label="Delete expense"
-                                                style={{ ['--accent' as any]: '255,59,48' }}
+                                                style={{ ['--accent' as string]: '255,59,48' }}
                                                 onClick={() => deleteExpense(e.id)}
                                             >
                                                 <svg

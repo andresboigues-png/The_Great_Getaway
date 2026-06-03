@@ -12,6 +12,7 @@
 import { STATE } from '../../state.js';
 import { shortPlaceName } from '../../utils.js';
 import { t } from '../../i18n.js';
+import type { Trip } from '../../types';
 
 /** Empty-state HTML for users with no active trip selected.
  *  Hosts the cover-card slideshow image + quote pair (the slideshow
@@ -54,7 +55,7 @@ export function buildEmptyStateHtml(displayImages: string[], displayQuotes: stri
  *  same four templates, same Math.random pick, same fallback when
  *  the random index ever returns undefined (defensive for the typed
  *  array path). */
-export function pickGreeting(activeTrip: any, isFresh: boolean): string {
+export function pickGreeting(activeTrip: Trip | null | undefined, isFresh: boolean): string {
     if (!isFresh || !activeTrip || !activeTrip.country) {
         return t('home.greetingDefault');
     }

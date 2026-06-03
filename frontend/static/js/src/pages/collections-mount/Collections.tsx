@@ -28,7 +28,7 @@ import { STATE, emit } from '../../state.js';
 import { wireRoleButtonKeys } from '../../components/Keyboard.js';
 import { t, tn } from '../../i18n.js';
 import { iconSvg } from '../../icons.js';
-import { toggleTripPrivacy, restoreTrip, deleteArchivedTrip } from '../collections/handlers.js';
+import { toggleTripPrivacy, restoreTrip, deleteArchivedTrip, type TripPrivacyLevel } from '../collections/handlers.js';
 import { viewArchivedDetails } from '../collections.js';
 import { CONTINENT_SILHOUETTES, CONTINENT_VIEWBOX } from '../../utils/continentSilhouettes.js';
 import {
@@ -192,8 +192,8 @@ export function Collections() {
                 <h1
                     className="gradient-text"
                     style={{
-                        ['--g-from' as any]: '#007aff',
-                        ['--g-to' as any]: '#5856d6',
+                        ['--g-from' as string]: '#007aff',
+                        ['--g-to' as string]: '#5856d6',
                     }}
                 >
                     {t('collections.title')}
@@ -586,7 +586,7 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                         className="icon-action-btn delete-archived-btn"
                         data-trip-id={trip.id}
                         onClick={() => deleteArchivedTrip(trip.id)}
-                        style={{ ['--accent' as any]: '255,59,48' }}
+                        style={{ ['--accent' as string]: '255,59,48' }}
                         title={t('collections.deletePermanentlyTooltip')}
                         aria-label={t('collections.deletePermanentlyAriaLabel')}
                     >
@@ -634,7 +634,7 @@ function PrivacySelect({ trip }: { trip: Trip }) {
                 data-trip-id={trip.id}
                 aria-label={t('archivedDetail.visibilityAria')}
                 defaultValue={initial}
-                onChange={(e) => toggleTripPrivacy(trip.id, e.target.value as any)}
+                onChange={(e) => toggleTripPrivacy(trip.id, e.target.value as TripPrivacyLevel)}
                 style={{
                     background: 'transparent',
                     border: 0,
