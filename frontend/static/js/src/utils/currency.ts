@@ -31,12 +31,14 @@ export function detectHomeCurrency() {
  * a valid 3-letter code present in CONVERSION_RATES.
  */
 export function getHomeCurrency(): string {
+    // PV-S9: accept any currency we can actually convert (EUR + live FX overlay +
+    // static table) via hasRate — not just the 17 static codes. Pre-fix a user
+    // whose home was SEK/NOK/DKK/THB/TRY/… (all in the live ECB feed) was silently
+    // coerced to EUR, so every Insights figure showed in the wrong currency.
     const set = STATE.user && STATE.user.homeCurrency;
-    if (set && CONVERSION_RATES[set] !== undefined) return set;
+    if (set && hasRate(set)) return set;
     const detected = detectHomeCurrency();
-    return detected !== undefined && CONVERSION_RATES[detected] !== undefined
-        ? detected
-        : 'EUR';
+    return detected !== undefined && hasRate(detected) ? detected : 'EUR';
 }
 
 /**

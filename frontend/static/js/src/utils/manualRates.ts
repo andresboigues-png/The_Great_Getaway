@@ -75,6 +75,31 @@ export function setManualRate(
     emit(EVENTS.STATE_CHANGED);
 }
 
+/** Drop every stored exchange RATE (keeping each year's inflation %, which is
+ *  home-currency-independent). Called when the user changes their home currency:
+ *  the stored `fx` values are "1 unit = N OLD-home units" and would be silently
+ *  misread against the new home (PV-6). Returns true if anything was cleared. */
+export function clearAllManualFx(): boolean {
+    if (!STATE.manualRates) return false;
+    const all: Record<string, Record<string, ManualYearRate>> = {};
+    let changed = false;
+    for (const cur of Object.keys(STATE.manualRates)) {
+        const byYear = STATE.manualRates[cur]!;
+        const cleanYears: Record<string, ManualYearRate> = {};
+        for (const yr of Object.keys(byYear)) {
+            const r = byYear[yr]!;
+            if (r.fx !== undefined) changed = true;
+            if (Number.isFinite(r.inflationPct)) cleanYears[yr] = { inflationPct: r.inflationPct as number };
+        }
+        if (Object.keys(cleanYears).length > 0) all[cur] = cleanYears;
+    }
+    if (changed) {
+        STATE.manualRates = all;
+        emit(EVENTS.STATE_CHANGED);
+    }
+    return changed;
+}
+
 /** Drop every year for one currency (the "reset to automatic" action). */
 export function clearManualRatesForCurrency(currency: string): void {
     const code = (currency || '').toUpperCase();

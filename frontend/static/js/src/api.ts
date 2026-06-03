@@ -1838,37 +1838,46 @@ export async function fetchCpiSeries(currency: string): Promise<void> {
     const cur = (currency || '').toUpperCase();
     const country = CURRENCY_TO_CPI_COUNTRY[cur];
     if (!country) return;
-    if (STATE.cpiCache[cur] && Object.keys(STATE.cpiCache[cur]).length > 0) return;
+    // PV-S1: dedupe on PRESENCE, not non-emptiness — once we've fetched a
+    // currency we record the result even if EMPTY, so World-Bank-missing
+    // currencies (Taiwan, Argentina) don't re-fetch (and re-stall) on every
+    // Insights mount. `cur in cpiCache` ⇒ already attempted.
+    if (cur in STATE.cpiCache) return;
+    const series: Record<number, number> = {};
     try {
         const thisYear = new Date().getFullYear();
         const url = `https://api.worldbank.org/v2/country/${country}/indicator/FP.CPI.TOTL?format=json&date=1970:${thisYear}&per_page=200`;
-        const sig = currentNavSignal();
-        const resp = await fetch(url, sig ? { signal: sig } : {});
-        if (!resp.ok) {
+        // PV-S1: hard 6s timeout so one slow World-Bank endpoint can't hang ~10s
+        // and block the gate. (Own controller, not the nav signal — CPI fetches
+        // are idempotent + cached, so finishing after a nav is harmless.)
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 6000);
+        let resp: Response;
+        try {
+            resp = await fetch(url, { signal: ctrl.signal });
+        } finally {
+            clearTimeout(timer);
+        }
+        if (resp.ok) {
+            const data = await resp.json();
+            // World Bank shape: [meta, [{ date: "2024", value: 143.8, ... }, ...]]
+            const rows = (Array.isArray(data) && Array.isArray(data[1])) ? data[1] : [];
+            for (const r of rows) {
+                const y = Number(r?.date);
+                const v = r?.value;
+                if (Number.isFinite(y) && typeof v === 'number' && v > 0) series[y] = v;
+            }
+        } else {
             console.warn('World Bank CPI fetch returned', resp.status);
-            return;
-        }
-        const data = await resp.json();
-        // World Bank shape: [meta, [{ date: "2024", value: 143.8, ... }, ...]]
-        const rows = (Array.isArray(data) && Array.isArray(data[1])) ? data[1] : [];
-        const series: Record<number, number> = {};
-        for (const r of rows) {
-            const y = Number(r?.date);
-            const v = r?.value;
-            if (Number.isFinite(y) && typeof v === 'number' && v > 0) series[y] = v;
-        }
-        if (Object.keys(series).length > 0) {
-            // Replace the reference (don't mutate in place): the Insights
-            // useMemo deps on cpiCache BY REFERENCE, so a mutation wouldn't
-            // trigger a recompute when this async series lands — "Worth
-            // today" would keep showing un-inflated values until the user
-            // toggled. A new object makes the next render recompute.
-            STATE.cpiCache = { ...STATE.cpiCache, [cur]: series };
-            emit(EVENTS.STATE_CHANGED);
         }
     } catch (e: any) {
-        if (e?.name === 'AbortError') return;
-        console.error('Failed to fetch CPI series:', e);
+        if (e?.name !== 'AbortError') console.error('Failed to fetch CPI series:', e);
+        // fall through and negative-cache (empty) so we don't re-stall every mount
     }
+    // Always record the attempt (even empty → makeInflationFactor returns 1, an
+    // honest "no inflation data"). Replace the reference so the Insights useMemo,
+    // which deps on cpiCache by reference, recomputes when this lands.
+    STATE.cpiCache = { ...STATE.cpiCache, [cur]: series };
+    emit(EVENTS.STATE_CHANGED);
 }
 

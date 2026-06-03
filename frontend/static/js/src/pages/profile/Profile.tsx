@@ -34,6 +34,8 @@ import { apiFetch, uploadMedia } from '../../api.js';
 import { showLiquidAlert, getHomeCurrency } from '../../utils.js';
 import { CONVERSION_RATES, CURRENCY_SYMBOLS, COUNTRIES } from '../../constants.js';
 import { navigate } from '../../router.js';
+import { clearAllManualFx } from '../../utils/manualRates.js';
+import { clearAllFxOverrides } from '../../utils/fxOverrides.js';
 import { t, tn } from '../../i18n.js';
 import {
     logout,
@@ -894,13 +896,24 @@ function BioBlock({
                 }),
             });
             if (res.ok) {
+                const oldHomeCurrency = STATE.user.homeCurrency || null;
                 STATE.user.bio = newBio;
                 STATE.user.status = newStatus;
                 STATE.user.homeCurrency = newHomeCurrency;
                 STATE.user.homeCountry = newHomeCountry;
+                // PV-6: manual exchange rates + per-trip overrides are stored
+                // against the OLD home currency (foreign→home). On a home change
+                // they'd be silently misread, so reset them (manual inflation %,
+                // being home-independent, is kept). Tell the user if any existed.
+                let ratesReset = false;
+                if (newHomeCurrency !== oldHomeCurrency) {
+                    const a = clearAllManualFx();
+                    const b = clearAllFxOverrides();
+                    ratesReset = a || b;
+                }
                 emit('state:changed');
                 setDirty(false);
-                showLiquidAlert(t('profile.updated'));
+                showLiquidAlert(ratesReset ? t('profile.updatedRatesReset') : t('profile.updated'));
             } else {
                 showLiquidAlert(
                     res.status === 401

@@ -51,6 +51,18 @@ export function setTripFxOverride(
     emit(EVENTS.STATE_CHANGED);
 }
 
+/** Drop EVERY trip's overrides. Called when the home currency changes — each
+ *  override's `fxToHome` is denominated against the OLD home currency and would
+ *  be silently misread otherwise (PV-6). Returns true if anything was cleared. */
+export function clearAllFxOverrides(): boolean {
+    if (STATE.fxOverridesByTrip && Object.keys(STATE.fxOverridesByTrip).length > 0) {
+        STATE.fxOverridesByTrip = {};
+        emit(EVENTS.STATE_CHANGED);
+        return true;
+    }
+    return false;
+}
+
 /** Drop ALL overrides for a trip (the "reset to automatic" action). */
 export function clearTripFxOverrides(tripId: string): void {
     if (!tripId || !STATE.fxOverridesByTrip || !STATE.fxOverridesByTrip[tripId]) return;

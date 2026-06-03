@@ -486,6 +486,7 @@ export const en = {
         photoSessionExpired: 'Sign in expired — refresh the page.',
         // Profile-update toasts (general bio/status/currency saves).
         updated: 'Profile updated!',
+        updatedRatesReset: 'Profile updated — your custom exchange rates were reset for the new home currency.',
         saveFailed: "Couldn't save your profile (HTTP {status}). Try again.",
         saveNetwork: "Network error — couldn't save your profile.",
     },
@@ -694,7 +695,7 @@ export const en = {
         rateInfoNote: 'Inflation figures are published once a year and lag a year or two — so a trip from the last couple of years usually shows little or no change yet.',
         valueTodayInfoTitle: 'Value today',
         valueTodayInfoIntro: '<strong>{spent}</strong> is what you actually paid at the time. <strong>{today}</strong> converts each expense at <strong>today’s exchange rate</strong> and grows it by that currency’s own inflation since then — an estimate of <strong>what that spending is worth now</strong>.',
-        valueTodayInfoInflation: 'Each currency uses its own region’s inflation (up to about {pct}% here), based on the years you travelled.',
+        valueTodayInfoInflation: 'Each currency uses its own region’s inflation (around {pct}% averaged across your spend), based on the years you travelled.',
         valueTodayInfoSources: 'Inflation comes from World Bank consumer-price (CPI) data and exchange rates from the European Central Bank — these are estimates, so take them with a grain of salt.',
         // D-2: currencies/years without CPI data simply aren't inflation-adjusted.
         valueTodayInfoOldRates: 'Inflation data lags ~1–2 years, so the most recent years are estimated from the latest trend; currencies/years with no data aren’t adjusted. Treat “value today” as a good estimate, not a quote.',
@@ -719,6 +720,7 @@ export const en = {
         currencyTimelineTitle: 'Currency mix over time',
         currencyTimelineSub: 'How your spend split across currencies as the trip went on.',
         otherCategories: 'Other',
+        otherCurrencies: 'Other',
         budgetVsActualTitle: 'Budget vs. spent',
         budgetVsActualSub: 'How your spending tracks against your trip budgets.',
         // D-4 over-budget callout · D-3 nominal-basis footnote

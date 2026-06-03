@@ -97,20 +97,25 @@ function timelineDateLabel(isoKey: string, includeYear: boolean): string {
     }
 }
 
+/** Backstop ceiling on any single inflation factor. Beyond ~100× a "factor" is
+ *  almost certainly a CPI rebasing discontinuity or a currency REDENOMINATION
+ *  (e.g. Turkey dropped 6 zeros in 2005 → CPI ratios across that line read in
+ *  the thousands), not real inflation. Clamping bounds the damage (PV-S6). */
+const MAX_INFLATION_FACTOR = 100;
+
 /** Build a CPI inflation-factor lookup from a year→index series (World
  *  Bank FP.CPI.TOTL). `factor(date)` = CPI(today) / CPI(expense's year).
  *
- *  PV-2 (present-value audit): World Bank CPI lags ~1–2 years, so the latest
- *  published year is often 2 years behind "today". Pre-fix the numerator was
- *  frozen at that latest year, so a 2024/2025/2026 expense showed +0% inflation
- *  — "worth today" wasn't actually today. We now PROJECT the index forward from
- *  the latest published year to `currentYear` using the latest observed annual
- *  inflation rate (capped at 4 years to avoid runaway extrapolation). The
- *  expense-year denominator uses real data when available, the same projection
- *  beyond the latest year. Undated / future / pre-1900 → factor 1. Returns 1
- *  when there's no usable series. Pure + per-series, so the same helper drives
- *  both the main calc and the override-panel auto figures, each indexed by the
- *  EXPENSE's own currency. */
+ *  PV-2: World Bank CPI lags ~1–2 years, so we PROJECT the index forward from
+ *  the latest published year to `currentYear` so a 2024/2025/2026 expense isn't
+ *  stuck at +0%. PV-S5: the projection rate is the GEOMETRIC MEAN of the last
+ *  ~3 published years, not the single latest year-over-year — one spiky print
+ *  (hyper-inflation) otherwise compounds into the forecast. Projection is capped
+ *  at 4 years; the expense-year denominator uses real data when available.
+ *  Undated / future / pre-1900 → factor 1; no usable series → 1. PV-S6: the
+ *  result is clamped to MAX_INFLATION_FACTOR (redenomination/rebasing guard).
+ *  Pure + per-series — drives both the main calc and the override-panel autos,
+ *  each indexed by the EXPENSE's own currency. */
 function makeInflationFactor(
     cpi: Record<number, number> | undefined,
     currentYear: number,
@@ -122,9 +127,14 @@ function makeInflationFactor(
     const earliestYear = ys[0]!;
     const latestVal = cpi[latestYear] || 0;
     if (!latestVal) return () => 1;
-    const prevVal = cpi[latestYear - 1];
-    // Latest year-over-year inflation, used to project past the published data.
-    const annualRate = prevVal && prevVal > 0 ? latestVal / prevVal : 1;
+    // PV-S5: geometric-mean annual inflation over the last ≤3 published years
+    // (smooths a single hyper-inflation spike before it's extrapolated forward).
+    const projFrom = Math.max(earliestYear, latestYear - 3);
+    const projFromVal = cpi[projFrom];
+    const span = latestYear - projFrom;
+    const annualRate = projFromVal && projFromVal > 0 && span > 0
+        ? Math.pow(latestVal / projFromVal, 1 / span)
+        : 1;
     const PROJ_CAP = 4;
     // CPI for any year: real data ≤ latest (walking down for gaps), projected
     // (capped) beyond it.
@@ -145,7 +155,9 @@ function makeInflationFactor(
         // Undated / garbage / future → no inflation (can't age it to today).
         if (!Number.isFinite(y) || y < 1900 || y > currentYear) y = currentYear;
         const base = valForYear(y);
-        return base ? todayVal / base : 1;
+        const f = base ? todayVal / base : 1;
+        // PV-S6: clamp out redenomination / rebasing artifacts.
+        return Math.min(MAX_INFLATION_FACTOR, Math.max(0, f));
     };
 }
 
@@ -256,7 +268,15 @@ export function Insights() {
             ...tripExps.map((e: Expense) => (e.currency || 'EUR').toUpperCase()),
         ]));
         setCpiChecked(false);
-        Promise.all(curs.map((c) => fetchCpiSeries(c))).finally(() => setCpiChecked(true));
+        // PV-S1: release the hero gate when the fetches settle OR after ~4s,
+        // whichever comes first — one slow/empty World-Bank endpoint (Taiwan
+        // ~10s) must not freeze "Worth today". Late CPIs still refine the figure
+        // as they land (cpiCache is a useStore dep).
+        let released = false;
+        const release = () => { if (!released) { released = true; setCpiChecked(true); } };
+        Promise.allSettled(curs.map((c) => fetchCpiSeries(c))).then(release);
+        const timer = setTimeout(release, 4000);
+        return () => clearTimeout(timer);
     }, [tripExps]);
 
     // Insights always reports in the viewer's HOME currency now (the
@@ -363,35 +383,37 @@ export function Insights() {
                 const euroVal = e.euroValue ?? convertCurrency(e.value, e.currency, 'EUR');
                 spentHome = targetCurr === 'EUR' ? euroVal : convertCurrency(euroVal, 'EUR', targetCurr);
             }
-            // "Worth today" = what this expense would cost TODAY, in home money:
-            // the foreign amount at TODAY'S FX, grown by that currency's OWN
-            // inflation since the expense's year — so it rises when prices/FX
-            // rose and FALLS when the currency got cheaper (the "did the trip get
-            // pricier or cheaper?" signal the user wants). A per-trip override
-            // replaces it; a no-rate currency falls back to the frozen euroValue
-            // (PV-1) instead of convertCurrency's 1:1 garbage. Computed for EVERY
-            // expense (not just in `today` mode) so the comparison works either way.
+            // "Worth today" = what this expense would cost TODAY, in home money.
+            // Computed for EVERY expense (not just `today` mode) so the "pricier
+            // or cheaper than you paid" comparison works either way.
+            //   • per-trip override → the user's numbers.
+            //   • currency WITH live/static FX → Model A: TODAY'S FX × that
+            //     currency's OWN inflation (rises with prices/FX, falls when the
+            //     currency got cheaper — the signal the user wants).
+            //   • currency with NO FX (ARS/EGP/VND…) → Model B: the at-the-time
+            //     home cost (euroValue) grown by HOME inflation. PV-S2/S3: foreign
+            //     CPI × a frozen euroValue with no FX to offset over-stated by up
+            //     to ~92×, and some (ARS) have no CPI at all — home-CPI is bounded
+            //     and consistent with the (also-euroValue-based) "Spent" leg.
             let todayValue: number;
             const ov = tripOverrides[curUp];
             // IA-1: only trust an override whose numbers are actually finite — a
             // corrupt localStorage entry would otherwise poison the total with NaN.
             const ovValid = ov && Number.isFinite(ov.fxToHome) && Number.isFinite(ov.inflationPct);
+            const manualNowFx = ovValid ? null : manualFxFor(curUp, _curYear);
             if (ovValid) {
                 todayValue = e.value * ov.fxToHome * Math.max(0, 1 + ov.inflationPct / 100);
+            } else if (manualNowFx != null) {
+                // Manual current-year FX pinned (also the escape hatch that lets a
+                // no-FX currency use Model A with its own inflation).
+                todayValue = e.value * manualNowFx * inflationFactorFor(curUp, e.date);
+            } else if (curUp === targetCurr || hasRate(curUp)) {
+                todayValue = convertCurrency(e.value, e.currency, targetCurr) * inflationFactorFor(curUp, e.date);
             } else {
-                const manualNowFx = manualFxFor(curUp, _curYear);
-                let currentHome: number;
-                if (manualNowFx != null) {
-                    currentHome = e.value * manualNowFx;
-                } else if (curUp === targetCurr || hasRate(curUp)) {
-                    currentHome = convertCurrency(e.value, e.currency, targetCurr);
-                } else {
-                    // PV-1: no live/static rate (VND/EGP/ARS…) → use the frozen
-                    // euroValue (a real, C1-gated conversion), NOT the 1:1 fallback.
-                    const euroVal = e.euroValue ?? convertCurrency(e.value, e.currency, 'EUR');
-                    currentHome = targetCurr === 'EUR' ? euroVal : convertCurrency(euroVal, 'EUR', targetCurr);
-                }
-                todayValue = currentHome * inflationFactorFor(curUp, e.date);
+                // No FX for this currency → Model B (home-CPI on the frozen euroValue).
+                const euroVal = e.euroValue ?? convertCurrency(e.value, e.currency, 'EUR');
+                const homeVal = targetCurr === 'EUR' ? euroVal : convertCurrency(euroVal, 'EUR', targetCurr);
+                todayValue = homeVal * inflationFactorFor(targetCurr, e.date);
             }
             const displayValue = mode === 'today' ? todayValue : spentHome;
             return { ...e, displayValue, spentValue: spentHome, todayValue };
@@ -659,8 +681,14 @@ export function Insights() {
     const currencyGrandTotal = spendCurrencies.reduce(
         (s, c) => s + (currencyHomeTotals[c] ?? 0), 0,
     );
-    const CURRENCY_PALETTE = ['#0071e3', '#34c759', '#ff9500', '#af52de', '#ff2d55', '#5ac8fa', '#ffcc00', '#8e8e93'];
-    const currencyColor = (i: number) => CURRENCY_PALETTE[i % CURRENCY_PALETTE.length] ?? '#8e8e93';
+    // PV-UX1/UX2: widened to 12 distinct hues (was 8) and the gray is reserved
+    // for the aggregated "Other" bucket only, so chart colours don't collide
+    // until well past the top-N cap below.
+    const CURRENCY_PALETTE = ['#0071e3', '#34c759', '#ff9500', '#af52de', '#ff2d55', '#5ac8fa', '#ffcc00', '#ff6482', '#30b0c7', '#a2845e', '#bf5af2', '#ff9f0a'];
+    const CURRENCY_OTHER_COLOR = '#8e8e93';
+    const currencyColor = (i: number) => CURRENCY_PALETTE[i % CURRENCY_PALETTE.length] ?? CURRENCY_OTHER_COLOR;
+    // Full per-currency list (sorted by home-equiv spend desc) — powers the
+    // breakdown LIST, which stays readable at any currency count.
     const currencyRows = spendCurrencies.map((c, i) => ({
         code: c,
         color: currencyColor(i),
@@ -668,6 +696,23 @@ export function Insights() {
         homeAmount: currencyHomeTotals[c] ?? 0,
         pct: currencyGrandTotal > 0 ? ((currencyHomeTotals[c] ?? 0) / currencyGrandTotal) * 100 : 0,
     }));
+    // PV-UX1/UX2: the per-currency DONUT + stacked chart cap at the top N
+    // currencies + a single aggregated "Other" — a 16-slice donut / 16-series
+    // stack is unreadable (and the palette would wrap). `members` lists the codes
+    // each chart row aggregates (one for a normal row, the long tail for "Other").
+    const CURRENCY_CHART_TOP_N = 8;
+    const currencyChartRows: { code: string; color: string; homeAmount: number; members: string[] }[] =
+        currencyRows.length <= CURRENCY_CHART_TOP_N + 1
+            ? currencyRows.map((r) => ({ code: r.code, color: r.color, homeAmount: r.homeAmount, members: [r.code] }))
+            : [
+                ...currencyRows.slice(0, CURRENCY_CHART_TOP_N).map((r) => ({ code: r.code, color: r.color, homeAmount: r.homeAmount, members: [r.code] })),
+                {
+                    code: t('insights.otherCurrencies'),
+                    color: CURRENCY_OTHER_COLOR,
+                    homeAmount: currencyRows.slice(CURRENCY_CHART_TOP_N).reduce((s, r) => s + r.homeAmount, 0),
+                    members: currencyRows.slice(CURRENCY_CHART_TOP_N).map((r) => r.code),
+                },
+            ];
 
     // IA-4 (MK3 audit): is the hero total still settling? It depends on
     // async data that arrives AFTER first paint — historical FX (rateCache)
@@ -813,10 +858,12 @@ export function Insights() {
         const chart = new Chart(currencyPieRef.current, {
             type: 'doughnut',
             data: {
-                labels: currencyRows.map((r) => r.code),
+                // PV-UX1: top-N currencies + an aggregated "Other" slice (the full
+                // list still shows in the breakdown beside this chart).
+                labels: currencyChartRows.map((r) => r.code),
                 datasets: [{
-                    data: currencyRows.map((r) => r.homeAmount),
-                    backgroundColor: currencyRows.map((r) => r.color),
+                    data: currencyChartRows.map((r) => r.homeAmount),
+                    backgroundColor: currencyChartRows.map((r) => r.color),
                     borderWidth: 0,
                 }],
             },
@@ -834,7 +881,7 @@ export function Insights() {
             },
         });
         return () => chart.destroy();
-    }, [showCurrencyBreakdown, targetCurr, targetSym, currencyRows.map((r) => `${r.code}:${r.homeAmount.toFixed(2)}`).join('|')]);
+    }, [showCurrencyBreakdown, targetCurr, targetSym, currencyChartRows.map((r) => `${r.code}:${r.homeAmount.toFixed(2)}`).join('|')]);
 
     // Currency-over-time stacked bars — home-equivalent spend per
     // original currency per day, so the currency mix shift across the
@@ -868,19 +915,19 @@ export function Insights() {
         };
         const buckets = Array.from(new Set(realDates.map(bucketKey))).sort();
         const labels = buckets.map(bucketLabel);
-        const datasets = currencyRows.map((r) => {
-            const byDate = currencyDateTotals[r.code] || {};
-            return {
-                label: r.code,
-                data: buckets.map((bk) =>
-                    Object.keys(byDate)
-                        .filter((d) => Number.isFinite(Date.parse(`${d}T00:00:00Z`)) && bucketKey(d) === bk)
-                        .reduce((s, d) => s + (byDate[d] || 0), 0),
-                ),
-                backgroundColor: r.color,
-                borderWidth: 0,
-            };
-        });
+        // PV-UX2: top-N currencies + an aggregated "Other" series (members), so
+        // the stack stays legible past ~8 currencies.
+        const datasets = currencyChartRows.map((r) => ({
+            label: r.code,
+            data: buckets.map((bk) => r.members.reduce((sum, code) => {
+                const byDate = currencyDateTotals[code] || {};
+                return sum + Object.keys(byDate)
+                    .filter((d) => Number.isFinite(Date.parse(`${d}T00:00:00Z`)) && bucketKey(d) === bk)
+                    .reduce((s, d) => s + (byDate[d] || 0), 0);
+            }, 0)),
+            backgroundColor: r.color,
+            borderWidth: 0,
+        }));
         const chart = new Chart(currencyTimeRef.current, {
             type: 'bar',
             data: { labels, datasets },
@@ -932,22 +979,27 @@ export function Insights() {
             byCur[cur].count += 1;
         }
         const overrides = getTripFxOverrides(activeTripId);
+        const nowYear = new Date().getFullYear();
         return Object.keys(byCur).sort().map((cur) => {
             const yrs = byCur[cur]!.years;
-            const avgYear = yrs.length ? Math.round(yrs.reduce((a, b) => a + b, 0) / yrs.length) : new Date().getFullYear();
+            const avgYear = yrs.length ? Math.round(yrs.reduce((a, b) => a + b, 0) / yrs.length) : nowYear;
             // Per-currency CPI (each currency's own region), matching the main
             // calc — so the override prefill IS the auto "worth today" figure.
-            const factor = makeInflationFactor(cpiCache[cur], new Date().getFullYear());
-            return {
-                code: cur,
-                autoInflationPct: Math.round((factor(`${avgYear}-06-15`) - 1) * 1000) / 10,
-                // IA-3: 6 significant figures, not 4 decimals. A fixed 4dp can't
-                // represent tiny-unit currencies (JPY/KRW/IDR/VND/HUF ≈ 0.005…) —
-                // it rounded 1 JPY = 0.00537374 → 0.0054 (+0.79%), so saving the
-                // panel UNCHANGED silently shifted the "Value today" total.
-                autoFx: Number(convertCurrency(1, cur, targetCurr).toPrecision(6)),
-                ov: overrides[cur],
-            };
+            const factor = makeInflationFactor(cpiCache[cur], nowYear);
+            // PV-7: start from the user's GLOBAL manual rate (Settings → per-year)
+            // when present, so opening + saving the per-trip override panel doesn't
+            // silently discard the globals. Falls back to the auto figure.
+            const gYear = manualRates[cur] && manualRates[cur]![String(avgYear)];
+            const gNow = manualRates[cur] && manualRates[cur]![String(nowYear)];
+            const autoInflationPct = gYear && Number.isFinite(gYear.inflationPct)
+                ? gYear.inflationPct as number
+                : Math.round((factor(`${avgYear}-06-15`) - 1) * 1000) / 10;
+            // IA-3: 6 significant figures, not 4 decimals. A fixed 4dp can't
+            // represent tiny-unit currencies (JPY/KRW/IDR/VND/HUF ≈ 0.005…).
+            const autoFx = gNow && Number.isFinite(gNow.fx) && (gNow.fx as number) > 0
+                ? gNow.fx as number
+                : Number(convertCurrency(1, cur, targetCurr).toPrecision(6));
+            return { code: cur, autoInflationPct, autoFx, ov: overrides[cur] };
         });
     };
 
@@ -1006,7 +1058,12 @@ export function Insights() {
     const openRateModeInfo = () => {
         if (mode === 'today') {
             const autos = computeCurrencyAutos();
-            const repInflation = autos.length ? Math.max(...autos.map((a) => a.autoInflationPct), 0) : 0;
+            // D-6: a SPEND-WEIGHTED average across the trip's currencies, not the
+            // single worst (Math.max over-stated the headline figure).
+            const _wTot = autos.reduce((s, a) => s + (currencyHomeTotals[a.code] ?? 0), 0);
+            const repInflation = _wTot > 0
+                ? Math.round(autos.reduce((s, a) => s + a.autoInflationPct * ((currencyHomeTotals[a.code] ?? 0) / _wTot), 0))
+                : (autos.length ? Math.round(autos.reduce((s, a) => s + a.autoInflationPct, 0) / autos.length) : 0);
             const { root, close } = showModal({
                 variant: 'glass',
                 cardStyle: 'width: 480px; max-width: calc(100vw - 32px); padding: 26px; border-radius: 24px; background: var(--glass-bg);',
@@ -1148,6 +1205,10 @@ export function Insights() {
                         ) : (
                             <>
                                 <h1 className="hero-stat-card__value">
+                                    {/* PV-UX3: "≈" flags Worth-today as an estimate
+                                        (projected inflation + FX); Spent is the
+                                        at-the-time figure, shown exact. */}
+                                    {mode === 'today' ? '≈ ' : ''}
                                     {targetSym}
                                     {formatNumberForCurrency(totalDisplay, targetCurr)}
                                 </h1>
