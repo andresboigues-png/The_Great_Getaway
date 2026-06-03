@@ -14,7 +14,7 @@ import {
     getTripCompanionNames,
     findTripCompanionByLinkedUser,
 } from '../../companions.js';
-import type { Settlement } from '../../types';
+import type { Settlement, Trip } from '../../types';
 
 
 /** Apply a server-side `Settlement` row to a per-person balance map.
@@ -51,7 +51,7 @@ import type { Settlement } from '../../types';
 export function applySettlementToBalances(
     balances: Record<string, number>,
     settlement: Settlement,
-    trip: any,
+    trip: Trip | null,
 ): void {
     // 2026-05-26 (audit S1 + S6): prefer the snapshotted display
     // names on the settlement row. Pre-snapshot, this helper depended
@@ -101,7 +101,7 @@ export function applySettlementToBalances(
  *  the per-currency path so the BUG-4 reconciliation can't diverge. */
 function resolveSettlementParties(
     settlement: Settlement,
-    trip: any,
+    trip: Trip | null,
     balances: Record<string, number>,
 ): { fromName: string; toName: string } | null {
     const firstNameKey = (full: string | undefined): string | undefined => {
@@ -154,7 +154,7 @@ interface BalanceEntry {
  *  companions so the balance math accounts for them. The renderer
  *  can label entries not in the live companion list with "(removed)"
  *  by comparing against `tripCompanionNames` returned alongside. */
-export function computeTripBalances(trip: any) {
+export function computeTripBalances(trip: Trip | null | undefined) {
     if (!trip) return { balances: {}, roster: [], expenses: [], removedFromRoster: [] };
     const tripExps = (STATE.expenses || []).filter((e) => e.tripId === trip.id);
     const tripCompanionNames = getTripCompanionNames(trip);
@@ -230,7 +230,7 @@ export function computeTripBalances(trip: any) {
  *  no conversion. Mirrors the EUR loop exactly (incl. legacy isSettlement
  *  expense rows + the split-normalisation) so the two can't diverge.
  *  Global + Insights keep the EUR computeTripBalances. */
-export function computeTripBalancesByCurrency(trip: any): {
+export function computeTripBalancesByCurrency(trip: Trip | null | undefined): {
     byCurrency: Record<string, Record<string, number>>;
     roster: string[];
 } {
@@ -412,7 +412,7 @@ export function computeGlobalBalances(): Record<string, number> {
             // from {trip1 → trip1 view, trip2 → trip2 view, …} agrees
             // with the global aggregate.
             const denom = Object.values(exp.splits).reduce(
-                (a: number, b: any) => a + (Number(b) || 0),
+                (a: number, b: number) => a + (Number(b) || 0),
                 0,
             );
             if (denom > 0) {
@@ -448,7 +448,7 @@ export function computeGlobalBalances(): Record<string, number> {
     // STATE.settlements AND each archived trip's local snapshot so
     // global balance reflects ALL settlement history, not just
     // active-trip rows.
-    const tripsById = new Map<string, any>();
+    const tripsById = new Map<string, Trip>();
     for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
         tripsById.set(t.id, t);
     }
@@ -504,7 +504,7 @@ export function computeGlobalBalances(): Record<string, number> {
 /** Per-companion paid/share leaderboard for a trip — used by the
  *  Trip-tab summary row. "paid" is the sum of expenses they fronted;
  *  "share" is the sum of their split obligations across the trip. */
-export function computeLeaderboard(trip: any) {
+export function computeLeaderboard(trip: Trip | null | undefined) {
     if (!trip) return [];
     const exps = (STATE.expenses || []).filter((e) => e.tripId === trip.id);
     const roster = getTripCompanionNames(trip);
