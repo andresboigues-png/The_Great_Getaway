@@ -41,9 +41,50 @@ interface VerifiedSlotItem {
     fact?: string;
 }
 
+/** An AI plan entry as it arrives from the server: either a legacy
+ *  bullet string or an enriched object. All object fields are optional
+ *  (the LLM / enrichment may omit any), so it's a Partial — every
+ *  renderer below narrows the shape before reading. */
+export type AiPlanItem = string | Partial<VerifiedSlotItem>;
+
+/** A time-slot in an AI day plan (morning / afternoon / evening …). */
+export interface AiSlot {
+    activity?: string;
+    description?: string;
+    items?: AiPlanItem[];
+}
+
+/** A single AI day plan. Two shapes flow through here:
+ *   - food/sights split (post-split): `breakfast` / `lunch` / `dinner`
+ *     (one restaurant each) + `sights` (an array). These meal/sights
+ *     fields are read opaquely (`unknown`) — consumers narrow per field.
+ *   - legacy time-of-day slots: `morning` / `afternoon` / `evening`
+ *     (each an `AiSlot`).
+ *  The remaining fields are day metadata the renderer + map markers
+ *  read (`day` number, `title`, `date`, `mainLocation`, geocoded
+ *  `lat`/`lon`). All optional — the LLM / cached plans may omit any. */
+export interface AiDayPlan {
+    breakfast?: unknown;
+    lunch?: unknown;
+    dinner?: unknown;
+    sights?: unknown;
+    morning?: AiSlot;
+    afternoon?: AiSlot;
+    evening?: AiSlot;
+    /** Day number badge (1-based). */
+    day?: number;
+    title?: string;
+    date?: string;
+    /** Primary place name used to geocode the day's map marker. */
+    mainLocation?: string;
+    /** Geocoded coordinates, written back onto the day after lookup. */
+    lat?: number;
+    lon?: number;
+}
+
 /** Render a single time-slot body. Three shapes are supported (see
  *  module header). Falls back to empty when none exist. */
-export function renderSlotBody(slot: any): string {
+export function renderSlotBody(slot: AiSlot | null | undefined): string {
     if (!slot) return '';
     const items = Array.isArray(slot.items) ? slot.items.filter(Boolean) : [];
     if (items.length > 0) {
@@ -51,7 +92,7 @@ export function renderSlotBody(slot: any): string {
         // and legacy strings render as plain bullets. The single <ul>
         // wrapper keeps the layout consistent — list-style is removed
         // in CSS so the cards don't show bullet markers next to them.
-        return `<ul class="ai-plan-block__list">${items.map((i: any) => renderSlotItem(i)).join('')}</ul>`;
+        return `<ul class="ai-plan-block__list">${items.map((i) => renderSlotItem(i)).join('')}</ul>`;
     }
     if (slot.description) {
         // Defensive: if a legacy description happens to use newlines
@@ -71,7 +112,7 @@ export function renderSlotBody(slot: any): string {
 
 /** Render one item — verified card / unverified chip / legacy bullet.
  *  Defensive against any shape Gemini → enrichment can produce. */
-function renderSlotItem(item: any): string {
+function renderSlotItem(item: AiPlanItem): string {
     // Legacy: items shipped as plain strings (pre-Phase-G itineraries
     // OR new generations when GOOGLE_MAPS_API_KEY is unset on the
     // server). Render as a vanilla bullet so old plans don't break.
@@ -187,7 +228,7 @@ function formatRatingCount(n: number): string {
  *  into a textarea string per day; with verified items now being
  *  objects, we need the `text` field instead of the whole struct's
  *  `[object Object]` string coercion. */
-function itemToText(item: any): string {
+function itemToText(item: AiPlanItem): string {
     if (typeof item === 'string') return item;
     if (item && typeof item === 'object' && typeof item.text === 'string') return item.text;
     return String(item ?? '');
@@ -196,12 +237,12 @@ function itemToText(item: any): string {
 /** Flatten a slot for the day-plan textarea (Accept Plan flow).
  *  Preserves the activity headline + bullet items so the user sees
  *  the same structure on the home day card. */
-export function flattenSlotForTextarea(slot: any): string {
+export function flattenSlotForTextarea(slot: AiSlot | null | undefined): string {
     if (!slot) return '';
     const items = Array.isArray(slot.items) ? slot.items.filter(Boolean) : [];
     if (items.length > 0) {
         const head = slot.activity ? `${slot.activity}:` : '';
-        return [head, ...items.map((i: any) => `- ${itemToText(i)}`)].filter(Boolean).join('\n');
+        return [head, ...items.map((i) => `- ${itemToText(i)}`)].filter(Boolean).join('\n');
     }
     // Legacy fallback — same shape the old code wrote.
     if (slot.activity && slot.description) return `${slot.activity}: ${slot.description}`;
@@ -224,7 +265,7 @@ export function flattenSlotForTextarea(slot: any): string {
  *  `place` is the enriched object from the backend. Reuses the
  *  verified-card markup from `renderSlotItem` so the visual style
  *  matches the legacy items list. */
-export function renderRestaurantCard(place: any): string {
+export function renderRestaurantCard(place: AiPlanItem | null | undefined): string {
     if (!place) return '';
     // Reuse the items-list rendering with a single-item array so the
     // verified-card vs unverified-chip logic stays in one place. The
@@ -235,7 +276,7 @@ export function renderRestaurantCard(place: any): string {
 
 /** Render the day's sightseeing list. Same item shape as restaurants,
  *  just rendered as a multi-item list. */
-export function renderSightsList(sights: any[]): string {
+export function renderSightsList(sights: AiPlanItem[]): string {
     if (!Array.isArray(sights) || sights.length === 0) return '';
     return `<ul class="ai-plan-block__list">${sights.map((s) => renderSlotItem(s)).join('')}</ul>`;
 }
@@ -246,7 +287,7 @@ export function renderSightsList(sights: any[]): string {
  *  consistent — one-liner headline + bullet item with the place
  *  name. The why/fact lines are appended below so the user keeps
  *  the LLM's reasoning visible after Accept. */
-export function flattenMealForTextarea(place: any, mealLabel: string): string {
+export function flattenMealForTextarea(place: AiPlanItem | null | undefined, mealLabel: string): string {
     if (!place) return '';
     const text = itemToText(place);
     if (!text) return '';
@@ -262,7 +303,7 @@ export function flattenMealForTextarea(place: any, mealLabel: string): string {
  *  the TripDay.tip field (re-purposed as the day's sightseeing
  *  summary post-split). One bullet per sight, with the why-line so
  *  the user keeps context on what each sight is for. */
-export function flattenSightsForTip(sights: any[]): string {
+export function flattenSightsForTip(sights: AiPlanItem[]): string {
     if (!Array.isArray(sights) || sights.length === 0) return '';
     const lines: string[] = ['Sightseeing:'];
     for (const s of sights) {
@@ -280,12 +321,15 @@ export function flattenSightsForTip(sights: any[]): string {
 /** True iff the day uses the new food/sights schema (post-split).
  *  Lets the renderer + Accept flow fork on shape without duplicating
  *  the field-name guards in every consumer. */
-export function isFoodSightsSchema(day: any): boolean {
+export function isFoodSightsSchema(day: AiDayPlan | null | undefined): boolean {
     if (!day || typeof day !== 'object') return false;
-    return (
+    // Boolean() coerces the truthy-chain (the meal fields are `unknown`)
+    // to a strict boolean return — behaviour identical to the prior
+    // `any`-typed `&&`/`||` expression.
+    return Boolean(
         (day.breakfast && typeof day.breakfast === 'object')
         || (day.lunch && typeof day.lunch === 'object')
         || (day.dinner && typeof day.dinner === 'object')
-        || Array.isArray(day.sights)
+        || Array.isArray(day.sights),
     );
 }

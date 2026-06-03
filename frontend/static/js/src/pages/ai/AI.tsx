@@ -55,6 +55,7 @@ import {
     setMarkedPlaceAssignment,
     addOrUpdatePlaceFromVerified,
     dropAITaggedPlaces,
+    type VerifiedAIItem,
 } from '../../markedPlaces.js';
 import {
     renderSlotBody,
@@ -64,10 +65,13 @@ import {
     flattenMealForTextarea,
     flattenSightsForTip,
     isFoodSightsSchema,
+    type AiSlot,
+    type AiPlanItem,
+    type AiDayPlan,
 } from './slots.js';
 import { t, tn } from '../../i18n.js';
 import { stripEmoji, iconSvg } from '../../icons.js';
-import type { Trip } from '../../types';
+import type { Trip, TripDay, MarkedPlace } from '../../types';
 // Shared category helpers — same source-of-truth as Todo.tsx so the
 // AI plan's marked-place list groups + filters by the canonical
 // category order. See `todoCategories.ts`.
@@ -94,9 +98,11 @@ import './ai.css';
  *  function` straight into the page-mount ErrorBoundary — a full-page crash
  *  that lost the (paid) plan. Coerce to a day-array or null so a variant /
  *  garbage response can never crash the page. */
-function toItineraryDays(x: any): any[] | null {
-    if (Array.isArray(x)) return x;
-    if (x && typeof x === 'object' && Array.isArray((x as any).days)) return (x as any).days;
+function toItineraryDays(x: unknown): AiDayPlan[] | null {
+    if (Array.isArray(x)) return x as AiDayPlan[];
+    if (x && typeof x === 'object' && Array.isArray((x as { days?: unknown }).days)) {
+        return (x as { days: AiDayPlan[] }).days;
+    }
     return null;
 }
 
@@ -144,7 +150,7 @@ function EmptyTripView() {
                         latLngBounds: { north: 85, south: -85, west: -180, east: 180 },
                         strictBounds: true,
                     },
-                    styles: [] as any,
+                    styles: [] as google.maps.MapTypeStyle[],
                 });
                 applyMapTheme(emptyMap, []);
             })
@@ -250,7 +256,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
 
     // Itinerary state — null until generated. Initialised from
     // activeTrip.aiPlan so re-mounts paint the last accepted plan.
-    const [itinerary, setItinerary] = useState<any[] | null>(toItineraryDays(activeTrip.aiPlan));
+    const [itinerary, setItinerary] = useState<AiDayPlan[] | null>(toItineraryDays(activeTrip.aiPlan));
     const [generationError, setGenerationError] = useState<{
         msg: string;
         hint: string;
@@ -285,8 +291,8 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
 
     // Google Map + markers — managed in a useEffect with refs.
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
-    const googleMapRef = useRef<any>(null);
-    const mapMarkersRef = useRef<any[]>([]);
+    const googleMapRef = useRef<google.maps.Map | null>(null);
+    const mapMarkersRef = useRef<google.maps.Marker[]>([]);
     const dayRowsRef = useRef<HTMLDivElement[]>([]);
 
     // ── Initial map setup ────────────────────────────────────────
@@ -310,7 +316,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         latLngBounds: { north: 85, south: -85, west: -180, east: 180 },
                         strictBounds: true,
                     },
-                    styles: [] as any,
+                    styles: [] as google.maps.MapTypeStyle[],
                 });
                 applyMapTheme(map, []);
                 googleMapRef.current = map;
@@ -362,7 +368,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
         const bounds = new google.maps.LatLngBounds();
         const geocoder = new google.maps.Geocoder();
 
-        itinerary.forEach((day: any, i: number) => {
+        itinerary.forEach((day: AiDayPlan, i: number) => {
             const handle = window.setTimeout(() => {
                 if (cancelled) return;
                 let loc = day.mainLocation || day.title || tripCountry;
@@ -376,12 +382,15 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                 }
                 geocoder.geocode(
                     { address: loc + ', ' + tripCountry },
-                    (results: any, status: string) => {
+                    (
+                        results: google.maps.GeocoderResult[] | null,
+                        status: google.maps.GeocoderStatus,
+                    ) => {
                         // Bail if the effect re-ran (trip switch or
                         // itinerary regen) — don't mutate the day or
                         // create a stranded marker.
                         if (cancelled) return;
-                        if (status === 'OK' && results[0]) {
+                        if (status === 'OK' && results && results[0]) {
                             const pos = results[0].geometry.location;
                             day.lat = pos.lat();
                             day.lon = pos.lng();
@@ -629,9 +638,12 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
             // becomes null → friendly retry instead of a page crash.
             const generated = toItineraryDays(d.itinerary);
             if (generated != null) {
-                // `aiPlan` is declared `string` in types but in practice holds
-                // the day-array — cast to keep the normaliser's array typing.
-                activeTrip.aiPlan = generated as any;
+                // `aiPlan` is declared `string` in types.d.ts but in practice
+                // holds the normalised day-array (the renderer + toItineraryDays
+                // both read it back as AiDayPlan[]). Cast through `unknown`
+                // since AiDayPlan[] isn't assignable to the declared `string`;
+                // type-only, no runtime change.
+                activeTrip.aiPlan = generated as unknown as string;
             } else {
                 delete activeTrip.aiPlan;
                 // Truthy-but-unreadable model output: surface an error rather
@@ -702,8 +714,11 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
         // Drop AI-tagged places from previous run.
         dropAITaggedPlaces(activeTrip);
 
-        itinerary.forEach((dayInfo: any, idx: number) => {
-            const dayDate = dayInfo.date || new Date().toISOString().split('T')[0];
+        itinerary.forEach((dayInfo: AiDayPlan, idx: number) => {
+            // `toISOString()` is RFC-guaranteed to contain a 'T', so the
+            // split always yields index 0 — the `!` is sound and type-only
+            // (satisfies noUncheckedIndexedAccess without a runtime branch).
+            const dayDate: string = dayInfo.date || new Date().toISOString().split('T')[0]!;
             const dayId = 'day_' + Date.now() + '_' + idx;
             // Schema fork: the new food/sights split stores each meal
             // (one restaurant) as the morning/afternoon/evening plan
@@ -713,24 +728,31 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
             // existing flatten-slot path so cached aiPlan blobs still
             // accept cleanly.
             const usesFoodSights = isFoodSightsSchema(dayInfo);
+            // The meal/sights fields are `unknown` on AiDayPlan (LLM JSON);
+            // the slot helpers below narrow defensively, so the casts to
+            // their declared param types are safe (type-only).
             const planMorning = usesFoodSights
-                ? flattenMealForTextarea(dayInfo.breakfast, '🥐 Breakfast')
+                ? flattenMealForTextarea(dayInfo.breakfast as AiPlanItem, '🥐 Breakfast')
                 : flattenSlotForTextarea(dayInfo.morning);
             const planAfternoon = usesFoodSights
-                ? flattenMealForTextarea(dayInfo.lunch, '🥗 Lunch')
+                ? flattenMealForTextarea(dayInfo.lunch as AiPlanItem, '🥗 Lunch')
                 : flattenSlotForTextarea(dayInfo.afternoon);
             const planEvening = usesFoodSights
-                ? flattenMealForTextarea(dayInfo.dinner, '🍷 Dinner')
+                ? flattenMealForTextarea(dayInfo.dinner as AiPlanItem, '🍷 Dinner')
                 : flattenSlotForTextarea(dayInfo.evening);
-            const tip = usesFoodSights ? flattenSightsForTip(dayInfo.sights) : '';
-            const newDay: any = {
+            const tip = usesFoodSights ? flattenSightsForTip(dayInfo.sights as AiPlanItem[]) : '';
+            const newDay: TripDay = {
                 id: dayId,
                 tripId: activeTrip.id,
                 date: dayDate,
                 name: dayInfo.title || `Day ${idx + 1}`,
                 dayNumber: idx + 1,
-                lat: dayInfo.lat,
-                lng: dayInfo.lon,
+                // `?? null`: AiDayPlan.lat/lon are `number | undefined`, but
+                // TripDay.lat/lng are `number | null` (exactOptionalPropertyTypes
+                // forbids an explicit `undefined`). Coalescing to null preserves
+                // the "no coords yet" meaning — the geocoder fills real values.
+                lat: dayInfo.lat ?? null,
+                lng: dayInfo.lon ?? null,
                 photos: [],
                 tickets: [],
                 notes: '',
@@ -751,17 +773,24 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                 // time-of-day; sights get a neutral tag (no specific
                 // time-of-day) so the to-do list shows them as
                 // open-slot items the user can later assign.
-                const meals: Array<['morning' | 'afternoon' | 'evening', any]> = [
+                const meals: Array<['morning' | 'afternoon' | 'evening', unknown]> = [
                     ['morning', dayInfo.breakfast],
                     ['afternoon', dayInfo.lunch],
                     ['evening', dayInfo.dinner],
                 ];
-                for (const [timeOfDay, place] of meals) {
+                for (const [timeOfDay, raw] of meals) {
+                    // The meal field is `unknown` (LLM JSON); narrow to the
+                    // verified-item shape before the guard reads its fields.
+                    // `name` isn't on VerifiedAIItem but some LLM payloads
+                    // use it, so widen with `{ name?: string }` — type-only.
+                    const place = raw as (VerifiedAIItem & { name?: string }) | null;
                     if (place && typeof place === 'object' && (place.text || place.name)) {
                         addOrUpdatePlaceFromVerified(activeTrip, place, dayId, timeOfDay);
                     }
                 }
-                const sights = Array.isArray(dayInfo.sights) ? dayInfo.sights : [];
+                const sights: VerifiedAIItem[] = Array.isArray(dayInfo.sights)
+                    ? (dayInfo.sights as VerifiedAIItem[])
+                    : [];
                 for (const sight of sights) {
                     // Sights don't have a fixed time-of-day in the
                     // new schema — they're a separate cluster. Pass
@@ -771,15 +800,18 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                 }
             } else {
                 // Legacy schema — items[] under each time-of-day.
-                const slots: Array<['morning' | 'afternoon' | 'evening', any]> = [
+                const slots: Array<['morning' | 'afternoon' | 'evening', AiSlot | undefined]> = [
                     ['morning', dayInfo.morning],
                     ['afternoon', dayInfo.afternoon],
                     ['evening', dayInfo.evening],
                 ];
                 for (const [timeOfDay, slot] of slots) {
-                    const items = Array.isArray(slot?.items) ? slot.items : [];
+                    const items: AiPlanItem[] = Array.isArray(slot?.items) ? slot.items : [];
                     for (const item of items) {
-                        addOrUpdatePlaceFromVerified(activeTrip, item, dayId, timeOfDay);
+                        // `item` is `string | Partial<VerifiedSlotItem>`; the
+                        // callee guards on `verified`/`placeId` and bails on a
+                        // legacy string, so the cast is safe (type-only).
+                        addOrUpdatePlaceFromVerified(activeTrip, item as VerifiedAIItem, dayId, timeOfDay);
                     }
                 }
             }
@@ -1068,7 +1100,7 @@ function deriveInitialDates(activeTrip: Trip): { from: string; to: string } {
 
 
 // ── zoomToLocation: prefer saved view, then viewport, then geocode ──
-function zoomToLocation(map: any, location: string, activeTrip: Trip) {
+function zoomToLocation(map: google.maps.Map, location: string, activeTrip: Trip) {
     if (!map) return;
     const aiTripMapKey = activeTrip.id + '_ai';
     if (STATE.mapViews && STATE.mapViews[aiTripMapKey]) {
@@ -1093,11 +1125,17 @@ function zoomToLocation(map: any, location: string, activeTrip: Trip) {
         query = query.split(' - ')[1] + ', USA';
     }
     const geocoder = new google.maps.Geocoder();
-    geocoder.geocode({ address: query }, (results: any, status: string) => {
-        if (status === 'OK' && results[0]) {
-            map.fitBounds(results[0].geometry.viewport);
-        }
-    });
+    geocoder.geocode(
+        { address: query },
+        (
+            results: google.maps.GeocoderResult[] | null,
+            status: google.maps.GeocoderStatus,
+        ) => {
+            if (status === 'OK' && results && results[0]) {
+                map.fitBounds(results[0].geometry.viewport);
+            }
+        },
+    );
 }
 
 
@@ -1377,7 +1415,7 @@ function GenerationErrorCard({
 
 // ── Itinerary output: day cards + accept button ────────────────
 interface ItineraryOutputProps {
-    itinerary: any[];
+    itinerary: AiDayPlan[];
     numDays: number | string;
     country: string;
     tripIsEditable: boolean;
@@ -1437,7 +1475,7 @@ function ItineraryOutput({
                 </div>
             </div>
             <div className="flex flex-col gap-4">
-                {(Array.isArray(itinerary) ? itinerary : []).map((day: any, i: number) => (
+                {(Array.isArray(itinerary) ? itinerary : []).map((day: AiDayPlan, i: number) => (
                     <div
                         key={i}
                         ref={(el) => {
@@ -1556,9 +1594,17 @@ function ItineraryOutput({
 }
 
 
-function SlotBlock({ title, accent, slot }: { title: string; accent: string; slot: any }) {
+function SlotBlock({
+    title,
+    accent,
+    slot,
+}: {
+    title: string;
+    accent: string;
+    slot: AiSlot | null | undefined;
+}) {
     return (
-        <div className="ai-plan-block" style={{ ['--accent' as any]: accent }}>
+        <div className="ai-plan-block" style={{ ['--accent' as string]: accent }}>
             <div className="ai-plan-block__tag">{title}</div>
             <div className="ai-plan-block__title">{slot?.activity || ''}</div>
             <div dangerouslySetInnerHTML={{ __html: renderSlotBody(slot) }} />
@@ -1576,13 +1622,25 @@ function SlotBlock({ title, accent, slot }: { title: string; accent: string; slo
 // (same .ai-plan-block class + accent variable) so the rest of the
 // page chrome stays untouched.
 
-function MealBlock({ title, accent, place }: { title: string; accent: string; place: any }) {
-    const hasPlace = !!(place && typeof place === 'object' && (place.text || place.name));
+function MealBlock({
+    title,
+    accent,
+    place,
+}: {
+    title: string;
+    accent: string;
+    // The meal field arrives as `unknown` from the LLM day plan; the
+    // body narrows before rendering. Widen to `{ text?, name? }` for the
+    // has-content guard — type-only.
+    place: unknown;
+}) {
+    const p = place as { text?: string; name?: string } | null | undefined;
+    const hasPlace = !!(p && typeof p === 'object' && (p.text || p.name));
     return (
-        <div className="ai-plan-block" style={{ ['--accent' as any]: accent }}>
+        <div className="ai-plan-block" style={{ ['--accent' as string]: accent }}>
             <div className="ai-plan-block__tag">{title}</div>
             {hasPlace ? (
-                <div dangerouslySetInnerHTML={{ __html: renderRestaurantCard(place) }} />
+                <div dangerouslySetInnerHTML={{ __html: renderRestaurantCard(place as AiPlanItem) }} />
             ) : (
                 <div
                     className="text-secondary text-[0.82rem] py-1.5 px-0.5"
@@ -1597,10 +1655,12 @@ function MealBlock({ title, accent, place }: { title: string; accent: string; pl
     );
 }
 
-function SightsBlock({ sights }: { sights: any }) {
-    const list = Array.isArray(sights) ? sights.filter(Boolean) : [];
+function SightsBlock({ sights }: { sights: unknown }) {
+    const list: AiPlanItem[] = Array.isArray(sights)
+        ? (sights.filter(Boolean) as AiPlanItem[])
+        : [];
     return (
-        <div className="ai-plan-block" style={{ ['--accent' as any]: '52,199,89' }}>
+        <div className="ai-plan-block" style={{ ['--accent' as string]: '52,199,89' }}>
             <div className="ai-plan-block__tag">{t('ai.slotSightseeing')}</div>
             {list.length > 0 ? (
                 <div dangerouslySetInnerHTML={{ __html: renderSightsList(list) }} />
@@ -1901,20 +1961,25 @@ function MarkedCard({
     datesSet,
     activeTrip,
 }: {
-    place: any;
-    tripDays: any[];
+    place: MarkedPlace;
+    tripDays: TripDay[];
     datesSet: boolean;
     activeTrip: Trip;
 }) {
+    // Cards are only built for marked places that carry a placeId
+    // (the list key is `place.placeId`), so the non-null assertions
+    // below are sound — type-only.
     const onDayChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const dayId = e.target.value || null;
-        setMarkedPlaceAssignment(activeTrip, place.placeId, dayId, place.timeOfDay || null);
+        setMarkedPlaceAssignment(activeTrip, place.placeId!, dayId, place.timeOfDay || null);
         emit('state:changed');
         upsertTrip(activeTrip);
     };
     const onTimeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const timeOfDay = (e.target.value as any) || null;
-        setMarkedPlaceAssignment(activeTrip, place.placeId, place.dayId || null, timeOfDay);
+        // The <select> options are exactly '' / morning / afternoon /
+        // evening, so this cast is safe; `|| null` maps '' → null.
+        const timeOfDay = (e.target.value as 'morning' | 'afternoon' | 'evening' | '') || null;
+        setMarkedPlaceAssignment(activeTrip, place.placeId!, place.dayId || null, timeOfDay);
         emit('state:changed');
         upsertTrip(activeTrip);
     };

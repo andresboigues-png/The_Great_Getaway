@@ -54,7 +54,7 @@ interface SentryLike {
     addBreadcrumb?: (b: unknown) => void;
 }
 const _sentry = (): SentryLike | null => {
-    const s: any = (typeof window !== 'undefined' ? (window as any).Sentry : null);
+    const s = typeof window !== 'undefined' ? (window as { Sentry?: SentryLike }).Sentry : null;
     return s && (typeof s.captureMessage === 'function' || typeof s.addBreadcrumb === 'function')
         ? s
         : null;
@@ -129,6 +129,15 @@ function _checkOptionalArray(
  *  consumer level (e.g. normalizeTripCompanions for trip rows). This
  *  validator only guarantees the top-level keys are arrays of the
  *  right kind, not an HTML error page disguised as JSON. */
+/* eslint-disable @typescript-eslint/no-explicit-any --
+   Intentional: this is a SHALLOW boundary type. validateServerData only
+   guarantees these keys are arrays — the inner row shapes are NOT checked
+   here (by design; see the file header + the doc comment above). They're
+   enforced downstream (e.g. normalizeTripCompanions for trip rows), and
+   the media-merge path in api.ts manipulates trip rows generically via
+   `Record<string, unknown>` casts. `any[]` documents "array of
+   unvalidated rows"; tightening these would misrepresent the contract
+   and risk the trip-media merge. */
 export interface ServerDataPayload {
     trips?: any[];
     expenses?: any[];
@@ -141,6 +150,7 @@ export interface ServerDataPayload {
     tripDays?: any[];
     [k: string]: unknown;
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export function validateServerData(raw: unknown): ValidationResult<ServerDataPayload> {
     const issues: ValidationIssue[] = [];
