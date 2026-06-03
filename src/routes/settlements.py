@@ -39,7 +39,7 @@ from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
 from fx_rates import compute_euro_value, get_rate_eur
-from helpers import is_trip_archived_for, trip_member_role
+from helpers import is_trip_archived_for, json_body, trip_member_role
 from observability import bind_trip_context, get_logger, log_extra
 from validators import (
     ValidationError,
@@ -151,7 +151,7 @@ def create_settlement():
     moved from theoretical to "user A could spoof a settle-up
     if it becomes a real concern."""
     user_id = current_user_id()
-    body = request.json or {}
+    body = json_body()
 
     trip_id = body.get("tripId")
     from_user_id = body.get("fromUserId")
@@ -277,9 +277,19 @@ def create_settlement():
         # The residual (a SINGLE overpay below total_spend but above the true
         # pairwise debt) stays guarded on the client, where the split engine
         # lives (`_pairwiseOwed` in legacyRender.ts pops an overpay confirm).
+        # MK4 SETL-1: filter `deleted_at IS NULL` so SOFT-DELETED
+        # (tombstoned) expenses don't count toward the cap. Expense
+        # delete is a soft delete (expenses.py stamps deleted_at), so
+        # without this a since-deleted €1000 expense still inflated
+        # total_spend → the cap over-permitted a phantom overpay
+        # (and, with a prior partial settlement subtracted from a
+        # tombstone-inflated total, under-permitted a legit follow-up).
+        # Matches the sibling sum in pdf.py:2327. COALESCE(is_settlement,0)=0
+        # also guards any legacy rows where is_settlement is NULL.
         cursor.execute(
             "SELECT COALESCE(SUM(euro_value), 0) AS total FROM expenses "
-            "WHERE trip_id = ? AND is_settlement = 0",
+            "WHERE trip_id = ? AND deleted_at IS NULL "
+            "AND COALESCE(is_settlement, 0) = 0",
             (trip_id,),
         )
         total_spend = cursor.fetchone()["total"] or 0

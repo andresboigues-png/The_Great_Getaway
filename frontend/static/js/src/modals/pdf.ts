@@ -4,7 +4,7 @@ import { showLiquidAlert, q, esc } from '../utils.js';
 import { iconSvg } from '../icons.js';
 import { apiFetch } from '../api.js';
 import { showModal } from '../components/Modal.js';
-import { t } from '../i18n.js';
+import { t, getLocale } from '../i18n.js';
 import type { Trip } from '../types';
 
 /** 2026-05-18 — PDF export modal.
@@ -71,6 +71,16 @@ export const openPdfExportModal = (trip: Trip) => {
                     t('modals.pdfOptTodoBody'))}
                 ${renderPdfOption('includeBudgets', t('modals.pdfOptBudgets'),
                     t('modals.pdfOptBudgetsBody'))}
+                ${/* MK4 PDF-2/3/4: new opt-in (default OFF) sections. The
+                      modal labels are English literals because the brief
+                      forbids touching the locale files; the PDF CONTENT is
+                      localised server-side via the active locale we POST. */ ''}
+                ${renderPdfOption('includeExpenses', 'Expenses',
+                    'Itemised expense list with per-currency subtotals.', false)}
+                ${renderPdfOption('includeSettlements', 'Settle up',
+                    'Who-owes-whom balances and recorded settlements.', false)}
+                ${renderPdfOption('includePhotos', 'Photos',
+                    'Embed your trip and per-day photos.', false)}
                 ${renderPdfOption('includeCompanions', t('modals.pdfOptCompanions'),
                     t('modals.pdfOptCompanionsBody'))}
                 ${renderPdfOption('includeMarkedPlaces', t('modals.pdfOptMarkedPlaces'),
@@ -93,18 +103,20 @@ export const openPdfExportModal = (trip: Trip) => {
     // get a clean light surface for the option cards.
     const { root, close } = showModal({ innerHTML, cardStyle: 'max-width: 560px; width: min(560px, calc(100vw - 24px)); padding: 0; overflow: hidden; background: white;' });
 
-    function renderPdfOption(key: string, label: string, sub: string): string {
+    function renderPdfOption(key: string, label: string, sub: string, checked = true): string {
         // Plain light card — soft accent-blue hairline border, dark
         // text. Sits against the white modal body with enough contrast
         // to read at a glance while the gradient header carries the
-        // "this is a GG box" brand signal.
+        // "this is a GG box" brand signal. `checked` defaults to true so
+        // the existing always-on sections stay ticked; the MK4 opt-in
+        // sections (expenses / settle-up / photos) pass false.
         return `
             <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; padding:10px 12px; border-radius:12px; transition: background 0.15s, border-color 0.15s; background:rgba(0,113,227,0.04); border:1px solid rgba(0,113,227,0.10);">
-                <input type="checkbox" name="${key}" checked
+                <input type="checkbox" name="${key}" ${checked ? 'checked' : ''}
                        style="margin-top:2px; width:16px; height:16px; accent-color:var(--accent-blue); flex-shrink:0;">
                 <span style="min-width:0; flex:1;">
-                    <span style="display:block; font-weight:700; color:#002d5b; font-size:0.86rem; line-height:1.2;">${label}</span>
-                    <span style="display:block; color:#4a5568; font-size:0.74rem; line-height:1.35; margin-top:2px;">${sub}</span>
+                    <span style="display:block; font-weight:700; color:#002d5b; font-size:0.86rem; line-height:1.2;">${esc(label)}</span>
+                    <span style="display:block; color:#4a5568; font-size:0.74rem; line-height:1.35; margin-top:2px;">${esc(sub)}</span>
                 </span>
             </label>
         `;
@@ -121,8 +133,12 @@ export const openPdfExportModal = (trip: Trip) => {
             const checkboxes = root.querySelectorAll<HTMLInputElement>(
                 '#pdfExportOptions input[type="checkbox"]',
             );
-            const options: Record<string, boolean> = {};
+            const options: Record<string, boolean | string> = {};
             checkboxes.forEach((cb) => { options[cb.name] = cb.checked; });
+            // MK4 PDF-5: forward the active UI locale so the server-side
+            // PDF string table renders section titles / slot labels /
+            // money + dates in the user's language instead of English.
+            options.locale = getLocale();
 
             // Lock the button while the build runs server-side.
             // Map fetches + PDF assembly take ~1–3s on a typical

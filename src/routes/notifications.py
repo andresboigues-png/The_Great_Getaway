@@ -11,6 +11,7 @@ from flask import Blueprint, jsonify, request
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
+from helpers import json_body
 
 
 bp = Blueprint("notifications", __name__)
@@ -149,7 +150,7 @@ def notify_trip_public():
       - one fan-out per (caller, trip) per day — dedupe row in
         notifications keyed on type+related_id."""
     user_id = current_user_id()
-    trip_id = (request.json or {}).get("trip_id")
+    trip_id = json_body().get("trip_id")
     if not trip_id:
         return jsonify({"status": "error", "message": "Missing trip_id"}), 400
 

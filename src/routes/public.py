@@ -149,6 +149,21 @@ def get_public_trip(trip_id):
         if not is_visible:
             return jsonify({"error": "Not found"}), 404
 
+        # MK4 SOC-2 (P2): refuse ARCHIVED trips to non-members. The
+        # dedicated /share/<token> read path already refuses archived
+        # trips (fetch_share_payload: `if row["is_archived"]: return
+        # None`), and share_trip_to_feed refuses to publish an archived
+        # trip (409) — but this public-trip click-through kept serving
+        # the full read-only payload after the owner completed/archived,
+        # so Explore (now archive-gated) and this endpoint were the two
+        # surfaces still leaking a "done" trip. `is_archived` here is the
+        # OWNER's per-user state (COALESCE(tm.is_archived,0) in the
+        # SELECT). Owner + accepted members keep access (they're the
+        # editors / participants); everyone else gets the same 404 as a
+        # missing trip.
+        if trip.get('is_archived') and not is_member:
+            return jsonify({"error": "Not found"}), 404
+
         # Public-trip granularity (next-quarter ship). When a trip is
         # public-on-profile-map, the owner can choose between:
         #   - public_show_expenses=0: viewers see destination, dates,

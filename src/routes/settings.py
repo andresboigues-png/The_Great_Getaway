@@ -17,6 +17,7 @@ from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
+from helpers import json_body
 from validators import (
     ValidationError,
     clean_text,
@@ -184,7 +185,7 @@ def sync_categories():
     validate shape + length first; a single bad entry rejects the
     whole batch with 400, preserving the existing categories.
     """
-    data = request.json or {}
+    data = json_body()
     user_id = current_user_id()
 
     # #3 per-row delta sync: if the client sent `upserts`/`deletes` (each
@@ -273,7 +274,7 @@ def update_profile():
     .com — the OAuth fallback) OR empty string (clear). Any other value
     is rejected to prevent storing arbitrary attacker-supplied URLs in
     the users table that other clients would then hot-link from."""
-    payload = request.json or {}
+    payload = json_body()
     user_id = current_user_id()
 
     # Validate `bio` — server-side cap + control-char strip so an

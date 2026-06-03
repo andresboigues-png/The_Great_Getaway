@@ -19,6 +19,7 @@ from flask import Blueprint, jsonify, request
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
+from helpers import json_body
 from observability import get_logger
 
 
@@ -49,6 +50,7 @@ from feed_events import (
     caller_can_see_event as _caller_can_see_event,
     engagement_recipient as _post_owner_for_event,
     parse_event_id as _parse_event_id,
+    resolve_event_by_id as _resolve_event_by_id,
 )
 
 
@@ -438,6 +440,14 @@ def explore_feed():
             JOIN users u ON u.id = t.user_id
             WHERE t.is_public = 1
               AND t.share_token IS NOT NULL
+              -- MK4 SOC-2 (P2): exclude ARCHIVED trips. The owner
+              -- archiving a public+shared trip mirrors is_archived=1
+              -- onto trips (trips.py ~489) and share_trip_to_feed
+              -- already refuses to share an archived trip (409) +
+              -- the /share/<token> read refuses archived trips
+              -- (fetch_share_payload) — but Explore kept listing them,
+              -- violating "completed = done". Gate it here too.
+              AND COALESCE(t.is_archived, 0) = 0
               AND t.user_id != ?
               AND t.id NOT IN (
                   SELECT trip_id FROM trip_members
@@ -532,7 +542,7 @@ def share_trip_to_feed():
     post_id rather than creating a duplicate. Optional caption (≤280
     chars) is rendered above the trip card."""
     user_id = current_user_id()
-    data = request.json or {}
+    data = json_body()
     trip_id = data.get("trip_id")
     # R2 audit fix: distinguish "caption key absent" (don't touch
     # the stored value on re-share) from "caption key present
@@ -670,17 +680,23 @@ def share_trip_to_feed():
                 "UPDATE feed_posts SET caption = ? WHERE id = ?",
                 (caption, existing['id']),
             )
-        # R2 audit fix: also refresh trip_was_public on the IGNORE'd
-        # path. Pre-fix the snapshot was only written on first INSERT
-        # and never updated. Sequence: share (snapshot=0), manually
-        # flip trip back to private, re-share → INSERT-OR-IGNORE
-        # no-ops and snapshot stays 0, so a later unshare wrongly
-        # restores public state (or fails to restore at all, depending
-        # on the path). Now the snapshot tracks the MOST RECENT
-        # share's pre-state.
+        # MK4 SOC-1 (P2 privacy): make the snapshot STICKY toward
+        # "was private before the FIRST share". Pre-fix this UPDATE
+        # clobbered trip_was_public to the now-current value on every
+        # re-share. The common case — share a private trip (snapshot=0,
+        # trip auto-promoted to public), then edit the caption / the
+        # client re-sends → this path refreshed the snapshot to 1 (the
+        # trip is public by now). A later unshare then saw 1 and
+        # DECLINED to restore, so the trip stayed public forever.
+        # Take MIN(existing, new): once we've recorded "was private"
+        # (0) on the first share, it never flips back to 1. A legacy
+        # NULL row coalesces to the new value (first real write). This
+        # still restores correctly for the rarer flip-back-to-private-
+        # then-re-share sequence (sticky-0 → unshare restores private).
         cursor.execute(
-            "UPDATE feed_posts SET trip_was_public = ? WHERE id = ?",
-            (1 if trip_was_public else 0, existing['id']),
+            "UPDATE feed_posts SET trip_was_public = "
+            "MIN(COALESCE(trip_was_public, ?), ?) WHERE id = ?",
+            (1 if trip_was_public else 0, 1 if trip_was_public else 0, existing['id']),
         )
         conn.commit()
     return jsonify({"status": "already_shared", "post_id": existing['id']})
@@ -751,56 +767,67 @@ def unshare_feed_post(post_id):
         # at a real actor user but no underlying post for the click
         # routing to land on.
         #
-        # Collect the post + its reposts FIRST, then delete
-        # notifications for all of them, then delete the posts. Doing
-        # it in that order means if either DELETE fails partway, we
-        # still have a referencable post_id list for retry.
+        # MK4 SOC-5 (P3 DB-bloat): collect the FULL repost subtree, not
+        # just direct children. feed_posts.repost_of_post_id is a self-
+        # referential FK ON DELETE CASCADE, so deleting the original
+        # recursively removes a repost-of-a-repost CHAIN at the row
+        # level — but the explicit feed_likes/comments/bookmarks +
+        # notifications cleanup pre-fix only enumerated the FIRST level
+        # of reposts (`WHERE repost_of_post_id = post_id`). Engagement
+        # keyed on a 2nd-level repost's `repost_<id>` event survived
+        # (no FK on event_id) until the 90-day sweep. A recursive CTE
+        # walks the whole tree so every descendant's engagement +
+        # notifications get cleaned in one pass.
+        #
+        # Collect the subtree FIRST, then delete notifications +
+        # engagement, then delete the posts — so if a DELETE fails
+        # partway, we still have a referencable id list for retry.
         cursor.execute(
-            "SELECT id FROM feed_posts WHERE id = ? OR repost_of_post_id = ?",
-            (post_id, post_id),
+            """
+            WITH RECURSIVE subtree(id) AS (
+                SELECT id FROM feed_posts WHERE id = ?
+                UNION ALL
+                SELECT fp.id FROM feed_posts fp
+                JOIN subtree s ON fp.repost_of_post_id = s.id
+            )
+            SELECT id FROM subtree
+            """,
+            (post_id,),
         )
         post_ids = [r["id"] for r in cursor.fetchall()]
+        # Descendant reposts only (everything except the root post). The
+        # root's engagement is keyed share_<id> for an original or
+        # repost_<id> when the caller is unsharing their own repost;
+        # every descendant is by definition a repost (repost_<id>).
+        descendant_repost_ids = [pid for pid in post_ids if pid != post_id]
         if post_ids:
             placeholders = ",".join(["?"] * len(post_ids))
             cursor.execute(
                 f"DELETE FROM notifications WHERE post_id IN ({placeholders})",
                 post_ids,
             )
-        # Cascade: delete reposts pointing at this post first, then the
-        # post itself. Audit fix (2026-05-26): also clean
-        # feed_likes / feed_comments / feed_bookmarks rows keyed on
-        # the share_<post_id> and repost_<repost_id> event_ids that
-        # the deleted posts produced. Pre-fix these survived until
-        # the 90-day age sweep — invisible to users (events gone)
-        # but a slow DB-bloat path.
-        cursor.execute(
-            "SELECT id FROM feed_posts WHERE repost_of_post_id = ?",
-            (post_id,),
-        )
-        doomed_repost_ids = [r["id"] for r in cursor.fetchall()]
-        cursor.execute("DELETE FROM feed_posts WHERE repost_of_post_id = ?", (post_id,))
+        # Cascade-delete the post row. The self-referential FK
+        # (ON DELETE CASCADE on repost_of_post_id) removes the whole
+        # descendant tree at the row level in one statement; we
+        # enumerated the ids above precisely so the engagement cleanup
+        # below can reach event_ids the FK can't (it keys on post id,
+        # not the synthesised event_id string).
         cursor.execute("DELETE FROM feed_posts WHERE id = ?", (post_id,))
-        # R2 audit fix: pick the correct event-id prefix for the
-        # row being deleted. Pre-fix the cleanup always used
-        # `share_<post_id>` — but when the caller is deleting their
-        # own REPOST (this endpoint accepts any post they own), the
-        # repost's engagement is keyed under `repost_<post_id>`,
-        # not `share_<post_id>`. Orphans persisted until the daily
-        # cleanup sweep.
+        # Audit fix (2026-05-26 + MK4 SOC-5): clean feed_likes /
+        # feed_comments / feed_bookmarks rows keyed on every event_id
+        # the deleted posts produced. R2 audit fix: pick the correct
+        # prefix for the ROOT (share_ for an original, repost_ when the
+        # caller is unsharing their own repost). Every descendant is a
+        # repost → repost_<id>.
         self_prefix = "repost" if row["repost_of_post_id"] is not None else "share"
+        doomed_event_ids = [f"{self_prefix}_{post_id}"] + [
+            f"repost_{rid}" for rid in descendant_repost_ids
+        ]
         for table in ("feed_likes", "feed_comments", "feed_bookmarks"):
-            cursor.execute(
-                f"DELETE FROM {table} WHERE event_id = ?",
-                (f"{self_prefix}_{post_id}",),
-            )
-            # Repost rows' engagement (one per repost we just cascaded).
-            # These are always `repost_<id>` — the cascade only catches
-            # rows with repost_of_post_id = post_id, which by definition
-            # are reposts.
-            for rid in doomed_repost_ids:
+            for ev_id in doomed_event_ids:
                 cursor.execute(
                     f"DELETE FROM {table} WHERE event_id = ?",
-                    (f"repost_{rid}",),
+                    (ev_id,),
                 )
 
         # Restore is_public ONLY when we know we flipped it AND no
@@ -1031,6 +1058,60 @@ def toggle_feed_bookmark(event_id):
     return jsonify({"status": "ok", "bookmarked": not existed})
 
 
+@bp.route("/api/feed/bookmarks", methods=["GET"])
+@require_auth
+@limiter.limit("60/minute")
+def list_feed_bookmarks():
+    """MK4 SOC-4: the caller's saved items, resolved back to full feed
+    events so they render the same way the live feed does.
+
+    Pre-fix bookmarks were write-only: a saved event was reachable ONLY
+    while its underlying builder still surfaced it (within the 30-day
+    window AND while the trip stayed public/visible). Once it aged out
+    or the trip went private, the feed_bookmarks row sat in the DB with
+    no screen to find it. This endpoint re-resolves each saved event_id
+    independently of the feed window via the registry resolvers, then
+    re-runs the per-event visibility check (inside resolve_event_by_id),
+    so:
+      - aged-out-but-still-visible items reappear here, and
+      - since-gone-private / since-deleted / since-unfollowed / blocked
+        items silently drop out (the affordance stays honest).
+
+    Returns a bare array of event dicts (newest-bookmarked first), the
+    same shape as the legacy /api/feed array so the renderer + the
+    `is_bookmarked`/like/comment counts work unchanged. Stale rows
+    (resolve → None) are left in feed_bookmarks untouched: a trip
+    flipped back public should re-surface its bookmark, so we don't
+    hard-delete on a transient invisibility.
+    """
+    user_id = current_user_id()
+    events: list = []
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT event_id FROM feed_bookmarks WHERE user_id = ? "
+            "ORDER BY created_at DESC, event_id DESC",
+            (user_id,),
+        )
+        bookmarked_ids = [r["event_id"] for r in cursor.fetchall()]
+        for ev_id in bookmarked_ids:
+            try:
+                ev = _resolve_event_by_id(cursor, ev_id, user_id)
+            except Exception as e:
+                # A single malformed/legacy row must not 500 the whole
+                # list — skip + log, same backstop posture as get_feed's
+                # per-builder wrap.
+                logger.warning(
+                    "bookmark resolve failed for %s (skipping): %s",
+                    ev_id, e, exc_info=True,
+                )
+                ev = None
+            if ev:
+                events.append(ev)
+        _attach_engagement_counts(cursor, events, user_id)
+    return jsonify(events)
+
+
 @bp.route("/api/feed/comments/<event_id>", methods=["GET"])
 @require_auth
 @limiter.limit("120/minute")
@@ -1093,7 +1174,7 @@ def add_feed_comment(event_id):
     write rows on fabricated events, the INSERT also triggered a
     notification fan-out to the post owner — a spam channel."""
     user_id = current_user_id()
-    data = request.json or {}
+    data = json_body()
     body = (data.get("body") or "").strip()
     if not body:
         return jsonify({"error": "Empty comment"}), 400
@@ -1264,7 +1345,7 @@ def edit_feed_comment(comment_id):
     further — same posture as the comment-create path.
     """
     user_id = current_user_id()
-    data = request.json or {}
+    data = json_body()
     body = (data.get("body") or "").strip()
     if not body:
         return jsonify({"error": "Empty comment"}), 400

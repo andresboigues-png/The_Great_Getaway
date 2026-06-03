@@ -216,14 +216,21 @@ def upload_file():
                     "new shots upload as JPEG."
                 ),
             }), 415
-        # Re-route through the PIL branch below with `.jpg` so the
-        # bytes land as JPEG on disk. The on-disk filename keeps the
-        # `.heic` extension (callers reference it via the returned
-        # URL), but the bytes are a re-encoded JPEG — Pillow handles
-        # the format conversion automatically. Cleaner long-term:
-        # rewrite the extension too, but that breaks anyone whose
-        # client tracks the URL by extension match.
-        pass
+        # MK4 audit MED-5: rewrite the on-disk filename + returned URL
+        # extension to `.jpg`. The bytes saved below are a re-encoded
+        # JPEG (img_format='JPEG' for .heic/.heif), so a `.heic` suffix
+        # left a JPEG-bytes file named `*.heic` — and `serve_upload`'s
+        # `send_from_directory` infers Content-Type from the EXTENSION,
+        # so it served `image/heic` for JPEG bytes. Browsers that can't
+        # decode HEIC then refused to render a perfectly-good JPEG (the
+        # very compatibility the conversion was meant to provide). The
+        # URL is freshly minted here and stored in the trip JSON verbatim
+        # — there are NO pre-existing references to break — so rewriting
+        # it at mint time is safe. Strip whatever extension secure_filename
+        # produced (splitext, not a len(ext) slice, in case it differs)
+        # and re-derive out_path from the `.jpg` name.
+        filename = os.path.splitext(filename)[0] + ".jpg"
+        out_path = os.path.join(user_folder, filename)
     if ext in {'.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'}:
         try:
             from PIL import Image, ImageOps

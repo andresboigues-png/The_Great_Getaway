@@ -23,6 +23,7 @@ from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
 from extensions import limiter
+from helpers import json_body
 from observability import log_extra
 from validators import scrub_key
 
@@ -211,7 +212,15 @@ def _verify_place(query: str, destination: str, api_key: str) -> dict | None:
         # 2026-05-20: wrap in `with` to release the socket on exit —
         # prevents FD accumulation under sustained Places verification
         # traffic.
-        with requests.post(url, headers=headers, json=payload, timeout=8) as resp:
+        # SEC-4 (MK4): pin allow_redirects=False. The Maps server key rides in
+        # the X-Goog-Api-Key HEADER here, and `requests` only auto-strips
+        # `Authorization` on a cross-host redirect (not custom headers) — so a
+        # future/open cross-host 302 from places.googleapis.com would otherwise
+        # re-send the key to the redirect target. This endpoint never
+        # legitimately redirects, so refusing to follow is free hardening.
+        with requests.post(
+            url, headers=headers, json=payload, timeout=8, allow_redirects=False,
+        ) as resp:
             if not resp.ok:
                 logger.info(f"Places verification miss ({resp.status_code}) for: {text_query}")
                 return None
@@ -473,6 +482,14 @@ def proxy_place_photo(photo_name: str):
         # `with` so the socket is released on exit. 8s timeout matches
         # the verification path; photos can be a touch slower under
         # cold cache but this still bounds worker stalls.
+        # SEC-4 (MK4): we deliberately KEEP allow_redirects=True (the default)
+        # on THIS call. The Places photo `/media` endpoint legitimately issues
+        # a cross-host 302 to googleusercontent.com — we must follow it to fetch
+        # the actual image bytes. This is safe because the key is QUERY-bound
+        # (`?key=...`): `requests` builds the redirect request from the absolute
+        # Location URL, so the original query string (and thus the key) is NOT
+        # carried to the redirect target. (Unlike the header-keyed Places/Gemini
+        # calls above/below, which pin allow_redirects=False.)
         with requests.get(upstream, timeout=8, stream=True) as resp:
             if not resp.ok:
                 # Don't surface upstream status detail or echo the URL
@@ -578,7 +595,7 @@ def generate_itinerary():
       can't be abused as a generic LLM proxy with arbitrary key
       text. Invalid BYO falls through to the host pool.
     """
-    data = request.json or {}
+    data = json_body()
     destination = str(data.get("destination", "Unknown"))[:120]
     num_days_raw = data.get("numDays", 3)
     try:
@@ -804,7 +821,14 @@ def generate_itinerary():
 
                 # 2026-05-20: `with` ensures the socket is released on
                 # exit so Gemini's long generations don't pile up FDs.
-                with requests.post(url, headers=headers, json=payload, timeout=30) as resp:
+                # SEC-4 (MK4): pin allow_redirects=False — generateContent never
+                # legitimately redirects, so refusing to follow removes any
+                # theoretical key-egress-on-redirect path for the key in this
+                # request (defense-in-depth; consistent with the Places calls).
+                with requests.post(
+                    url, headers=headers, json=payload, timeout=30,
+                    allow_redirects=False,
+                ) as resp:
                     # Capture Google's error body before raising — a bare HTTPError
                     # message ("503 Server Error") hides the actual reason.
                     #

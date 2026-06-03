@@ -78,7 +78,7 @@ export const openNewTripModal = () => {
     _wireDateRangeValidation(root, 'tripStartDate', 'tripEndDate', 'tripDateHint');
 
     (q(root, '#cancelTripBtn') as HTMLButtonElement).onclick = () => close();
-    (q(root, '#newTripForm') as HTMLFormElement).onsubmit = (e) => {
+    (q(root, '#newTripForm') as HTMLFormElement).onsubmit = async (e) => {
         e.preventDefault();
         const pickedPlace = getPicked();
         if (!pickedPlace) {
@@ -180,10 +180,17 @@ export const openNewTripModal = () => {
         }
 
         emit('state:changed');               // saveState + updateTripSelector via subscriber
-        void upsertTrip(newTrip);                 // server delta still explicit
-        scaffolded.forEach(d => { void upsertDay(d); });
-
         close();
+        // FE-1 (MK4): await the trip + day writes BEFORE navigate(). The
+        // router aborts in-flight requests on navigation (apiFetch inherits
+        // the nav signal); on a slow link that cancelled the just-created
+        // trip's POST, and the next FULL pull then dropped the optimistic
+        // local trip until a reload replayed the outbox. Awaiting first lets
+        // the writes settle against the un-aborted signal.
+        try {
+            await upsertTrip(newTrip);
+            await Promise.all(scaffolded.map(d => upsertDay(d)));
+        } catch { /* the offline outbox retries a failed write */ }
         navigate('home');
     };
 };
@@ -550,17 +557,21 @@ export const openEditTripModal = (trip: Trip) => {
         }
 
         // Branch on whether we need a delete-confirm.
-        const finalizeAndClose = () => {
+        const finalizeAndClose = async () => {
             // Mirror onto trip.dateFrom / trip.dateTo so the AI planner
             // and any future date-aware surface can read trip-level
             // dates without re-deriving from tripDays.
             if (startInput.value) trip.dateFrom = startInput.value;
             if (endInput.value) trip.dateTo = endInput.value;
             emit('state:changed');
-            void upsertTrip(trip);
-            scaffolded.forEach(d => { void upsertDay(d); });
-            rebased.forEach(d => { void upsertDay(d); });
             close();
+            // FE-1 (MK4): await writes before navigate() — see the create
+            // handler; the router's nav-abort would otherwise cancel the
+            // edit mid-flight and lose it until reload.
+            try {
+                await upsertTrip(trip);
+                await Promise.all([...scaffolded, ...rebased].map(d => upsertDay(d)));
+            } catch { /* the offline outbox retries a failed write */ }
             navigate('home', null, true);
         };
 
@@ -581,11 +592,11 @@ export const openEditTripModal = (trip: Trip) => {
                     );
                     // Then fire delete-on-server for each (idempotent + outbox-replayable).
                     daysToDelete.forEach((d) => { void deleteDayOnServer(d.id); });
-                    finalizeAndClose();
+                    void finalizeAndClose();
                 },
             });
         } else {
-            finalizeAndClose();
+            void finalizeAndClose();
         }
     };
 };

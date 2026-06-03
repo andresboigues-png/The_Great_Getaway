@@ -50,69 +50,136 @@ import type { Budget } from '../../types';
  *  correct: the trip's spend is the sum of all expenses, regardless of
  *  who paid).
  */
-export function spentForBudget(budget: Budget): number {
+/** How much of ONE expense counts against ONE budget, given the budget's
+ *  trip/category/person scope. Returns 0 when the expense is out of scope.
+ *  Single source of truth shared by `spentForBudget` (per-card) and
+ *  `spentAcrossBudgets` (Overall) so the two can never disagree.
+ *
+ *  Settlements never count; the trip + category gates are exact-match
+ *  (an empty/`'all'` scope dimension matches everything). For a
+ *  person-scoped budget the budget-holder's SHARE of a split is counted
+ *  (not the gross paid), mirroring the balance/settlement normalization.
+ */
+function expenseAmountForBudget(e: typeof STATE.expenses[number], budget: Budget): number {
+    if (e.isSettlement) return 0;
+    if (budget.tripId && budget.tripId !== 'all' && e.tripId !== budget.tripId) return 0;
+    if (budget.categoryId && budget.categoryId !== 'all' && e.categoryId !== budget.categoryId)
+        return 0;
+    // Integration audit C1: `?? value ?? 0` (not `|| 0`) so this matches
+    // the balances/Insights read. Pre-fix a frozen euroValue of 0 read as
+    // €0 here but as the raw foreign `value` in balances — the SAME
+    // expense meant two different things. Now all three agree, and a
+    // legacy EUR row missing euroValue counts its `value` (not €0).
+    const euroValue = e.euroValue ?? e.value ?? 0;
     const personScope: string | null =
         budget.user && budget.user !== 'all' ? budget.user : null;
+    if (!personScope) return euroValue;
+    // Person-scoped budget: count the budget-holder's SHARE of the
+    // expense, not the gross amount paid. Splits dict keys are companion
+    // names; if the budget holder isn't in the splits dict the expense
+    // isn't theirs to count.
+    const splits = e.splits;
+    if (splits && Object.keys(splits).length > 0) {
+        const pct = splits[personScope];
+        if (pct === undefined) return 0; // budget-holder isn't on this split
+        const denom = Object.values(splits).reduce((a: number, b: number) => a + (Number(b) || 0), 0);
+        if (denom <= 0) return 0;
+        return (euroValue * pct) / denom;
+    }
+    // No splits dict: legacy expense, count if the payer matches.
+    return e.who === personScope ? euroValue : 0;
+}
+
+export function spentForBudget(budget: Budget): number {
     let spent = 0;
     for (const e of STATE.expenses || []) {
-        if (e.isSettlement) continue;
-        if (budget.tripId && budget.tripId !== 'all' && e.tripId !== budget.tripId) continue;
-        if (budget.categoryId && budget.categoryId !== 'all' && e.categoryId !== budget.categoryId)
-            continue;
-        // Integration audit C1: `?? value ?? 0` (not `|| 0`) so this matches
-        // the balances/Insights read. Pre-fix a frozen euroValue of 0 read as
-        // €0 here but as the raw foreign `value` in balances — the SAME
-        // expense meant two different things. Now all three agree, and a
-        // legacy EUR row missing euroValue counts its `value` (not €0).
-        const euroValue = e.euroValue ?? e.value ?? 0;
-        if (!personScope) {
-            spent += euroValue;
-            continue;
-        }
-        // Person-scoped budget: count the budget-holder's SHARE of the
-        // expense, not the gross amount paid. Splits dict keys are
-        // companion names; if the budget holder isn't in the splits
-        // dict the expense isn't theirs to count.
-        const splits = e.splits;
-        if (splits && Object.keys(splits).length > 0) {
-            const pct = splits[personScope];
-            if (pct === undefined) continue; // budget-holder isn't on this split
-            const denom = Object.values(splits).reduce((a: number, b: number) => a + (Number(b) || 0), 0);
-            if (denom <= 0) continue;
-            spent += (euroValue * pct) / denom;
-            continue;
-        }
-        // No splits dict: legacy expense, count if the payer matches.
-        if (e.who === personScope) {
-            spent += euroValue;
-        }
+        spent += expenseAmountForBudget(e, budget);
     }
     return spent;
 }
 
-/** BUG-6 (MK2 audit): total spend covered by a SET of budgets, counting each
- *  expense ONCE. The Overall card previously summed `spentForBudget` per
- *  budget, so any expense under overlapping scopes was double-counted — a
- *  trip-total budget + a category sub-budget both counted the same expenses
- *  (Lisbon's real €970.62 spend showed as €1,095.13). Here we take the UNION
- *  of expenses matched by any budget's trip+category scope and sum each at
- *  full euroValue. (Person-scoped budgets count a share in their own card; the
- *  at-a-glance Overall intentionally uses the full value of each covered
- *  expense once.) */
+/** BUG-6 (MK2) + BUD-5 (MK4): total spend covered by a SET of budgets,
+ *  counting each expense ONCE and at an amount consistent with the per-card
+ *  `spentForBudget`.
+ *
+ *  BUG-6 fixed double-counting across overlapping TRIP/CATEGORY scopes (a
+ *  trip-total budget + a category sub-budget no longer count the same expense
+ *  twice). BUD-5 extends the same consistency to PERSON scope: the old version
+ *  ignored `budget.user` and always summed the full euroValue, so a single
+ *  person-scoped budget read as "€100 / €80 OVER" in the Overall while its own
+ *  card correctly read "€50 / €80" (Alice's split share) — the same budget,
+ *  two different numbers on one page.
+ *
+ *  Rule: for each expense, take the LARGEST amount any single covering budget
+ *  attributes to it (via the shared `expenseAmountForBudget`), and add that
+ *  once. The "max" is the union-correct answer — if a whole-expense
+ *  (non-person) budget covers it, the full value counts (broadest wins,
+ *  matching BUG-6); if ONLY person-scoped budgets cover it, the largest single
+ *  person's share counts, so a set of person-only budgets agrees with the
+ *  cards instead of summing shares into a phantom overspend. */
 export function spentAcrossBudgets(budgets: Budget[]): number {
-    const seen = new Set<string>();
     let sum = 0;
     for (const e of STATE.expenses || []) {
         if (e.isSettlement) continue;
-        if (e.id && seen.has(e.id)) continue;
-        const covered = budgets.some((b) =>
-            (!b.tripId || b.tripId === 'all' || e.tripId === b.tripId)
-            && (!b.categoryId || b.categoryId === 'all' || e.categoryId === b.categoryId),
-        );
-        if (covered) {
-            if (e.id) seen.add(e.id);
-            sum += (e.euroValue ?? e.value ?? 0);  // C1: consistent read
+        let best = 0;
+        for (const b of budgets) {
+            const amt = expenseAmountForBudget(e, b);
+            if (amt > best) best = amt;
         }
+        sum += best;
+    }
+    return sum;
+}
+
+/** True iff budget `inner`'s scope is contained within (is a sub-scope of)
+ *  budget `outer` — i.e. for every dimension `outer` is either unscoped
+ *  ('all'/empty) or matches `inner`'s value. Used to find which budgets are
+ *  "covered" by a broader one so the Overall allocation doesn't double-count.
+ *  Reflexive (a budget contains itself); the strict (`!==`) check in
+ *  `allocatedAcrossBudgets` excludes the self/duplicate case. */
+function dimContains(outerVal: string | undefined, innerVal: string | undefined): boolean {
+    const o = outerVal && outerVal !== 'all' ? outerVal : null;
+    const i = innerVal && innerVal !== 'all' ? innerVal : null;
+    return o === null || o === i; // outer unscoped → contains anything; else exact match
+}
+function budgetContains(outer: Budget, inner: Budget): boolean {
+    return (
+        dimContains(outer.tripId, inner.tripId) &&
+        dimContains(outer.categoryId, inner.categoryId) &&
+        dimContains(outer.user, inner.user)
+    );
+}
+
+/** BUD-4 (MK4): overlap-aware allocation total for the Overall card.
+ *
+ *  The Overall previously summed every `b.amount` while spend was deduped by
+ *  `spentAcrossBudgets`, so the ratio was internally inconsistent: a trip-total
+ *  budget (€1500) + a food sub-budget (€700) over the same trip gave
+ *  `totalAllocated = €2200` against a correctly-deduped `totalSpent`, so the
+ *  card reported "€1200 remaining" when real trip headroom was €500.
+ *
+ *  Fix: count only the BROADEST budgets' allocation — a budget whose scope is
+ *  strictly contained within another visible budget (the sub-budget) is folded
+ *  into its parent and not added again. Non-overlapping budgets (different
+ *  trips, disjoint categories, different people) are all still counted. Exact
+ *  scope-duplicates (which the DB now prevents, but be defensive) collapse to a
+ *  single allocation. The result is a denominator the deduped spend can be
+ *  honestly compared against. */
+export function allocatedAcrossBudgets(budgets: Budget[]): number {
+    let sum = 0;
+    for (const [i, b] of budgets.entries()) {
+        // Drop b if some OTHER budget strictly contains its scope. For an
+        // exact-scope tie (mutual containment) keep only the first index so
+        // the pair contributes exactly one allocation.
+        const covered = budgets.some((other, j) => {
+            if (j === i) return false;
+            if (!budgetContains(other, b)) return false;
+            // Tie-break exact duplicates: if b also contains other (same
+            // scope), only the earlier index survives.
+            if (budgetContains(b, other)) return j < i;
+            return true;
+        });
+        if (!covered) sum += b.amount || 0;
     }
     return sum;
 }

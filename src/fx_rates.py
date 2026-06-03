@@ -88,7 +88,11 @@ def _refresh() -> None:
         # A slow upstream shouldn't block the request handler for
         # more than a few seconds; on timeout the cache stays warm
         # (or stays empty + every read returns None).
-        with requests.get(_FRANKFURTER_LATEST, timeout=5) as res:
+        # SEC-4 (MK4): pin allow_redirects=False — `/latest` never legitimately
+        # redirects, so refusing to follow keeps this outbound fetch from being
+        # bounced to an arbitrary host (defense-in-depth; no key here, but
+        # consistent with the hardened Google calls in routes/integrations.py).
+        with requests.get(_FRANKFURTER_LATEST, timeout=5, allow_redirects=False) as res:
             res.raise_for_status()
             data = res.json()
     except Exception as e:

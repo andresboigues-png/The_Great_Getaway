@@ -112,8 +112,19 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
     }, [isFx, selectedCur]);
 
     // The automatic value for a year, formatted for the placeholder hint.
+    // PV4-2: `convertCurrency` only knows TODAY's rate — it has no historical
+    // table — so it must NOT be shown as the "auto" baseline for a PAST year
+    // (it would mis-teach the user that blank == today's rate on a 2015 row,
+    // re-introducing the era-mix the at-trip historical FX avoids). For FX we
+    // therefore only surface the live rate on the CURRENT-year row (labelled as
+    // "current rate", not a generic "auto ≈"); past FX rows fall back to the
+    // neutral "auto" placeholder. The inflation hint is per-year-correct (it
+    // uses the CPI factor for that year), so it stays as-is.
     const autoHint = (year: string): string | null => {
         if (isFx) {
+            // Only the CURRENT-year row gets a live-rate hint; past years show
+            // the neutral "auto" placeholder rather than a wrong baseline.
+            if (Number(year) !== CURRENT_YEAR) return null;
             const r = convertCurrency(1, selectedCur, home);
             if (!Number.isFinite(r) || r <= 0) return null;
             return t('settings.ratesAutoHint', { value: String(Number(r.toPrecision(6))) + ' ' + home });
@@ -221,6 +232,11 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
         <div className="card glass settings-section card-glow-blue" id="customRates">
             <h2 className="card-title m-0 mb-1">{isFx ? t('settings.ratesTabFx') : t('settings.ratesTabInflation')}</h2>
             <p className="text-secondary text-[0.85rem] mt-1 mb-2">{isFx ? t('settings.ratesFxIntro') : t('settings.ratesInflationIntro')}</p>
+            {/* PV4-3: spell out the two-field model. In "Worth today", a manual
+                current-year FX is paired with the inflation accumulated SINCE the
+                expense's year — the two manual fields answer different questions,
+                so name each one explicitly to remove the muddiness D-2/D-3 flagged. */}
+            <p className="text-secondary text-[0.78rem] mt-0 mb-2">{isFx ? t('settings.ratesFxFieldNote') : t('settings.ratesInflationFieldNote')}</p>
             <p className="text-secondary text-[0.75rem] mt-0 mb-4 italic">{t('settings.ratesPrecedenceNote')}</p>
 
             {/* Currency picker + per-currency reset */}

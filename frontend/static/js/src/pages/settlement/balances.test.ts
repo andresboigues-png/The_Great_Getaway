@@ -24,6 +24,8 @@ import {
     computeGlobalBalances,
     applySettlementToBalances,
 } from './balances.js';
+import { settledStatsForTrip } from './viewData.js';
+import { findAcceptedMemberUserId } from '../../companions.js';
 
 // ── tiny typed factories (cast through unknown so we only specify the
 // fields the math actually reads, without satisfying every required key) ──
@@ -225,5 +227,120 @@ describe('computeGlobalBalances', () => {
         emit(EVENTS.STATE_CHANGED);
         const g = computeGlobalBalances();
         expect(cents(g)).toEqual({ Alice: 50, Bob: -50 });
+    });
+
+    it('SETL-2: two DIFFERENT linked "Alex"es across trips do NOT merge', () => {
+        // Trip A: an "Alex" linked to u-alex1 owes the owner-side €50.
+        // Trip B: a DIFFERENT "Alex" linked to u-alex2 owes €20. Pre-fix,
+        // the name-keyed global map collapsed them into one "Alex" = -70.
+        // Now each keys on its user id, so they stay two distinct rows.
+        STATE.trips = [
+            trip('tA', [{ name: 'Alex', linkedUserId: 'u-alex1' }, { name: 'Owner', linkedUserId: 'u-own' }]),
+            trip('tB', [{ name: 'Alex', linkedUserId: 'u-alex2' }, { name: 'Owner', linkedUserId: 'u-own' }]),
+        ];
+        STATE.expenses = [
+            // Owner fronts €100 split 50/50 on trip A → Alex(u-alex1) owes €50.
+            expense({ id: 'eA', tripId: 'tA', who: 'Owner', value: 100, euroValue: 100, splits: { Owner: 50, Alex: 50 } }),
+            // Owner fronts €40 split 50/50 on trip B → Alex(u-alex2) owes €20.
+            expense({ id: 'eB', tripId: 'tB', who: 'Owner', value: 40, euroValue: 40, splits: { Owner: 50, Alex: 50 } }),
+        ];
+        emit(EVENTS.STATE_CHANGED);
+        const g = computeGlobalBalances();
+        // Two separate "Alex" balances (one disambiguated), NOT a merged -70.
+        const alexValues = Object.entries(g)
+            .filter(([name]) => name.startsWith('Alex'))
+            .map(([, v]) => c(v))
+            .sort((a, b) => a - b);
+        expect(alexValues).toEqual([-50, -20]);
+        // The owner nets +70 across both trips (one linked identity, no split).
+        const ownerKey = Object.keys(g).find((k) => k.startsWith('Owner'))!;
+        expect(c(g[ownerKey]!)).toBe(70);
+        // Conservation: everything still sums to ~0.
+        expect(c(Object.values(g).reduce((a, b) => a + b, 0))).toBe(0);
+    });
+
+    it('SETL-2: ONE linked person under two spellings is netted, not split', () => {
+        // The same account (u-sara) is "Sara" on trip A and "Sara L" on
+        // trip B. Both link to u-sara, so the cross-trip view nets them into
+        // ONE balance instead of two name-split rows.
+        STATE.trips = [
+            trip('tA', [{ name: 'Sara', linkedUserId: 'u-sara' }, { name: 'Owner', linkedUserId: 'u-own' }]),
+            trip('tB', [{ name: 'Sara L', linkedUserId: 'u-sara' }, { name: 'Owner', linkedUserId: 'u-own' }]),
+        ];
+        STATE.expenses = [
+            // Sara is OWED €30 on A (she fronts, owner owes her share).
+            expense({ id: 'eA', tripId: 'tA', who: 'Sara', value: 60, euroValue: 60, splits: { Owner: 50, Sara: 50 } }),
+            // "Sara L" OWES €10 on B.
+            expense({ id: 'eB', tripId: 'tB', who: 'Owner', value: 20, euroValue: 20, splits: { Owner: 50, 'Sara L': 50 } }),
+        ];
+        emit(EVENTS.STATE_CHANGED);
+        const g = computeGlobalBalances();
+        // Exactly one Sara row, netting +30 (owed) − 10 (owes) = +20.
+        const saraKeys = Object.keys(g).filter((k) => k.startsWith('Sara'));
+        expect(saraKeys).toHaveLength(1);
+        expect(c(g[saraKeys[0]!]!)).toBe(20);
+    });
+});
+
+describe('findAcceptedMemberUserId (SETL-5 settle routing)', () => {
+    // A trip with two accepted members sharing a first name. The balance
+    // map keys on companion names; the question is which settle path the
+    // name resolves to (real /api/settlements PATH A vs legacy fake-expense
+    // PATH B).
+    const tripWithMembers = (companions: Companion[], members: Array<{ userId: string; name: string }>) =>
+        ({ companions, members } as unknown as Trip);
+
+    it('resolves an EXACT full-name key past a same-first-name namesake', () => {
+        // "Sara Lopez" and "Sara Kim" both accepted. Pre-fix, a key of
+        // "Sara Lopez" matched BOTH by first-name token → undefined →
+        // legacy fake-expense path. Now the exact full-name match wins.
+        const trip = tripWithMembers(
+            [{ name: 'Sara Lopez' }, { name: 'Sara Kim' }],
+            [{ userId: 'u-lopez', name: 'Sara Lopez' }, { userId: 'u-kim', name: 'Sara Kim' }],
+        );
+        expect(findAcceptedMemberUserId(trip, 'Sara Lopez')).toBe('u-lopez');
+        expect(findAcceptedMemberUserId(trip, 'Sara Kim')).toBe('u-kim');
+    });
+
+    it('still falls back (undefined) for a GENUINELY ambiguous first name', () => {
+        // A bare "Sara" key with two "Sara X" members and no companion link
+        // is truly ambiguous — correctly returns undefined (legacy path).
+        const trip = tripWithMembers(
+            [{ name: 'Sara' }],
+            [{ userId: 'u-lopez', name: 'Sara Lopez' }, { userId: 'u-kim', name: 'Sara Kim' }],
+        );
+        expect(findAcceptedMemberUserId(trip, 'Sara')).toBeUndefined();
+    });
+
+    it('a companion linkedUserId breaks the tie even on a colliding first name', () => {
+        const trip = tripWithMembers(
+            [{ name: 'Sara', linkedUserId: 'u-lopez' }],
+            [{ userId: 'u-lopez', name: 'Sara Lopez' }, { userId: 'u-kim', name: 'Sara Kim' }],
+        );
+        expect(findAcceptedMemberUserId(trip, 'Sara')).toBe('u-lopez');
+    });
+
+    it('resolves a unique first-name token when there is no collision', () => {
+        const trip = tripWithMembers(
+            [{ name: 'Alex' }],
+            [{ userId: 'u-alex', name: 'Alex Rivera' }],
+        );
+        expect(findAcceptedMemberUserId(trip, 'Alex')).toBe('u-alex');
+    });
+});
+
+describe('settledStatsForTrip (SETL-6 euro total)', () => {
+    it('never sums a non-EUR raw amount as EUR when euroValue is falsy', () => {
+        STATE.settlements = [
+            // Healthy EUR-derived row → counts its euroValue.
+            settlement({ id: 's1', tripId: 't1', currency: 'EUR', amount: 30, euroValue: 30 }),
+            // Non-EUR row with NO euroValue → must contribute €0, NOT 10000.
+            settlement({ id: 's2', tripId: 't1', currency: 'ARS', amount: 10000, euroValue: null }),
+            // EUR row with no euroValue → amount IS its EUR value.
+            settlement({ id: 's3', tripId: 't1', currency: 'EUR', amount: 5, euroValue: null }),
+        ];
+        const { count, eurTotal } = settledStatsForTrip('t1');
+        expect(count).toBe(3);
+        expect(c(eurTotal)).toBe(35); // 30 + 0 + 5, never +10000
     });
 });

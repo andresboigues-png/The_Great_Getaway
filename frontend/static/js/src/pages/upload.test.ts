@@ -43,7 +43,7 @@ describe('runBatchImport — Tricount (popular)', () => {
             ['Museum', '30', 'EUR', '2026-05-31', 'Sara'],
         ];
         const res = runBatchImport(rows, 'popular:tricount');
-        expect(res).toEqual({ added: 2, skipped: [] });
+        expect(res).toEqual({ added: 2, skipped: [], noRateCurrencies: {} });
         expect(STATE.expenses).toHaveLength(2);
 
         const dinner = STATE.expenses[0]!;
@@ -114,8 +114,128 @@ describe('runBatchImport — skip-on-reject', () => {
         const res = runBatchImport(rows, 'popular:tricount');
         expect(res.added).toBe(1);
         expect(res.skipped).toEqual(['Freebie', 'Mystery']);
+        // EXP-1: the no-rate currency (valid amount, unconvertible) is
+        // reported separately so the UI can prompt for a manual EUR amount;
+        // the zero-amount row is NOT (adding a rate wouldn't rescue it).
+        expect(res.noRateCurrencies).toEqual({ ZZZ: 1 });
         expect(STATE.expenses).toHaveLength(1);
         expect(STATE.expenses[0]!.label).toBe('Real');
+    });
+
+    it('counts multiple rows per no-rate currency (EXP-1)', () => {
+        seedTrip(['Alex']);
+        const rows = [
+            ['Asado', '50000', 'ARS', '2026-05-30', 'Alex'],
+            ['Wine', '12000', 'ARS', '2026-05-31', 'Alex'],
+            ['Pho', '200000', 'VND', '2026-06-01', 'Alex'],
+        ];
+        const res = runBatchImport(rows, 'popular:tricount');
+        expect(res.added).toBe(0);
+        expect(res.noRateCurrencies).toEqual({ ARS: 2, VND: 1 });
+        expect(STATE.expenses).toHaveLength(0);
+    });
+});
+
+describe('runBatchImport — EU decimal-comma amounts (EXP-3)', () => {
+    it('parses "45,50" as 45.5 (not 45) — keeps the cents', () => {
+        seedTrip(['Alex']);
+        runBatchImport([['Dinner', '45,50', 'EUR', '2026-05-30', 'Alex']], 'popular:tricount');
+        expect(STATE.expenses[0]!.value).toBe(45.5);
+    });
+
+    it('parses "1.234,56" as 1234.56 (not 1.234) — dot is thousands sep', () => {
+        seedTrip(['Alex']);
+        runBatchImport([['Hotel', '1.234,56', 'EUR', '2026-05-30', 'Alex']], 'popular:tricount');
+        expect(STATE.expenses[0]!.value).toBe(1234.56);
+    });
+
+    it('still parses en-locale "1,234.56" as 1234.56 (comma is thousands)', () => {
+        seedTrip(['Alex']);
+        runBatchImport([['Flight', '1,234.56', 'EUR', '2026-05-30', 'Alex']], 'popular:tricount');
+        expect(STATE.expenses[0]!.value).toBe(1234.56);
+    });
+
+    it('still parses plain "1234.56" and integer "30" unchanged', () => {
+        seedTrip(['Alex']);
+        runBatchImport(
+            [
+                ['A', '1234.56', 'EUR', '2026-05-30', 'Alex'],
+                ['B', '30', 'EUR', '2026-05-31', 'Alex'],
+            ],
+            'popular:tricount',
+        );
+        expect(STATE.expenses[0]!.value).toBe(1234.56);
+        expect(STATE.expenses[1]!.value).toBe(30);
+    });
+
+    it('parses real numeric cells (typed .xlsx) without mangling', () => {
+        seedTrip(['Alex']);
+        // SheetJS returns JS numbers for typed cells, not strings.
+        runBatchImport([['Taxi', 12.5 as unknown as string, 'EUR', '2026-05-30', 'Alex']], 'popular:tricount');
+        expect(STATE.expenses[0]!.value).toBe(12.5);
+    });
+
+    it('applies the same normalizer on the Splitwise Cost column', () => {
+        seedTrip([]);
+        runBatchImport([['2026-05-30', 'Lunch', 'Food', '1.234,56', 'EUR']], 'popular:splitwise');
+        expect(STATE.expenses[0]!.value).toBe(1234.56);
+    });
+
+    it('applies the normalizer on custom-format value columns too', () => {
+        seedTrip([]);
+        STATE.savedFormats = [
+            {
+                id: 'f1',
+                name: 'EU CSV',
+                mappings: [
+                    { variable: 'label', column: 'A' },
+                    { variable: 'value', column: 'B' },
+                    { variable: 'currency', column: 'C' },
+                ],
+            },
+        ];
+        runBatchImport([['Souvenir', '2.500,00', 'EUR']], 'custom:f1');
+        expect(STATE.expenses[0]!.value).toBe(2500);
+    });
+});
+
+describe('runBatchImport — split percentage bounds (EXP-5)', () => {
+    it('drops negative and >100 split shares, keeping valid ones', () => {
+        seedTrip([]);
+        STATE.savedFormats = [
+            {
+                id: 'f1',
+                name: 'Splits CSV',
+                mappings: [
+                    { variable: 'label', column: 'A' },
+                    { variable: 'value', column: 'B' },
+                    { variable: 'currency', column: 'C' },
+                    { variable: 'splits', column: 'D' },
+                ],
+            },
+        ];
+        // Alice:-50 (negative) and Carol:150 (>100) are dropped; only Bob:50
+        // survives — mirroring the server's [0,100] per-share bound.
+        runBatchImport([['Dinner', '60', 'EUR', 'Alice:-50,Bob:50,Carol:150']], 'custom:f1');
+        expect(STATE.expenses[0]!.splits).toEqual({ Bob: 50 });
+    });
+
+    it('accepts boundary shares 0 and 100', () => {
+        seedTrip([]);
+        STATE.savedFormats = [
+            {
+                id: 'f1',
+                name: 'Splits CSV',
+                mappings: [
+                    { variable: 'label', column: 'A' },
+                    { variable: 'value', column: 'B' },
+                    { variable: 'currency', column: 'C' },
+                    { variable: 'splits', column: 'D' },
+                ],
+            },
+        ];
+        runBatchImport([['Gift', '20', 'EUR', 'Bob:100,Sue:0']], 'custom:f1');
+        expect(STATE.expenses[0]!.splits).toEqual({ Bob: 100, Sue: 0 });
     });
 });
 

@@ -945,6 +945,24 @@ def init_db():
             "idx_budgets_user_trip_generic "
             "ON budgets(user_id, trip_id) "
             "WHERE category_id IS NULL AND owner_name IS NULL",
+            # MK4 audit BUD-7: the base UNIQUE(user_id, trip_id,
+            # category_id, owner_name) only bites when ALL four columns
+            # are non-NULL (SQLite treats NULL as DISTINCT), and the
+            # all-NULL partial index above only covers the both-NULL
+            # shape. The two HALF-scoped shapes — (category set, owner
+            # NULL) and (owner set, category NULL) — had NO DB-level
+            # dedupe at all, so they relied entirely on the per-row POST's
+            # app-level `IS` pre-check. Add a partial UNIQUE index for
+            # each so the DB enforces one-budget-per-scope on every write
+            # path. Migration a1f4c7e2b9d3 brings existing DBs onto these.
+            "CREATE UNIQUE INDEX IF NOT EXISTS "
+            "idx_budgets_user_trip_cat "
+            "ON budgets(user_id, trip_id, category_id) "
+            "WHERE category_id IS NOT NULL AND owner_name IS NULL",
+            "CREATE UNIQUE INDEX IF NOT EXISTS "
+            "idx_budgets_user_trip_owner "
+            "ON budgets(user_id, trip_id, owner_name) "
+            "WHERE owner_name IS NOT NULL AND category_id IS NULL",
             # R9-B2 M1: secondary index so /api/data's join on
             # trip_collaborators.user_id can use an index. The
             # table's PK is (trip_id, user_id) — leading col is

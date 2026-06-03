@@ -20,12 +20,15 @@ from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
 from helpers import (
+    _extract_upload_paths,
     can_edit_trip,
     collect_trip_upload_paths,
     delete_upload_files,
     ensure_owner_member_row,
     ensure_user_exists,
+    is_trip_archived_for,
     is_trip_owner,
+    json_body,
     trip_member_role,
     unlink_companion_user_from_trip,
 )
@@ -67,12 +70,11 @@ def upsert_trip():
     """Create or update a single trip. Auto-creates the owner's
     membership row on insert; rejects edits from non-planners on
     existing trips."""
-    data = request.json or {}
-    # BUG-22 (MK2 audit): guard non-dict bodies (array root, or `trip` being a
-    # string/list, or a dict with no id) so malformed input is a clean 400
-    # instead of an uncaught AttributeError/KeyError → 500.
-    if not isinstance(data, dict):
-        return jsonify({"error": "Malformed payload"}), 400
+    # BUG-22 (MK2 audit) / SEC-2: json_body() collapses a non-dict body
+    # (array root, or `trip` being a string/list, or a dict with no id) to
+    # {} so malformed input is a clean 400 below instead of an uncaught
+    # AttributeError/KeyError → 500.
+    data = json_body()
     user_id = current_user_id()
     t = data.get("trip")
     if not isinstance(t, dict):
@@ -520,7 +522,7 @@ def silence_trip_actions(trip_id):
     """
     bind_trip_context(trip_id)
     user_id = current_user_id()
-    payload = request.json or {}
+    payload = json_body()
     hidden = bool(payload.get("hidden", True))
     with get_db() as conn:
         cursor = conn.cursor()
@@ -715,7 +717,7 @@ def update_trip_media(trip_id):
     complete snapshot without dropping a sibling field on replay.
     """
     user_id = current_user_id()
-    body = request.get_json(silent=True) or {}
+    body = json_body()
     # Collect + validate the provided fields before opening the txn.
     updates: list[tuple[str, str]] = []  # (column, json_text)
     for key, column in _MEDIA_KEY_TO_COLUMN.items():
@@ -739,6 +741,22 @@ def update_trip_media(trip_id):
             return jsonify({"error": "Forbidden"}), 403
         if not can_edit_trip(cursor, trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
+        # MK4 audit MED-1: archive write gate, matching every sibling
+        # per-trip write route (/api/expenses, /api/days, /api/budgets,
+        # /api/settlements). Pre-fix trip-level media (photos / documents
+        # / markedPlaces / checklist) was the ONLY member-facing write
+        # that succeeded on an archived trip while the day-level media
+        # write (days.py) 409'd — so the SAME modal silently saved
+        # trip-wide items but rejected day-attached ones. Reject all
+        # media writes on a trip the caller has archived so the contract
+        # is consistent. GET /media on an archived trip is unaffected
+        # (get_trip_media has no gate — the archived detail view must
+        # still render). The /api/sync bulk path stays exempt as always
+        # (it's the catch-up channel for archived state itself).
+        if is_trip_archived_for(cursor, trip_id, user_id):
+            return jsonify({
+                "error": "Trip is archived — unarchive to edit",
+            }), 409
         bind_trip_context(trip_id)
         # 4.8 audit TRIP-4: optimistic-concurrency on the media path.
         # Media carries its OWN version stamp (media_updated_at), separate
@@ -820,7 +838,7 @@ def invite_trip_member():
 
     Request body: { trip_id, target_user_id, role }
     """
-    data = request.json or {}
+    data = json_body()
     inviter = current_user_id()
     trip_id = data.get("trip_id")
     target = data.get("target_user_id")
@@ -951,7 +969,7 @@ def respond_trip_invite():
 
     Request body: { trip_id, accept }
     """
-    data = request.json or {}
+    data = json_body()
     user_id = current_user_id()
     trip_id = data.get("trip_id")
     accept = bool(data.get("accept"))
@@ -1060,7 +1078,7 @@ def remove_trip_member():
 
     Request body: { trip_id, target_user_id }
     """
-    data = request.json or {}
+    data = json_body()
     actor = current_user_id()
     trip_id = data.get("trip_id")
     target = data.get("target_user_id")
@@ -1169,7 +1187,7 @@ def create_share_link(trip_id):
     """
     bind_trip_context(trip_id)
     user_id = current_user_id()
-    payload = request.json or {}
+    payload = json_body()
     show_cost = bool(payload.get("showCost", False))
     show_plans = bool(payload.get("showPlans", False))
 

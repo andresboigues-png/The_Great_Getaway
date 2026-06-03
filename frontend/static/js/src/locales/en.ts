@@ -421,6 +421,8 @@ export const en = {
         ratesTabInflation: 'Inflation',
         ratesFxIntro: 'Pin your own exchange rate per currency and year. Leave blank to use the live rate.',
         ratesInflationIntro: 'Pin your own inflation % per currency and year. Leave blank to use World Bank data.',
+        ratesFxFieldNote: 'For "Worth today", the current-year rate is the exchange rate used today; older years set the rate at the time you spent.',
+        ratesInflationFieldNote: 'Inflation is the total rise from each year up to today, so an older expense grows by more than a recent one.',
         ratesSave: 'Save',
         ratesSavedFlash: 'Saved',
         ratesResetAuto: 'Reset to automatic',
@@ -536,6 +538,14 @@ export const en = {
         crossTripSubtitle: 'Across all trips · active + completed',
         crossTripEmptyTitle: 'No companions yet',
         crossTripEmptyBody: 'Add companions to a trip and log expenses to see cross-trip balances.',
+        // Cross-trip suggested-payments card (FE-4). Distinct from the
+        // crossTrip* tab-header keys above, which label the balances list.
+        crossTripPayTitle: 'Cross-trip payments',
+        crossTripPaySubtitle: 'The fewest payments to settle everyone across the trips you share.',
+        crossTripPaymentsCount: {
+            one: '{count} payment',
+            other: '{count} payments',
+        },
         // Settle button + toasts.
         recordingBtn: 'Recording…',
         toastSenderEqualsReceiver: 'Sender and receiver must be different.',
@@ -556,6 +566,10 @@ export const en = {
         manualTitle: 'Manual settlement',
         manualSubtitle: 'Record a payment that already happened off-app.',
         editTitle: 'Edit settlement',
+        // Edit a server-recorded settlement (SETL-3): subtitle + confirm copy.
+        editServerSubtitle: "Edit a recorded settlement — we'll reopen the form so you can correct it.",
+        editServerConfirmTitle: 'Edit this settlement?',
+        editServerConfirmBody: 'This removes the current settlement and reopens the form so you can re-record the corrected amount.',
         // Special expense category label for settlements.
         expenseCountry: 'Settlement',
         // Strip pill label.
@@ -626,6 +640,11 @@ export const en = {
         countLabel: {
             one: '{count} budget',
             other: '{count} budgets',
+        },
+        // BUD-8: per-budget over-budget tally on the overall card.
+        overallNOverBudget: {
+            one: '{count} over budget',
+            other: '{count} over budget',
         },
         // Overall card.
         overallTrip: 'Trip overview',
@@ -1235,6 +1254,7 @@ export const en = {
         saveExpense: 'Save Expense',
         savedToast: '✓ Expense saved — view in History',
         updatedToast: '✓ Expense updated — view in History',
+        saveFailed: "Couldn't save — check your connection and try again.",
     },
     feed: {
         // Page header.
@@ -1244,6 +1264,8 @@ export const en = {
         tabPosts: 'Posts',
         tabActions: 'Actions',
         bookmarkToggleLabel: '🔖 Bookmarked',
+        // SOC-4: tooltip on the Saved/bookmarked filter toggle.
+        savedFilterTitle: "Show only items you've saved",
         // Initial loader before first /api/feed response lands.
         loading: 'Loading the feed…',
         // R9-F1: tail hint shown when the IntersectionObserver-driven
@@ -2008,12 +2030,14 @@ export const en = {
         dateCalloutLabel: '📅 Date format',
         dateCalloutBody: 'Use DD-MM-YYYY (e.g. 15-03-2024) or YYYY-MM-DD. Excel-typed date cells are recognised automatically.',
         splitsCalloutLabel: '⚖️ Splits & settlements',
-        splitsCalloutBody: 'Tricount / Splitwise rows are imported as equal-split shared expenses. Revolut rows are imported as personal (no debt). Custom formats can map two optional variables: <code>splits</code> (e.g. <code>Alice:50,Bob:50</code>) to define percentages, and <code>isSettlement</code> (Y/N) to mark a row as a transfer — receiver goes in the splits cell, e.g. <code>Bob:100</code>. By default, custom rows are regular expenses, never settlements: a row only counts as a settlement when <code>isSettlement</code> is mapped and its cell is <code>Y/Yes/True/1</code>. Without <code>splits</code>, the row is recorded as 100% paid by the payer (no debt created).',
+        splitsCalloutBody: 'Tricount / Splitwise rows are imported as equal-split shared expenses. Custom formats can map two optional variables: <code>splits</code> (e.g. <code>Alice:50,Bob:50</code>) to define percentages, and <code>isSettlement</code> (Y/N) to mark a row as a transfer — receiver goes in the splits cell, e.g. <code>Bob:100</code>. By default, custom rows are regular expenses, never settlements: a row only counts as a settlement when <code>isSettlement</code> is mapped and its cell is <code>Y/Yes/True/1</code>. Without <code>splits</code>, the row is recorded as 100% paid by the payer (no debt created).',
         previewHeading: 'Preview (First 3 Rows)',
         uploadBtn: 'Upload and Process',
         errorSelectFile: 'Please select a valid file to process.',
         successImported: 'Successfully imported {count} expenses!',
         skippedRows: '{count} row(s) skipped (invalid amount or currency): {rows}.',
+        // EXP-1: actionable line for rows in a currency with no exchange rate.
+        noRateImport: '{count} row(s) use {currency}, which has no exchange rate — add them manually with a EUR amount.',
         errorParsing: 'Error parsing file. Check the format.',
     },
 } as const;

@@ -173,6 +173,30 @@ export function toggleFeedBookmark(eventId: string) {
     return _postJson(`/api/feed/bookmark/${encodeURIComponent(eventId)}`, {});
 }
 
+/** MK4 SOC-4: fetch the caller's saved items as fully-resolved feed
+ *  events. Unlike the live /api/feed (capped to a 30-day window), the
+ *  server re-resolves each saved event_id independently of the window
+ *  AND re-runs the per-event visibility check — so an item that aged
+ *  out of the feed still surfaces here, while a since-gone-private /
+ *  since-deleted item silently drops out. Returns the parsed array of
+ *  event dicts (same wire shape as /api/feed's bare-array response) or
+ *  null on failure (callers treat null as "couldn't load saved items").
+ *
+ *  Typed loosely (api/feed.ts is a leaf module that must not import the
+ *  render-layer FeedEvent type); the Feed page casts to FeedEvent[]. */
+export async function fetchFeedBookmarks(): Promise<Array<Record<string, unknown>> | null> {
+    if (!STATE.user) return null;
+    try {
+        const res = await apiFetch('/api/feed/bookmarks');
+        if (!res.ok) return null;
+        const data = await res.json();
+        return Array.isArray(data) ? data : null;
+    } catch (e) {
+        console.error('fetchFeedBookmarks failed:', e);
+        return null;
+    }
+}
+
 /** Fetch the full comment thread for one feed event. Lazy — only called
  *  when the user expands the thread. Returns oldest-first order so the
  *  UI can append-render without re-sorting. Returns the parsed array

@@ -17,7 +17,7 @@ interface ConfirmModalOptions {
      *  this exact string into a safety input. The string also appears as
      *  the prompt label, so pass a short uppercase word ("DELETE"). */
     requireInput?: string | false;
-    onConfirm?: () => void;
+    onConfirm?: () => void | Promise<void>;
 }
 
 export function showConfirmModal(options: ConfirmModalOptions = {}) {
@@ -77,7 +77,9 @@ export function showConfirmModal(options: ConfirmModalOptions = {}) {
     }
 
     confirmBtn.onclick = () => {
-        onConfirm();
+        // onConfirm may be async (FE-1: it awaits a write before navigate);
+        // fire-and-forget here — the handler owns its own error handling.
+        void onConfirm();
         close();
     };
     cancelBtn.onclick = () => close();

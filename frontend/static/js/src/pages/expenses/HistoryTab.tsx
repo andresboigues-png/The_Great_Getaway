@@ -102,15 +102,17 @@ export function HistoryTab() {
             title: t('expenses.undoBatchTitle'),
             message: tn('expenses.undoBatchMessage', batch.expenseIds.length),
             confirmText: t('expenses.undoBatchBtn'),
-            onConfirm: () => {
+            onConfirm: async () => {
                 const ids = new Set(batch.expenseIds);
                 STATE.expenses = STATE.expenses.filter((e) => !ids.has(e.id));
                 STATE.lastImportBatch = null;
                 emit('state:changed');
-                // Server delta: each expense gets its own DELETE.
-                // Fire-and-forget — local STATE already reflects the
-                // removal so a slow server doesn't block the UI.
-                ids.forEach((id) => { void deleteExpenseOnServer(id); });
+                // FE-1 (MK4): await all DELETEs before navigate() so the
+                // router's nav-abort can't cancel them mid-flight (a cancelled
+                // delete resurrects on the next full pull until reload).
+                try {
+                    await Promise.all([...ids].map(async (id) => { await deleteExpenseOnServer(id); }));
+                } catch { /* outbox retries */ }
                 navigate('expenses');
             },
         });

@@ -15,6 +15,7 @@ import { useStore } from '../../react/store.js';
 import { formatHome } from '../../utils.js';
 import {
     spentAcrossBudgets,
+    allocatedAcrossBudgets,
     budgetStatus,
     budgetTitle,
     deleteBudget,
@@ -32,18 +33,38 @@ export function Budgets() {
     // Subscribe to expenses so spentForBudget recomputes on add/remove.
     useStore((s) => s.expenses);
 
-    const [filterTrip, setFilterTrip] = useState<string>('');
-
     const allBudgets = budgets || [];
+
+    // BUD-8 (MK4): default the Overall to the ACTIVE trip when that trip has
+    // budgets, instead of always opening on "All trips" (which blends every
+    // trip into one ratio). Falls back to "All trips" when no trip is active
+    // or the active trip has no budgets (so the user never lands on an empty
+    // filtered view). Computed once on mount via the lazy initializer; the
+    // user can still switch with the chips. Re-mount re-evaluates against the
+    // then-current active trip.
+    const activeTripId = useStore((s) => s.activeTripId);
+    const [filterTrip, setFilterTrip] = useState<string>(() =>
+        activeTripId && allBudgets.some((b: Budget) => b.tripId === activeTripId)
+            ? activeTripId
+            : '',
+    );
+
     const visibleBudgets = filterTrip
         ? allBudgets.filter((b: Budget) => b.tripId === filterTrip)
         : allBudgets;
 
-    const totalAllocated = visibleBudgets.reduce((s: number, b: Budget) => s + (b.amount || 0), 0);
-    // BUG-6: count each expense ONCE across overlapping budget scopes (a
-    // trip-total budget + a category sub-budget no longer double-count).
+    // BUD-4 (MK4): overlap-aware allocation — count only the broadest budget's
+    // target when scopes overlap (a trip-total + a sub-budget no longer inflate
+    // the denominator), so the Overall ratio is internally consistent with the
+    // deduped spend below.
+    const totalAllocated = allocatedAcrossBudgets(visibleBudgets);
+    // BUG-6 + BUD-5: count each expense ONCE across overlapping budget scopes,
+    // person-scope aware (a trip-total budget + a category sub-budget no longer
+    // double-count; a person-scoped budget's spend matches its own card).
     const totalSpent = spentAcrossBudgets(visibleBudgets);
     const totalRemaining = totalAllocated - totalSpent;
+    // BUD-8 (MK4): per-budget over-budget count — clearer than one blended tier.
+    const overBudgetCount = visibleBudgets.filter((b: Budget) => budgetStatus(b).tier === 'over').length;
     const overallPct = totalAllocated > 0 ? Math.min((totalSpent / totalAllocated) * 100, 999) : 0;
     const overallTier =
         totalAllocated === 0
@@ -224,6 +245,23 @@ export function Budgets() {
                                       ? t('budgets.statusNearLimit')
                                       : t('budgets.statusOnTrack')}
                             </div>
+                            {/* BUD-8 (MK4): per-budget over-budget count —
+                                surfaces how many individual cards are over,
+                                which the single blended tier above hides. */}
+                            {overBudgetCount > 0 && (
+                                <div
+                                    style={{
+                                        fontSize: '0.66rem',
+                                        color: '#ff3b30',
+                                        fontWeight: 800,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.08em',
+                                        marginTop: '4px',
+                                    }}
+                                >
+                                    {tn('budgets.overallNOverBudget', overBudgetCount)}
+                                </div>
+                            )}
                         </div>
                     </div>
                     <div

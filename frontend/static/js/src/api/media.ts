@@ -81,14 +81,29 @@ export const _mediaVersion = new Map<string, string>();
 
 interface MediaSnapshot { photos: unknown[]; documents: unknown[]; markedPlaces: unknown[]; checklist: unknown[]; }
 
+/** Max 409-merge-retry passes before we give up and park the add for the
+ *  next hydration flush. MK4 audit MED-3: a SINGLE retry (the pre-fix
+ *  behaviour) loses a conflict-free ADD under a 3-writer race — if a third
+ *  device commits media between our GET-of-conflict and our retry, the
+ *  retry 409s again and the old code fell through without writing OR
+ *  re-parking, silently dropping our add server-side. Each merge pass is
+ *  union-by-key (loss-free), so a bounded loop converges; the cap just
+ *  guards against pathological unbounded contention. */
+const _MEDIA_MAX_MERGE_RETRIES = 3;
+
 /** POST trip media with optimistic concurrency. On a 409 (a peer device
  *  wrote media since our last read) the server echoes the live media +
  *  version; we union-merge our local edit onto it (so concurrent ADDs on
  *  both sides survive — neither is silently lost), reflect the merge into
- *  STATE, and retry ONCE with the fresh version. A missing version (first
- *  write) bypasses the server gate. Network failure → apiFetch has
- *  already queued it offline (the outbox strips the token on replay, so
- *  it lands as a force-write = the media path's pre-TRIP-4 behaviour). */
+ *  STATE, and retry with the fresh version. We LOOP this merge-retry up to
+ *  _MEDIA_MAX_MERGE_RETRIES times (MED-3) so a double/triple-conflict race
+ *  still converges instead of dropping an add. A missing version (first
+ *  write) bypasses the server gate. If we exhaust the retry budget while
+ *  still 409-ing, we PARK the merged snapshot in _pendingMedia so the next
+ *  fetchTripMedia re-flushes it (no silent loss). Network failure →
+ *  apiFetch has already queued it offline (the outbox strips the token on
+ *  replay, so it lands as a force-write = the media path's pre-TRIP-4
+ *  behaviour). */
 export async function _postTripMedia(tripId: string, media: MediaSnapshot): Promise<void> {
     const url = `/api/trips/${encodeURIComponent(tripId)}/media`;
     const send = (m: MediaSnapshot, version: string | undefined) =>
@@ -98,39 +113,61 @@ export async function _postTripMedia(tripId: string, media: MediaSnapshot): Prom
             body: JSON.stringify({ ...m, clientMediaUpdatedAt: version ?? null }),
         });
     try {
-        const res = await send(media, _mediaVersion.get(tripId));
-        if (res.status === 409) {
+        let snapshot = media;
+        let version = _mediaVersion.get(tripId);
+        // First send + up to _MEDIA_MAX_MERGE_RETRIES merge-retries.
+        for (let attempt = 0; attempt <= _MEDIA_MAX_MERGE_RETRIES; attempt++) {
+            const res = await send(snapshot, version);
+            if (res.status !== 409) {
+                // Success (or a non-conflict error). On success refresh the
+                // version so the next write carries the latest token.
+                const rb = await res.json().catch(() => null);
+                if (res.ok && rb && rb.mediaUpdatedAt) _mediaVersion.set(tripId, rb.mediaUpdatedAt);
+                return;
+            }
+            // 409 — a peer wrote media since `version`. Re-merge the live
+            // server media onto our snapshot (union-by-key, loss-free) and
+            // loop with the fresh version.
             const conflict = await res.json().catch(() => null);
             const cur = conflict && conflict.current;
             const curVer: string | undefined = conflict && conflict.mediaUpdatedAt;
-            if (cur) {
-                const merged: MediaSnapshot = {
-                    photos: _mergeMediaField(cur.photos ?? [], media.photos ?? []),
-                    documents: _mergeMediaField(cur.documents ?? [], media.documents ?? []),
-                    markedPlaces: _mergeMediaField(cur.markedPlaces ?? [], media.markedPlaces ?? []),
-                    checklist: _mergeMediaField(cur.checklist ?? [], media.checklist ?? []),
-                };
-                // Reflect the merged truth into STATE so the UI shows both
-                // devices' additions, not just this device's.
-                const target = STATE.trips.find(t => t.id === tripId)
-                    || STATE.archivedTrips.find(t => t.id === tripId);
-                if (target) {
-                    const tt = target as unknown as Record<string, unknown>;
-                    tt.photos = merged.photos;
-                    tt.documents = merged.documents;
-                    tt.markedPlaces = merged.markedPlaces;
-                    tt.checklist = merged.checklist;
-                    emit(EVENTS.STATE_CHANGED);
-                }
-                if (curVer) _mediaVersion.set(tripId, curVer);
-                const retry = await send(merged, curVer ?? undefined);
-                const rb = await retry.json().catch(() => null);
-                if (retry.ok && rb && rb.mediaUpdatedAt) _mediaVersion.set(tripId, rb.mediaUpdatedAt);
-                return;
+            if (!cur) {
+                // Malformed 409 (no echoed media) — can't merge; bail to
+                // the park-fallback below rather than spin.
+                break;
+            }
+            snapshot = {
+                photos: _mergeMediaField(cur.photos ?? [], snapshot.photos ?? []),
+                documents: _mergeMediaField(cur.documents ?? [], snapshot.documents ?? []),
+                markedPlaces: _mergeMediaField(cur.markedPlaces ?? [], snapshot.markedPlaces ?? []),
+                checklist: _mergeMediaField(cur.checklist ?? [], snapshot.checklist ?? []),
+            };
+            version = curVer ?? undefined;
+            if (curVer) _mediaVersion.set(tripId, curVer);
+            // Reflect the merged truth into STATE so the UI shows every
+            // device's additions, not just this one's.
+            const target = STATE.trips.find(t => t.id === tripId)
+                || STATE.archivedTrips.find(t => t.id === tripId);
+            if (target) {
+                const tt = target as unknown as Record<string, unknown>;
+                tt.photos = snapshot.photos;
+                tt.documents = snapshot.documents;
+                tt.markedPlaces = snapshot.markedPlaces;
+                tt.checklist = snapshot.checklist;
+                emit(EVENTS.STATE_CHANGED);
             }
         }
-        const rb = await res.json().catch(() => null);
-        if (res.ok && rb && rb.mediaUpdatedAt) _mediaVersion.set(tripId, rb.mediaUpdatedAt);
+        // Retry budget exhausted while still conflicting (or a malformed
+        // 409). Park the fully-merged snapshot so the next fetchTripMedia
+        // re-merges + re-flushes it — the add is never silently dropped.
+        // _pendingMedia is union-merged on hydration (loss-free), so
+        // re-parking the merged snapshot can't resurrect a peer's delete.
+        _pendingMedia.set(tripId, {
+            photos: snapshot.photos,
+            documents: snapshot.documents,
+            markedPlaces: snapshot.markedPlaces,
+            checklist: snapshot.checklist,
+        });
     } catch (e) {
         console.warn('persistTripMedia POST failed (queued offline if replayable):', e);
     }

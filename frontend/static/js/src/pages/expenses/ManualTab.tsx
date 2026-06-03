@@ -309,7 +309,7 @@ export function ManualTab() {
     };
 
     // ── submit ──────────────────────────────────────────────────
-    const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (submittingRef.current) return; // MK3-13: ignore double-fire
         if (!STATE.activeTripId) return;
@@ -456,20 +456,30 @@ export function ManualTab() {
         };
 
         emit('state:changed');
-        void upsertExpense(expense);
 
-        setSaveStatus({
-            text: isEdit
-                ? t('expenses.updatedToast')
-                : t('expenses.savedToast'),
-            color: '#34c759',
-        });
-        setTimeout(() => setSaveStatus(null), 4000);
-
-        // Reset form fields, splitters, receipt.
-        e.currentTarget.reset();
+        // Reset form fields, splitters, receipt. Capture the form node
+        // BEFORE the await — React nulls `e.currentTarget` once the sync
+        // portion of the handler returns.
+        const formEl = e.currentTarget;
+        formEl.reset();
         setSplitters([]);
         setReceiptUrl(null);
+
+        // FE-2 (MK4): honest save — await the write and reflect the truth.
+        // Pre-fix this flashed green "Saved ✓" unconditionally, lying on a
+        // 409 (another tab/device edited the row → the api layer already
+        // toasts staleEdit + pulls fresh) and on a network/abort (queued in
+        // the outbox, only PENDING). Mirrors the day-detail BUG-17 template.
+        const res = await upsertExpense(expense);
+        if (!res || !res.ok) {
+            setSaveStatus({ text: t('expenses.saveFailed'), color: '#ff3b30' });
+        } else {
+            setSaveStatus({
+                text: isEdit ? t('expenses.updatedToast') : t('expenses.savedToast'),
+                color: '#1a6b3c',
+            });
+        }
+        setTimeout(() => setSaveStatus(null), 4000);
         // MK3-13: release the lock after a short window (the form stays open
         // for the next expense).
         setTimeout(() => { submittingRef.current = false; setSaving(false); }, 1000);
@@ -502,7 +512,7 @@ export function ManualTab() {
                     {t('expenses.addExpenseTitle')}
                 </h2>
                 <form
-                    onSubmit={onSubmit}
+                    onSubmit={(e) => { void onSubmit(e); }}
                     className="flex flex-col items-center w-full"
                 >
                     {/* Who paid */}

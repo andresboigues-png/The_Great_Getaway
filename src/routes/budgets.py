@@ -12,7 +12,7 @@ from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
 from fx_rates import get_rate_eur
-from helpers import can_edit_expenses, is_trip_archived_for
+from helpers import can_edit_expenses, is_trip_archived_for, json_body
 from validators import (
     ValidationError,
     clean_text,
@@ -30,7 +30,7 @@ bp = Blueprint("budgets", __name__)
 @retry_on_lock()
 def upsert_budget():
     """Create or update a single budget."""
-    data = request.json or {}
+    data = json_body()
     user_id = current_user_id()
     b = data.get("budget")
     if not b:
@@ -262,25 +262,38 @@ def delete_budget(budget_id):
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
-        # Sync Phase 1: soft-delete via tombstone. Record the deletion in
-        # budget_deletes BEFORE the hard delete so (a) a peer's queued
+        # Sync Phase 1: soft-delete via tombstone so (a) a peer's queued
         # upsert can't resurrect it — upsert_budget refuses any id with a
-        # tombstone — and (b) the Phase-2 `?since=` delta can propagate the
+        # tombstone — and (b) the `?since=` delta can propagate the
         # deletion to other tabs. The hard delete then frees the
         # UNIQUE(user_id, trip_id, category_id, owner_name) scope slot so a
         # same-scope budget can be re-created. User-scoped to match the
         # delete's WHERE (a tombstone keyed to the caller can't affect any
         # other user's row).
-        cursor.execute(
-            "INSERT INTO budget_deletes (user_id, budget_id, deleted_at) "
-            "VALUES (?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now')) "
-            "ON CONFLICT(user_id, budget_id) DO UPDATE SET "
-            "deleted_at = excluded.deleted_at",
-            (user_id, budget_id),
-        )
+        #
+        # MK4 audit BUD-6: do the hard delete FIRST, then only write the
+        # tombstone when it actually removed the caller's row
+        # (rowcount > 0). Pre-fix the tombstone was written unconditionally
+        # — so a DELETE for an id the caller did NOT own (or that didn't
+        # exist) still planted a terminal `(caller_id, budget_id)`
+        # tombstone, permanently blocking the caller from ever creating
+        # THEIR OWN budget reusing that id (upsert_budget refuses any
+        # tombstoned id forever). Gating on rowcount keeps the
+        # legit-delete resurrection guard intact while never poisoning an
+        # id the caller never owned. Stays idempotent: a second delete of
+        # an already-removed row is a no-op (rowcount 0, no new tombstone),
+        # still 200.
         cursor.execute(
             "DELETE FROM budgets WHERE id = ? AND user_id = ?",
             (budget_id, user_id),
         )
+        if cursor.rowcount > 0:
+            cursor.execute(
+                "INSERT INTO budget_deletes (user_id, budget_id, deleted_at) "
+                "VALUES (?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now')) "
+                "ON CONFLICT(user_id, budget_id) DO UPDATE SET "
+                "deleted_at = excluded.deleted_at",
+                (user_id, budget_id),
+            )
         conn.commit()
     return jsonify({"status": "deleted"})

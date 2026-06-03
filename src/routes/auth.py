@@ -13,6 +13,8 @@ import logging
 import os
 
 from flask import Blueprint, jsonify, make_response, request
+
+from helpers import json_body
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
@@ -79,10 +81,12 @@ def user_status():
 def google_auth():
     """Verify Google ID Token and manage user session."""
     # Support both 'token' and 'credential' keys
-    # §2.3 — guard against a non-JSON body (curl with no
-    # Content-Type, malformed POST). request.json returns None in
-    # that case and `.get(...)` would AttributeError.
-    body = request.json or {}
+    # §2.3 / SEC-2 — guard against a non-JSON OR non-object body
+    # (curl with no Content-Type, malformed POST, or a valid-JSON
+    # array/string/number root). request.json is None in the first
+    # case and a non-dict in the second; either way `.get(...)`
+    # would AttributeError → 500 on this UNAUTHENTICATED route.
+    body = json_body()
     token = body.get("token") or body.get("credential")
     client_id = os.getenv("CLIENT_ID_GOOGLE_AUTH")
 

@@ -15,6 +15,52 @@ import { t } from '../i18n.js';
 // Pad number to 2 digits.
 const _pad2 = (n: number): string => String(n).padStart(2, '0');
 
+/**
+ * Locale-aware amount parse for spreadsheet cells (EXP-3).
+ *
+ * `parseFloat` is anglocentric: `parseFloat('45,50')` → 45 (drops the
+ * cents) and `parseFloat('1.234,56')` → 1.234 (a 1000× understatement).
+ * EU-locale Tricount/Splitwise/custom CSV exports — the common case for
+ * this PT/ES/FR app — write `,` as the decimal separator and often `.`
+ * as the thousands grouping, so the bare parseFloat silently corrupts
+ * every amount.
+ *
+ * Strategy:
+ *   - Real numbers (SheetJS returns these for typed .xlsx cells) pass
+ *     through untouched — no string surgery, no precision loss.
+ *   - For strings, decide the decimal separator from the LAST separator
+ *     present: if a comma appears after the last dot (or there is no dot),
+ *     the comma is decimal → strip any dots (thousands) and swap the
+ *     comma to a dot. Otherwise the dot is decimal (en: `1,234.56`,
+ *     `1234.56`) → strip the grouping commas.
+ *   - Anything else (single separator, no separator) is left for
+ *     parseFloat, which already handles `45.50`, `1234`, `12.349`, etc.
+ *
+ * Returns NaN for unparseable input so the caller's finite/`> 0` guard
+ * skips the row (matching the server contract) instead of importing 0.
+ */
+function parseAmount(raw: unknown): number {
+    if (typeof raw === 'number') return raw;
+    if (raw === null || raw === undefined) return NaN;
+    let s = String(raw).trim();
+    if (!s) return NaN;
+    // Drop currency symbols / spaces / NBSP so "€1.234,56" or "1 234,56"
+    // still parse; keep digits, separators and a leading sign.
+    s = s.replace(/[^\d.,-]/g, '');
+    if (!s) return NaN;
+    const lastComma = s.lastIndexOf(',');
+    const lastDot = s.lastIndexOf('.');
+    if (lastComma > lastDot) {
+        // Comma is the decimal separator (e.g. "1.234,56" or "45,50").
+        s = s.replace(/\./g, '').replace(',', '.');
+    } else if (lastDot > lastComma) {
+        // Dot is the decimal separator (e.g. "1,234.56"); commas group.
+        s = s.replace(/,/g, '');
+    }
+    // else: at most one kind of separator — leave it for parseFloat.
+    return parseFloat(s);
+}
+
 // Substring keyword → {icon, color} for auto-styling categories created during
 // import. Match is case-insensitive on the category name (so "Restaurant Food"
 // hits "food"). Order is roughly most-specific-first so "groceries" beats
@@ -102,7 +148,11 @@ function parseSplitsCell(raw: unknown): Record<string, number> | null {
         if (!m || !m[1] || !m[2]) continue;
         const name = m[1].trim();
         const pct = parseFloat(m[2]);
-        if (!name || isNaN(pct)) continue;
+        // Mirror the server's [0,100] per-share bound (validators.py:216) so
+        // the parser drops what would 400 instead of pushing a doomed row
+        // into local STATE + over-counting "Imported N" (EXP-5). A negative
+        // or >100 share is a malformed cell, not a usable percentage.
+        if (!name || isNaN(pct) || pct < 0 || pct > 100) continue;
         out[name] = (out[name] || 0) + pct;
     }
     return Object.keys(out).length > 0 ? out : null;
@@ -218,13 +268,23 @@ function parseCellDate(cell: unknown): string {
  *
  *  The caller (BatchUpload) guarantees STATE.activeTripId is set and
  *  `parsedRows` is non-null before calling, then renders the status
- *  message from the returned { added, skipped }. Throws on a malformed
- *  custom format; the caller catches it + shows the generic parse error. */
+ *  message from the returned { added, skipped, noRateCurrencies }.
+ *  Throws on a malformed custom format; the caller catches it + shows
+ *  the generic parse error.
+ *
+ *  `noRateCurrencies` is the subset of skip reasons the user can ACT on
+ *  (EXP-1): a currency with no live ECB rate and no static fallback (e.g.
+ *  ARS/EGP/VND/CLP/COP/AED/SAR/BGN/TWD). The whole point of a
+ *  Tricount/Splitwise export from a high-inflation/exotic destination is
+ *  to avoid re-keying 50 rows by hand, so silently dropping them all looks
+ *  like data loss. The caller surfaces a specific "N rows use <CCY>, which
+ *  has no exchange rate — add them manually with a EUR amount" message
+ *  rather than a bare skipped-labels list. */
 export function runBatchImport(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SheetJS sheet_to_json rows: heterogeneous cells (string|number|Date) coerced at use; unknown[][] would break parseFloat(row[n]) without a runtime change
     parsedRows: any[][],
     formatVal: string,
-): { added: number; skipped: string[] } {
+): { added: number; skipped: string[]; noRateCurrencies: Record<string, number> } {
     const activeTripId = STATE.activeTripId!;
     const activeTrip = STATE.trips.find(t => t.id === activeTripId);
     if (activeTrip && !Array.isArray(activeTrip.companions)) activeTrip.companions = [];
@@ -239,6 +299,10 @@ export function runBatchImport(
     /** Rows we refused to import (server would reject them) — reported to
      *  the user instead of silently over-counting. */
     const skipped = ([] as string[]);
+    /** Code → count of rows dropped purely because the currency has no
+     *  rate (EXP-1). Lets the caller tell the user exactly which currencies
+     *  need a manual EUR amount instead of just "N skipped". */
+    const noRateCurrencies = ({} as Record<string, number>);
 
     if (!isPopular) {
         const formatId = formatVal.split(':')[1];
@@ -259,7 +323,7 @@ export function runBatchImport(
         if (isPopular) {
             if (popularFormat === 'tricount') {
                 label = String(row[0] || '').trim();
-                value = parseFloat(row[1]) || 0;
+                value = parseAmount(row[1]) || 0;
                 currency = String(row[2] || 'EUR').trim().toUpperCase();
                 date = parseCellDate(row[3]);
                 // Tricount columns are [Title, Amount, Currency, Date,
@@ -272,7 +336,7 @@ export function runBatchImport(
                 date = parseCellDate(row[0]);
                 label = String(row[1] || '').trim();
                 catName = String(row[2] || '').trim();
-                value = parseFloat(row[3]) || 0;
+                value = parseAmount(row[3]) || 0;
                 currency = String(row[4] || 'EUR').trim().toUpperCase();
                 who = 'Me';
                 country = 'Unknown';
@@ -299,7 +363,7 @@ export function runBatchImport(
             label = get('label');
             date = parseCellDate(getRaw('date'));
             country = get('country') || 'Unknown';
-            value = parseFloat(get('value')) || 0;
+            value = parseAmount(get('value')) || 0;
             currency = get('currency').toUpperCase() || 'EUR';
             splits = parseSplitsCell(get('splits'));
             isSettlement = parseFlagCell(get('isSettlement'));
@@ -309,6 +373,14 @@ export function runBatchImport(
         // and report what we skipped instead of optimistically over-counting.
         if (!Number.isFinite(value) || value <= 0 || !hasRate(currency)) {
             skipped.push(label || `#${rowIndex + 2}`);
+            // EXP-1: distinguish the actionable case — a valid amount in a
+            // currency we just can't convert — so the caller can tell the
+            // user which currencies need a manual EUR amount. (Bad amounts
+            // aren't recoverable by adding a rate, so they're not counted.)
+            if (Number.isFinite(value) && value > 0 && !hasRate(currency)) {
+                const ccy = currency || 'EUR';
+                noRateCurrencies[ccy] = (noRateCurrencies[ccy] || 0) + 1;
+            }
             return;
         }
 
@@ -389,5 +461,5 @@ export function runBatchImport(
     // Persists the categories the import created; the expenses themselves
     // were persisted per-row via upsertExpense above.
     void syncWithServer();
-    return { added, skipped };
+    return { added, skipped, noRateCurrencies };
 }

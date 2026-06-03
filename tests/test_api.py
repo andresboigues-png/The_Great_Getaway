@@ -4664,7 +4664,7 @@ def test_generate_itinerary_happy_path(client, seed_user, auth_headers, monkeypa
         ],
     }
 
-    def fake_post(url, headers=None, json=None, timeout=None):
+    def fake_post(url, headers=None, json=None, timeout=None, **kwargs):
         return _FakeGeminiResponse(200, json_body=fake_resp_body)
 
     import routes.integrations
@@ -4695,7 +4695,7 @@ def test_generate_itinerary_strips_markdown_fences(
         ],
     }
 
-    def fake_post(url, headers=None, json=None, timeout=None):
+    def fake_post(url, headers=None, json=None, timeout=None, **kwargs):
         return _FakeGeminiResponse(200, json_body=fake_resp_body)
 
     import routes.integrations
@@ -4717,7 +4717,7 @@ def test_generate_itinerary_502_when_both_models_fail(
     so a future single-model regression doesn't silently degrade."""
     call_log = []
 
-    def fake_post(url, headers=None, json=None, timeout=None):
+    def fake_post(url, headers=None, json=None, timeout=None, **kwargs):
         call_log.append(url)
         # Return a 503 with Google's standard error envelope so the
         # handler's err_body extraction path runs.
@@ -4800,7 +4800,7 @@ def test_generate_itinerary_places_verification_enriches_items(
         "candidates": [{"content": {"parts": [{"text": json.dumps(fake_itinerary)}]}}],
     }
 
-    def fake_post(url, headers=None, json=None, timeout=None):
+    def fake_post(url, headers=None, json=None, timeout=None, **kwargs):
         # Distinguish Gemini calls from Places calls by URL.
         if "generativelanguage.googleapis.com" in url:
             return _FakeGeminiResponse(200, json_body=gemini_response_body)
@@ -4896,7 +4896,7 @@ def test_generate_itinerary_places_verification_skipped_without_key(
     }
     places_calls = []
 
-    def fake_post(url, headers=None, json=None, timeout=None):
+    def fake_post(url, headers=None, json=None, timeout=None, **kwargs):
         if "places.googleapis.com" in url:
             places_calls.append(url)
         return _FakeGeminiResponse(200, json_body=fake_resp_body)
@@ -4931,7 +4931,7 @@ def test_generate_itinerary_500_on_invalid_json_in_response(
         ],
     }
 
-    def fake_post(url, headers=None, json=None, timeout=None):
+    def fake_post(url, headers=None, json=None, timeout=None, **kwargs):
         return _FakeGeminiResponse(200, json_body=fake_resp_body)
 
     import routes.integrations
@@ -5462,11 +5462,27 @@ def test_sync_writes_archived_trip_with_expenses(client, seed_user, auth_headers
     assert any(e["id"] == "exp-arch-1" for e in body["expenses"])
 
 
-def test_sync_writes_budgets_categories_and_trip_days(client, seed_user, auth_headers):
-    """Cover three smaller sync branches in one payload: budgets
-    replace-mode (DELETE WHERE id NOT IN <list>), categories DELETE
+def _seed_budget_via_post(client, headers, bid, **fields):
+    """MK4: budgets are now created ONLY via the per-row POST /api/budgets
+    (the /api/sync write loop was removed — see BUD-1/2/3). Helper so the
+    sync tests below can still set up pre-existing budgets to assert sync's
+    new "don't touch budgets" contract against."""
+    body = {"id": bid, "label": "x", "amount": 100, "currency": "EUR"}
+    body.update(fields)
+    return client.post("/api/budgets", headers=headers, json={"budget": body})
+
+
+def test_sync_writes_categories_and_trip_days(client, seed_user, auth_headers):
+    """Cover the surviving sync branches in one payload: categories DELETE
     THEN INSERT, and trip_days insert. Pin the round-trip so a
-    field-rename regression surfaces immediately."""
+    field-rename regression surfaces immediately.
+
+    MK4 audit BUD-1/2/3: the `/api/sync` budget write loop was REMOVED (it
+    was an un-hardened parallel write path; the per-row POST /api/budgets
+    is the sole sanctioned path). A `budgets` key in the payload is now
+    accepted-but-ignored — it must not 500 the batch and must not persist.
+    This test pins both: categories/trip_days still round-trip, while a
+    budget shipped via /api/sync does NOT appear."""
     # Need a trip first for trip_days FK.
     client.post("/api/trips", headers=auth_headers, json={
         "trip": {"id": "trip-multi-sync", "name": "Multi", "country": "France"},
@@ -5478,6 +5494,8 @@ def test_sync_writes_budgets_categories_and_trip_days(client, seed_user, auth_he
         "categories": [
             {"id": "c-food-sync", "name": "Food", "icon": "🍔", "color": "#ff0000"},
         ],
+        # Accepted-but-ignored now (BUD-1/2/3). Included to prove it
+        # doesn't 500 the batch and doesn't persist.
         "budgets": [
             {
                 "id": "b-sync-1",
@@ -5508,26 +5526,26 @@ def test_sync_writes_budgets_categories_and_trip_days(client, seed_user, auth_he
     pull = client.get("/api/data", headers=auth_headers)
     body = pull.get_json()
     assert any(c["id"] == "c-food-sync" for c in body["categories"])
-    assert any(b["id"] == "b-sync-1" for b in body["budgets"])
+    # Budget shipped via /api/sync must NOT persist (the loop is gone).
+    assert not any(b["id"] == "b-sync-1" for b in body["budgets"]), \
+        "/api/sync must no longer write budgets"
     # /api/data returns trip days under `tripDays` (camelCase).
     assert any(d["id"] == "td-sync-1" for d in body["tripDays"])
 
 
-def test_sync_budgets_replace_mode_deletes_omitted_ids(client, seed_user, auth_headers):
-    """The budgets replace path runs `DELETE WHERE user_id = ? AND id
-    NOT IN (...)` — pin the implicit "you can drop a budget by
-    omitting its id from the next sync" contract."""
-    # First sync: 2 budgets.
-    client.post("/api/sync", headers=auth_headers, json={
-        "trips": [],
-        "expenses": [],
-        "budgets": [
-            {"id": "b-keep", "label": "Keep me", "amount": 100, "currency": "EUR"},
-            {"id": "b-drop", "label": "Drop me", "amount": 200, "currency": "EUR"},
-        ],
-    })
+def test_sync_does_not_delete_omitted_budget_ids(client, seed_user, auth_headers):
+    """MK4 audit BUD-1: the old budgets replace-mode (`DELETE WHERE
+    user_id = ? AND id NOT IN (...)`) is GONE. Omitting a budget from an
+    /api/sync payload must NOT delete it — that replace-delete was itself a
+    latent data-loss vector when a stale/offline outbox replayed a partial
+    set. Deletions go through DELETE /api/budgets/<id> only."""
+    # Seed two budgets via the sanctioned per-row path (distinct scopes so
+    # the per-scope UNIQUE doesn't reject the second).
+    assert _seed_budget_via_post(client, auth_headers, "b-keep", label="Keep me").status_code == 200
+    assert _seed_budget_via_post(client, auth_headers, "b-drop", label="Drop me",
+                                 categoryId="c-x").status_code == 200
 
-    # Second sync: only b-keep — b-drop should be deleted.
+    # An /api/sync that lists only b-keep must NOT drop b-drop.
     client.post("/api/sync", headers=auth_headers, json={
         "trips": [],
         "expenses": [],
@@ -5537,31 +5555,21 @@ def test_sync_budgets_replace_mode_deletes_omitted_ids(client, seed_user, auth_h
     })
 
     pull = client.get("/api/data", headers=auth_headers)
-    body = pull.get_json()
-    budget_ids = [b["id"] for b in body["budgets"]]
+    budget_ids = [b["id"] for b in pull.get_json()["budgets"]]
     assert "b-keep" in budget_ids
-    assert "b-drop" not in budget_ids
+    assert "b-drop" in budget_ids, "/api/sync must not delete an omitted budget"
 
 
-def test_sync_budgets_empty_list_clears_all(client, seed_user, auth_headers):
-    """Explicit `budgets: []` runs an unconditional `DELETE WHERE
-    user_id = ?` — caller is asserting "the canonical set is empty".
+def test_sync_empty_list_does_not_clear_budgets(client, seed_user, auth_headers):
+    """MK4 audit BUD-1: an explicit `budgets: []` no longer triggers a
+    `DELETE WHERE user_id = ?`. The whole budgets write/delete path was
+    removed from /api/sync, so even the "explicit clear" gesture is a
+    no-op now — clears go through DELETE /api/budgets/<id>. Pre-existing
+    budgets survive."""
+    assert _seed_budget_via_post(client, auth_headers, "b-wipe-1").status_code == 200
+    assert _seed_budget_via_post(client, auth_headers, "b-wipe-2",
+                                 categoryId="c-y").status_code == 200
 
-    Audit fix (2026-05-26): an ABSENT `budgets` key no longer wipes
-    everything (mirrors the categories semantic — absent = don't
-    touch). That regression test is `test_sync_absent_budgets_preserves`
-    below. This test still covers the explicit-empty-list path."""
-    # Seed two budgets.
-    client.post("/api/sync", headers=auth_headers, json={
-        "trips": [], "expenses": [],
-        "budgets": [
-            {"id": "b-wipe-1", "label": "x", "amount": 1, "currency": "EUR"},
-            {"id": "b-wipe-2", "label": "y", "amount": 2, "currency": "EUR"},
-        ],
-    })
-
-    # Sync with `budgets: []` explicitly → DELETE WHERE user_id = ?
-    # fires (caller is asserting their budgets set is empty).
     res = client.post("/api/sync", headers=auth_headers, json={
         "trips": [], "expenses": [],
         "budgets": [],
@@ -5569,22 +5577,19 @@ def test_sync_budgets_empty_list_clears_all(client, seed_user, auth_headers):
     assert res.status_code == 200
 
     pull = client.get("/api/data", headers=auth_headers)
-    assert pull.get_json()["budgets"] == []
+    ids = {b["id"] for b in pull.get_json()["budgets"]}
+    assert {"b-wipe-1", "b-wipe-2"} <= ids, \
+        "/api/sync budgets:[] must no longer wipe budgets"
 
 
 def test_sync_absent_budgets_preserves(client, seed_user, auth_headers):
-    """Audit fix (2026-05-26): a sync payload that OMITS the `budgets`
-    key entirely must NOT wipe the user's budgets. Pre-fix, older
-    clients that didn't ship budgets in their 15s sync tick were
-    silently erasing every budget on every poll."""
-    # Seed two budgets.
-    client.post("/api/sync", headers=auth_headers, json={
-        "trips": [], "expenses": [],
-        "budgets": [
-            {"id": "b-preserve-1", "label": "x", "amount": 1, "currency": "EUR"},
-            {"id": "b-preserve-2", "label": "y", "amount": 2, "currency": "EUR"},
-        ],
-    })
+    """A sync payload that OMITS the `budgets` key entirely must NOT wipe
+    the user's budgets. (Originally an audit fix for the absent-key wipe;
+    still holds — and is now the default for every payload since the budget
+    write/delete loop was removed in MK4 BUD-1/2/3.)"""
+    assert _seed_budget_via_post(client, auth_headers, "b-preserve-1").status_code == 200
+    assert _seed_budget_via_post(client, auth_headers, "b-preserve-2",
+                                 categoryId="c-z").status_code == 200
 
     # Sync without a `budgets` key at all — budgets must SURVIVE.
     res = client.post("/api/sync", headers=auth_headers, json={
@@ -6898,9 +6903,15 @@ def test_feed_surfaces_friend_created_trip_event(
 ):
     """seed_other_user creates a trip → seed_user's feed contains a
     friend_created_trip event. This pins the line 109-128 block (the
-    creation-event fan-out)."""
+    creation-event fan-out).
+
+    MK4 PERM-1/SOC-3: synthesised trip_* cards now require the trip to
+    be PUBLIC (a private trip's name/country must not leak to a one-way
+    follower); this test exercises the legitimate public-activity path,
+    so the trip is created public. The privacy suppression is pinned
+    separately in tests/test_feed_privacy_mk4.py."""
     _make_friends(seed_user, seed_other_user)
-    _create_trip(client, other_auth_headers, trip_id="trip-friend-created", name="Lisbon")
+    _create_trip(client, other_auth_headers, trip_id="trip-friend-created", name="Lisbon", public=True)
 
     res = client.get("/api/feed", headers=auth_headers)
     assert res.status_code == 200
@@ -6923,8 +6934,10 @@ def test_feed_surfaces_friend_archived_and_shared_trip_events(
     _make_friends(seed_user, seed_other_user)
 
     # Archive a trip — has to be flipped via the trip_members row, so
-    # do it through the API.
-    _create_trip(client, other_auth_headers, trip_id="trip-to-archive")
+    # do it through the API. MK4 PERM-1/SOC-3: the friend_archived_trip
+    # card now requires the trip to be public (archiving doesn't change
+    # is_public), so create it public.
+    _create_trip(client, other_auth_headers, trip_id="trip-to-archive", public=True)
     client.post(
         "/api/trips/trip-to-archive/archive", headers=other_auth_headers,
     )
@@ -6971,7 +6984,9 @@ def test_feed_surfaces_friend_joined_trip_event(
     `tm.user_id != t.user_id AND invitation_status='accepted'` branch
     of _build_friend_created_trip end-to-end."""
     _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
-    trip_id = _create_trip(client, auth_headers, trip_id="trip-joined-feed", name="Porto")
+    # MK4 PERM-1/SOC-3: friend_joined_trip card now requires the trip
+    # to be public, so create it public.
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-joined-feed", name="Porto", public=True)
     client.post("/api/trips/invite", headers=auth_headers, json={
         "trip_id": trip_id,
         "target_user_id": seed_other_user,
@@ -7008,13 +7023,15 @@ def test_feed_union_builder_emits_all_three_types_in_one_call(
     accept (→joined). All three must appear in seed_user's one feed
     response."""
     _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
+    # MK4 PERM-1/SOC-3: trip_* cards now require public trips, so all
+    # three are created public (the union-builder contract is unchanged).
     # created: seed_other owns a fresh trip
-    _create_trip(client, other_auth_headers, trip_id="union-created", name="A")
+    _create_trip(client, other_auth_headers, trip_id="union-created", name="A", public=True)
     # archived: seed_other owns + completes a trip
-    _create_trip(client, other_auth_headers, trip_id="union-archived", name="B")
+    _create_trip(client, other_auth_headers, trip_id="union-archived", name="B", public=True)
     client.post("/api/trips/union-archived/archive", headers=other_auth_headers)
     # joined: seed_user owns trip C, seed_other accepts an invite
-    _create_trip(client, auth_headers, trip_id="union-joined", name="C")
+    _create_trip(client, auth_headers, trip_id="union-joined", name="C", public=True)
     client.post("/api/trips/invite", headers=auth_headers, json={
         "trip_id": "union-joined", "target_user_id": seed_other_user, "role": "relaxer",
     })
@@ -7049,9 +7066,12 @@ def test_feed_joined_event_hidden_when_trip_owner_blocked_viewer(
             "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
             (owner_id, "owner3@example.com", "Owner Three"),
         )
+        # MK4 PERM-1/SOC-3: trip_* cards require a public trip; this
+        # block-bypass test is orthogonal to the is_public gate, so make
+        # the trip public so the baseline joined card surfaces.
         conn.execute(
-            "INSERT INTO trips (id, user_id, name, country, created_at) "
-            "VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)",
+            "INSERT INTO trips (id, user_id, name, country, is_public, created_at) "
+            "VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)",
             (trip_id, owner_id, "Secret Trip", "Japan"),
         )
         # joiner is an accepted member, NOT the owner → joined event.
@@ -7497,6 +7517,66 @@ def test_settlement_cap_blocks_partial_payment_sequence_overpay(
     })
     assert second.status_code == 400, second.get_data(as_text=True)
     assert "maxEur" in second.get_json()
+
+
+def test_settlement_cap_ignores_softdeleted_expense_spend(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """MK4 SETL-1: the over-settlement cap must NOT count SOFT-DELETED
+    (tombstoned) expenses in total_spend. Expense delete is a soft delete
+    (deleted_at stamped), so pre-fix a since-deleted €1000 expense still
+    inflated the cap (≈ €1010) and ALLOWED a €900 overpay grounded on
+    spend that no longer exists — landing as a phantom credit/debt on the
+    cross-trip dashboard. After the fix the live spend is €0, so the
+    zero-spend sanity ceiling governs and a settlement grounded ONLY on
+    the deleted expense is bounded correctly."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-softdel-cap")
+    _seed_member(trip_id, seed_other_user, role="relaxer")
+    # A €1000 expense → live spend €1000.
+    exp = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-softdel-1", "tripId": trip_id,
+            "who": "Owner", "value": 1000, "currency": "EUR",
+            "euroValue": 1000, "label": "Villa", "date": "2026-01-02",
+        },
+    })
+    assert exp.status_code == 200
+    # While the expense is LIVE, a €900 settlement is within spend → 201.
+    live_ok = client.post("/api/settlements", headers=auth_headers, json={
+        "tripId": trip_id,
+        "fromUserId": seed_other_user, "toUserId": seed_user,
+        "amount": 900.0, "currency": "EUR", "euroValue": 900.0,
+    })
+    assert live_ok.status_code == 201, live_ok.get_data(as_text=True)
+    # Undo that settlement so it doesn't skew the post-delete cap, then
+    # soft-delete the grounding expense.
+    sid = live_ok.get_json()["settlement"]["id"]
+    assert client.delete(
+        f"/api/settlements/{sid}", headers=auth_headers,
+    ).status_code == 200
+    assert client.delete(
+        "/api/expenses/exp-softdel-1", headers=auth_headers,
+    ).status_code == 200
+
+    # Live spend is now €0. The cap query must read €0 (not the
+    # tombstoned €1000), so a €900 settlement grounded only on the
+    # deleted expense is no longer spend-grounded — it falls under the
+    # zero-spend path, which still allows it (off-app debt) BUT the
+    # spend-cap branch that pre-fix permitted it is gone. The decisive
+    # assertion: an amount JUST above what the deleted spend would have
+    # permitted is now rejected, proving the tombstone no longer grounds
+    # the cap. We assert the maxEur surfaced is the zero-spend ceiling,
+    # not the ~€1010 spend cap.
+    over = client.post("/api/settlements", headers=auth_headers, json={
+        "tripId": trip_id,
+        "fromUserId": seed_other_user, "toUserId": seed_user,
+        "amount": 2_000_000.0, "currency": "EUR", "euroValue": 2_000_000.0,
+    })
+    assert over.status_code == 400, over.get_data(as_text=True)
+    # The ceiling is the zero-spend sanity bound (1_000_000), NOT a
+    # spend-derived cap of ~€1010 — confirms total_spend collapsed to €0
+    # once the deleted expense stopped counting.
+    assert over.get_json()["maxEur"] == 1_000_000.0
 
 
 def test_member_sees_settlement_between_other_members_in_data(
@@ -9535,8 +9615,11 @@ def test_model_b_feed_pool_is_following_not_friends(
     followed set too.)"""
     # A follows B only (one-way).
     client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
-    # B creates a trip (action_hidden=0 by default).
-    _create_trip(client, other_auth_headers, trip_id="trip-mb-feed", name="Bali")
+    # B creates a PUBLIC trip (action_hidden=0 by default). MK4
+    # PERM-1/SOC-3: trip_* cards now require a public trip — a private
+    # trip's card must not surface to a one-way follower — so the
+    # asymmetric-pool assertion uses a public trip.
+    _create_trip(client, other_auth_headers, trip_id="trip-mb-feed", name="Bali", public=True)
 
     # A's feed should now include B's friend_created_trip event.
     events = client.get("/api/feed", headers=auth_headers).get_json()

@@ -19,6 +19,7 @@ import { STATE } from '../../state.js';
 import { t, tn, formatCurrency } from '../../i18n.js';
 import { formatHome, getHomeCurrency, convertCurrency } from '../../utils.js';
 import { hasRate } from '../../utils/currency.js';
+import { iconSvg } from '../../icons.js';
 import {
     computeTripBalances,
     computeTripBalancesByCurrency,
@@ -56,14 +57,24 @@ export interface SettlementViewProps {
 
 /** A small "≈ {symbol}{amount}" hint in the trip's primary spend
  *  currency, rendered under a home-currency big number. Renders nothing
- *  when there is no primary currency or it already equals the viewer's
- *  home currency (the hint would just repeat the big number). */
-function OriginalCurrencyHint({ eurAmount, primaryCurrency }: { eurAmount: number; primaryCurrency: string | null }) {
+ *  when there is no primary currency, it already equals the viewer's
+ *  home currency (the hint would just repeat the big number), or there's
+ *  no nominal balance to show in that currency.
+ *
+ *  MK4 SETL-4: `primaryAmount` is the person's NOMINAL balance already
+ *  expressed in `primaryCurrency` (from computeTripBalancesByCurrency) —
+ *  NOT the EUR net re-converted at today's FX. Pre-fix the hint did
+ *  `convertCurrency(eurNet, 'EUR', primary)` at the live rate, so the
+ *  "≈ original" figure drifted daily and could disagree with the
+ *  per-currency suggested-payment rows (which are nominal). Deriving it
+ *  from the frozen per-currency balance makes the big EUR number and the
+ *  "≈" two views of the SAME frozen amount. */
+function OriginalCurrencyHint({ primaryAmount, primaryCurrency }: { primaryAmount: number | undefined; primaryCurrency: string | null }) {
     if (!primaryCurrency || primaryCurrency === getHomeCurrency().toUpperCase()) return null;
-    const inPrimary = convertCurrency(Math.abs(eurAmount), 'EUR', primaryCurrency);
+    if (primaryAmount === undefined || Math.abs(primaryAmount) < 0.005) return null;
     return (
         <span style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px' }}>
-            ≈ {formatCurrency(inPrimary, primaryCurrency)}
+            ≈ {formatCurrency(Math.abs(primaryAmount), primaryCurrency)}
         </span>
     );
 }
@@ -252,7 +263,7 @@ function TripTab({ trip, tripIsEditable, settlingKeys, onSettle, onManualSettle 
                                         </div>
                                         <div style={{ fontWeight: 800, color: isCredit ? '#1a6b3c' : isDebt ? '#a30000' : 'var(--text-secondary)', fontSize: '1rem', textAlign: 'right' }}>
                                             {isCredit ? '+' : ''}{formatHome(bal, 'EUR')}
-                                            <OriginalCurrencyHint eurAmount={bal} primaryCurrency={primaryCurrency} />
+                                            <OriginalCurrencyHint primaryAmount={primaryCurrency ? byCurrency[primaryCurrency]?.[person] : undefined} primaryCurrency={primaryCurrency} />
                                         </div>
                                     </div>
                                 );
@@ -395,7 +406,11 @@ function HistoryTab({ trip, tripIsEditable, onEditSettlement, onUnsettle }: {
                                     const fromInitial = (s.who || '?').charAt(0).toUpperCase();
                                     const showMethod = s.method && s.source === 'settlement';
                                     const showNote = s.note && s.source === 'settlement';
-                                    const showEdit = tripIsEditable && s.source === 'expense';
+                                    // MK4 SETL-3: Edit is now offered for BOTH sources. Legacy
+                                    // expense rows edit in place; server rows route through a
+                                    // guided undo + re-record (openEditSettlementModal branches
+                                    // on the id's store). Pre-fix server rows had Undo-only.
+                                    const showEdit = tripIsEditable;
                                     return (
                                         <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 14px', background: 'var(--card-bg)', border: '1px solid var(--border-subtle)', borderRadius: '14px' }}>
                                             <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'rgba(52,199,89,0.12)', color: '#1a6b3c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.95rem', flexShrink: 0 }}>{fromInitial}</div>
@@ -414,8 +429,9 @@ function HistoryTab({ trip, tripIsEditable, onEditSettlement, onUnsettle }: {
                                                 ) : null}
                                             </div>
                                             <div style={{ fontSize: '1rem', fontWeight: 800, color: '#1a6b3c', flexShrink: 0 }}>{formatHome(s.euroValue || 0, 'EUR')}</div>
-                                            {/* Undo is always offered when editable; Edit only for legacy
-                                                expense-source rows (server settlements have no PATCH yet). */}
+                                            {/* Undo + Edit both offered when editable. SETL-3: server
+                                                settlements edit via a guided undo + re-record (no PATCH
+                                                endpoint); legacy expense rows edit in place. */}
                                             {tripIsEditable ? (
                                                 <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                                                     {showEdit ? (
@@ -496,10 +512,10 @@ function GlobalTab() {
                 <div className="card glass" style={{ marginTop: '18px', padding: '22px 24px', borderRadius: '28px' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '14px' }}>
                         <div style={{ minWidth: 0 }}>
-                            <h3 className="stl-heading-1">Suggested cross-trip payments</h3>
-                            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', marginTop: '3px' }}>Fewest payments to clear everyone across every trip you share. Record the actual settlement on whichever trip&apos;s tab fits.</div>
+                            <h3 className="stl-heading-1">{t('settlement.crossTripPayTitle')}</h3>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', marginTop: '3px' }}>{t('settlement.crossTripPaySubtitle')}</div>
                         </div>
-                        <span className="stl-section-label--shrink-0">{globalDebts.length} {globalDebts.length === 1 ? 'payment' : 'payments'}</span>
+                        <span className="stl-section-label--shrink-0">{tn('settlement.crossTripPaymentsCount', globalDebts.length)}</span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         {globalDebts.map((d) => (
@@ -536,7 +552,14 @@ export function SettlementView(props: SettlementViewProps) {
             {showPicker ? <TripsStrip currentTripId={currentTripId} onPickTrip={props.onPickTrip} /> : null}
             {!trip ? (
                 <div className="card glass" style={{ textAlign: 'center', padding: '60px 32px', marginTop: '24px', borderRadius: '28px' }}>
-                    <div style={{ fontSize: '4rem', marginBottom: '12px' }}>⚖️</div>
+                    {/* FE-D-2: monochrome line icon (handshake = "settled up")
+                        in place of the raw ⚖️ emoji, matching the app's
+                        other empty-state heroes (e.g. Collections). */}
+                    <span
+                        className="inline-flex"
+                        style={{ color: 'var(--text-secondary)', marginBottom: '12px' }}
+                        dangerouslySetInnerHTML={{ __html: iconSvg('handshake', { size: 56 }) }}
+                    />
                     <h2 style={{ margin: '0 0 6px' }}>{t('settlement.noTripsTitle')}</h2>
                     <p className="text-muted">{t('settlement.noTripsBody')}</p>
                 </div>

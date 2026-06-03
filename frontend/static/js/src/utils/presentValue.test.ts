@@ -168,6 +168,49 @@ describe('makePresentValueCalc — Worth today (Model A / Model B)', () => {
         expect(r.spentValue).toBeCloseTo(200, 5);
         expect(r.todayValue).toBeCloseTo(260, 5); // 200 * 1.3 (home CPI)
     });
+
+    // PV4-1: a manual inflation % pinned for a NO-FX currency must flow into
+    // "Worth today" WITHOUT also requiring the user to pin a current-year FX.
+    // Pre-fix this fell to Model B and grew euroValue by the HOME factor,
+    // looking up the manual % under the home code (EUR) and missing it entirely.
+    it('Model B: a manual inflation % for a no-FX currency IS applied (no manual FX needed)', () => {
+        const calc = makeCtx({
+            // No ARS FX rate (Model B), no ARS CPI series either.
+            manualRates: { ARS: { '2018': { inflationPct: 100 } } },
+            currentYear: 2026,
+        });
+        const r = makePresentValueCalc(calc)({ value: 50000, currency: 'ARS', date: '2018-06-01', euroValue: 200 });
+        expect(r.spentValue).toBeCloseTo(200, 5);
+        // 200 (frozen home cost) * 2.0 (manual +100%) — NOT 200 (factor 1.0).
+        expect(r.todayValue).toBeCloseTo(400, 5);
+    });
+
+    it('Model B: a no-FX currency manual inflation wins over the HOME CPI factor', () => {
+        const calc = makeCtx({
+            // Home EUR has its own auto CPI, but the user pinned ARS +50% for 2018.
+            cpiCache: { EUR: { 2018: 100, 2026: 130 } },
+            manualRates: { ARS: { '2018': { inflationPct: 50 } } },
+            currentYear: 2026,
+        });
+        const r = makePresentValueCalc(calc)({ value: 50000, currency: 'ARS', date: '2018-06-01', euroValue: 200 });
+        // 200 * 1.5 (manual ARS), NOT 200 * 1.3 (home CPI).
+        expect(r.todayValue).toBeCloseTo(300, 5);
+    });
+
+    it('Model B: a no-FX currency WITHOUT a manual % still uses HOME CPI (not foreign CPI)', () => {
+        // EGP is no-FX but CPI-mapped (constants CURRENCY_TO_CPI_COUNTRY) — its
+        // foreign CPI must NOT leak in absent an explicit override (PV-S2/S3),
+        // so the home factor still governs. (Manual % is the ONLY escape.)
+        const calc = makeCtx({
+            cpiCache: {
+                EUR: { 2018: 100, 2026: 120 }, // home +20%
+                EGP: { 2018: 100, 2026: 300 }, // foreign +200% — must be ignored
+            },
+            currentYear: 2026,
+        });
+        const r = makePresentValueCalc(calc)({ value: 5000, currency: 'EGP', date: '2018-06-01', euroValue: 200 });
+        expect(r.todayValue).toBeCloseTo(240, 5); // 200 * 1.2 (home), NOT 200 * 3.0
+    });
 });
 
 describe('makePresentValueCalc — precedence & robustness', () => {

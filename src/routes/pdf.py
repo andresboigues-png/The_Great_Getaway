@@ -63,7 +63,7 @@ from observability import get_logger
 
 logger = get_logger(__name__)
 from extensions import limiter
-from helpers import trip_member_role
+from helpers import json_body, trip_member_role
 
 
 # ── reportlab imports — kept local so the import cost only lands on
@@ -133,20 +133,55 @@ _UNICODE_FONT_BOLD: str | None = None
 _UNICODE_FONT_OBLIQUE: str | None = None
 
 _FONT_CANDIDATES = [
-    # Linux (PA + most distros).
-    (
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf",
-        "DejaVuSans",
-    ),
-    # macOS dev (Arial Unicode covers nearly all Unicode planes;
-    # no separate bold/italic so we re-use the regular for those).
+    # macOS dev (Arial Unicode covers nearly all Unicode planes incl.
+    # CJK + Arabic; no separate bold/italic so we re-use the regular).
+    # Listed FIRST so dev renders the widest script coverage; on Linux
+    # this path doesn't exist so it falls through to the candidates
+    # below.
     (
         "/Library/Fonts/Arial Unicode.ttf",
         "/Library/Fonts/Arial Unicode.ttf",
         "/Library/Fonts/Arial Unicode.ttf",
         "ArialUnicode",
+    ),
+    # MK4 PA-FONT fix: DejaVu Sans has NO CJK and NO Arabic coverage,
+    # so on PA (which only ships DejaVu by default) a Chinese / Arabic
+    # companion name or trip title was murdered to the empty string by
+    # _strip_emoji's fallback path → "Untitled companion" / blank
+    # footer. Prefer a full-coverage Noto face when the box has one
+    # installed (PA must `apt-get install fonts-noto-cjk fonts-noto-core`
+    # or equivalent — see the route's return note). Noto Sans CJK
+    # covers Chinese/Japanese/Korean + Latin/Cyrillic/Greek; Noto Naskh
+    # covers Arabic. We register the CJK face as the PRIMARY Unicode
+    # font (it also has Latin), so most non-Latin names render; Arabic
+    # still needs Naskh which we try as a separate fallback candidate.
+    (
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "NotoSansCJK",
+    ),
+    (
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc",
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        "NotoSansCJK",
+    ),
+    (
+        "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf",
+        "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",
+        "NotoNaskhArabic",
+    ),
+    # Linux (PA + most distros) — DejaVu is the near-universal fallback
+    # but covers Latin/Cyrillic/Greek only (no CJK/Arabic). Kept LAST so
+    # a Noto face wins when present; DejaVu still beats Helvetica's
+    # Latin-1-only coverage when Noto isn't installed.
+    (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf",
+        "DejaVuSans",
     ),
 ]
 
@@ -204,6 +239,341 @@ _BRAND_GREEN = "#34c759"
 _TEXT_PRIMARY = "#1d1d1f"
 _TEXT_SECONDARY = "#6b7280"
 _RULE_GREY = "#e5e7eb"
+
+
+# ── PDF-5: server-side i18n ──────────────────────────────────────────
+# The PDF was English-only — a FR/PT/ES user opened a translated modal
+# and downloaded an English document. Rather than touch the frontend
+# locale files (the client just forwards its active locale string), we
+# keep a SMALL string table here keyed by locale. Covers section titles,
+# slot labels (MORNING/AFTERNOON/EVENING/NOTES/TIP), money/total labels,
+# the cover kickers, and the handful of inline strings the reader sees.
+# Missing keys / unknown locales fall back to English so a partial
+# translation can never blank a label.
+_SUPPORTED_LOCALES = ("en", "fr", "es", "pt")
+
+_STRINGS: dict[str, dict[str, str]] = {
+    "en": {
+        "trip_plan_kicker": "THE GREAT GETAWAY   ·   TRIP PLAN",
+        "trip_plan_chrome": "TRIP PLAN",
+        "brand_footer": "The Great Getaway",
+        "page": "Page",
+        "untitled_trip": "Untitled trip",
+        "whats_inside": "WHAT'S INSIDE",
+        # section titles
+        "sec_days": "Day-by-day",
+        "sec_checklist": "Checklist",
+        "sec_budgets": "Budgets",
+        "sec_expenses": "Expenses",
+        "sec_settle": "Settle up",
+        "sec_photos": "Photos",
+        "sec_companions": "Companions",
+        "sec_places": "Marked places",
+        "sec_ai": "AI suggestions",
+        # day card
+        "slot_morning": "MORNING",
+        "slot_afternoon": "AFTERNOON",
+        "slot_evening": "EVENING",
+        "slot_notes": "NOTES",
+        "slot_tip": "TIP.",
+        "no_plan": "No plan yet for this day.",
+        "day": "Day",
+        # stats tiles
+        "stat_days": "DAYS",
+        "stat_companions": "COMPANIONS",
+        "stat_places": "PLACES",
+        "stat_spend": "SPEND",
+        # budgets
+        "col_budget": "Budget",
+        "col_planned": "Planned",
+        "total_planned": "Total planned (EUR-normalised)",
+        "actual_spend": "Actual trip spend (EUR-normalised)",
+        "budget_overall": "Overall",
+        "budget_category": "Category budget",
+        "budget_untitled": "Untitled",
+        # expenses
+        "col_date": "Date",
+        "col_description": "Description",
+        "col_category": "Category",
+        "col_amount": "Amount",
+        "col_eur": "EUR",
+        "exp_subtotals": "Per-currency subtotals",
+        "exp_uncategorised": "Uncategorised",
+        "exp_no_label": "(no description)",
+        "exp_total_eur": "Total spend (EUR-normalised)",
+        # settle up
+        "settle_balances": "Net balances",
+        "settle_transfers": "Suggested transfers",
+        "settle_recorded": "Recorded settlements",
+        "settle_owes": "owes",
+        "settle_all_square": "All square — nobody owes anybody.",
+        "settle_paid": "paid",
+        "settle_is_owed": "is owed",
+        # cover-only hint
+        "cover_only": (
+            "You chose a cover-only export. Re-run with more sections "
+            "selected to include the day plan, to-dos, budgets, "
+            "companions, and marked places."
+        ),
+        "untitled_companion": "Untitled companion",
+    },
+    "fr": {
+        "trip_plan_kicker": "THE GREAT GETAWAY   ·   PLAN DE VOYAGE",
+        "trip_plan_chrome": "PLAN DE VOYAGE",
+        "brand_footer": "The Great Getaway",
+        "page": "Page",
+        "untitled_trip": "Voyage sans titre",
+        "whats_inside": "AU SOMMAIRE",
+        "sec_days": "Jour par jour",
+        "sec_checklist": "Liste de tâches",
+        "sec_budgets": "Budgets",
+        "sec_expenses": "Dépenses",
+        "sec_settle": "Règlement des comptes",
+        "sec_photos": "Photos",
+        "sec_companions": "Compagnons",
+        "sec_places": "Lieux marqués",
+        "sec_ai": "Suggestions IA",
+        "slot_morning": "MATIN",
+        "slot_afternoon": "APRÈS-MIDI",
+        "slot_evening": "SOIR",
+        "slot_notes": "NOTES",
+        "slot_tip": "ASTUCE.",
+        "no_plan": "Aucun programme pour ce jour.",
+        "day": "Jour",
+        "stat_days": "JOURS",
+        "stat_companions": "COMPAGNONS",
+        "stat_places": "LIEUX",
+        "stat_spend": "DÉPENSES",
+        "col_budget": "Budget",
+        "col_planned": "Prévu",
+        "total_planned": "Total prévu (normalisé en EUR)",
+        "actual_spend": "Dépenses réelles (normalisées en EUR)",
+        "budget_overall": "Global",
+        "budget_category": "Budget par catégorie",
+        "budget_untitled": "Sans titre",
+        "col_date": "Date",
+        "col_description": "Description",
+        "col_category": "Catégorie",
+        "col_amount": "Montant",
+        "col_eur": "EUR",
+        "exp_subtotals": "Sous-totaux par devise",
+        "exp_uncategorised": "Sans catégorie",
+        "exp_no_label": "(sans description)",
+        "exp_total_eur": "Dépenses totales (normalisées en EUR)",
+        "settle_balances": "Soldes nets",
+        "settle_transfers": "Transferts suggérés",
+        "settle_recorded": "Règlements enregistrés",
+        "settle_owes": "doit à",
+        "settle_all_square": "Tout est réglé — personne ne doit rien.",
+        "settle_paid": "a payé",
+        "settle_is_owed": "doit recevoir",
+        "cover_only": (
+            "Vous avez choisi un export couverture seule. Relancez en "
+            "sélectionnant plus de sections pour inclure le programme, "
+            "les tâches, les budgets, les compagnons et les lieux."
+        ),
+        "untitled_companion": "Compagnon sans nom",
+    },
+    "es": {
+        "trip_plan_kicker": "THE GREAT GETAWAY   ·   PLAN DE VIAJE",
+        "trip_plan_chrome": "PLAN DE VIAJE",
+        "brand_footer": "The Great Getaway",
+        "page": "Página",
+        "untitled_trip": "Viaje sin título",
+        "whats_inside": "CONTENIDO",
+        "sec_days": "Día a día",
+        "sec_checklist": "Lista de tareas",
+        "sec_budgets": "Presupuestos",
+        "sec_expenses": "Gastos",
+        "sec_settle": "Saldar cuentas",
+        "sec_photos": "Fotos",
+        "sec_companions": "Compañeros",
+        "sec_places": "Lugares marcados",
+        "sec_ai": "Sugerencias de IA",
+        "slot_morning": "MAÑANA",
+        "slot_afternoon": "TARDE",
+        "slot_evening": "NOCHE",
+        "slot_notes": "NOTAS",
+        "slot_tip": "CONSEJO.",
+        "no_plan": "Aún no hay plan para este día.",
+        "day": "Día",
+        "stat_days": "DÍAS",
+        "stat_companions": "COMPAÑEROS",
+        "stat_places": "LUGARES",
+        "stat_spend": "GASTO",
+        "col_budget": "Presupuesto",
+        "col_planned": "Previsto",
+        "total_planned": "Total previsto (normalizado en EUR)",
+        "actual_spend": "Gasto real del viaje (normalizado en EUR)",
+        "budget_overall": "General",
+        "budget_category": "Presupuesto por categoría",
+        "budget_untitled": "Sin título",
+        "col_date": "Fecha",
+        "col_description": "Descripción",
+        "col_category": "Categoría",
+        "col_amount": "Importe",
+        "col_eur": "EUR",
+        "exp_subtotals": "Subtotales por moneda",
+        "exp_uncategorised": "Sin categoría",
+        "exp_no_label": "(sin descripción)",
+        "exp_total_eur": "Gasto total (normalizado en EUR)",
+        "settle_balances": "Saldos netos",
+        "settle_transfers": "Transferencias sugeridas",
+        "settle_recorded": "Pagos registrados",
+        "settle_owes": "debe a",
+        "settle_all_square": "Todo saldado — nadie debe nada.",
+        "settle_paid": "pagó",
+        "settle_is_owed": "le deben",
+        "cover_only": (
+            "Elegiste una exportación solo de portada. Vuelve a "
+            "ejecutarla seleccionando más secciones para incluir el "
+            "plan diario, las tareas, los presupuestos, los compañeros "
+            "y los lugares."
+        ),
+        "untitled_companion": "Compañero sin nombre",
+    },
+    "pt": {
+        "trip_plan_kicker": "THE GREAT GETAWAY   ·   PLANO DE VIAGEM",
+        "trip_plan_chrome": "PLANO DE VIAGEM",
+        "brand_footer": "The Great Getaway",
+        "page": "Página",
+        "untitled_trip": "Viagem sem título",
+        "whats_inside": "O QUE INCLUI",
+        "sec_days": "Dia a dia",
+        "sec_checklist": "Lista de tarefas",
+        "sec_budgets": "Orçamentos",
+        "sec_expenses": "Despesas",
+        "sec_settle": "Acertar contas",
+        "sec_photos": "Fotos",
+        "sec_companions": "Companheiros",
+        "sec_places": "Locais marcados",
+        "sec_ai": "Sugestões de IA",
+        "slot_morning": "MANHÃ",
+        "slot_afternoon": "TARDE",
+        "slot_evening": "NOITE",
+        "slot_notes": "NOTAS",
+        "slot_tip": "DICA.",
+        "no_plan": "Ainda não há plano para este dia.",
+        "day": "Dia",
+        "stat_days": "DIAS",
+        "stat_companions": "COMPANHEIROS",
+        "stat_places": "LOCAIS",
+        "stat_spend": "GASTO",
+        "col_budget": "Orçamento",
+        "col_planned": "Previsto",
+        "total_planned": "Total previsto (normalizado em EUR)",
+        "actual_spend": "Gasto real da viagem (normalizado em EUR)",
+        "budget_overall": "Geral",
+        "budget_category": "Orçamento por categoria",
+        "budget_untitled": "Sem título",
+        "col_date": "Data",
+        "col_description": "Descrição",
+        "col_category": "Categoria",
+        "col_amount": "Valor",
+        "col_eur": "EUR",
+        "exp_subtotals": "Subtotais por moeda",
+        "exp_uncategorised": "Sem categoria",
+        "exp_no_label": "(sem descrição)",
+        "exp_total_eur": "Gasto total (normalizado em EUR)",
+        "settle_balances": "Saldos líquidos",
+        "settle_transfers": "Transferências sugeridas",
+        "settle_recorded": "Acertos registados",
+        "settle_owes": "deve a",
+        "settle_all_square": "Tudo acertado — ninguém deve nada.",
+        "settle_paid": "pagou",
+        "settle_is_owed": "tem a receber",
+        "cover_only": (
+            "Escolheu uma exportação só com a capa. Execute novamente "
+            "selecionando mais secções para incluir o plano diário, as "
+            "tarefas, os orçamentos, os companheiros e os locais."
+        ),
+        "untitled_companion": "Companheiro sem nome",
+    },
+}
+
+
+def _norm_locale(raw: Any) -> str:
+    """Coerce a caller-supplied locale to one we ship. Accepts the bare
+    language tag the client sends ('fr') or a region variant ('fr-CA')
+    and maps to the language prefix. Unknown → 'en'."""
+    if not raw or not isinstance(raw, str):
+        return "en"
+    code = raw.strip().lower().split("-")[0].split("_")[0]
+    return code if code in _SUPPORTED_LOCALES else "en"
+
+
+class _T:
+    """Tiny locale-bound translator + number/date formatter. Built once
+    per export from the resolved locale and passed down to the section
+    builders so no call site has to thread the locale string around."""
+
+    # Babel-free locale-aware number formatting: en/pt use the
+    # anglo "1,234.50" grouping; fr/es/pt use "1.234,50". (pt-PT
+    # actually uses space-or-dot grouping + comma decimal — we pick the
+    # dot/comma convention which is the most widely recognised PT form.)
+    _COMMA_DECIMAL = {"fr", "es", "pt"}
+
+    def __init__(self, locale: str):
+        self.locale = locale if locale in _SUPPORTED_LOCALES else "en"
+
+    def __call__(self, key: str) -> str:
+        table = _STRINGS.get(self.locale) or _STRINGS["en"]
+        return table.get(key) or _STRINGS["en"].get(key) or key
+
+    def num(self, value: float, decimals: int = 2) -> str:
+        """Group + decimal-separate a number per the active locale."""
+        try:
+            v = float(value)
+        except (TypeError, ValueError):
+            return str(value)
+        if v != v or v in (float("inf"), float("-inf")):
+            return "0"
+        s = f"{v:,.{decimals}f}"  # always anglo first: 1,234.50
+        if self.locale in self._COMMA_DECIMAL:
+            # Swap separators: , ↔ . via a placeholder so we don't
+            # double-replace.
+            s = s.replace(",", "\x00").replace(".", ",").replace("\x00", ".")
+        return s
+
+    def money(self, currency: str, value: float) -> str:
+        """`USD 1,100.50` / `USD 1.100,50` with currency-aware decimals
+        (PDF-6): 0 for zero-decimal currencies, 2 otherwise."""
+        cur = (currency or "EUR").upper()
+        dp = _currency_decimals(cur)
+        return f"{cur} {self.num(value, dp)}"
+
+    def date(self, s: Any) -> str:
+        return _fmt_date(s, self.locale)
+
+
+# PDF-6: currencies with no minor unit (0 decimal places). Anything not
+# in this set formats with 2 decimals. Source: ISO 4217 zero-decimal
+# currencies (the ones a traveller is plausibly using).
+_ZERO_DECIMAL_CURRENCIES = frozenset({
+    "JPY", "KRW", "VND", "CLP", "PYG", "ISK", "HUF", "TWD",
+    "UGX", "RWF", "XAF", "XOF", "XPF", "DJF", "GNF", "KMF",
+    "BIF", "VUV", "MGA",
+})
+
+
+def _currency_decimals(currency: str) -> int:
+    return 0 if (currency or "").upper() in _ZERO_DECIMAL_CURRENCIES else 2
+
+
+# Localised month + weekday abbreviations for _fmt_date (Babel-free so
+# the export doesn't depend on the host's locale being installed).
+_MONTHS_ABBR = {
+    "en": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    "fr": ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."],
+    "es": ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sept.", "oct.", "nov.", "dic."],
+    "pt": ["jan.", "fev.", "mar.", "abr.", "mai.", "jun.", "jul.", "ago.", "set.", "out.", "nov.", "dez."],
+}
+_WEEKDAYS_ABBR = {
+    "en": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    "fr": ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."],
+    "es": ["lun.", "mar.", "mié.", "jue.", "vie.", "sáb.", "dom."],
+    "pt": ["seg.", "ter.", "qua.", "qui.", "sex.", "sáb.", "dom."],
+}
 
 
 bp = Blueprint("pdf", __name__)
@@ -382,6 +752,10 @@ def _fetch_cover_map(lat: float | None, lng: float | None, place_id: str | None)
             "https://maps.googleapis.com/maps/api/staticmap",
             params=params,
             timeout=10,
+            # SEC-4: the API key rides in `params`; a 3xx to an
+            # attacker-controlled host would leak it in the forwarded
+            # query string. Pin to the literal Google endpoint.
+            allow_redirects=False,
         ) as res:
             if not res.ok:
                 logger.warning(
@@ -473,6 +847,10 @@ def _fetch_overview_pins_map(
             "https://maps.googleapis.com/maps/api/staticmap",
             params=params,
             timeout=10,
+            # SEC-4: the API key rides in `params`; a 3xx to an
+            # attacker-controlled host would leak it in the forwarded
+            # query string. Pin to the literal Google endpoint.
+            allow_redirects=False,
         ) as res:
             if not res.ok:
                 logger.warning(
@@ -546,6 +924,10 @@ def _fetch_day_pin_map(
             "https://maps.googleapis.com/maps/api/staticmap",
             params=params,
             timeout=10,
+            # SEC-4: the API key rides in `params`; a 3xx to an
+            # attacker-controlled host would leak it in the forwarded
+            # query string. Pin to the literal Google endpoint.
+            allow_redirects=False,
         ) as res:
             if not res.ok:
                 return None
@@ -870,6 +1252,237 @@ def _image_aspect(png_bytes: bytes) -> float:
     return 2.0
 
 
+# ── PDF-4: user-photo embedding ──────────────────────────────────────
+# Same fail-soft + size-cap discipline as the map fetchers. We accept
+# three URL shapes that the app actually produces and IGNORE everything
+# else (returns None, no crash):
+#   1. `data:image/...;base64,...` — decoded inline, no network.
+#   2. `/static/uploads/<...>`     — the app's OWN uploads, read from the
+#      local UPLOAD_FOLDER filesystem (no network → no SSRF surface).
+#   3. `http(s)://...`             — fail-soft capped GET (10s timeout,
+#      hard byte cap). Validated by re-decoding through PIL, which both
+#      rejects non-image bytes AND normalises to a reportlab-safe PNG.
+# Every photo is re-encoded to PNG via PIL so a corrupt / malicious /
+# truncated image can never reach reportlab's Image flowable raw.
+_PHOTO_MAX_BYTES = 8 * 1024 * 1024  # 8 MB hard cap per photo download
+_PHOTO_MAX_PER_TRIP = 60           # bound total embeds so a 500-photo
+#                                    trip can't balloon the doc / RAM
+
+
+def _is_public_http_url(url: str) -> bool:
+    """SSRF guard for the photo fetcher. Returns True only when the URL's
+    host resolves entirely to PUBLIC, routable IPs. Blocks loopback,
+    link-local (incl. the 169.254.169.254 cloud-metadata endpoint),
+    private (RFC1918), and other reserved ranges so a user-controlled
+    photo `src` can't turn the export into an internal-network probe."""
+    try:
+        import ipaddress
+        import socket
+        from urllib.parse import urlparse
+        host = urlparse(url).hostname
+        if not host:
+            return False
+        # Resolve ALL addresses the host maps to; reject if ANY is
+        # non-public (defends against a DNS name pointing at a private IP).
+        infos = socket.getaddrinfo(host, None)
+        addrs = {info[4][0] for info in infos}
+        if not addrs:
+            return False
+        for addr in addrs:
+            ip = ipaddress.ip_address(addr)
+            if (
+                ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_multicast or ip.is_reserved or ip.is_unspecified
+            ):
+                return False
+        return True
+    except Exception:
+        return False
+
+
+def _photo_src(entry: Any) -> str | None:
+    """Pull the URL/src out of a photo entry. Day photos are bare URL
+    strings; trip photos_json entries are {src|url, dayId, ...} dicts."""
+    if isinstance(entry, str):
+        return entry.strip() or None
+    if isinstance(entry, dict):
+        for k in ("src", "url", "dataUrl", "data_url"):
+            v = entry.get(k)
+            if isinstance(v, str) and v.strip():
+                return v.strip()
+    return None
+
+
+def _load_photo_png(src: str) -> bytes | None:
+    """Resolve one photo `src` to validated PNG bytes, or None on any
+    failure. Fail-soft everywhere — a single bad photo must never break
+    the export."""
+    if not src or not isinstance(src, str):
+        return None
+    raw: bytes | None = None
+    try:
+        if src.startswith("data:"):
+            # data:[<mediatype>][;base64],<data>
+            header, _, payload = src.partition(",")
+            if not payload:
+                return None
+            if ";base64" in header.lower():
+                import base64
+                raw = base64.b64decode(payload, validate=False)
+            else:
+                from urllib.parse import unquote_to_bytes
+                raw = unquote_to_bytes(payload)
+            if raw and len(raw) > _PHOTO_MAX_BYTES:
+                return None
+        elif src.startswith("/static/uploads/") or src.startswith("static/uploads/"):
+            # App's own upload — read from disk, never the network.
+            try:
+                from flask import current_app
+                root = current_app.config.get("UPLOAD_FOLDER")
+            except Exception:
+                root = None
+            if not root:
+                root = os.getenv("GG_UPLOAD_ROOT")
+            if not root:
+                return None
+            rel = src.split("/static/uploads/", 1)[-1].lstrip("/")
+            # Defend against path traversal — resolve + confine to root.
+            abspath = os.path.realpath(os.path.join(root, rel))
+            root_real = os.path.realpath(root)
+            if not abspath.startswith(root_real + os.sep):
+                return None
+            if not os.path.isfile(abspath):
+                return None
+            if os.path.getsize(abspath) > _PHOTO_MAX_BYTES:
+                return None
+            with open(abspath, "rb") as fh:
+                raw = fh.read(_PHOTO_MAX_BYTES + 1)
+            if raw and len(raw) > _PHOTO_MAX_BYTES:
+                return None
+        elif src.startswith("http://") or src.startswith("https://"):
+            # SSRF guard: refuse to fetch internal / loopback / link-local
+            # / private addresses. A user-controlled photo `src` must not
+            # let the export probe the metadata endpoint (169.254.169.254)
+            # or internal services. App photos are same-origin uploads
+            # (handled above) or data URLs — arbitrary external hosts are
+            # the only ones that reach here, and only public ones are OK.
+            if not _is_public_http_url(src):
+                logger.warning("PDF photo skipped: non-public URL host")
+                return None
+            # Fail-soft capped GET — same `with requests.get(...)` socket
+            # discipline + timeout as the map fetchers.
+            with requests.get(src, timeout=10, stream=True) as res:
+                if not res.ok:
+                    return None
+                # Enforce the byte cap while streaming so a huge/streaming
+                # body can't exhaust RAM.
+                chunks: list[bytes] = []
+                total = 0
+                for chunk in res.iter_content(64 * 1024):
+                    if not chunk:
+                        continue
+                    total += len(chunk)
+                    if total > _PHOTO_MAX_BYTES:
+                        return None
+                    chunks.append(chunk)
+                raw = b"".join(chunks)
+        else:
+            return None
+    except Exception:
+        logger.warning("PDF photo fetch failed", exc_info=True)
+        return None
+
+    if not raw:
+        return None
+    # Re-decode through PIL and re-encode to PNG. This validates the
+    # bytes really are an image, strips any trailing junk, and hands
+    # reportlab a format it always accepts. Downscale very large photos
+    # so the embedded image stays light.
+    try:
+        from PIL import Image as _PILImage
+        with _PILImage.open(io.BytesIO(raw)) as im:
+            im = im.convert("RGB")
+            # Cap the long edge so a 12 MP phone photo doesn't bloat the
+            # PDF — 1280px is plenty for a print thumbnail grid.
+            max_edge = 1280
+            if max(im.size) > max_edge:
+                im.thumbnail((max_edge, max_edge))
+            out = io.BytesIO()
+            im.save(out, format="PNG")
+            return out.getvalue()
+    except Exception:
+        logger.warning("PDF photo decode failed", exc_info=True)
+        return None
+
+
+def _collect_photos(entries: Any, limit: int) -> list[bytes]:
+    """Resolve up to `limit` photo entries to validated PNG bytes,
+    skipping any that fail. `entries` may be a list of strings or dicts."""
+    out: list[bytes] = []
+    if not isinstance(entries, list):
+        return out
+    for entry in entries:
+        if len(out) >= limit:
+            break
+        src = _photo_src(entry)
+        if not src:
+            continue
+        png = _load_photo_png(src)
+        if png:
+            out.append(png)
+    return out
+
+
+def _photo_grid(rl, photos: list[bytes], full_w: float, cols: int = 3):
+    """Lay validated photo PNGs out in a `cols`-wide grid of equal-size
+    cells. Each cell crops the image to a fixed square-ish thumbnail via
+    reportlab's Image (sized to the cell width, aspect preserved). The
+    grid is a MULTI-ROW table, so it paginates naturally (unlike the old
+    single-cell day card). Returns None if there are no decodable
+    photos."""
+    if not photos:
+        return None
+    gap = 6
+    cell_w = (full_w - gap * (cols - 1)) / cols
+    # Build cells; each is an Image sized to the cell width.
+    cells: list[Any] = []
+    for png in photos:
+        try:
+            aspect = _image_aspect(png) or 1.0
+            h = cell_w / aspect if aspect else cell_w
+            # Clamp very tall/short thumbs so the grid rows stay tidy.
+            h = max(cell_w * 0.6, min(h, cell_w * 1.4))
+            cells.append(rl.Image(io.BytesIO(png), width=cell_w, height=h))
+        except Exception:
+            cells.append("")
+    # Pad to a full last row.
+    while len(cells) % cols != 0:
+        cells.append("")
+    # Assemble rows with gap spacer columns.
+    rows: list[list[Any]] = []
+    col_widths: list[float] = []
+    for i in range(0, len(cells), cols):
+        row: list[Any] = []
+        for j in range(cols):
+            if j > 0:
+                row.append("")
+            row.append(cells[i + j])
+        rows.append(row)
+    for j in range(cols):
+        if j > 0:
+            col_widths.append(gap)
+        col_widths.append(cell_w)
+    grid = rl.Table(rows, colWidths=col_widths)
+    grid.setStyle(rl.TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), gap / 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), gap / 2),
+    ]))
+    return grid
+
+
 def _strip_emoji(text: str) -> str:
     """Drop emoji + wide-Unicode glyphs the active font can't render.
     R3-Round 4 fix: when a Unicode-capable font (DejaVu / Arial
@@ -960,7 +1573,7 @@ def _companion_avatar_color(name: str) -> str:
     return palette[h]
 
 
-def _companion_card(rl, styles, page_w, margin_lr, name: str, role: str = "", chip_w: float | None = None):
+def _companion_card(rl, styles, page_w, margin_lr, name: str, role: str = "", chip_w: float | None = None, tr: "_T | None" = None):
     """A "contact card"-style chip for a companion — colored
     avatar tile with the person's initials in white, then their
     name (bold) and optional role (muted) on the right. Designed
@@ -981,8 +1594,9 @@ def _companion_card(rl, styles, page_w, margin_lr, name: str, role: str = "", ch
             textColor=rl.colors.white,
         ),
     )
+    _untitled = tr("untitled_companion") if tr is not None else "Untitled companion"
     info_flowables: list[Any] = [
-        rl.Paragraph(_esc(name) or "Untitled companion", styles["dayTitle"]),
+        rl.Paragraph(_esc(name) or _untitled, styles["dayTitle"]),
     ]
     if role:
         info_flowables.append(rl.Paragraph(_esc(role), styles["muted"]))
@@ -1020,7 +1634,7 @@ def _companion_card(rl, styles, page_w, margin_lr, name: str, role: str = "", ch
     return chip
 
 
-def _companion_grid(rl, styles, page_w, margin_lr, companions: list):
+def _companion_grid(rl, styles, page_w, margin_lr, companions: list, tr: "_T | None" = None):
     """Pack companions into a grid of chips.
 
     Layout rules:
@@ -1044,9 +1658,9 @@ def _companion_grid(rl, styles, page_w, margin_lr, companions: list):
         if isinstance(c, dict):
             nm = c.get("name") or ""
             role = c.get("role") or ""
-            chips.append(_companion_card(rl, styles, page_w, margin_lr, nm, role, chip_w=chip_w))
+            chips.append(_companion_card(rl, styles, page_w, margin_lr, nm, role, chip_w=chip_w, tr=tr))
         elif isinstance(c, str):
-            chips.append(_companion_card(rl, styles, page_w, margin_lr, c, chip_w=chip_w))
+            chips.append(_companion_card(rl, styles, page_w, margin_lr, c, chip_w=chip_w, tr=tr))
 
     if use_single_col:
         rows = [[chip] for chip in chips]
@@ -1095,20 +1709,347 @@ def _section_opener(rl, styles, page_w, margin_lr, number: str, title: str, kick
     ]
 
 
-def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | None):
-    """Render one day as a "card" — a table with a thin tinted
-    background. The header strip puts a big BRAND-BLUE day-number
-    badge on the left (44pt wide, navy text on light-blue), then
-    the date kicker + day name to the right of it. Visually echoes
-    the magazine-style section opener so the document hangs
-    together as one design system.
+def _expenses_section(rl, styles, page_w, margin_lr, expenses: list, tr: "_T",
+                      total_spend_eur: float | None):
+    """PDF-2: itemised expenses as a paginating multi-row table.
 
-    Returned wrapped in a KeepTogether so the card doesn't split
-    mid-block if it'd fit on a fresh page. Long days (lots of
-    notes) STILL split — KeepTogether falls back to natural flow
-    when the block exceeds a single page."""
+    Columns: Date · Description · Category · Amount (original currency) ·
+    EUR. Rows are sorted by date then grouped under a date sub-header.
+    Settlement rows (is_settlement=1) are excluded from the spend list —
+    they belong to the Settle-up section, not "what we spent". A
+    per-currency subtotal block + an EUR grand total close the section.
+    A normal Table splits across pages, so a 200-row trip paginates."""
+    flow: list[Any] = []
+
+    def _key(e):
+        return str(e.get("date") or "")
+    rows_data = [e for e in expenses if isinstance(e, dict)
+                 and not int(e.get("is_settlement") or 0)]
+    rows_data.sort(key=_key)
+
+    if not rows_data:
+        flow.append(rl.Paragraph(f"<i>{_esc(tr('exp_no_label'))}</i>", styles["muted"]))
+        return flow
+
+    header = [
+        tr("col_date"), tr("col_description"), tr("col_category"),
+        tr("col_amount"), tr("col_eur"),
+    ]
+    table_rows: list[list[Any]] = [[
+        rl.Paragraph(f"<b>{_esc(h)}</b>", styles["muted"]) for h in header
+    ]]
+    per_currency: dict[str, float] = {}
+    total_eur = 0.0
+    for e in rows_data:
+        cur = (e.get("currency") or "EUR").upper()
+        val = e.get("value")
+        ev = e.get("euro_value")
+        try:
+            ev_f = float(ev) if ev is not None else 0.0
+        except (TypeError, ValueError):
+            ev_f = 0.0
+        total_eur += ev_f
+        try:
+            val_f = float(val) if val is not None else 0.0
+        except (TypeError, ValueError):
+            val_f = 0.0
+        per_currency[cur] = per_currency.get(cur, 0.0) + val_f
+        label = e.get("label") or tr("exp_no_label")
+        cat = e.get("category_id") or e.get("category") or tr("exp_uncategorised")
+        table_rows.append([
+            rl.Paragraph(_esc(tr.date(e.get("date"))), styles["muted"]),
+            rl.Paragraph(_esc(label), styles["body"]),
+            rl.Paragraph(_esc(str(cat)), styles["muted"]),
+            rl.Paragraph(_esc(tr.money(cur, val_f)), styles["muted"]),
+            rl.Paragraph(_esc(tr.money("EUR", ev_f)), styles["muted"]),
+        ])
+
+    avail = page_w - 2 * margin_lr
+    col_w = [avail * 0.16, avail * 0.34, avail * 0.20, avail * 0.16, avail * 0.14]
+    table = rl.Table(table_rows, colWidths=col_w, repeatRows=1)
+    table.setStyle(rl.TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), rl.colors.HexColor("#f4f4f5")),
+        ("LINEBELOW", (0, 0), (-1, 0), 1, rl.colors.HexColor(_RULE_GREY)),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [rl.colors.white, rl.colors.HexColor("#fafafa")]),
+        ("ALIGN", (3, 0), (-1, -1), "RIGHT"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    flow.append(table)
+    flow.append(rl.Spacer(1, 0.4 * rl.cm))
+
+    # Per-currency subtotals (in each currency's ORIGINAL units) + the
+    # EUR grand total.
+    flow.append(rl.Paragraph(tr("exp_subtotals"), styles["slotLabel"]))
+    sub_rows: list[list[Any]] = []
+    for cur in sorted(per_currency):
+        sub_rows.append([
+            rl.Paragraph(_esc(cur), styles["body"]),
+            rl.Paragraph(_esc(tr.money(cur, per_currency[cur])), styles["body"]),
+        ])
+    eur_total_val = total_eur if total_spend_eur is None else float(total_spend_eur)
+    sub_rows.append([
+        rl.Paragraph(f"<b>{_esc(tr('exp_total_eur'))}</b>", styles["body"]),
+        rl.Paragraph(f"<b>{_esc(tr.money('EUR', eur_total_val))}</b>", styles["body"]),
+    ])
+    sub_table = rl.Table(sub_rows, colWidths=[avail * 0.6, avail * 0.4])
+    sub_table.setStyle(rl.TableStyle([
+        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ("LINEABOVE", (0, -1), (-1, -1), 1, rl.colors.HexColor(_RULE_GREY)),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    flow.append(sub_table)
+    return flow
+
+
+def _settle_section(rl, styles, page_w, margin_lr, expenses: list,
+                    settlements: list, companions: list, tr: "_T"):
+    """PDF-3: per-currency net balances + suggested transfers + the list
+    of recorded settlements.
+
+    Mirrors balances.ts: per-currency balances are built from each
+    expense's ORIGINAL `value` + `splits` (no FX conversion so a no-rate
+    currency stays in its own units). The payer is credited the full
+    amount; each split-share name is debited their portion (denominator =
+    actual sum of split %s, matching the app's normalisation). When an
+    expense has no splits, the cost is shared equally across the roster
+    (companions ∪ expense-attributed names). Recorded settlements — both
+    legacy is_settlement expense rows AND settlements-table rows — then
+    shift the balances (payer +amount, receiver -amount). Finally the
+    greedy minimal-transfers list is emitted, plus the raw recorded
+    settlement rows for an audit trail."""
+    flow: list[Any] = []
+
+    # Roster = companion names ∪ names referenced by expenses (who / split
+    # keys) so a removed companion's expenses still balance.
+    roster: list[str] = []
+    seen_names: set[str] = set()
+
+    def _add_name(nm):
+        nm = (nm or "").strip()
+        if nm and nm not in seen_names:
+            seen_names.add(nm)
+            roster.append(nm)
+
+    for c in companions:
+        if isinstance(c, dict):
+            _add_name(c.get("name"))
+        elif isinstance(c, str):
+            _add_name(c)
+    for e in expenses:
+        if not isinstance(e, dict):
+            continue
+        _add_name(e.get("who"))
+        sp = _safe_json(e.get("splits"), {})
+        if isinstance(sp, dict):
+            for k in sp:
+                _add_name(k)
+
+    by_currency: dict[str, dict[str, float]] = {}
+
+    def _bal(cur: str) -> dict[str, float]:
+        cur = (cur or "EUR").upper()
+        if cur not in by_currency:
+            by_currency[cur] = {p: 0.0 for p in roster}
+        return by_currency[cur]
+
+    # Expenses (exclude settlement rows here — they're applied below).
+    for e in expenses:
+        if not isinstance(e, dict) or int(e.get("is_settlement") or 0):
+            continue
+        cur = (e.get("currency") or "EUR").upper()
+        try:
+            amount = float(e.get("value") or 0)
+        except (TypeError, ValueError):
+            amount = 0.0
+        if amount <= 0:
+            continue
+        bal = _bal(cur)
+        who = (e.get("who") or "").strip()
+        if who and who in bal:
+            bal[who] += amount
+        splits = _safe_json(e.get("splits"), {})
+        if isinstance(splits, dict) and splits:
+            denom = sum(float(v or 0) for v in splits.values()) or 100.0
+            for person, pct in splits.items():
+                person = (person or "").strip()
+                if person in bal:
+                    bal[person] -= amount * (float(pct or 0) / denom)
+        else:
+            share = amount / max(len(roster), 1)
+            for p in roster:
+                bal[p] -= share
+
+    # Apply recorded settlements: (1) legacy is_settlement expense rows,
+    # (2) settlements-table rows. Both shift payer +amt / receiver -amt.
+    recorded: list[tuple[str, str, str, float]] = []  # (from, to, cur, amt)
+    for e in expenses:
+        if not isinstance(e, dict) or not int(e.get("is_settlement") or 0):
+            continue
+        # Legacy settlement expense: `who` paid; splits (if any) name the
+        # receiver. Treat as payer credit only when we can resolve names.
+        cur = (e.get("currency") or "EUR").upper()
+        try:
+            amt = float(e.get("value") or 0)
+        except (TypeError, ValueError):
+            amt = 0.0
+        who = (e.get("who") or "").strip()
+        if amt > 0 and who:
+            bal = _bal(cur)
+            if who in bal:
+                bal[who] += amt
+            splits = _safe_json(e.get("splits"), {})
+            recv = ""
+            if isinstance(splits, dict) and splits:
+                recv = next(iter(splits)).strip()
+                if recv in bal:
+                    bal[recv] -= amt
+            recorded.append((who, recv or "—", cur, amt))
+    for s in settlements:
+        if not isinstance(s, dict):
+            continue
+        cur = (s.get("currency") or "EUR").upper()
+        try:
+            amt = float(s.get("amount") or 0)
+        except (TypeError, ValueError):
+            amt = 0.0
+        if amt <= 0:
+            continue
+        frm = (s.get("from_name") or "").strip()
+        to = (s.get("to_name") or "").strip()
+        bal = _bal(cur)
+        if frm:
+            if frm not in bal:
+                bal[frm] = 0.0
+            bal[frm] += amt
+        if to:
+            if to not in bal:
+                bal[to] = 0.0
+            bal[to] -= amt
+        recorded.append((frm or "—", to or "—", cur, amt))
+
+    # Render net balances + suggested transfers per currency.
+    any_balance = False
+    for cur in sorted(by_currency):
+        bal = by_currency[cur]
+        # Skip currencies where everyone nets to ~0.
+        if all(abs(v) < 0.01 for v in bal.values()):
+            continue
+        any_balance = True
+        flow.append(rl.Paragraph(f"{tr('settle_balances')} · {_esc(cur)}", styles["slotLabel"]))
+        bal_rows: list[list[Any]] = []
+        for person in sorted(bal, key=lambda p: -bal[p]):
+            v = bal[person]
+            if abs(v) < 0.01:
+                continue
+            tag = tr("settle_is_owed") if v > 0 else tr("settle_owes")
+            bal_rows.append([
+                rl.Paragraph(_esc(person), styles["body"]),
+                rl.Paragraph(
+                    f"{_esc(tag)} {_esc(tr.money(cur, abs(v)))}", styles["muted"]
+                ),
+            ])
+        if bal_rows:
+            avail = page_w - 2 * margin_lr
+            bt = rl.Table(bal_rows, colWidths=[avail * 0.4, avail * 0.6])
+            bt.setStyle(rl.TableStyle([
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ]))
+            flow.append(bt)
+        # Suggested minimal transfers.
+        transfers = _simplify_debts(bal)
+        if transfers:
+            flow.append(rl.Spacer(1, 0.15 * rl.cm))
+            flow.append(rl.Paragraph(tr("settle_transfers"), styles["dayKicker"]))
+            for frm, to, amt in transfers:
+                flow.append(rl.Paragraph(
+                    f"{_esc(frm)} → {_esc(to)}: <b>{_esc(tr.money(cur, amt))}</b>",
+                    styles["body"],
+                ))
+        flow.append(rl.Spacer(1, 0.35 * rl.cm))
+
+    if not any_balance:
+        flow.append(rl.Paragraph(f"<i>{_esc(tr('settle_all_square'))}</i>", styles["muted"]))
+
+    # Recorded settlements list (audit trail).
+    if recorded:
+        flow.append(rl.Spacer(1, 0.2 * rl.cm))
+        flow.append(rl.Paragraph(tr("settle_recorded"), styles["slotLabel"]))
+        for frm, to, cur, amt in recorded:
+            flow.append(rl.Paragraph(
+                f"{_esc(frm)} {_esc(tr('settle_paid'))} {_esc(to)} — "
+                f"{_esc(tr.money(cur, amt))}",
+                styles["muted"],
+            ))
+    return flow
+
+
+def _simplify_debts(balances: dict[str, float]) -> list[tuple[str, str, float]]:
+    """Greedy minimal-payments list — pair largest debtor with largest
+    creditor, settle the smaller, repeat. Mirrors balances.ts's
+    simplifyDebts (1-cent epsilon). Returns (from, to, amount) tuples."""
+    eps = 0.01
+    creditors = sorted(
+        ((p, v) for p, v in balances.items() if v > eps),
+        key=lambda x: -x[1],
+    )
+    debtors = sorted(
+        ((p, -v) for p, v in balances.items() if v < -eps),
+        key=lambda x: -x[1],
+    )
+    creditors = [list(c) for c in creditors]
+    debtors = [list(d) for d in debtors]
+    out: list[tuple[str, str, float]] = []
+    i = j = 0
+    while i < len(debtors) and j < len(creditors):
+        d_name, d_amt = debtors[i]
+        c_name, c_amt = creditors[j]
+        pay = min(d_amt, c_amt)
+        out.append((d_name, c_name, round(pay, 2)))
+        debtors[i][1] -= pay
+        creditors[j][1] -= pay
+        if debtors[i][1] < eps:
+            i += 1
+        if creditors[j][1] < eps:
+            j += 1
+    return out
+
+
+def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | None,
+              tr: "_T", day_photos: list[bytes] | None = None):
+    """Render one day as a flat list of flowables (PDF-1 fix).
+
+    PRE-MK4 this wrapped the entire day in a SINGLE-CELL `Table([[inner]])`
+    to draw a card background. Reportlab cannot split one oversized table
+    cell across pages, so a single ~800-word journal day raised a
+    LayoutError that bubbled up and 500'd the WHOLE export — every other
+    day, the cover, budgets, everything lost. The audit proved multi-row
+    tables DO split but a single giant cell does not.
+
+    FIX: the day header (blue badge + date + title) is a small bounded
+    Table that always fits, kept-with-next via `KeepTogether`. The BODY
+    paragraphs (slots / notes / tip) are emitted as TOP-LEVEL flowables
+    so reportlab paginates them naturally — a verbose journaler's day now
+    flows across as many pages as it needs instead of crashing. The whole
+    list is wrapped in a final `KeepTogether` by the caller's helper so a
+    SHORT day still stays together on one page (KeepTogether falls back
+    to natural flow for the rare day that exceeds a page).
+
+    `tr` is the locale translator (PDF-5). `day_photos` is an optional
+    list of validated PNG/JPEG bytes to lay out in a thumbnail grid
+    after the day's plan (PDF-4)."""
     day_number = day.get("day_number")
-    day_date = _fmt_date(day.get("date"))
+    day_date = tr.date(day.get("date"))
     day_name = (day.get("name") or "").strip()
 
     # Header strip — badge + date kicker + day title
@@ -1127,7 +2068,7 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
             rl.Paragraph(_esc(kicker_text), styles["dayKicker"])
         )
     header_right_flowables.append(
-        rl.Paragraph(_esc(name_text or f"Day {badge_label}"), styles["dayTitle"])
+        rl.Paragraph(_esc(name_text or f"{tr('day')} {badge_label}"), styles["dayTitle"])
     )
 
     # Day number badge — solid blue tile with the number in white.
@@ -1138,18 +2079,20 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
                           fontSize=22, leading=24, alignment=1,
                           textColor=rl.colors.white),
     )
-    # Day card is itself nested inside an outer card table — the
-    # inner content width is `(page_w - 2*margin_lr) - 28` (28 = the
-    # outer card's 14pt LEFT + 14pt RIGHT padding). Use explicit
-    # widths so the nested-table layout doesn't trip on `None`.
-    card_inner_w = page_w - 2 * margin_lr - 28
+    # Header is now a TOP-LEVEL flowable (not nested in an outer card
+    # cell), so it spans the full content width. The blue badge cell +
+    # title cell are a 2-col table that is always short enough to fit on
+    # a page — the part that used to overflow (the body) is no longer
+    # inside this table.
+    full_w = page_w - 2 * margin_lr
     badge_w = 1.5 * rl.cm
     header_row = rl.Table(
         [[badge_para, header_right_flowables]],
-        colWidths=[badge_w, card_inner_w - badge_w],
+        colWidths=[badge_w, full_w - badge_w],
     )
     header_row.setStyle(rl.TableStyle([
         ("BACKGROUND", (0, 0), (0, 0), rl.colors.HexColor(_BRAND_BLUE)),
+        ("BACKGROUND", (1, 0), (1, 0), rl.colors.HexColor("#fafbff")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("ALIGN", (0, 0), (0, 0), "CENTER"),
         ("LEFTPADDING", (0, 0), (0, 0), 0),
@@ -1160,28 +2103,27 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
         ("RIGHTPADDING", (1, 0), (1, 0), 8),
         ("TOPPADDING", (1, 0), (1, 0), 6),
         ("BOTTOMPADDING", (1, 0), (1, 0), 6),
+        ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor(_RULE_GREY)),
     ]))
 
-    inner: list[Any] = [
-        header_row,
-        rl.Spacer(1, 0.3 * rl.cm),
-    ]
+    # `header_block` = header kept with the first body element so a day's
+    # title is never orphaned at the bottom of a page. `body` = the rest,
+    # emitted as flat flowables that paginate freely.
+    body: list[Any] = []
 
     if day_map_png:
         try:
-            # Source PNG: size=800x320 → 2.5:1 aspect. Card has 14pt
-            # inner padding each side. Direct sizing at exactly 2.5:1
-            # so the map fills the card content width.
-            inner_w = page_w - 2 * margin_lr - 28
+            # Source PNG: size=800x320 → 2.5:1 aspect. Direct sizing so
+            # the map fills the content width.
             day_aspect = _image_aspect(day_map_png)
-            inner.append(
+            body.append(
                 rl.Image(
                     io.BytesIO(day_map_png),
-                    width=inner_w,
-                    height=inner_w / day_aspect,
+                    width=full_w,
+                    height=full_w / day_aspect,
                 )
             )
-            inner.append(rl.Spacer(1, 0.25 * rl.cm))
+            body.append(rl.Spacer(1, 0.25 * rl.cm))
         except Exception:
             # R12-B1: reportlab silently refuses bad image bytes; log
             # so a corrupt day-map render (Static-Maps glitch / Pillow
@@ -1191,15 +2133,15 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
 
     any_slot = False
     for slot_name, slot_label in (
-        ("morning", "MORNING"),
-        ("afternoon", "AFTERNOON"),
-        ("evening", "EVENING"),
+        ("morning", tr("slot_morning")),
+        ("afternoon", tr("slot_afternoon")),
+        ("evening", tr("slot_evening")),
     ):
         val = day.get(slot_name)
         if not (isinstance(val, str) and val.strip()):
             continue
         any_slot = True
-        inner.append(rl.Paragraph(slot_label, styles["slotLabel"]))
+        body.append(rl.Paragraph(slot_label, styles["slotLabel"]))
         # Try the AI-format parser first. If it pulls out structured
         # items (name / why / fact), render each as its own editorial
         # block — bold name, body "why" prose, italic muted "fact"
@@ -1208,79 +2150,86 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
         items = _parse_day_slot(val)
         if items:
             for it in items:
-                inner.append(rl.Paragraph(
+                body.append(rl.Paragraph(
                     _esc(it["name"]), styles["slotItemTitle"],
                 ))
                 if it["why"]:
-                    inner.append(rl.Paragraph(
+                    body.append(rl.Paragraph(
                         _esc(it["why"]), styles["body"],
                     ))
                 if it["fact"]:
-                    inner.append(rl.Paragraph(
+                    body.append(rl.Paragraph(
                         f'<font color="{_BRAND_BLUE}"><b>★</b></font>'
                         f'  <i>{_esc(it["fact"])}</i>',
                         styles["muted"],
                     ))
-                inner.append(rl.Spacer(1, 0.15 * rl.cm))
+                body.append(rl.Spacer(1, 0.15 * rl.cm))
         else:
             body_text = _esc(val).replace("\n", "<br/>")
-            inner.append(rl.Paragraph(body_text, styles["body"]))
+            body.append(rl.Paragraph(body_text, styles["body"]))
 
     notes = day.get("notes")
     if isinstance(notes, str) and notes.strip():
-        inner.append(rl.Paragraph("NOTES", styles["slotLabel"]))
+        body.append(rl.Paragraph(tr("slot_notes"), styles["slotLabel"]))
         items = _parse_day_slot(notes)
         if items:
             for it in items:
-                inner.append(rl.Paragraph(
+                body.append(rl.Paragraph(
                     _esc(it["name"]), styles["slotItemTitle"],
                 ))
                 if it["why"]:
-                    inner.append(rl.Paragraph(
+                    body.append(rl.Paragraph(
                         _esc(it["why"]), styles["body"],
                     ))
                 if it["fact"]:
-                    inner.append(rl.Paragraph(
+                    body.append(rl.Paragraph(
                         f'<font color="{_BRAND_BLUE}"><b>★</b></font>'
                         f'  <i>{_esc(it["fact"])}</i>',
                         styles["muted"],
                     ))
-                inner.append(rl.Spacer(1, 0.15 * rl.cm))
+                body.append(rl.Spacer(1, 0.15 * rl.cm))
         else:
-            inner.append(
+            body.append(
                 rl.Paragraph(_esc(notes).replace("\n", "<br/>"), styles["body"])
             )
         any_slot = True
 
     tip = day.get("tip")
     if isinstance(tip, str) and tip.strip():
-        inner.append(
-            rl.Paragraph(f"<b>TIP.</b>  {_esc(tip)}", styles["tip"])
+        body.append(
+            rl.Paragraph(f"<b>{tr('slot_tip')}</b>  {_esc(tip)}", styles["tip"])
         )
         any_slot = True
 
-    if not any_slot:
-        inner.append(
-            rl.Paragraph("<i>No plan yet for this day.</i>", styles["muted"])
+    # PDF-4: per-day photo thumbnails laid out in a grid, after the plan.
+    if day_photos:
+        grid = _photo_grid(rl, day_photos, full_w, cols=3)
+        if grid is not None:
+            body.append(rl.Spacer(1, 0.2 * rl.cm))
+            body.append(grid)
+
+    if not any_slot and not day_photos:
+        body.append(
+            rl.Paragraph(f"<i>{_esc(tr('no_plan'))}</i>", styles["muted"])
         )
 
-    # Wrap the whole day in a one-cell table so it gets a card
-    # background + subtle padding. The table border is the visual
-    # "card edge"; reportlab doesn't have a native rounded-corner
-    # box flowable so we settle for a 0.4pt border at the brand's
-    # subtle grey.
-    card = rl.Table([[inner]], colWidths=[page_w - 2 * margin_lr])
-    card.setStyle(rl.TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), rl.colors.HexColor("#fafbff")),
-        ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor(_RULE_GREY)),
-        ("LEFTPADDING", (0, 0), (-1, -1), 14),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 14),
-        ("TOPPADDING", (0, 0), (-1, -1), 12),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-    ]))
-
-    return [card, rl.Spacer(1, 0.35 * rl.cm)]
+    # PDF-1: header kept with the FIRST body flowable (so a title never
+    # orphans), then the remaining body flows as independent top-level
+    # flowables that paginate across pages. We DON'T wrap the body in a
+    # single Table cell anymore — that was the un-splittable atom that
+    # crashed long-journal days.
+    flowables: list[Any] = []
+    if body:
+        flowables.append(rl.KeepTogether([
+            header_row,
+            rl.Spacer(1, 0.3 * rl.cm),
+            body[0],
+        ]))
+        flowables.extend(body[1:])
+    else:
+        flowables.append(header_row)
+    flowables.append(rl.Spacer(1, 0.45 * rl.cm))
+    return flowables
 
 
 def _summary_stats_row(rl, styles, stats: list[tuple[str, str]], page_w, margin_lr):
@@ -1401,15 +2350,21 @@ def _toc_row(rl, styles, page_w, margin_lr, number: str, title: str, sub: str, c
     return t
 
 
-def _fmt_date(s: Any) -> str:
-    """`2026-04-15` → `Wed 15 Apr 2026`. Non-ISO inputs pass through."""
+def _fmt_date(s: Any, locale: str = "en") -> str:
+    """`2026-04-15` → `Wed 15 Apr 2026` (en) / `mer. 15 avr. 2026` (fr).
+    Non-ISO inputs pass through. PDF-5: weekday + month abbreviations are
+    localised via a Babel-free table so the export doesn't depend on the
+    host OS having the locale installed."""
     if not s:
         return ""
+    loc = locale if locale in _MONTHS_ABBR else "en"
     try:
         dt = datetime.fromisoformat(str(s)[:10])
-        return dt.strftime("%a %d %b %Y")
     except (ValueError, TypeError):
         return str(s)
+    wd = _WEEKDAYS_ABBR[loc][dt.weekday()]
+    mo = _MONTHS_ABBR[loc][dt.month - 1]
+    return f"{wd} {dt.day:02d} {mo} {dt.year}"
 
 
 def _safe_json(raw: Any, fallback: Any) -> Any:
@@ -1437,13 +2392,22 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
       includeDayPins         bool  per-day mini-map with slot pins
       includeTodos           bool  to-do list section
       includeBudgets         bool  budgets section (only if any exist)
+      includeExpenses        bool  itemised expenses table (PDF-2)
+      includeSettlements     bool  settle-up balances + recorded (PDF-3)
       includeCompanions      bool  companion roster
       includeMarkedPlaces    bool  marked-places list
+      includePhotos          bool  embed trip + per-day photos (PDF-4)
+      locale                 str   active UI locale ('en'/'fr'/'es'/'pt'),
+                                   routes every label through the i18n
+                                   string table (PDF-5)
 
     Unknown keys are ignored; missing keys default to True for the
     'extensive by default' UX brief."""
     rl = _rl()
     styles = _styles(rl)
+    # PDF-5: resolve the locale once and build the translator. Every
+    # section title / slot label / money + date string goes through `tr`.
+    tr = _T(_norm_locale(options.get("locale") or options.get("lang")))
     buf = io.BytesIO()
     page_w, page_h = rl.A4
 
@@ -1504,7 +2468,7 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             canvas.drawRightString(
                 page_w - margin_lr,
                 kicker_y,
-                f"TRIP PLAN  ·  {_strip_emoji(trip_name).upper()}",
+                f"{tr('trip_plan_chrome')}  ·  {_strip_emoji(trip_name).upper()}",
             )
             canvas.restoreState()
 
@@ -1527,12 +2491,12 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         canvas.drawString(
             margin_lr,
             footer_y,
-            f"The Great Getaway  ·  {_strip_emoji(trip_name)}",
+            f"{tr('brand_footer')}  ·  {_strip_emoji(trip_name)}",
         )
         canvas.drawRightString(
             page_w - margin_lr,
             footer_y,
-            f"Page {_doc.page}",
+            f"{tr('page')} {_doc.page}",
         )
         canvas.restoreState()
 
@@ -1557,6 +2521,10 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
     # ── parsed JSON columns ──
     companions = _safe_json(trip_row.get("companions_json"), [])
     marked_places = _safe_json(trip_row.get("marked_places_json"), [])
+    trip_photos = _safe_json(trip_row.get("photos_json"), [])
+    # PDF-2/3: the route attaches itemised expense + settlement rows.
+    expenses = trip_row.get("expenses") or []
+    settlements = trip_row.get("settlements") or []
     # `days` is a list of trip_days rows the API loader attached
     # to the row dict (not a JSON column on `trips` — trip_days is
     # its own table). Each day carries day_number / date / name /
@@ -1590,20 +2558,20 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
     # dates → hero map → stat tiles → "what's inside" mini-TOC.
     # Everything sized so the cover fills a SINGLE page; PageBreak
     # below it guarantees the next section starts on page 2.
-    title = trip_row.get("name") or "Untitled trip"
+    title = trip_row.get("name") or tr("untitled_trip")
     country = trip_row.get("country") or ""
     date_from = trip_row.get("date_from") or ""
     date_to = trip_row.get("date_to") or ""
     if date_from and date_to:
-        date_line = f"{_fmt_date(date_from)}   →   {_fmt_date(date_to)}"
+        date_line = f"{tr.date(date_from)}   →   {tr.date(date_to)}"
     elif date_from or date_to:
-        date_line = _fmt_date(date_from or date_to)
+        date_line = tr.date(date_from or date_to)
     else:
         date_line = ""
 
     story.append(rl.Spacer(1, 0.6 * rl.cm))
     story.append(
-        rl.Paragraph("THE GREAT GETAWAY   ·   TRIP PLAN", styles["kicker"])
+        rl.Paragraph(tr("trip_plan_kicker"), styles["kicker"])
     )
     story.append(
         rl.HRFlowable(
@@ -1655,14 +2623,14 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         # have so the strip never has empty cells.
         stats: list[tuple[str, str]] = []
         if days_renderable:
-            stats.append((str(len(days_renderable)), "DAYS"))
+            stats.append((str(len(days_renderable)), tr("stat_days")))
         if companions:
-            stats.append((str(len(companions)), "COMPANIONS"))
+            stats.append((str(len(companions)), tr("stat_companions")))
         if marked_places:
-            stats.append((str(len(marked_places)), "PLACES"))
+            stats.append((str(len(marked_places)), tr("stat_places")))
         # Expenses + budgets totals if available
         if trip_row.get("total_spend_eur") is not None:
-            stats.append((f"€{int(trip_row['total_spend_eur']):,}", "SPEND"))
+            stats.append((f"€{tr.num(int(trip_row['total_spend_eur']), 0)}", tr("stat_spend")))
         if stats:
             story.append(_summary_stats_row(rl, styles, stats, page_w, margin_lr))
             story.append(rl.Spacer(1, 0.7 * rl.cm))
@@ -1670,49 +2638,74 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
     # "What's inside" mini-TOC. Lists only the sections the user
     # opted to include — so the cover honestly previews what they
     # ticked in the export modal.
+    # TOC subtitles stay light/illustrative — left in English numerals
+    # only where they're just a count; the section TITLE (the load-
+    # bearing label) is translated. Keeping the subtitle terse avoids a
+    # combinatorial plural-rule table across four locales.
     toc_entries: list[tuple[str, str, str, str]] = []
     n = 1
     if opt("includeDays") and days_renderable:
         toc_entries.append((
-            f"{n:02d}", "Day-by-day",
-            f"{len(days_renderable)} day{'s' if len(days_renderable) != 1 else ''} of plans.",
+            f"{n:02d}", tr("sec_days"),
+            f"{len(days_renderable)} · {tr('stat_days').lower()}",
             _BRAND_BLUE,
         ))
         n += 1
     todos = _safe_json(trip_row.get("checklist_json"), [])
     if opt("includeTodos") and todos:
         toc_entries.append((
-            f"{n:02d}", "Checklist",
-            f"{len(todos)} to-do{'s' if len(todos) != 1 else ''} grouped by category.",
+            f"{n:02d}", tr("sec_checklist"),
+            f"{len(todos)}",
             _BRAND_PURPLE,
         ))
         n += 1
     budgets = trip_row.get("budgets") or []
     if opt("includeBudgets") and budgets:
         toc_entries.append((
-            f"{n:02d}", "Budgets",
-            f"{len(budgets)} planned line item{'s' if len(budgets) != 1 else ''} + trip-total spend.",
+            f"{n:02d}", tr("sec_budgets"),
+            f"{len(budgets)}",
+            _BRAND_GREEN,
+        ))
+        n += 1
+    if opt("includeExpenses", default=False) and expenses:
+        toc_entries.append((
+            f"{n:02d}", tr("sec_expenses"),
+            f"{len(expenses)}",
+            _BRAND_GREEN,
+        ))
+        n += 1
+    if opt("includeSettlements", default=False) and (expenses or settlements):
+        toc_entries.append((
+            f"{n:02d}", tr("sec_settle"), "",
             _BRAND_GREEN,
         ))
         n += 1
     if opt("includeCompanions") and companions:
         toc_entries.append((
-            f"{n:02d}", "Companions",
-            f"Travelling with {len(companions)} other{'s' if len(companions) != 1 else ''}.",
+            f"{n:02d}", tr("sec_companions"),
+            f"{len(companions)}",
             _BRAND_PURPLE,
         ))
         n += 1
     if opt("includeMarkedPlaces") and marked_places:
         toc_entries.append((
-            f"{n:02d}", "Marked places",
-            f"{len(marked_places)} saved place{'s' if len(marked_places) != 1 else ''}.",
+            f"{n:02d}", tr("sec_places"),
+            f"{len(marked_places)}",
             _BRAND_BLUE,
+        ))
+        n += 1
+    if opt("includePhotos", default=False) and (trip_photos or any(
+        isinstance(d, dict) and d.get("photos") for d in days_renderable
+    )):
+        toc_entries.append((
+            f"{n:02d}", tr("sec_photos"), "",
+            _BRAND_PURPLE,
         ))
         n += 1
 
     if toc_entries:
         story.append(
-            rl.Paragraph("WHAT'S INSIDE", styles["kicker"])
+            rl.Paragraph(tr("whats_inside"), styles["kicker"])
         )
         for entry in toc_entries:
             story.append(_toc_row(rl, styles, page_w, margin_lr, *entry))
@@ -1730,10 +2723,11 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         story.extend(_section_opener(
             rl, styles, page_w, margin_lr,
             number=f"{section_num:02d}",
-            title="Day-by-day",
+            title=tr("sec_days"),
             kicker=(
-                f"{len(days_renderable)} day{'s' if len(days_renderable) != 1 else ''} laid out below. "
-                "Each card walks the day morning → afternoon → evening."
+                f"{tr('sec_days')} — "
+                f"{tr('slot_morning').lower()} · {tr('slot_afternoon').lower()} · "
+                f"{tr('slot_evening').lower()}"
             ),
             color=_BRAND_BLUE,
         ))
@@ -1806,11 +2800,21 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                     d_lat = trip_row.get("lat")
                     d_lng = trip_row.get("lng")
                 day_map_png = _fetch_day_pin_map(d_lat, d_lng, None)
-            card_flowables = _day_card(rl, styles, page_w, margin_lr, day, day_map_png)
-            # KeepTogether on each card → don't split a single day
-            # mid-block. Long days (lots of notes) STILL fall back
-            # to natural pagination when they exceed one page.
-            story.append(rl.KeepTogether(card_flowables))
+            # PDF-4: per-day inline photos (opt-in, off by default).
+            day_photos: list[bytes] = []
+            if opt("includePhotos", default=False):
+                day_photos = _collect_photos(
+                    _safe_json(day.get("photos"), []), limit=6,
+                )
+            # PDF-1: _day_card returns a FLAT list of flowables — header
+            # kept-with-first-body, the rest paginating freely. We
+            # `extend` (NOT wrap in another KeepTogether) so a page-long
+            # journal day flows across pages instead of crashing the
+            # whole export on an un-splittable single Table cell.
+            story.extend(_day_card(
+                rl, styles, page_w, margin_lr, day, day_map_png, tr,
+                day_photos=day_photos,
+            ))
 
         # Optionally append the LLM-generated layer the frontend
         # forwarded along (lives in localStorage; not in the DB).
@@ -1819,7 +2823,7 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             story.extend(_section_opener(
                 rl, styles, page_w, margin_lr,
                 number="✦",
-                title="AI suggestions",
+                title=tr("sec_ai"),
                 kicker=(
                     "Gemini-generated plan kept alongside your hand-edited "
                     "version. Not yet accepted into your day-by-day."
@@ -1830,15 +2834,15 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 if not isinstance(day, dict):
                     continue
                 day_num = day.get("day", "")
-                day_dt = _fmt_date(day.get("date", ""))
+                day_dt = tr.date(day.get("date", ""))
                 main_loc = day.get("mainLocation") or day.get("title") or ""
                 kicker_text = day_dt.upper() if day_dt else ""
                 title_parts = []
                 if day_num:
-                    title_parts.append(f"Day {day_num}")
+                    title_parts.append(f"{tr('day')} {day_num}")
                 if main_loc:
                     title_parts.append(main_loc)
-                ai_title = "  ·  ".join(title_parts) or "Day"
+                ai_title = "  ·  ".join(title_parts) or tr("day")
 
                 inner: list[Any] = []
                 if kicker_text:
@@ -1890,11 +2894,8 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         story.extend(_section_opener(
             rl, styles, page_w, margin_lr,
             number=f"{section_num:02d}",
-            title="Checklist",
-            kicker=(
-                f"{len(todos)} item{'s' if len(todos) != 1 else ''} "
-                "grouped by category. Tick what's done as you go."
-            ),
+            title=tr("sec_checklist"),
+            kicker="",
             color=_BRAND_PURPLE,
         ))
         section_num += 1
@@ -1938,12 +2939,8 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         story.extend(_section_opener(
             rl, styles, page_w, margin_lr,
             number=f"{section_num:02d}",
-            title="Budgets",
-            kicker=(
-                f"{len(budgets)} planned line item"
-                f"{'s' if len(budgets) != 1 else ''} alongside the trip's "
-                "actual spend, EUR-normalised."
-            ),
+            title=tr("sec_budgets"),
+            kicker="",
             color=_BRAND_GREEN,
         ))
         section_num += 1
@@ -1953,7 +2950,7 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         # per-row "spent" column. Labels are derived from scope in the
         # data-assembly step (BUG-21); amounts are shown in the user's
         # ORIGINAL currency per row but summed in EUR for the total.
-        rows = [["Budget", "Planned"]]
+        rows = [[tr("col_budget"), tr("col_planned")]]
         total_planned_eur = 0.0
         for b in budgets:
             # `amount` is always EUR-normalised at write time — sum THAT
@@ -1962,24 +2959,26 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             eur_amount = float(b.get("amount") or 0)
             total_planned_eur += eur_amount
             # Per row, show what the user actually budgeted: their
-            # original currency + amount (a USD budget reads "USD 1,100",
-            # not the EUR-normalised value). Fall back to the canonical
-            # pair for legacy rows missing the original_* fields.
+            # original currency + amount. PDF-6: format with
+            # currency-aware decimals (0 for JPY/KRW/…, 2 otherwise) so
+            # a USD 1,100.50 budget no longer prints "USD 1,101" (cents
+            # silently rounded away). Fall back to the canonical pair for
+            # legacy rows missing the original_* fields.
             orig_amount = b.get("original_amount")
             orig_curr = b.get("original_currency")
             if orig_amount is not None and orig_curr:
-                planned_disp = f"{orig_curr} {float(orig_amount):,.0f}"
+                planned_disp = tr.money(orig_curr, orig_amount)
             else:
-                planned_disp = f"{b.get('currency') or 'EUR'} {eur_amount:,.0f}"
+                planned_disp = tr.money(b.get("currency") or "EUR", eur_amount)
             rows.append([
-                _esc(b.get("label") or "Untitled"),
+                _esc(b.get("label") or tr("budget_untitled")),
                 planned_disp,
             ])
-        rows.append(["Total planned (EUR-normalised)", f"EUR {total_planned_eur:,.0f}"])
+        rows.append([tr("total_planned"), tr.money("EUR", total_planned_eur)])
         if trip_row.get("total_spend_eur") is not None:
             rows.append([
-                "Actual trip spend (EUR-normalised)",
-                f"EUR {trip_row['total_spend_eur']:,.0f}",
+                tr("actual_spend"),
+                tr.money("EUR", trip_row["total_spend_eur"]),
             ])
         col_w = [(page_w - 2 * margin_lr) * 0.6, (page_w - 2 * margin_lr) * 0.4]
         budget_table = rl.Table(rows, colWidths=col_w)
@@ -2002,23 +3001,61 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         ]))
         story.append(budget_table)
 
+    # ── EXPENSES (PDF-2) ──
+    # An itemised list the budget aggregate never showed: a 40-expense
+    # trip used to collapse to a single number. Rendered as a MULTI-ROW
+    # table (date · description · category · original amount · EUR), which
+    # paginates correctly (unlike the old single-cell day card), grouped
+    # by date, with per-currency subtotals + an EUR grand total.
+    if opt("includeExpenses", default=False) and expenses:
+        story.append(rl.PageBreak())
+        story.extend(_section_opener(
+            rl, styles, page_w, margin_lr,
+            number=f"{section_num:02d}",
+            title=tr("sec_expenses"),
+            kicker="",
+            color=_BRAND_GREEN,
+        ))
+        section_num += 1
+        story.extend(_expenses_section(
+            rl, styles, page_w, margin_lr, expenses, tr,
+            total_spend_eur=trip_row.get("total_spend_eur"),
+        ))
+
+    # ── SETTLE UP (PDF-3) ──
+    # The group-trip "who owes whom" story was entirely absent. We
+    # compute per-currency net balances from the trip's non-settlement
+    # expenses (mirroring balances.ts), apply recorded settlements
+    # (legacy is_settlement expense rows + the settlements table),
+    # show simplified transfers, and list the recorded settlements.
+    if opt("includeSettlements", default=False) and (expenses or settlements):
+        story.append(rl.PageBreak())
+        story.extend(_section_opener(
+            rl, styles, page_w, margin_lr,
+            number=f"{section_num:02d}",
+            title=tr("sec_settle"),
+            kicker="",
+            color=_BRAND_GREEN,
+        ))
+        section_num += 1
+        story.extend(_settle_section(
+            rl, styles, page_w, margin_lr, expenses, settlements, companions, tr,
+        ))
+
     # ── COMPANIONS ──
     if opt("includeCompanions") and companions:
         story.append(rl.PageBreak())
         story.extend(_section_opener(
             rl, styles, page_w, margin_lr,
             number=f"{section_num:02d}",
-            title="Companions",
-            kicker=(
-                f"Travelling with {len(companions)} other"
-                f"{'s' if len(companions) != 1 else ''}."
-            ),
+            title=tr("sec_companions"),
+            kicker="",
             color=_BRAND_PURPLE,
         ))
         section_num += 1
         # Pretty avatar grid — each companion gets a colored
         # initials tile + name/role on the right, 2 per row.
-        story.append(_companion_grid(rl, styles, page_w, margin_lr, companions))
+        story.append(_companion_grid(rl, styles, page_w, margin_lr, companions, tr))
 
     # ── MARKED PLACES ──
     if opt("includeMarkedPlaces") and marked_places:
@@ -2026,11 +3063,8 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         story.extend(_section_opener(
             rl, styles, page_w, margin_lr,
             number=f"{section_num:02d}",
-            title="Marked places",
-            kicker=(
-                f"{len(marked_places)} saved place"
-                f"{'s' if len(marked_places) != 1 else ''} with addresses."
-            ),
+            title=tr("sec_places"),
+            kicker="",
             color=_BRAND_BLUE,
         ))
         section_num += 1
@@ -2122,6 +3156,30 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             ]))
             story.append(rl.KeepTogether([place_card, rl.Spacer(1, 0.18 * rl.cm)]))
 
+    # ── PHOTOS (PDF-4) ──
+    # A dedicated gallery for the trip-wide photos store + any per-day
+    # photos not already inlined in the day cards. Off by default. Each
+    # photo is fetched fail-soft + size-capped + re-validated through PIL
+    # (see _load_photo_png), then laid out in a paginating grid.
+    photos_section_flowables: list[Any] = []
+    if opt("includePhotos", default=False):
+        gallery: list[bytes] = _collect_photos(trip_photos, limit=_PHOTO_MAX_PER_TRIP)
+        if gallery:
+            grid = _photo_grid(rl, gallery, page_w - 2 * margin_lr, cols=3)
+            if grid is not None:
+                photos_section_flowables.append(grid)
+    if photos_section_flowables:
+        story.append(rl.PageBreak())
+        story.extend(_section_opener(
+            rl, styles, page_w, margin_lr,
+            number=f"{section_num:02d}",
+            title=tr("sec_photos"),
+            kicker="",
+            color=_BRAND_PURPLE,
+        ))
+        section_num += 1
+        story.extend(photos_section_flowables)
+
     # R3-Round 3 fix: also fire the cover-only hint when the user
     # selected sections but every one is empty (a freshly-created
     # trip with 0 days / 0 expenses / 0 todos / 0 companions / 0
@@ -2133,21 +3191,25 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         len(days_renderable) > 0
         or len(todos) > 0
         or len(budgets) > 0
+        or len(expenses) > 0
+        or len(settlements) > 0
         or len(companions) > 0
         or len(marked_places) > 0
+        or bool(photos_section_flowables)
     )
-    no_sections_selected = not any(opt(k) for k in (
+    no_sections_selected = not any(opt(k, default=(k not in (
+        "includeExpenses", "includeSettlements", "includePhotos",
+    ))) for k in (
         "includeDays", "includeTodos", "includeBudgets",
-        "includeCompanions", "includeMarkedPlaces",
+        "includeExpenses", "includeSettlements",
+        "includeCompanions", "includeMarkedPlaces", "includePhotos",
     ))
     if no_sections_selected or not has_renderable_content:
         # No content sections selected, OR every selected section is
         # empty — render the cover as the only page + a soft hint.
         story.append(rl.Spacer(1, 1.0 * rl.cm))
         story.append(rl.Paragraph(
-            "<i>You chose a cover-only export. Re-run with more "
-            "sections selected to include the day plan, to-dos, "
-            "budgets, companions, and marked places.</i>",
+            f"<i>{_esc(tr('cover_only'))}</i>",
             styles["muted"],
         ))
 
@@ -2194,7 +3256,7 @@ def export_trip_pdf(trip_id: str):
     filename suggests `<trip-name>.pdf` (slugified). 403 if the
     caller can't read the trip; 404 if it doesn't exist."""
     user_id = current_user_id()
-    options = request.json or {}
+    options = json_body()
 
     # Audit fix (2026-05-26): hard cap the options payload size +
     # bound any caller-supplied arrays so a crafted request can't
@@ -2223,7 +3285,8 @@ def export_trip_pdf(trip_id: str):
         cursor = conn.cursor()
         cursor.execute(
             "SELECT id, user_id, name, country, country_code, place_id, lat, lng, "
-            "       companions_json, marked_places_json, checklist_json "
+            "       companions_json, marked_places_json, checklist_json, "
+            "       photos_json "  # PDF-4: trip-wide photo gallery
             "FROM trips WHERE id = ?",
             (trip_id,),
         )
@@ -2256,7 +3319,7 @@ def export_trip_pdf(trip_id: str):
         # layer too (see PDF builder's ai_plan_extra branch).
         cursor.execute(
             "SELECT id, day_number, date, name, morning, afternoon, "
-            "       evening, notes, tip, lat, lng "
+            "       evening, notes, tip, lat, lng, photos "  # PDF-4: per-day photos
             "FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL "
             "ORDER BY day_number ASC, date ASC",
             (trip_id,),
@@ -2272,6 +3335,31 @@ def export_trip_pdf(trip_id: str):
         if len(rows) > 1000:
             rows = rows[:1000]
         trip["days"] = [dict(r) for r in rows]
+
+        # PDF-4: current media lives in the TRIP-level photos_json store
+        # (each entry tagged with a `dayId`), while the LEGACY per-day
+        # `photos` column holds older uploads. Merge the trip-level
+        # photos for each day into that day's `photos` list so the day
+        # cards embed BOTH. Read-only — never writes back (media
+        # write-path invariant).
+        try:
+            _trip_photos_all = _safe_json(trip.get("photos_json"), [])
+        except Exception:
+            _trip_photos_all = []
+        if isinstance(_trip_photos_all, list) and _trip_photos_all:
+            _by_day: dict[str, list] = {}
+            for _ph in _trip_photos_all:
+                if not isinstance(_ph, dict):
+                    continue
+                _did = _ph.get("dayId")
+                if _did:
+                    _by_day.setdefault(str(_did), []).append(_ph)
+            for _d in trip["days"]:
+                _existing = _safe_json(_d.get("photos"), [])
+                if not isinstance(_existing, list):
+                    _existing = []
+                _merged = list(_existing) + _by_day.get(str(_d.get("id")), [])
+                _d["photos"] = json.dumps(_merged) if _merged else _d.get("photos")
 
         # Budgets attached to the trip — owner-scoped, label+amount
         # shape — R3-Round 2 fix: include category_id + owner_name so
@@ -2330,6 +3418,38 @@ def export_trip_pdf(trip_id: str):
         )
         ts = cursor.fetchone()
         trip["total_spend_eur"] = float(ts["total"]) if ts and ts["total"] else None
+
+        # PDF-2/3: itemised expense rows (incl. is_settlement + splits) so
+        # the Expenses + Settle-up sections can list each line and compute
+        # per-currency balances. Capped at 2000 rows — a realistic trip is
+        # well under, and the table paginates. Tombstoned rows excluded.
+        cursor.execute(
+            "SELECT id, who, label, category_id, date, value, currency, "
+            "       euro_value, splits, is_settlement "
+            "FROM expenses "
+            "WHERE trip_id = ? AND deleted_at IS NULL "
+            "ORDER BY date ASC",
+            (trip_id,),
+        )
+        exp_rows = cursor.fetchall()
+        if len(exp_rows) > 2000:
+            exp_rows = exp_rows[:2000]
+        trip["expenses"] = [dict(r) for r in exp_rows]
+
+        # PDF-3: server-side settlement rows (the post-§4.5 store, distinct
+        # from legacy is_settlement expense rows above). Carry the
+        # snapshotted from_name/to_name the balance math keys on.
+        cursor.execute(
+            "SELECT id, from_name, to_name, amount, currency, euro_value, "
+            "       created_at "
+            "FROM settlements WHERE trip_id = ? "
+            "ORDER BY created_at ASC",
+            (trip_id,),
+        )
+        settle_rows = cursor.fetchall()
+        if len(settle_rows) > 2000:
+            settle_rows = settle_rows[:2000]
+        trip["settlements"] = [dict(r) for r in settle_rows]
 
     # Diagnostic — log what the builder is seeing so the dev can
     # tell at a glance why a map / section might be missing.

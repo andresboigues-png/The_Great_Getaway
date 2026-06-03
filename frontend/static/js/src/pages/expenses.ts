@@ -141,11 +141,15 @@ export const deleteExpense = (id: string) => {
             ? t('expenses.deleteConfirmMessageSettled')
             : t('expenses.deleteConfirmMessage'),
         confirmText: t('expenses.deleteConfirmBtn'),
-        onConfirm: () => {
+        onConfirm: async () => {
             STATE.expenses = STATE.expenses.filter((e) => e.id !== id);
             emit('state:changed');
-            void deleteExpenseOnServer(id);
             setActiveExpensesTab('history');
+            // FE-1 (MK4): await the DELETE before navigate() — the router
+            // aborts in-flight requests on navigation, which on a slow link
+            // cancelled the delete and let the next full pull resurrect the
+            // row until reload.
+            try { await deleteExpenseOnServer(id); } catch { /* outbox retries */ }
             navigate('expenses');
         },
     });

@@ -1295,25 +1295,93 @@ def serve_upload(relpath: str):
         _like = f'%"{needle_exact}"%'
         with get_db() as conn:
             c = conn.cursor()
-            c.execute(
-                "SELECT 1 FROM trips t "
-                "JOIN trip_members tm ON tm.trip_id = t.id "
-                "WHERE tm.user_id = ? AND tm.invitation_status = 'accepted' "
-                "  AND (t.cover_url = ? OR t.photos_json LIKE ? OR t.documents_json LIKE ?) "
-                "LIMIT 1",
-                (caller_id, needle_exact, _like, _like),
-            )
-            if c.fetchone():
-                return send_from_directory(UPLOAD_FOLDER, relpath)
-            c.execute(
-                "SELECT 1 FROM expenses e "
-                "JOIN trip_members tm ON tm.trip_id = e.trip_id "
-                "WHERE tm.user_id = ? AND tm.invitation_status = 'accepted' "
-                "  AND e.receipt_url = ? LIMIT 1",
-                (caller_id, needle_exact),
-            )
-            if c.fetchone():
-                return send_from_directory(UPLOAD_FOLDER, relpath)
+            # MK4 audit MED-4: the original gate ran a `LIKE '%"url"%'`
+            # substring scan across EVERY accepted trip's photos_json +
+            # documents_json (each up to ~512KB, un-indexable) on every
+            # foreign-image render — a per-image scale cliff on a shared
+            # gallery. Uploads encode the owner in the path
+            # (/static/uploads/<owner_dir>/...), and owner_dir is
+            # secure_filename(owner_user_id) — which is the identity for
+            # every real user id (Google `sub` = digits; test ids =
+            # alnum/hyphen). So resolve the owner via a PRIMARY-KEY lookup
+            # and add an indexed trip_members self-join keyed on the owner:
+            # only trips where BOTH the caller AND the owner are accepted
+            # members can reference the file, which shrinks the candidate
+            # set (via idx_trip_members_trip_user) BEFORE the JSON LIKE
+            # runs — so the LIKE touches a handful of shared-trip rows
+            # instead of all of the caller's trips.
+            #
+            # Removed-member-loses-access is PRESERVED: the file's trip is
+            # only matched when the caller is still an `accepted` member of
+            # it (the secondary JSON tightening is kept, not dropped), so a
+            # member removed from the file's trip fails the join even if
+            # they share an UNRELATED trip with the owner — verified by
+            # test_serve_upload_removed_member_denied in test_media_mk4.py.
+            #
+            # The narrowed query is used only when owner_dir resolves to a
+            # real user id (the ~100% case). If it doesn't (a legacy
+            # secure_filename-altered id), we fall back to the original
+            # caller-only query so no legitimate render regresses.
+            c.execute("SELECT id FROM users WHERE id = ?", (owner_dir,))
+            owner_row = c.fetchone()
+            owner_id = owner_row["id"] if owner_row else None
+            if owner_id is not None:
+                c.execute(
+                    "SELECT 1 FROM trips t "
+                    "JOIN trip_members tm_caller "
+                    "  ON tm_caller.trip_id = t.id "
+                    " AND tm_caller.user_id = ? "
+                    " AND tm_caller.invitation_status = 'accepted' "
+                    "JOIN trip_members tm_owner "
+                    "  ON tm_owner.trip_id = t.id "
+                    " AND tm_owner.user_id = ? "
+                    " AND tm_owner.invitation_status = 'accepted' "
+                    "WHERE (t.cover_url = ? OR t.photos_json LIKE ? "
+                    "       OR t.documents_json LIKE ?) "
+                    "LIMIT 1",
+                    (caller_id, owner_id, needle_exact, _like, _like),
+                )
+                if c.fetchone():
+                    return send_from_directory(UPLOAD_FOLDER, relpath)
+                # Receipts, same owner-narrowed shape.
+                c.execute(
+                    "SELECT 1 FROM expenses e "
+                    "JOIN trip_members tm_caller "
+                    "  ON tm_caller.trip_id = e.trip_id "
+                    " AND tm_caller.user_id = ? "
+                    " AND tm_caller.invitation_status = 'accepted' "
+                    "JOIN trip_members tm_owner "
+                    "  ON tm_owner.trip_id = e.trip_id "
+                    " AND tm_owner.user_id = ? "
+                    " AND tm_owner.invitation_status = 'accepted' "
+                    "WHERE e.receipt_url = ? LIMIT 1",
+                    (caller_id, owner_id, needle_exact),
+                )
+                if c.fetchone():
+                    return send_from_directory(UPLOAD_FOLDER, relpath)
+            else:
+                # Fallback: owner_dir didn't map to a real user id (rare
+                # legacy secure_filename-altered path). Use the original
+                # caller-only gate so a legitimate member still renders it.
+                c.execute(
+                    "SELECT 1 FROM trips t "
+                    "JOIN trip_members tm ON tm.trip_id = t.id "
+                    "WHERE tm.user_id = ? AND tm.invitation_status = 'accepted' "
+                    "  AND (t.cover_url = ? OR t.photos_json LIKE ? OR t.documents_json LIKE ?) "
+                    "LIMIT 1",
+                    (caller_id, needle_exact, _like, _like),
+                )
+                if c.fetchone():
+                    return send_from_directory(UPLOAD_FOLDER, relpath)
+                c.execute(
+                    "SELECT 1 FROM expenses e "
+                    "JOIN trip_members tm ON tm.trip_id = e.trip_id "
+                    "WHERE tm.user_id = ? AND tm.invitation_status = 'accepted' "
+                    "  AND e.receipt_url = ? LIMIT 1",
+                    (caller_id, needle_exact),
+                )
+                if c.fetchone():
+                    return send_from_directory(UPLOAD_FOLDER, relpath)
         # Not owner, not a member of any referencing trip → fall through
         # to the public-cover check (a public trip's cover is readable by
         # anyone, authenticated or not). Don't 404 yet.

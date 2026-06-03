@@ -1,2 +1,0 @@
-import{i as e}from"./rolldown-runtime-Kw0j5LDr.js";import{r as t}from"./vendor-react-Daqls1LH.js";import{Tn as n,gn as r,mn as i}from"../app.bundle.js";var a=e(t(),1),o=0;r(n.STATE_CHANGED,()=>{o++});function s(e){return r(n.STATE_CHANGED,e)}function c(){return o}function l(e){return(0,a.useSyncExternalStore)(s,c,c),e(i)}export{l as t};
-//# sourceMappingURL=store-DbCrGQ9C.js.map

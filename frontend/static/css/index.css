@@ -2394,7 +2394,9 @@ body.is-signed-out .trip-controls-popover {
 .mapping-table td { padding: var(--space-4); }
 .mapping-table td.is-center { text-align: center; }
 .col-tag {
-    background: #ff9500;
+    /* FE-3 (MK4): white on #ff9500 was 2.20:1 (fails WCAG AA). The darker
+       amber #9a6700 gives ~4.8:1 with white text. */
+    background: #9a6700;
     color: white;
     padding: 4px 10px;
     border-radius: var(--radius-sm);
@@ -3674,10 +3676,12 @@ body.is-signed-out #sidebarOverlay {
 .day-action-btn--brand:hover , .day-action-btn--brand:active , .day-action-btn--brand:focus-visible { background: rgba(0,113,227,0.12); }
 
 .day-action-btn--success {
-    background: #34c759;
+    /* FE-3 (MK4): white on #34c759 was 2.22:1 (fails WCAG AA). The darker
+       brand green #1a6b3c gives 6.54:1 with white text. */
+    background: #1a6b3c;
     color: white;
 }
-.day-action-btn--success:hover , .day-action-btn--success:active , .day-action-btn--success:focus-visible { background: #2eaf4f; }
+.day-action-btn--success:hover , .day-action-btn--success:active , .day-action-btn--success:focus-visible { background: #155730; }
 
 .day-action-btn--danger {
     background: rgba(255,59,48,0.06);

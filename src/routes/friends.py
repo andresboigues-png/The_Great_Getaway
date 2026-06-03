@@ -35,7 +35,7 @@ from flask import Blueprint, jsonify, request
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
-from helpers import ensure_user_exists
+from helpers import ensure_user_exists, json_body
 from routes.blocks import is_blocked
 from social import mutuals_of
 
@@ -194,7 +194,7 @@ def add_friend():
     immediately; no pending state, no accept dance. Idempotent — a
     second call returns success without re-notifying."""
     user_id = current_user_id()
-    friend_id = (request.json or {}).get("friend_id")
+    friend_id = json_body().get("friend_id")
     if not friend_id:
         return jsonify({"status": "error", "message": "Missing data"}), 400
     if user_id == friend_id:
@@ -230,7 +230,7 @@ def accept_friend():
     (INSERT OR IGNORE didn't care) plus a self-notification.
     """
     user_id = current_user_id()
-    friend_id = (request.json or {}).get("friend_id")
+    friend_id = json_body().get("friend_id")
     if not friend_id:
         return jsonify({"status": "error", "message": "Missing data"}), 400
     if user_id == friend_id:
@@ -280,7 +280,7 @@ def remove_friend():
 
     Idempotent — DELETE on a non-existent follow returns success."""
     user_id = current_user_id()
-    friend_id = (request.json or {}).get("friend_id")
+    friend_id = json_body().get("friend_id")
     if not friend_id:
         return jsonify({"status": "error", "message": "Missing data"}), 400
 

@@ -92,24 +92,32 @@ export const TRAVEL_DATA_DEFAULT = {
 // like `CONVERSION_RATES[someCode]` typecheck without callers
 // having to cast — the runtime fallback (`|| 1`) handles
 // unknown codes.
+//
+// Values are "1 unit of CODE = N EUR". DEGRADED fallback only: it is used
+// before /api/fx-rates resolves on boot (or if that fetch fails). The live
+// ECB feed overrides every code it carries, and the server re-derives the
+// canonical euro_value on write — so a stale value here only ever surfaces
+// in the pre-reconcile optimistic UI. Refreshed 2026-06 to ECB-ish rates
+// (audit EXP-2) to shrink worst-case drift during that window; the prior
+// ~2024 vintage drifted up to ~+22% (KRW/INR/IDR). Keep roughly current.
 export const CONVERSION_RATES: Record<string, number> = {
     'EUR': 1,
-    'USD': 0.92,
-    'GBP': 1.17,
-    'JPY': 0.0062,
-    'CHF': 1.04,
-    'CAD': 0.68,
-    'AUD': 0.61,
-    'CNY': 0.13,
-    'BRL': 0.18,
-    'MXN': 0.055,
-    'INR': 0.011,
-    'IDR': 0.000058,
-    'SGD': 0.69,
-    'NZD': 0.56,
-    'HKD': 0.12,
-    'KRW': 0.00069,
-    'ZAR': 0.049,
+    'USD': 0.861,
+    'GBP': 1.158,
+    'JPY': 0.00539,
+    'CHF': 1.091,
+    'CAD': 0.621,
+    'AUD': 0.617,
+    'CNY': 0.127,
+    'BRL': 0.172,
+    'MXN': 0.0498,
+    'INR': 0.0090,
+    'IDR': 0.0000479,
+    'SGD': 0.672,
+    'NZD': 0.508,
+    'HKD': 0.110,
+    'KRW': 0.000562,
+    'ZAR': 0.0529,
 };
 
 // Display symbols paired with currency codes. R3-Round 2 fix:

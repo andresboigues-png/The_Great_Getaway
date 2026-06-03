@@ -7,7 +7,21 @@
 
 import { STATE } from '../../state.js';
 import { findTripCompanionByLinkedUser } from '../../companions.js';
-import type { Trip } from '../../types';
+import type { Settlement, Trip } from '../../types';
+
+/** MK4 SETL-6: the EUR value of a settlement for a DISPLAY total, without
+ *  the unsafe `euroValue || amount` fallback. Post-validation every server
+ *  settlement carries a real euroValue (settlements.py derives/overrides
+ *  it), so this is latent — but a legacy or future euroValue-less non-EUR
+ *  row would otherwise contribute its raw foreign `amount` as if it were
+ *  EUR (e.g. 10000 ARS counted as €10000). We only fall back to `amount`
+ *  when the row is actually EUR; a non-EUR row with a falsy euroValue
+ *  contributes 0 to the euro total rather than a mis-scaled figure. */
+function settlementEurForTotal(s: Settlement): number {
+    if (s.euroValue) return s.euroValue;
+    const cur = (s.currency || 'EUR').toUpperCase();
+    return cur === 'EUR' ? (s.amount || 0) : 0;
+}
 
 /** Which settlement sub-view is active. Lives here (not in the
  *  component) so both the React shell and the presentational view can
@@ -57,7 +71,8 @@ export function settledStatsForTrip(tripId: string): { count: number; eurTotal: 
     for (const s of STATE.settlements || []) {
         if (s.tripId === tripId) {
             count += 1;
-            eurTotal += s.euroValue || s.amount || 0;
+            // SETL-6: never sum a non-EUR raw amount as EUR.
+            eurTotal += settlementEurForTotal(s);
         }
     }
     return { count, eurTotal };
@@ -76,7 +91,12 @@ export function tripPrimarySpendCurrency(tripId: string): string | null {
         if (e.tripId !== tripId || (e as { isSettlement?: boolean }).isSettlement) continue;
         const cur = ((e.currency || 'EUR') as string).toUpperCase();
         // MM-3: `??` so a frozen euroValue of 0 reads €0 (not raw `value`).
-        byCurrency[cur] = (byCurrency[cur] || 0) + (e.euroValue ?? e.value ?? 0);
+        // SETL-6: when euroValue is ABSENT (null/undefined), only fall back
+        // to the raw `value` for EUR rows — a non-EUR row with no euroValue
+        // must not dump its raw foreign amount into the euro-weighted bucket
+        // (e.g. 270000 VND skewing which currency reads as "primary").
+        const ev = e.euroValue ?? (cur === 'EUR' ? (e.value ?? 0) : 0);
+        byCurrency[cur] = (byCurrency[cur] || 0) + ev;
     }
     let best: string | null = null;
     let bestVal = -1;

@@ -30,6 +30,7 @@ import {
 import {
     getTripCompanionNames,
     findAcceptedMemberUserId,
+    findTripCompanionByLinkedUser,
 } from '../../companions.js';
 import { createSettlement, deleteSettlementOnServer, upsertExpense } from '../../api.js';
 import { showModal } from '../../components/Modal.js';
@@ -39,7 +40,7 @@ import {
 } from './balances.js';
 import { tripPrimarySpendCurrency } from './viewData.js';
 import { t, formatCurrency } from '../../i18n.js';
-import type { Trip } from '../../types';
+import type { Settlement, Trip } from '../../types';
 
 // ── Mutations (no `root` parameter — emit triggers React re-render) ───
 
@@ -414,9 +415,28 @@ function _pairwiseOwed(trip: Trip | undefined, from: string, to: string, currenc
     return edge ? edge.amount : 0;
 }
 
+/** Edit a recorded settlement. Routes by which store the id lives in:
+ *
+ *    - legacy isSettlement EXPENSE row → the in-place edit below (mutates
+ *      STATE.expenses directly; these rows are user-editable as expenses).
+ *    - server SETTLEMENT row → MK4 SETL-3 guided "undo + re-record":
+ *      server settlements have no PATCH endpoint, so editing one means
+ *      deleting the old row and recording a new one with the edited
+ *      values. This makes the History "Edit" affordance behave
+ *      consistently for BOTH sources (pre-fix it silently no-op'd for
+ *      server rows because this function only looked in STATE.expenses).
+ *
+ *  The shell wires onEditSettlement → openEditSettlementModal(id) with no
+ *  `source` arg, so we resolve the store here by id rather than changing
+ *  the SettlementView callback signature. */
 export function openEditSettlementModal(id: string): void {
-    const s = STATE.expenses.find((e) => e.id === id);
-    if (!s) return;
+    const expenseRow = STATE.expenses.find((e) => e.id === id);
+    if (!expenseRow) {
+        const serverRow = (STATE.settlements || []).find((s) => s.id === id);
+        if (serverRow) openEditServerSettlementModal(serverRow);
+        return;
+    }
+    const s = expenseRow;
     const trip = STATE.trips.find((tr) => tr.id === s.tripId);
     const peopleSource = getTripCompanionNames(trip);
     const fromOpts = peopleSource
@@ -477,6 +497,108 @@ export function openEditSettlementModal(id: string): void {
         // entirely. upsertExpense is fire-and-forget — the offline
         // outbox (R7-F1) catches network failures.
         void upsertExpense(s);
+        close();
+    };
+}
+
+/** MK4 SETL-3: edit a SERVER settlement via a guided "undo + re-record".
+ *  Server settlements have no PATCH endpoint, so an edit deletes the old
+ *  row and records a fresh one with the edited values — reusing the
+ *  battle-tested settleDebt path (user-id resolution, server cap, balance
+ *  shift, notification, toast). The form pre-fills from the existing row;
+ *  parties default to the companion names that resolve to the row's
+ *  user_ids (snapshot names as fallback). Currency is the row's original
+ *  currency (the per-currency settle path). Date isn't editable here —
+ *  server settlements are stamped server-side on (re-)record.
+ *
+ *  Order: DELETE first, then settleDebt. Deleting first is safe and
+ *  actually relaxes the cumulative cap (the old row's euro_value no longer
+ *  counts toward already-paid), so a reasonable edit can't false-reject.
+ *  If the re-record fails, settleDebt surfaces its own toast and the row
+ *  is simply gone (recoverable: the user re-records from the Settle tab).*/
+function openEditServerSettlementModal(s: Settlement): void {
+    const trip = STATE.trips.find((tr) => tr.id === s.tripId);
+    const peopleSource = getTripCompanionNames(trip);
+    // Default party selections: companion name linked to each user id,
+    // else the snapshot name the server stored on the row.
+    const defaultFrom = findTripCompanionByLinkedUser(trip, s.fromUserId)?.name
+        || s.fromName || '';
+    const defaultTo = findTripCompanionByLinkedUser(trip, s.toUserId)?.name
+        || s.toName || '';
+    const fromOpts = peopleSource
+        .map((p) => `<option value="${esc(p)}" ${p === defaultFrom ? 'selected' : ''}>${esc(p)}</option>`)
+        .join('');
+    const toOpts = peopleSource
+        .map((p) => `<option value="${esc(p)}" ${p === defaultTo ? 'selected' : ''}>${esc(p)}</option>`)
+        .join('');
+    const cur = (s.currency || 'EUR').toUpperCase();
+    const methodOptions = SETTLE_METHODS
+        .map((m) => `<option value="${esc(m.value)}" ${m.value === (s.method || 'custom') ? 'selected' : ''}>${esc(t(m.labelKey))}</option>`)
+        .join('');
+
+    const { root: modalRoot, close } = showModal({
+        variant: 'glass-light',
+        cardStyle: 'width: 440px; max-width: calc(100vw - 32px);',
+        innerHTML: `
+            <h2 class="h2-display">${t('settlement.editTitle')}</h2>
+            <p class="text-subtitle">${t('settlement.editServerSubtitle')}</p>
+            <form id="editServerSettleForm" style="display:flex; flex-direction:column; gap: var(--space-3); margin-top: var(--space-4);">
+                <label class="form-label">${esc(t('settlement.labelFrom'))}</label>
+                <select id="editServerFrom" class="glass-input stl-card-minor-bg">${fromOpts}</select>
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelTo'))}</label>
+                <select id="editServerTo" class="glass-input stl-card-minor-bg">${toOpts}</select>
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelAmount', { currency: cur }))}</label>
+                <input type="number" step="0.01" min="0.01" id="editServerAmount" value="${(Number(s.amount) || 0).toFixed(2)}" class="glass-input stl-card-minor" required>
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelMethod'))}</label>
+                <select id="editServerMethod" class="glass-input stl-card-minor-bg">${methodOptions}</select>
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelNote'))} <span class="text-subtitle" style="font-weight:500;">${esc(t('settlement.labelNoteOptional'))}</span></label>
+                <input type="text" id="editServerNote" class="glass-input" maxlength="240" value="${esc(s.note || '')}" placeholder="${esc(t('settlement.notePlaceholder'))}">
+                <div style="display:flex; gap: var(--space-3); margin-top: var(--space-4);">
+                    <button type="button" id="cancelEditServerBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">${esc(t('settlement.cancelBtn'))}</button>
+                    <button type="submit" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">${esc(t('settlement.updateBtn'))}</button>
+                </div>
+            </form>
+        `,
+    });
+    (q(modalRoot, '#cancelEditServerBtn') as HTMLButtonElement).onclick = () => close();
+    (q(modalRoot, '#editServerSettleForm') as HTMLFormElement).onsubmit = (evt) => {
+        evt.preventDefault();
+        const from = (q(modalRoot, '#editServerFrom') as HTMLSelectElement).value;
+        const to = (q(modalRoot, '#editServerTo') as HTMLSelectElement).value;
+        const amount = parseFloat((q(modalRoot, '#editServerAmount') as HTMLInputElement).value);
+        const method = (q(modalRoot, '#editServerMethod') as HTMLSelectElement).value;
+        const note = (q(modalRoot, '#editServerNote') as HTMLInputElement).value.trim();
+        if (from === to) {
+            showLiquidAlert(t('settlement.toastSenderEqualsReceiver'));
+            return;
+        }
+        if (!Number.isFinite(amount) || amount <= 0) {
+            showLiquidAlert(t('settlement.toastAmountInvalid'));
+            return;
+        }
+        // Guided undo + re-record. Confirm so the user understands the
+        // edit replaces the row (the recipient gets a revert + a new
+        // settled-up notification, same as a manual undo then re-settle).
+        showConfirmModal({
+            title: t('settlement.editServerConfirmTitle'),
+            message: t('settlement.editServerConfirmBody'),
+            confirmText: t('settlement.updateBtn'),
+            onConfirm: () => { void (async () => {
+                const del = await deleteSettlementOnServer(s.id);
+                if (del.error) {
+                    showLiquidAlert(t('settlement.toastSettlementFailed', {
+                        error: del.error || t('settlement.toastSettlementFailedNetwork'),
+                    }));
+                    return;
+                }
+                // Drop the old row locally so the balance reflects the
+                // delete immediately even before the re-record lands.
+                STATE.settlements = STATE.settlements.filter((row) => row.id !== s.id);
+                emit(EVENTS.STATE_CHANGED);
+                // Re-record with the edited values via the standard path.
+                await settleDebt(s.tripId, from, to, amount, cur, { method, note });
+            })(); },
+        });
         close();
     };
 }

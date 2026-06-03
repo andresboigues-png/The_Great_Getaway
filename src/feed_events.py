@@ -116,6 +116,16 @@ class FeedEventType:
     visibility_check: Callable[..., bool]
     build: Callable[..., list]
     engagement_recipient: Optional[Callable[..., Optional[str]]] = None
+    # MK4 SOC-4: single-event resolver, (cursor, components) ->
+    # Optional[event_dict]. Reconstructs ONE event dict from its
+    # event_id components, INDEPENDENT of the 30-day window + actor
+    # pool the bulk `build` uses — needed by the bookmarks listing so
+    # a saved item still resolves after it ages out of the feed window
+    # (the per-event visibility_check is what drops since-gone-private /
+    # since-deleted items, applied by the caller). None for types we
+    # don't surface in the bookmarks list (e.g. settled_up — private
+    # to two parties, no bookmark affordance in the UI).
+    resolve: Optional[Callable[..., Optional[dict]]] = None
 
 
 # ── Shared helpers used by visibility checks ──────────────────────────
@@ -181,14 +191,27 @@ def trip_owner(cursor, trip_id) -> Optional[str]:
 
 def _visible_to_trip_friends(cursor, components, user_id) -> bool:
     """Used by trip_created / trip_archived / trip_joined. The viewer
-    sees the event iff they're a member of the trip OR friends with
-    the trip's owner."""
+    sees/engages the event iff they're a member of the trip OR (the
+    trip is public AND they're friends with the trip's owner).
+
+    MK4 PERM-1 / SOC-3: mirror the builders' is_public gate here so the
+    engagement check agrees with what's actually surfaced. Accepted
+    members keep access to a private trip's card (same posture as the
+    share path's `_visible_to_post_friends` private branch); friends of
+    the owner only engage while the trip is public."""
     trip_id = components[0]
     owner_id = trip_owner(cursor, trip_id)
     if not owner_id:
         return False
     if is_trip_member(cursor, trip_id, user_id):
         return True
+    cursor.execute(
+        "SELECT COALESCE(is_public, 0) AS pub FROM trips WHERE id = ? LIMIT 1",
+        (trip_id,),
+    )
+    trip = cursor.fetchone()
+    if not trip or not trip["pub"]:
+        return False
     return is_friend_of(cursor, user_id, owner_id)
 
 
@@ -348,6 +371,16 @@ def _build_friend_created_trip(cursor, ctx: FeedContext) -> list:
     # branch is filtered to its own 30-day window on the right
     # timestamp source. SQLite plans each branch independently so
     # the optimizer can pick the right index per leg.
+    # MK4 PERM-1 / SOC-3 (P2 privacy): every branch below must gate on
+    # COALESCE(t.is_public, 0) = 1, matching the share/repost builders
+    # (`AND COALESCE(t.is_public,0)=1` at the bottom of this file). Pre-
+    # fix these three synthesised trip-activity cards carried a PRIVATE
+    # trip's name + country to one-way followers (following is silent +
+    # asymmetric, so this was a trivial harvest path), and the `joined`
+    # branch leaked a THIRD party's private trip to the joiner's
+    # followers. Turning a trip private now removes the card on the next
+    # poll, exactly like the share path. The matching engagement gate
+    # `_visible_to_trip_friends` carries the same is_public requirement.
     sql = f'''
         SELECT t.id, t.user_id AS actor_id, t.name, t.country,
                t.created_at AS when_ts,
@@ -357,6 +390,7 @@ def _build_friend_created_trip(cursor, ctx: FeedContext) -> list:
         WHERE t.user_id IN ({placeholders})
           AND COALESCE(tm.is_archived, 0) = 0
           AND COALESCE(t.actions_hidden, 0) = 0
+          AND COALESCE(t.is_public, 0) = 1
           AND t.created_at >= datetime('now', '-30 days')
         UNION ALL
         SELECT t.id, t.user_id AS actor_id, t.name, t.country,
@@ -367,6 +401,7 @@ def _build_friend_created_trip(cursor, ctx: FeedContext) -> list:
         WHERE t.user_id IN ({placeholders})
           AND COALESCE(tm.is_archived, 0) = 1
           AND COALESCE(t.actions_hidden, 0) = 0
+          AND COALESCE(t.is_public, 0) = 1
           AND COALESCE(tm.completed_at, t.created_at) >= datetime('now', '-30 days')
         UNION ALL
         SELECT t.id, tm.user_id AS actor_id, t.name, t.country,
@@ -378,6 +413,7 @@ def _build_friend_created_trip(cursor, ctx: FeedContext) -> list:
           AND tm.invitation_status = 'accepted'
           AND tm.user_id != t.user_id
           AND COALESCE(t.actions_hidden, 0) = 0
+          AND COALESCE(t.is_public, 0) = 1
           AND t.created_at >= datetime('now', '-30 days')
           -- R12-B5 (P2 block-bypass): the created + archived branches
           -- are owner-perspective (actor IS the trip owner, already
@@ -683,6 +719,184 @@ def _build_achievement_unlocked(cursor, ctx: FeedContext) -> list:
     return events
 
 
+# ── Single-event resolvers (MK4 SOC-4 bookmarks) ──────────────────────
+# The bulk `build` functions above produce all events of a type for a
+# 30-day window + actor pool. The bookmarks listing instead has a set
+# of saved event_ids and needs to reconstruct ONE event dict per id,
+# regardless of window/pool — then the caller applies the per-event
+# visibility_check so a since-gone-private / since-deleted item drops
+# out. These resolvers do exactly that: re-query the single underlying
+# row and assemble the same dict shape the builder emits (so the feed
+# renderer + _attach_engagement_counts work unchanged).
+
+
+def _resolve_actor(cursor, user_id) -> Optional[dict]:
+    """{id, name, picture} for a user, or None if they no longer exist."""
+    if not user_id:
+        return None
+    cursor.execute("SELECT id, name, picture FROM users WHERE id = ? LIMIT 1", (user_id,))
+    row = cursor.fetchone()
+    return {"id": row["id"], "name": row["name"], "picture": row["picture"]} if row else None
+
+
+def _resolve_trip_event(cursor, components) -> Optional[dict]:
+    """trip_created / trip_archived from a single trip_id. Emits a
+    trip_created-shaped dict (the bookmarks list only needs actor +
+    trip + when to render the card; the exact archived-vs-created verb
+    is cosmetic and the visibility_check is identical for both)."""
+    trip_id = components[0]
+    cursor.execute(
+        "SELECT id, user_id, name, country, created_at FROM trips WHERE id = ? LIMIT 1",
+        (trip_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+    actor = _resolve_actor(cursor, row["user_id"])
+    if not actor:
+        return None
+    return {
+        "id": f"trip_created_{row['id']}",
+        "type": "friend_created_trip",
+        "actor": actor,
+        "trip": {"id": row["id"], "name": row["name"], "country": row["country"]},
+        "when": row["created_at"],
+    }
+
+
+def _resolve_trip_joined(cursor, components) -> Optional[dict]:
+    """trip_joined from (trip_id, joiner_id)."""
+    trip_id, joiner_id = components[0], components[1]
+    cursor.execute(
+        "SELECT id, name, country, created_at FROM trips WHERE id = ? LIMIT 1",
+        (trip_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+    actor = _resolve_actor(cursor, joiner_id)
+    if not actor:
+        return None
+    return {
+        "id": f"trip_joined_{row['id']}_{joiner_id}",
+        "type": "friend_joined_trip",
+        "actor": actor,
+        "trip": {"id": row["id"], "name": row["name"], "country": row["country"]},
+        "when": row["created_at"],
+    }
+
+
+def _resolve_share(cursor, components) -> Optional[dict]:
+    """share_<post_id> — a feed_posts original (repost_of_post_id NULL)."""
+    post_id = int(components[0])
+    cursor.execute(
+        "SELECT fp.id, fp.user_id, fp.trip_id, fp.created_at, fp.caption, "
+        "       t.name AS trip_name, t.country AS trip_country "
+        "FROM feed_posts fp JOIN trips t ON t.id = fp.trip_id "
+        "WHERE fp.id = ? AND fp.repost_of_post_id IS NULL LIMIT 1",
+        (post_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+    actor = _resolve_actor(cursor, row["user_id"])
+    if not actor:
+        return None
+    return {
+        "id": f"share_{row['id']}",
+        "type": "friend_shared_trip",
+        "actor": actor,
+        "trip": {"id": row["trip_id"], "name": row["trip_name"], "country": row["trip_country"]},
+        "post_id": row["id"],
+        "caption": row["caption"],
+        "when": row["created_at"],
+    }
+
+
+def _resolve_repost(cursor, components) -> Optional[dict]:
+    """repost_<post_id> — a feed_posts repost (repost_of_post_id set)."""
+    post_id = int(components[0])
+    cursor.execute(
+        "SELECT fp.id, fp.user_id, fp.trip_id, fp.created_at, "
+        "       t.name AS trip_name, t.country AS trip_country, "
+        "       orig.user_id AS orig_user_id, orig.caption AS orig_caption "
+        "FROM feed_posts fp "
+        "JOIN trips t ON t.id = fp.trip_id "
+        "JOIN feed_posts orig ON orig.id = fp.repost_of_post_id "
+        "WHERE fp.id = ? AND fp.repost_of_post_id IS NOT NULL LIMIT 1",
+        (post_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+    actor = _resolve_actor(cursor, row["user_id"])
+    if not actor:
+        return None
+    return {
+        "id": f"repost_{row['id']}",
+        "type": "friend_reposted_trip",
+        "actor": actor,
+        "original_sharer": _resolve_actor(cursor, row["orig_user_id"]),
+        "trip": {"id": row["trip_id"], "name": row["trip_name"], "country": row["trip_country"]},
+        "post_id": row["id"],
+        "caption": row["orig_caption"],
+        "when": row["created_at"],
+    }
+
+
+def _resolve_achievement(cursor, components) -> Optional[dict]:
+    """achievement_<id> — a non-revoked user_achievements row."""
+    from achievements import BADGES_BY_ID
+
+    achievement_id = int(components[0])
+    cursor.execute(
+        "SELECT id, user_id, badge_id, earned_at FROM user_achievements "
+        "WHERE id = ? AND revoked_at IS NULL LIMIT 1",
+        (achievement_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+    actor = _resolve_actor(cursor, row["user_id"])
+    if not actor:
+        return None
+    bdef = BADGES_BY_ID.get(row["badge_id"])
+    return {
+        "id": f"achievement_{row['id']}",
+        "type": "achievement_unlocked",
+        "actor": actor,
+        "badge": {
+            "id": row["badge_id"],
+            "label": bdef.label if bdef else row["badge_id"],
+            "emoji": bdef.emoji if bdef else "🏅",
+            "description": bdef.description if bdef else "",
+        },
+        "when": row["earned_at"],
+    }
+
+
+def _resolve_friendship(cursor, components) -> Optional[dict]:
+    """friendship_<viewer>_<other> — render the OTHER party as actor."""
+    other_id = components[1]
+    actor = _resolve_actor(cursor, other_id)
+    if not actor:
+        return None
+    cursor.execute(
+        "SELECT MAX(f1.created_at, f2.created_at) AS mutual_at "
+        "FROM follows f1 JOIN follows f2 "
+        "  ON f2.follower_id = f1.followee_id AND f2.followee_id = f1.follower_id "
+        "WHERE f1.follower_id = ? AND f1.followee_id = ? LIMIT 1",
+        (components[0], other_id),
+    )
+    row = cursor.fetchone()
+    return {
+        "id": f"friendship_{components[0]}_{other_id}",
+        "type": "new_friendship",
+        "actor": actor,
+        "when": row["mutual_at"] if row else None,
+    }
+
+
 # ── Id-pattern regex fragments ────────────────────────────────────────
 # Each event type's id_pattern slot reuses these. _ID_RE keeps to
 # alphanumeric/-/_/. (Google `sub` values, our base36 generateId,
@@ -707,18 +921,21 @@ FEED_EVENT_TYPES: list[FeedEventType] = [
         id_pattern=re.compile(rf"^trip_created_({_ID_RE})$"),
         visibility_check=_visible_to_trip_friends,
         build=_build_friend_created_trip,
+        resolve=_resolve_trip_event,
     ),
     FeedEventType(
         name="trip_archived",
         id_pattern=re.compile(rf"^trip_archived_({_ID_RE})$"),
         visibility_check=_visible_to_trip_friends,
         build=_build_friend_archived_trip,
+        resolve=_resolve_trip_event,
     ),
     FeedEventType(
         name="trip_joined",
         id_pattern=re.compile(rf"^trip_joined_({_ID_RE})_({_ID_RE})$"),
         visibility_check=_visible_to_trip_friends,
         build=_build_friend_joined_trip,
+        resolve=_resolve_trip_joined,
     ),
     FeedEventType(
         name="friendship",
@@ -726,6 +943,7 @@ FEED_EVENT_TYPES: list[FeedEventType] = [
         id_pattern=re.compile(rf"^friendship_({_ID_RE})_({_ID_RE})$"),
         visibility_check=_visible_to_friendship_party,
         build=_build_new_friendship,
+        resolve=_resolve_friendship,
     ),
     FeedEventType(
         name="share",
@@ -733,6 +951,7 @@ FEED_EVENT_TYPES: list[FeedEventType] = [
         visibility_check=_visible_to_post_friends,
         build=_build_friend_shared_trip,
         engagement_recipient=_recipient_for_post,
+        resolve=_resolve_share,
     ),
     FeedEventType(
         name="repost",
@@ -740,6 +959,7 @@ FEED_EVENT_TYPES: list[FeedEventType] = [
         visibility_check=_visible_to_post_friends,
         build=_build_friend_reposted_trip,
         engagement_recipient=_recipient_for_post,
+        resolve=_resolve_repost,
     ),
     FeedEventType(
         name="settled_up",
@@ -749,12 +969,16 @@ FEED_EVENT_TYPES: list[FeedEventType] = [
         # No engagement_recipient: settled_up cards don't render
         # like/comment controls; visibility is restricted to two
         # parties so there's nobody outside to engage.
+        # No resolve: no bookmark affordance on settled_up cards
+        # (the renderer's actionsRow shows a bookmark only for the
+        # event types in the bookmarks surface).
     ),
     FeedEventType(
         name="achievement",
         id_pattern=re.compile(r"^achievement_(\d{1,32})$"),
         visibility_check=_visible_to_achievement_friends,
         build=_build_achievement_unlocked,
+        resolve=_resolve_achievement,
         # No engagement_recipient yet: achievements are mostly
         # self-celebratory; if/when "Sara liked your badge" becomes
         # a thing, wire a recipient hook similar to _recipient_for_post.
@@ -810,6 +1034,30 @@ def caller_can_see_event(cursor, event_id, user_id) -> bool:
     if not et:
         return False
     return bool(et.visibility_check(cursor, tuple(components), user_id))
+
+
+def resolve_event_by_id(cursor, event_id, user_id) -> Optional[dict]:
+    """MK4 SOC-4: reconstruct a single feed-event dict from its
+    event_id, re-running the per-event visibility_check so the caller
+    (the bookmarks list) only gets events `user_id` is still allowed to
+    see. Returns None when: the id doesn't parse, the type has no
+    resolver, the underlying row is gone, or the visibility check fails
+    (since-gone-private / since-unfollowed / blocked).
+
+    Independent of the feed's 30-day window + actor pool, so a saved
+    item that aged out of the feed still resolves here — that's the
+    whole point of a persistent bookmarks surface.
+    """
+    parsed = parse_event_id(event_id)
+    if not parsed:
+        return None
+    name, *components = parsed
+    et = event_type_by_name(name)
+    if not et or et.resolve is None:
+        return None
+    if not et.visibility_check(cursor, tuple(components), user_id):
+        return None
+    return et.resolve(cursor, tuple(components))
 
 
 def engagement_recipient(cursor, event_id) -> Optional[str]:

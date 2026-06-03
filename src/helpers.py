@@ -13,6 +13,21 @@ acquisition and lets a multi-step caller stay inside one BEGIN/COMMIT.
 import json
 
 
+def json_body() -> dict:
+    """SEC-2: return the request JSON body as a dict, else {}.
+
+    A valid-JSON non-object root (list/str/number/bool) — which would
+    otherwise raise AttributeError → HTTP 500 on a `.get()` call — is
+    coerced to {} so the handler's own missing-field validation returns a
+    clean 4xx instead. Never raises (parse errors / wrong content-type also
+    yield {}). Replaces the unsafe `request.json or {}` idiom across the
+    write routes (the unauthenticated /api/auth/google included).
+    """
+    from flask import request
+    raw = request.get_json(silent=True)
+    return raw if isinstance(raw, dict) else {}
+
+
 def _extract_upload_paths(value) -> list[str]:
     """Pull every `/static/uploads/...` path out of a JSON value
     (string scalar, list-of-strings, list-of-objects-with-url-field).

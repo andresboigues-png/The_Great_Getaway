@@ -89,24 +89,41 @@ type TripWithMembers = TripWithCompanions & {
  *  Resolving via the members roster realigns the client's real-vs-legacy
  *  decision with what the API actually accepts.
  *
+ *  MK4 SETL-5: disambiguate before giving up. An EXACT full-name match
+ *  wins over first-name-token matches, so a companion keyed on a full
+ *  name ("Sara Lopez") still resolves even when another member shares the
+ *  first name ("Sara Kim") — pre-fix that collision returned undefined
+ *  and pushed a real member-to-member settlement down the legacy
+ *  fake-expense path (losing the notification, feed event, server audit
+ *  trail, and server-side Undo). Only a genuinely ambiguous key (two
+ *  members matching the SAME first name, with no exact full-name match and
+ *  no companion `linkedUserId` to break the tie) falls back.
+ *
  *  Returns undefined when the name doesn't resolve to exactly ONE accepted
- *  member (a genuinely name-only companion, or an ambiguous first-name
- *  collision) — the caller falls back to the legacy path. */
+ *  member — the caller falls back to the legacy path. */
 export function findAcceptedMemberUserId(
     trip: TripWithMembers | null | undefined,
     name: string,
 ): string | undefined {
     if (!trip || !name) return undefined;
+    // 1. Explicit companion link wins outright.
     const linked = findTripCompanion(trip, name)?.linkedUserId;
     if (linked) return linked;
     const lower = name.toLocaleLowerCase();
-    const members = Array.isArray(trip.members) ? trip.members : [];
-    const matches = members.filter((m) => {
-        const full = (m?.name || '').toLocaleLowerCase();
-        if (!full || !m?.userId) return false;
-        return full === lower || full.split(/\s+/)[0] === lower;
-    });
-    return matches.length === 1 ? (matches[0]!.userId ?? undefined) : undefined;
+    const members = (Array.isArray(trip.members) ? trip.members : [])
+        .filter((m): m is { userId: string; name?: string | null } =>
+            !!(m && m.userId && m.name),
+        );
+    // 2. EXACT full-name match — preferred, and disambiguates a full-name
+    //    companion key from same-first-name namesakes.
+    const exact = members.filter((m) => (m.name || '').toLocaleLowerCase() === lower);
+    if (exact.length === 1) return exact[0]!.userId;
+    // 3. First-name-token match — only usable when it resolves to ONE
+    //    member (otherwise the key is genuinely ambiguous; fall back).
+    const byFirst = members.filter(
+        (m) => (m.name || '').toLocaleLowerCase().split(/\s+/)[0] === lower,
+    );
+    return byFirst.length === 1 ? byFirst[0]!.userId : undefined;
 }
 
 export function tripHasCompanion(trip: TripWithCompanions | null | undefined, name: string): boolean {

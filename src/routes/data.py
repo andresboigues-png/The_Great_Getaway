@@ -9,7 +9,6 @@ clients don't break, but new code should prefer the delta routes.
 """
 
 import json
-import time
 
 from flask import Blueprint, jsonify, request
 
@@ -26,6 +25,7 @@ from helpers import (
     batch_expense_writable_trip_ids,
     ensure_owner_member_row,
     ensure_user_exists,
+    json_body,
     serialize_expense_row,
     serialize_trip_row,
     unwrap_legacy_plan_text,
@@ -197,7 +197,7 @@ def sync_data():
     any future caller opt into the same safety the delta endpoint
     provides without breaking the legacy last-write-wins contract
     other callers rely on."""
-    data = request.json or {}
+    data = json_body()
     user_id = current_user_id()
     trips = data.get("trips", [])
     expenses = data.get("expenses", [])
@@ -764,93 +764,31 @@ def sync_data():
         # Commit categories section before budgets.
         conn.commit()
 
-        # Sync Budgets — replace mode (delete user's budgets not in
-        # the current list, then upsert the rest).
+        # Sync Budgets — NO-OP read (MK4 audit BUD-1/2/3).
         #
-        # Audit fix (2026-05-26): pre-fix, an empty/absent `budgets`
-        # key triggered an unconditional `DELETE FROM budgets WHERE
-        # user_id = ?`, wiping every budget the user had. Older
-        # clients that don't ship budgets in the sync payload were
-        # silently erasing them every 15s tick. The categories block
-        # already has the safer "absent = don't touch" semantic;
-        # mirror it: if the payload doesn't include a budgets key
-        # at all, skip the replace-mode delete; only when the key
-        # is explicitly present do we treat it as the authoritative
-        # set.
-        budgets = data.get("budgets")
-        if budgets is not None:
-            budget_ids = [b['id'] for b in budgets if 'id' in b]
-            if budget_ids:
-                placeholders = ','.join(['?'] * len(budget_ids))
-                cursor.execute(f"DELETE FROM budgets WHERE user_id = ? AND id NOT IN ({placeholders})", [user_id] + budget_ids)
-            else:
-                cursor.execute("DELETE FROM budgets WHERE user_id = ?", (user_id,))
-        else:
-            # 2026-05-26 (audit B0): the bulk sync path used to write only
-            # 6 of the 8 budget columns — categoryId / owner_name /
-            # original_amount / original_currency were silently NULL'd on
-            # every 15-second `/api/sync` poll, so a scoped "Lisbon → Food
-            # → Alice → €100" budget reloaded as "All trips → all
-            # categories → everyone → €100" and the frontend re-aggregated
-            # against the wrong subset of expenses. Now mirrors the per-
-            # row /api/budgets POST handler (see routes/budgets.py
-            # upsert).
-            #
-            # Audit fix #8: absent `budgets` key preserves existing
-            # rows (don't write anything). Empty `[]` is the explicit-
-            # clear (handled by the `if budgets is not None` branch).
-            budgets = []
-        for b in budgets:
-            raw_trip_id = b.get('tripId')
-            b_trip_id = raw_trip_id if (raw_trip_id and raw_trip_id != 'all') else None
-            raw_cat = b.get('categoryId')
-            b_category_id = raw_cat if (raw_cat and raw_cat != 'all') else None
-            raw_owner = b.get('user')
-            b_owner_name = raw_owner if (raw_owner and raw_owner != 'all') else None
-            b_original_amount = b.get('originalAmount')
-            if b_original_amount is None:
-                b_original_amount = b.get('amount', 0)
-            b_original_currency = b.get('originalCurrency') or b.get('currency', 'EUR')
-            # R3-Fix #2: budget IDOR — pre-fix, /api/sync would happily
-            # overwrite anyone's budget by id because the ON CONFLICT
-            # clause had no user_id gate. Same defense as the per-row
-            # /api/budgets POST handler: SELECT existing first, refuse
-            # if it belongs to someone else; restrict ON CONFLICT
-            # UPDATE via a WHERE guard.
-            cursor.execute(
-                "SELECT user_id FROM budgets WHERE id = ?",
-                (b['id'],),
-            )
-            existing_b = cursor.fetchone()
-            if existing_b and existing_b["user_id"] != user_id:
-                # Silently skip — sync is a bulk path; one rogue row
-                # shouldn't blow up the whole batch.
-                continue
-            cursor.execute('''
-                INSERT INTO budgets (id, user_id, trip_id, label, amount, currency,
-                                     category_id, owner_name, original_amount, original_currency)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    label=excluded.label,
-                    amount=excluded.amount,
-                    currency=excluded.currency,
-                    trip_id=excluded.trip_id,
-                    category_id=excluded.category_id,
-                    owner_name=excluded.owner_name,
-                    original_amount=excluded.original_amount,
-                    original_currency=excluded.original_currency,
-                    -- R4-B1: bump updated_at so the R3-R5 stale-edit
-                    -- gate in /api/budgets can detect a sync poll that
-                    -- moved the row.
-                    updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
-                WHERE budgets.user_id = ?
-            ''', (b['id'], user_id, b_trip_id, b.get('label', ''),
-                  b.get('amount', 0), b.get('currency', 'EUR'),
-                  b_category_id, b_owner_name, b_original_amount, b_original_currency,
-                  user_id))
-
-        # Commit budgets section before trip days.
-        conn.commit()
+        # The /api/sync budget loop was a second, un-hardened write path
+        # for the budgets table that mirrored NONE of the per-row
+        # POST /api/budgets gates: it had no tombstone check (BUD-1 —
+        # could resurrect a deleted budget, reopening the Phase-1
+        # tombstone invariant), no NULL-safe scope-dedupe (BUD-1 — let
+        # duplicate-scope budgets double-count spend), no role/membership
+        # gate (BUD-2 — a relaxer or non-member could write trip-scoped
+        # budgets, reopening BUG-34/BUG-36), and no money/currency
+        # validation (BUD-3 — NaN/negative/no-rate budgets landed in the
+        # DB). Its replace-mode DELETE was also itself a latent data-loss
+        # vector when a stale/offline outbox replayed a partial set.
+        #
+        # The first-party client no longer ships `budgets` to /api/sync
+        # (api.ts:286 sends only `categories`); every budget create/edit/
+        # delete goes through the well-hardened per-row POST /api/budgets
+        # + DELETE /api/budgets/<id>. So the safe fix is to stop writing
+        # budgets here entirely: read the key so a legacy/defensive
+        # payload that still includes `budgets` doesn't 500, then ignore
+        # it. The per-row endpoint is the SOLE sanctioned budget write
+        # path. Do NOT re-introduce a write loop here without mirroring
+        # all four per-row guards (tombstone, scope-dedupe, role gate,
+        # validate_money/validate_currency/no-rate).
+        _ = data.get("budgets")  # accepted-but-ignored (see above)
 
         # Sync Trip Days
         trip_days = data.get("trip_days", [])
@@ -1071,23 +1009,17 @@ def get_data():
         known_version = request.args.get("knownVersion")
         if known_version and known_version == current_version:
             return jsonify({"unchanged": True, "version": current_version})
-        # Sync Phase 2: incremental expense pull. When the client sends a
-        # `?since=<epoch_ms>` cursor we return expenses as a DELTA (rows
-        # changed + ids deleted since the cursor) instead of the whole list;
-        # `serverTime` (now_ms) is the client's next cursor. A 2s safety
-        # margin absorbs sub-second timestamp truncation (strftime('%s') is
-        # second-resolution) + clock skew, so the delta can only OVER-send,
-        # never miss — the client merge applies it idempotently by id, and
-        # its periodic full pull self-heals any drift. So `?since=` is a
-        # pure optimization with a full-snapshot backstop.
-        now_ms = int(time.time() * 1000)
-        since_raw = request.args.get("since")
-        since_floor = None
-        if since_raw is not None:
-            try:
-                since_floor = int(since_raw) - 2000
-            except (TypeError, ValueError):
-                since_floor = None
+        # NOTE (MK4): the Phase-2 `?since=` incremental delta was REVERTED.
+        # It re-introduced the exact bug MK3 rejected the design over — a
+        # newly-visible trip's pre-cursor rows (expenses/days) were never
+        # shipped, so a freshly-accepted collaborator saw an empty/missing
+        # trip until a periodic full pull (SYNC-1, P0). The MK3-10
+        # change-detection version gate (`unchanged` short-circuit above) +
+        # gzip already solved the scale problem the delta was meant to
+        # address (idle poll ≈ 72 bytes; full payload ≈ 14 KB gzipped), so
+        # /api/data now always ships the full visible set on a real change.
+        # Phase-1 tombstones (budget_deletes/trip_deletes) are KEPT — they
+        # guard offline-replay resurrection on the per-row write path.
         my_member_by_trip = {}
         members_by_trip = {}
         if all_trip_ids:
@@ -1210,37 +1142,14 @@ def get_data():
         # this clause is backwards-compatible.
         trip_ids = [t['id'] for t in trips]
         expenses = []
-        expenses_changed = []
-        expenses_deleted = []
-        expenses_delta = since_floor is not None
         if trip_ids:
             placeholders = ','.join(['?'] * len(trip_ids))
-            if expenses_delta:
-                # DELTA: only rows changed (live, updated since the cursor) +
-                # ids tombstoned since the cursor. ms() = second-resolution
-                # epoch-ms via strftime('%s'); the 2s since_floor margin makes
-                # the boundary inclusive so nothing is missed (over-send only).
-                cursor.execute(
-                    f"SELECT * FROM expenses "
-                    f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL "
-                    f"AND CAST(strftime('%s', updated_at) AS INTEGER) * 1000 > ?",
-                    (*trip_ids, since_floor),
-                )
-                expenses_changed = [serialize_expense_row(row) for row in cursor.fetchall()]
-                cursor.execute(
-                    f"SELECT id FROM expenses "
-                    f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NOT NULL "
-                    f"AND CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 > ?",
-                    (*trip_ids, since_floor),
-                )
-                expenses_deleted = [row['id'] for row in cursor.fetchall()]
-            else:
-                cursor.execute(
-                    f"SELECT * FROM expenses "
-                    f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL",
-                    trip_ids,
-                )
-                expenses = [serialize_expense_row(row) for row in cursor.fetchall()]
+            cursor.execute(
+                f"SELECT * FROM expenses "
+                f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL",
+                trip_ids,
+            )
+            expenses = [serialize_expense_row(row) for row in cursor.fetchall()]
 
         # §4.5 — settlements ride alongside expenses on the same /api/data
         # poll so the settlement page can subtract them from the raw
@@ -1282,29 +1191,11 @@ def get_data():
         def _cat_row(r):
             return {"id": r["id"], "name": r["name"], "icon": r["icon"],
                     "color": r["color"], "updatedAt": r["updated_at"]}
-        categories = []
-        categories_changed = []
-        categories_deleted = []
-        categories_delta = since_floor is not None
-        if categories_delta:
-            cursor.execute(
-                "SELECT id, name, icon, color, updated_at FROM categories "
-                "WHERE user_id = ? AND updated_at > ?",
-                (user_id, since_floor),
-            )
-            categories_changed = [_cat_row(r) for r in cursor.fetchall()]
-            cursor.execute(
-                "SELECT category_id FROM category_deletes "
-                "WHERE user_id = ? AND deleted_at > ?",
-                (user_id, since_floor),
-            )
-            categories_deleted = [r["category_id"] for r in cursor.fetchall()]
-        else:
-            cursor.execute(
-                "SELECT id, name, icon, color, updated_at FROM categories WHERE user_id = ?",
-                (user_id,),
-            )
-            categories = [_cat_row(r) for r in cursor.fetchall()]
+        cursor.execute(
+            "SELECT id, name, icon, color, updated_at FROM categories WHERE user_id = ?",
+            (user_id,),
+        )
+        categories = [_cat_row(r) for r in cursor.fetchall()]
 
         # Get budgets. 2026-05-25 (audit B1): now reads + ships the 4
         # filter columns the frontend needs to render the budget card
@@ -1327,51 +1218,21 @@ def get_data():
                 # R3-Round 5: stamp for client-side optimistic concurrency.
                 'updatedAt': r['updated_at'],
             }
-        budgets = []
-        budgets_changed = []
-        budgets_deleted = []
-        budgets_delta = since_floor is not None
-        if budgets_delta:
-            # budgets.updated_at is TEXT → convert to epoch-ms for the compare.
-            # Deletions ride the budget_deletes tombstone table (also TEXT).
-            cursor.execute(
-                _budget_cols + " AND CAST(strftime('%s', updated_at) AS INTEGER) * 1000 > ?",
-                (user_id, since_floor),
-            )
-            budgets_changed = [_budget_row(r) for r in cursor.fetchall()]
-            cursor.execute(
-                "SELECT budget_id FROM budget_deletes WHERE user_id = ? "
-                "AND CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 > ?",
-                (user_id, since_floor),
-            )
-            budgets_deleted = [r["budget_id"] for r in cursor.fetchall()]
-        else:
-            cursor.execute(_budget_cols, (user_id,))
-            budgets = [_budget_row(r) for r in cursor.fetchall()]
+        cursor.execute(_budget_cols, (user_id,))
+        budgets = [_budget_row(r) for r in cursor.fetchall()]
 
         # Get trip days for every trip the caller can see. `deleted_at IS
         # NULL` filters tombstoned days. On a `?since=` pull this is a delta
         # (changed live days since the cursor; deletions queried separately
         # below); else the full set. updated_at/deleted_at are TEXT → epoch-ms.
         trip_days = []
-        trip_days_changed = []
-        trip_days_deleted = []
-        trip_days_delta = since_floor is not None
         if trip_ids:
             placeholders = ','.join(['?'] * len(trip_ids))
-            if trip_days_delta:
-                cursor.execute(
-                    f"SELECT * FROM trip_days "
-                    f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL "
-                    f"AND CAST(strftime('%s', updated_at) AS INTEGER) * 1000 > ?",
-                    (*trip_ids, since_floor),
-                )
-            else:
-                cursor.execute(
-                    f"SELECT * FROM trip_days "
-                    f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL",
-                    trip_ids,
-                )
+            cursor.execute(
+                f"SELECT * FROM trip_days "
+                f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL",
+                trip_ids,
+            )
         else:
             cursor.execute("SELECT * FROM trip_days WHERE 1=0")
         days_rows = cursor.fetchall()
@@ -1406,18 +1267,7 @@ def get_data():
 
             _days_serialized.append(day)
 
-        if trip_days_delta:
-            trip_days_changed = _days_serialized
-            if trip_ids:
-                cursor.execute(
-                    f"SELECT id FROM trip_days WHERE trip_id IN ({placeholders}) "
-                    f"AND deleted_at IS NOT NULL "
-                    f"AND CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 > ?",
-                    (*trip_ids, since_floor),
-                )
-                trip_days_deleted = [r["id"] for r in cursor.fetchall()]
-        else:
-            trip_days = _days_serialized
+        trip_days = _days_serialized
 
         # §4.4 — achievement detection runs piggybacked on /api/data.
         # The cadence is the natural moment to re-evaluate ("user just
@@ -1445,67 +1295,13 @@ def get_data():
             conn.commit()
         achievements = list_user_achievements(cursor, user_id)
 
-        # Sync Phase 2: trips delta. The full `trips` list above drives
-        # trip_ids + every other entity's scoping + the version hash, so we
-        # keep it intact and only derive the RESPONSE payload here: trips
-        # changed since the cursor + trip_deletes tombstones. Changed ids
-        # come from a cheap updated_at compare (then we pick those out of the
-        # already-serialized `trips`, no re-serialization). trip_deletes is
-        # global — after a delete trip_members is gone so we can't tell who
-        # to notify; the client simply drops any tombstoned trip it holds
-        # (a deleted trip's UUID is useless to a client that never had it).
-        trips_changed = []
-        trips_deleted = []
-        trips_delta = since_floor is not None
-        if trips_delta:
-            if all_trip_ids:
-                _tph = ','.join(['?'] * len(all_trip_ids))
-                cursor.execute(
-                    f"SELECT id FROM trips WHERE id IN ({_tph}) "
-                    f"AND CAST(strftime('%s', updated_at) AS INTEGER) * 1000 > ?",
-                    (*all_trip_ids, since_floor),
-                )
-                _changed_ids = {r["id"] for r in cursor.fetchall()}
-                trips_changed = [t for t in trips if t.get("id") in _changed_ids]
-            cursor.execute(
-                "SELECT trip_id FROM trip_deletes "
-                "WHERE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 > ?",
-                (since_floor,),
-            )
-            trips_deleted = [r["trip_id"] for r in cursor.fetchall()]
-
         return jsonify({
-            # Trips: full list on a normal pull; empty + tripsChanged/Deleted
-            # on a `?since=` pull (Phase 2). tripsDelta tells the client mode.
-            "trips": [] if trips_delta else trips,
-            "tripsDelta": trips_delta,
-            "tripsChanged": trips_changed,
-            "tripsDeleted": trips_deleted,
-            # Expenses: full list on a normal pull; on a `?since=` pull the
-            # list is empty and the client merges expensesChanged/Deleted
-            # (Phase 2). expensesDelta tells the client which mode this is.
+            "trips": trips,
             "expenses": expenses,
-            "expensesDelta": expenses_delta,
-            "expensesChanged": expenses_changed,
-            "expensesDeleted": expenses_deleted,
-            "serverTime": now_ms,
             "settlements": settlements,
-            # Categories / budgets / trip_days mirror the expenses delta
-            # shape: full list on a normal pull, empty + *Changed/*Deleted
-            # on a `?since=` pull (Phase 2). Their *Delta flags tell the
-            # client which mode each is in.
             "categories": categories,
-            "categoriesDelta": categories_delta,
-            "categoriesChanged": categories_changed,
-            "categoriesDeleted": categories_deleted,
             "budgets": budgets,
-            "budgetsDelta": budgets_delta,
-            "budgetsChanged": budgets_changed,
-            "budgetsDeleted": budgets_deleted,
             "tripDays": trip_days,
-            "tripDaysDelta": trip_days_delta,
-            "tripDaysChanged": trip_days_changed,
-            "tripDaysDeleted": trip_days_deleted,
             "achievements": achievements,
             "newlyEarnedAchievements": newly_earned,
             "version": current_version,

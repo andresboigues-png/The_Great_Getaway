@@ -16,7 +16,6 @@ import { showLiquidAlert } from './utils.js';
 import { t } from './i18n.js';
 import type { Trip, Expense, Budget, TripDay, Category } from './types';
 import { computeCategoryDelta } from './utils/categoryDelta.js';
-import { mergeById } from './utils/deltaMerge.js';
 import {
     apiFetch,
     _post,
@@ -44,16 +43,6 @@ import { fetchNotifications } from './api/misc.js';
  *  spans every syncWithServer() call. */
 let _syncConsecutiveFailures = 0;
 let _syncOfflineToastShown = false;
-
-// Sync Phase 2: incremental-expense-pull cursor. `_expenseCursor` is the
-// server epoch-ms timestamp (serverTime) of the last applied pull; the
-// next pull sends it as `?since=` so the server returns expenses as a
-// delta instead of the full list. `_pullsSinceFull` forces a periodic
-// FULL pull (no `?since=`) as a self-heal backstop — even if a delta apply
-// ever drifted, the full list re-syncs within ~PULLS_BEFORE_FULL polls.
-let _expenseCursor: number | null = null;
-let _pullsSinceFull = 0;
-const PULLS_BEFORE_FULL = 20; // ~5 min at the 15s poll cadence
 
 export async function syncWithServer() {
     if (!STATE.user) return;
@@ -123,14 +112,14 @@ export async function pullFromServer() {
     if (!STATE.user) return;
     try {
         const _lastDataVersion = _getLastDataVersion();
-        // Self-heal: force a periodic FULL expense pull (drop `?since=`) so
-        // any delta drift re-syncs. Also full whenever we have no cursor yet.
-        _pullsSinceFull += 1;
-        const _forceFull = _expenseCursor === null || _pullsSinceFull >= PULLS_BEFORE_FULL;
-        if (_forceFull) _pullsSinceFull = 0;
+        // MK3-10 change-detection: send our last-known version so the server
+        // can short-circuit an idle poll to a tiny {unchanged} body. On a
+        // real change it ships the full visible set. (The Phase-2 `?since=`
+        // incremental delta was reverted — see the data.py get_data note —
+        // because it missed a newly-visible trip's pre-cursor rows; the
+        // version gate + gzip already handle the scale it targeted.)
         const _params = new URLSearchParams();
         if (_lastDataVersion) _params.set('knownVersion', _lastDataVersion);
-        if (!_forceFull && _expenseCursor !== null) _params.set('since', String(_expenseCursor));
         const _qs = _params.toString();
         const _url = _qs ? `/api/data?${_qs}` : '/api/data';
         const res = await apiFetch(_url);
@@ -150,46 +139,12 @@ export async function pullFromServer() {
         }
         const data = result.value;
 
-        // Sync Phase 2: each delta'd collection arrives as a full list
-        // (normal pull) or a delta (`?since=` pull). `applyDelta` merges a
-        // delta (upsert changed by id + drop tombstoned) or replaces with
-        // the full list. Defined here (before the trips block) so trips can
-        // use it too. The delta fields sit behind the validated payload's
-        // index signature → read via a typed view; a malformed shape falls
-        // back to a no-op merge and the periodic full pull self-heals.
-        const _delta = data as unknown as {
-            tripsDelta?: boolean; tripsChanged?: Trip[]; tripsDeleted?: string[];
-            expensesDelta?: boolean; expensesChanged?: Expense[]; expensesDeleted?: string[];
-            categoriesDelta?: boolean; categoriesChanged?: Category[]; categoriesDeleted?: string[];
-            budgetsDelta?: boolean; budgetsChanged?: Budget[]; budgetsDeleted?: string[];
-            tripDaysDelta?: boolean; tripDaysChanged?: TripDay[]; tripDaysDeleted?: string[];
-            serverTime?: number;
-        };
-        const applyDelta = <T extends { id: string }>(
-            isDelta: boolean | undefined,
-            current: T[],
-            changed: T[] | undefined,
-            deleted: string[] | undefined,
-            full: T[],
-        ): T[] => (isDelta
-            ? mergeById(current, Array.isArray(changed) ? changed : [], Array.isArray(deleted) ? deleted : [])
-            : full);
-
         // Split trips into active and archived. Each trip's `companions`
-        // field is normalized to the canonical `Companion[]` shape. On a
-        // `?since=` pull the trip list is a delta — merge tripsChanged /
-        // tripsDeleted into the trips already in STATE (the media-merge
-        // below re-attaches loaded media to any changed trip from its
-        // existing copy), then re-process the whole set exactly as a full
-        // pull would.
-        const _mergedTrips = applyDelta(
-            _delta.tripsDelta,
-            [...(STATE.trips || []), ...(STATE.archivedTrips || [])],
-            _delta.tripsChanged,
-            _delta.tripsDeleted,
-            (data.trips || []) as unknown as Trip[],
-        );
-        const allTrips = _mergedTrips.map(t => ({
+        // field is normalized to the canonical `Companion[]` shape. The full
+        // visible trip set arrives on every real pull; the media-merge below
+        // re-attaches already-loaded media (the 4 heavy fields aren't shipped
+        // by /api/data) from each trip's existing STATE copy.
+        const allTrips = ((data.trips || []) as unknown as Trip[]).map(t => ({
             ...t,
             companions: normalizeTripCompanions(t.companions),
         }));
@@ -246,11 +201,7 @@ export async function pullFromServer() {
             STATE.activeTripId = STATE.trips[0]!.id;
         }
 
-        // Expenses delta/full (via the applyDelta + _delta defined above).
-        STATE.expenses = applyDelta(
-            _delta.expensesDelta, STATE.expenses || [],
-            _delta.expensesChanged, _delta.expensesDeleted, data.expenses || [],
-        );
+        STATE.expenses = data.expenses || [];
         // §4.5 — new member-keyed settlements ride alongside expenses.
         // `data.settlements` is always an array (server-side default)
         // but we guard with `|| []` so an older /api/data response
@@ -282,23 +233,14 @@ export async function pullFromServer() {
         }
         // Account-level companions (data.companions) is no longer used —
         // companions live per-trip on `trip.companions`.
-        STATE.categories = applyDelta(
-            _delta.categoriesDelta, STATE.categories || [],
-            _delta.categoriesChanged, _delta.categoriesDeleted, data.categories || [],
-        );
+        STATE.categories = data.categories || [];
         // Re-baseline the category delta sync to server truth so the next
         // edit diffs against what the server actually has (#3). After a
         // merge this reflects the post-merge set, which is what the next
         // outgoing category delta must diff against.
         setCategorySyncBaseline(STATE.categories);
-        STATE.budgets = applyDelta(
-            _delta.budgetsDelta, STATE.budgets || [],
-            _delta.budgetsChanged, _delta.budgetsDeleted, data.budgets || [],
-        );
-        STATE.tripDays = applyDelta(
-            _delta.tripDaysDelta, STATE.tripDays || [],
-            _delta.tripDaysChanged, _delta.tripDaysDeleted, data.tripDays || [],
-        );
+        STATE.budgets = data.budgets || [];
+        STATE.tripDays = data.tripDays || [];
 
         // Self-heal duplicate Day-0 (Anchor) rows across ALL trips
         // (active + archived). The home.ts dedup at line ~1330 only
@@ -365,10 +307,6 @@ export async function pullFromServer() {
         // MK3-10: cache the version ONLY after a successful apply, so a failed
         // apply can never make the next poll skip a real change.
         if (_incomingVersion) _setLastDataVersion(_incomingVersion);
-        // Advance the incremental-pull cursor to this response's server
-        // timestamp, but ONLY after a successful apply — so a failed apply
-        // can't skip a real change on the next `?since=` window.
-        if (typeof _delta.serverTime === 'number') _expenseCursor = _delta.serverTime;
 
         // R12-B4 Phase 2: hydrate the ACTIVE trip's media if it hasn't
         // loaded yet (cold start / first paint after login). Cheap +
@@ -430,13 +368,13 @@ export async function pullFromServer() {
  *  4. On 409 (stale), surfaces the localized `staleEdit` toast +
  *     fires pullFromServer so the next render reflects live state.
  *
- *  Returns void so existing fire-and-forget callers don't need
- *  changes. _upsertWithUpdatedAtJson is the Promise<ApiJsonResult>
- *  variant for callers (openAddDayModal) that need the result
- *  envelope.
+ *  MK4 FE-2: returns an ApiJsonResult ({ok,status,body}) so callers that
+ *  want honest save/failure feedback (e.g. the expense form) can branch on
+ *  the result. Fire-and-forget callers simply ignore the return value, so
+ *  this is backward-compatible with every existing `void upsert*()` site.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- heterogeneous domain row (Trip/Expense/Budget/Day) passthrough; typed at the public upsert* wrappers, server JSON in Phase A4 (zod).
-async function _upsertWithUpdatedAt(url: string, key: string, obj: any) {
+async function _upsertWithUpdatedAt(url: string, key: string, obj: any): Promise<ApiJsonResult> {
     const payload: Record<string, unknown> = { [key]: obj };
     let payloadBody: unknown = obj;
     if (obj && typeof obj === 'object' && obj.updatedAt) {
@@ -473,9 +411,9 @@ async function _upsertWithUpdatedAt(url: string, key: string, obj: any) {
             // Fresh state from server so the UI reflects what
             // actually persisted. Fire-and-forget.
             pullFromServer().catch(() => { /* best-effort */ });
-            return;
+            return { ok: false, status: 409, body: conflictBody };
         }
-        if (!res.ok) return;
+        if (!res.ok) return { ok: false, status: res.status, body: null };
         const body = await res.json().catch(() => null);
         const fresh = body && body.updatedAt;
         if (fresh && obj && typeof obj === 'object') {
@@ -489,8 +427,10 @@ async function _upsertWithUpdatedAt(url: string, key: string, obj: any) {
         if (body && body.euroValue !== undefined && obj && typeof obj === 'object') {
             obj.euroValue = body.euroValue;
         }
+        return { ok: true, status: res.status, body };
     } catch (e) {
         console.error(`POST ${url} failed:`, e);
+        return { ok: false, status: 0, body: null };
     }
 }
 

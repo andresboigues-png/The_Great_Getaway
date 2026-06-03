@@ -170,6 +170,15 @@ export function makePresentValueCalc(ctx: PvContext): (e: PvExpenseInput) => PvR
         const r = manualRates[c] && manualRates[c]![String(year)];
         return r && Number.isFinite(r.fx) && (r.fx as number) > 0 ? (r.fx as number) : null;
     };
+    // True iff the user pinned a manual inflation % for this currency in the
+    // expense's year (PV4-1). Lets the no-FX Model-B branch honour an explicit
+    // override for ARS/EGP/VND… without forcing the user to also pin a manual FX.
+    const hasManualInflation = (cur: string, date: string): boolean => {
+        const c = (cur || 'EUR').toUpperCase();
+        const y = (date || '').slice(0, 4);
+        const pct = manualRates[c] && manualRates[c]![y] ? manualRates[c]![y]!.inflationPct : undefined;
+        return Number.isFinite(pct);
+    };
 
     return (e: PvExpenseInput): PvResult => {
         // "Spent" = the cost in the home currency AT THE TIME: convert the
@@ -232,9 +241,18 @@ export function makePresentValueCalc(ctx: PvContext): (e: PvExpenseInput) => PvR
             todayValue = convert(e.value, e.currency || 'EUR', targetCurr) * inflationFactorFor(curUp, e.date || '');
         } else {
             // No FX for this currency → Model B (home-CPI on the frozen euroValue).
+            // PV4-1: if the user EXPLICITLY pinned an inflation % for this
+            // (no-FX) currency's year, honour it — otherwise the Settings editor
+            // renders the input but the value is silently dropped. We grow the
+            // home-currency cost by the currency's OWN manual factor in that
+            // case. We do NOT fall through to the currency's *auto* (foreign)
+            // CPI here: applying foreign CPI to a frozen home value with no FX
+            // to offset overstates by up to ~92× (PV-S2/S3), so absent an
+            // explicit override we keep HOME CPI.
             const euroVal = e.euroValue ?? convert(e.value, e.currency || 'EUR', 'EUR');
             const homeVal = targetCurr === 'EUR' ? euroVal : convert(euroVal, 'EUR', targetCurr);
-            todayValue = homeVal * inflationFactorFor(targetCurr, e.date || '');
+            const factorCur = hasManualInflation(curUp, e.date || '') ? curUp : targetCurr;
+            todayValue = homeVal * inflationFactorFor(factorCur, e.date || '');
         }
 
         return { spentValue: spentHome, todayValue };

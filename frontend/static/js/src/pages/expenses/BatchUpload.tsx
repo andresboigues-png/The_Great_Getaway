@@ -114,12 +114,36 @@ export function BatchUpload() {
             return;
         }
         try {
-            const { added, skipped } = runBatchImport(parsed.rows, formatVal);
-            const text = skipped.length === 0
-                ? t('upload.successImported', { count: added })
-                : `${t('upload.successImported', { count: added })} ${t('upload.skippedRows', { count: skipped.length, rows: skipped.join(', ') })}`;
-            setStatus({ text, color: 'green' });
-            setParsed(null);
+            const { added, skipped, noRateCurrencies } = runBatchImport(parsed.rows, formatVal);
+            let text = t('upload.successImported', { count: added });
+            if (skipped.length > 0) {
+                text = `${text} ${t('upload.skippedRows', { count: skipped.length, rows: skipped.join(', ') })}`;
+            }
+            // EXP-1: surface the no-live-rate currencies as an ACTIONABLE
+            // line so a Tricount/Splitwise export in ARS/EGP/VND/CLP/etc.
+            // doesn't just vanish into the skipped list. Tells the user
+            // how many rows (+ which currencies) need a manual EUR amount,
+            // since these rows can't be auto-converted and the server
+            // would reject them without one.
+            const noRateCodes = Object.keys(noRateCurrencies);
+            if (noRateCodes.length > 0) {
+                const noRateRows = noRateCodes.reduce(
+                    (sum, ccy) => sum + (noRateCurrencies[ccy] ?? 0),
+                    0,
+                );
+                text = `${text} ${t('upload.noRateImport', { count: noRateRows, currency: noRateCodes.join(', ') })}`;
+            }
+            // Amber when nothing imported but rows need a manual EUR amount;
+            // red on a pure invalid-data failure; green otherwise.
+            const color = added === 0 && noRateCodes.length > 0
+                ? '#ff9500'
+                : added === 0 && skipped.length > 0
+                    ? 'red'
+                    : 'green';
+            setStatus({ text, color });
+            // Keep the preview on screen if nothing imported so the user can
+            // see what was rejected; clear it once at least one row landed.
+            if (added > 0) setParsed(null);
         } catch (error) {
             console.error(error);
             setStatus({ text: t('upload.errorParsing'), color: 'red' });

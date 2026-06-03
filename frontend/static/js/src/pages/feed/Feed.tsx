@@ -44,6 +44,7 @@ import {
     apiFetch,
     toggleFeedLike,
     toggleFeedBookmark,
+    fetchFeedBookmarks,
     repostFeedPost,
     fetchFeedComments,
     postFeedComment,
@@ -184,6 +185,10 @@ export function Feed() {
             }
         };
         void refresh();
+        // MK4 SOC-4: if the Saved filter was left ON across a navigate-
+        // away + come-back, pull the persistent saved set on mount so
+        // out-of-window bookmarks paint without needing a re-toggle.
+        if (bookmarkedOnly) void loadSavedItems();
         // 2026-05-19: if the user's saved tab IS 'explore', we land
         // here with `_explore === null` and the existing tab-switch
         // handler (onSwitchTab) never fires because tab didn't
@@ -296,10 +301,50 @@ export function Feed() {
         }
     };
 
+    // ── MK4 SOC-4: "Saved" surface ───────────────────────────────
+    // The live /api/feed is windowed (last 30 days); a bookmark on an
+    // older share — or on a now-private trip — would otherwise be
+    // unreachable (the bug: bookmarks were write-only). When the Saved
+    // filter is on we additionally pull GET /api/feed/bookmarks, which
+    // re-resolves each saved event_id INDEPENDENTLY of the window and
+    // re-runs the per-event visibility check server-side, then MERGE
+    // those into the events pool (deduped by id). The existing
+    // `bookmarkedOnly && !ev.is_bookmarked` filter then narrows the
+    // merged pool to exactly the saved set. Items the server can no
+    // longer resolve (since-gone-private / since-deleted) simply don't
+    // come back, so they correctly drop out.
+    const [savedLoading, setSavedLoading] = useState(false);
+    const loadSavedItems = useCallback(async () => {
+        if (!STATE.user) return;
+        setSavedLoading(true);
+        try {
+            const saved = await fetchFeedBookmarks();
+            if (!saved) return;
+            // Cast: the server returns the same wire shape as /api/feed.
+            const savedEvents = saved as unknown as FeedEvent[];
+            setEvents((prev) => {
+                const byId = new Map<string, FeedEvent>();
+                // Saved-resolved events first so their fresh
+                // is_bookmarked/visibility wins, then anything already
+                // loaded that isn't in the saved set.
+                for (const ev of savedEvents) byId.set(ev.id, ev);
+                for (const ev of prev) if (!byId.has(ev.id)) byId.set(ev.id, ev);
+                const merged = Array.from(byId.values());
+                setCachedEvents(merged);
+                return merged;
+            });
+        } finally {
+            setSavedLoading(false);
+        }
+    }, []);
+
     const onToggleBookmarkedOnly = (e: React.ChangeEvent<HTMLInputElement>) => {
         const v = e.currentTarget.checked;
         setBookmarkedOnlyState(v);
         setBookmarkedOnly(v);
+        // Pull the persistent saved set when the filter is switched ON
+        // (covers items outside the live feed window).
+        if (v) void loadSavedItems();
     };
 
     // ── Filter + bundle pipeline ────────────────────────────────
@@ -636,7 +681,8 @@ export function Feed() {
                     <label
                         className="apple-toggle feed-tabs-row__bookmark"
                         id="feedBookmarkToggle"
-                        title="Filter to bookmarked items only"
+                        // MK4 SOC-4: tooltip for the Saved filter.
+                        title={t('feed.savedFilterTitle')}
                     >
                         <input
                             type="checkbox"
@@ -660,6 +706,7 @@ export function Feed() {
                     <FeedListBody
                         activeTab={activeTab}
                         bookmarkedOnly={bookmarkedOnly}
+                        savedLoading={savedLoading}
                         initialFetchDone={initialFetchDone}
                         explore={explore}
                         exploreCountry={exploreCountry}
@@ -697,6 +744,10 @@ export function Feed() {
 interface FeedListBodyProps {
     activeTab: FeedTab;
     bookmarkedOnly: boolean;
+    /** MK4 SOC-4: true while GET /api/feed/bookmarks is in flight so
+     *  the empty-state shows a spinner instead of flashing "no saved
+     *  items" before the persistent saved set has loaded. */
+    savedLoading: boolean;
     initialFetchDone: boolean;
     explore: ExploreFeedItem[] | null;
     /** §4.2 country chip filter — null = no filter, 2-letter ISO
@@ -736,6 +787,7 @@ function FeedListBody(props: FeedListBodyProps) {
     const {
         activeTab,
         bookmarkedOnly,
+        savedLoading,
         initialFetchDone,
         explore,
         exploreCountry,
@@ -946,7 +998,12 @@ function FeedListBody(props: FeedListBodyProps) {
         // deeper. EmptyState still wins when nextCursor is null
         // (genuinely no bookmarks anywhere) or when the filter is
         // off (the empty feed is the real signal).
-        if (hasMore && bookmarkedOnly) {
+        //
+        // MK4 SOC-4: also show the spinner while the dedicated
+        // /api/feed/bookmarks fetch is in flight (savedLoading) so we
+        // don't flash "no saved items" before the persistent saved set
+        // has merged in — even when the live feed has no more pages.
+        if ((hasMore && bookmarkedOnly) || (bookmarkedOnly && savedLoading)) {
             return (
                 <div
                     ref={sentinelRef}

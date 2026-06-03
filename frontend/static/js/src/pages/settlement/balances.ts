@@ -14,7 +14,7 @@ import {
     getTripCompanionNames,
     findTripCompanionByLinkedUser,
 } from '../../companions.js';
-import type { Settlement, Trip } from '../../types';
+import type { Companion, Settlement, Trip } from '../../types';
 
 
 /** Apply a server-side `Settlement` row to a per-person balance map.
@@ -324,6 +324,32 @@ export function simplifyDebts(balances: Record<string, number>): SettlementDebt[
     return debts;
 }
 
+/** MK4 SETL-2: resolve a (trip, display-name) pair to a STABLE cross-trip
+ *  identity key. A linked companion (one carrying `linkedUserId`) keys on
+ *  `user:<id>`; an unlinked name-only companion (or a name not in the
+ *  trip's roster, e.g. a removed-companion expense) keys on `name:<lower>`.
+ *
+ *  Why per-trip and not a single global name→identity map: the SAME name
+ *  string can map to DIFFERENT real people across trips ("Alex" linked to
+ *  u-alex1 on trip A, a different "Alex" linked to u-alex2 on trip B), and
+ *  the SAME person can appear under two spellings linked to ONE id ("Sara"
+ *  vs "Sara L", both → u-sara). Resolving against the originating trip's
+ *  roster keeps the two namesakes apart and folds the two spellings
+ *  together — which a name-keyed global map could not do (it merged the
+ *  namesakes and split the one person). Falls back to the lower-cased name
+ *  for unlinked companions so name-only people behave exactly as before. */
+function _identityKeyFor(
+    companionsByTrip: Map<string, Companion[]>,
+    tripId: string,
+    name: string,
+): string {
+    const lower = (name || '').toLocaleLowerCase();
+    const companions = companionsByTrip.get(tripId) || [];
+    const match = companions.find((c) => (c.name || '').toLocaleLowerCase() === lower);
+    if (match?.linkedUserId) return `user:${match.linkedUserId}`;
+    return `name:${lower}`;
+}
+
 /** Compute the cross-trip balance map. Same shape as the per-trip
  *  one, but seeded with every name from every trip's roster (active
  *  + archived) and accumulated over EVERY expense.
@@ -331,6 +357,15 @@ export function simplifyDebts(balances: Record<string, number>): SettlementDebt[
  *  Audit fix (2026-05-26): also seed with every name referenced in
  *  expenses (`who` or split keys) so removed-companion expenses
  *  don't silently vanish — same logic as computeTripBalances.
+ *
+ *  MK4 SETL-2: accumulate against a stable IDENTITY key (user id for
+ *  linked companions, name for unlinked ones — see `_identityKeyFor`)
+ *  rather than the raw display name, then project back to a
+ *  display-name-keyed result for the renderer. This stops two distinct
+ *  same-named linked people from merging into one balance, and stops one
+ *  linked person entered under two spellings from splitting into two.
+ *  Display-name collisions between DISTINCT identities are disambiguated
+ *  with a short id suffix so the merge can't silently re-appear in the UI.
  *
  *  MK3-11: memoized on the state version — this is O(trips × expenses) and is
  *  called on every render, so recompute only when state actually changed. A
@@ -340,11 +375,29 @@ let _globalBalCache: { v: number; result: Record<string, number> } | null = null
 export function computeGlobalBalances(): Record<string, number> {
     const _v = getStateVersion();
     if (_globalBalCache && _globalBalCache.v === _v) return { ..._globalBalCache.result };
-    const globalBalances: Record<string, number> = {};
+
+    // Identity-keyed accumulator + the display name we'll show for each
+    // identity. `byIdentity` holds the running balance; `displayByIdentity`
+    // remembers a human name (the linked companion's name when we have it,
+    // else whatever name first referenced the identity).
+    const byIdentity: Record<string, number> = {};
+    const displayByIdentity: Record<string, string> = {};
+    const companionsByTrip = new Map<string, Companion[]>();
     for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
-        for (const name of getTripCompanionNames(t)) {
-            if (!(name in globalBalances)) globalBalances[name] = 0;
-        }
+        companionsByTrip.set(t.id, t.companions ?? []);
+    }
+    /** Seed (or look up) an identity for a name seen on `tripId`. Returns
+     *  the identity key so callers can apply amounts. The first non-empty
+     *  name to reach an identity becomes its display name; roster names are
+     *  seeded first below, so a linked identity shows its roster spelling. */
+    const seed = (tripId: string, name: string): string => {
+        const key = _identityKeyFor(companionsByTrip, tripId, name);
+        if (!(key in byIdentity)) byIdentity[key] = 0;
+        if (name && !displayByIdentity[key]) displayByIdentity[key] = name;
+        return key;
+    };
+    for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
+        for (const name of getTripCompanionNames(t)) seed(t.id, name);
     }
     // R2 audit fix: STATE.expenses already contains EVERY expense
     // from EVERY trip (active + archived) because /api/data returns
@@ -373,18 +426,15 @@ export function computeGlobalBalances(): Record<string, number> {
         }
     }
 
-    // Seed any expense-attributed name that isn't already in the
-    // global roster — captures removed-companion expenses so their
-    // money doesn't disappear from cross-trip balance math.
+    // Seed any expense-attributed name that isn't already in the global
+    // roster — captures removed-companion expenses so their money doesn't
+    // disappear from cross-trip balance math. Each name is resolved to its
+    // identity key against the originating trip (SETL-2).
     for (const exp of allExpenses) {
-        if (exp.who && !(exp.who in globalBalances)) {
-            globalBalances[exp.who] = 0;
-        }
+        if (exp.who) seed(exp.tripId, exp.who);
         if (exp.splits) {
             for (const name of Object.keys(exp.splits)) {
-                if (name && !(name in globalBalances)) {
-                    globalBalances[name] = 0;
-                }
+                if (name) seed(exp.tripId, name);
             }
         }
     }
@@ -400,7 +450,9 @@ export function computeGlobalBalances(): Record<string, number> {
         // Pre-fix a 0-euroValue row read €0 on the per-trip tab but its raw
         // foreign amount here (cross-trip), e.g. 270000 VND as €270000.
         const amount = exp.euroValue ?? exp.value ?? 0;
-        if (globalBalances[exp.who] !== undefined) globalBalances[exp.who]! += amount;
+        // SETL-2: resolve names → identity keys against the expense's trip.
+        const whoKey = exp.who ? seed(exp.tripId, exp.who) : undefined;
+        if (whoKey !== undefined) byIdentity[whoKey]! += amount;
         if (exp.splits && Object.keys(exp.splits).length > 0) {
             // 2026-05-26 (audit SP1): normalize the split by the ACTUAL
             // sum, not a hard /100. A custom 33/33/33 split sums to 99%
@@ -417,8 +469,8 @@ export function computeGlobalBalances(): Record<string, number> {
             );
             if (denom > 0) {
                 for (const [person, pct] of Object.entries(exp.splits)) {
-                    if (globalBalances[person] !== undefined)
-                        globalBalances[person]! -= (amount * Number(pct)) / denom;
+                    const k = seed(exp.tripId, person);
+                    byIdentity[k]! -= (amount * Number(pct)) / denom;
                 }
             }
         } else {
@@ -433,7 +485,8 @@ export function computeGlobalBalances(): Record<string, number> {
                       );
             const share = amount / Math.max(splitGroup.length, 1);
             splitGroup.forEach((p) => {
-                if (globalBalances[p] !== undefined) globalBalances[p]! -= share;
+                const k = seed(exp.tripId, p);
+                byIdentity[k]! -= share;
             });
         }
     }
@@ -476,6 +529,41 @@ export function computeGlobalBalances(): Record<string, number> {
             }
         }
     }
+    // SETL-2: resolve a settlement party to the SAME identity key the
+    // expense loop used. Prefer the row's user_id when that linked
+    // identity already exists in the accumulator (so a linked-member
+    // settlement nets against the right person, even across trips); else
+    // resolve the snapshot/roster name against the originating trip
+    // exactly like an expense name. Returns null when neither resolves
+    // (a legacy row with no usable name + no known user id) so the caller
+    // can skip it without seeding a phantom identity.
+    const settlementPartyKey = (
+        userId: string | null | undefined,
+        snapshotName: string | null | undefined,
+        trip: Trip | null,
+        tripId: string,
+    ): string | null => {
+        if (userId && `user:${userId}` in byIdentity) {
+            const k = `user:${userId}`;
+            if (snapshotName && !displayByIdentity[k]) displayByIdentity[k] = snapshotName;
+            return k;
+        }
+        // Fall back to the snapshot name → roster identity (linked
+        // companions still collapse to user:<id>; name-only stay by name).
+        const rosterName = snapshotName
+            || (userId ? findTripCompanionByLinkedUser(trip, userId)?.name : undefined);
+        if (rosterName) return seed(tripId, rosterName);
+        // Last resort: if we have a user id but no name + no prior
+        // identity, key on the id so the money still lands somewhere
+        // stable rather than vanishing.
+        if (userId) {
+            const k = `user:${userId}`;
+            if (!(k in byIdentity)) byIdentity[k] = 0;
+            return k;
+        }
+        return null;
+    };
+
     for (const s of allSettlements) {
         const trip = tripsById.get(s.tripId);
         // R10-B6b F4: don't silently drop settlements whose trip
@@ -485,16 +573,41 @@ export function computeGlobalBalances(): Record<string, number> {
         // an old archived trip that fell off the snapshot). The user
         // saw their global balance silently UNDER-count their debts —
         // a payment they'd received was missing entirely, not even
-        // shown with a "pending" hint. applySettlementToBalances
-        // tolerates a null trip when the row carries fromName/toName
-        // snapshots (every post-§4.5 server-written row does), so
-        // hand it null and let the snapshot path win. The function's
-        // own `if (!fromName || !toName) return;` guard still catches
-        // the legacy unbackfilled-snapshot edge case without crashing.
+        // shown with a "pending" hint. The snapshot fromName/toName
+        // (every post-§4.5 server-written row carries them) keep the
+        // row attributable even with a null trip.
         if (!trip) {
             console.warn('[balances] settlement', s.id, 'trip', s.tripId, 'not in local cache — using snapshot names');
         }
-        applySettlementToBalances(globalBalances, s, trip || null);
+        const fromKey = settlementPartyKey(s.fromUserId, s.fromName, trip || null, s.tripId);
+        const toKey = settlementPartyKey(s.toUserId, s.toName, trip || null, s.tripId);
+        if (!fromKey || !toKey) continue;
+        // euroValue is the cross-currency-normalised amount; legacy rows
+        // fall back to raw amount (matches applySettlementToBalances).
+        const amount = s.euroValue || s.amount || 0;
+        byIdentity[fromKey]! += amount;
+        byIdentity[toKey]! -= amount;
+    }
+
+    // Project the identity-keyed accumulator back to a display-name-keyed
+    // result for the renderer. When two DISTINCT identities resolve to the
+    // same base display name (two different linked "Alex"es), disambiguate
+    // the SECOND+ occurrence with a short id suffix so the SETL-2 merge
+    // can't silently re-appear in the UI as one row.
+    const globalBalances: Record<string, number> = {};
+    const baseNameCount = new Map<string, number>();
+    for (const key of Object.keys(byIdentity)) {
+        const base = displayByIdentity[key] || key.slice(key.indexOf(':') + 1);
+        const seen = baseNameCount.get(base) || 0;
+        baseNameCount.set(base, seen + 1);
+        let label = base;
+        if (seen > 0) {
+            // Collision between distinct identities — append a short tag
+            // (first 4 chars of the user id, or an ordinal for name keys).
+            const tag = key.startsWith('user:') ? key.slice(5, 9) : String(seen + 1);
+            label = `${base} (${tag})`;
+        }
+        globalBalances[label] = byIdentity[key]!;
     }
 
     _globalBalCache = { v: _v, result: globalBalances };
