@@ -217,6 +217,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                     className={`map-poi-toggle-bar${poiPillsVisible ? ' is-expanded' : ''}`}
                     aria-expanded={poiPillsVisible}
                     aria-controls="homeMapPoiToggles"
+                    aria-label={t('home.poiToggleLabel')}
                     onClick={onTogglePoiPills}
                 >
                     <svg
@@ -233,7 +234,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                         <circle cx="12" cy="12" r="9"></circle>
                         <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
                     </svg>
-                    <span className="map-poi-toggle-bar__label hide-on-mobile-collapsed">Discover places nearby</span>
+                    <span className="map-poi-toggle-bar__label hide-on-mobile-collapsed">{t('home.poiToggleLabel')}</span>
                     <svg
                         className="map-poi-toggle-bar__chevron"
                         width="13"

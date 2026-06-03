@@ -1060,6 +1060,7 @@ export const fr: Translations = {
         mapsBtnTitle: 'Ouvrir l\'emplacement de ce voyage dans Google Maps',
         shareBtnLabel: 'Partager',
         shareBtnTitle: 'Partager ce voyage',
+        poiToggleLabel: 'Découvrir des lieux à proximité',
         tripStatsLine: 'Tu as {count} dépenses enregistrées pour {trip}.',
         daysOfAdventure: {
             one: '{count} Jour d\'aventure',

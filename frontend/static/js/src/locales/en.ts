@@ -1360,6 +1360,8 @@ export const en = {
         mapsBtnTitle: "Open this trip's location in Google Maps",
         shareBtnLabel: 'Share',
         shareBtnTitle: 'Share this trip',
+        // POI toggle button in the homeMapActionsRow (icon + label).
+        poiToggleLabel: 'Discover places nearby',
         // 2026-05-24: trip stats line below the greeting.
         // {count} is wrapped in <strong> tags by the caller, so the
         // translation should NOT add extra emphasis.

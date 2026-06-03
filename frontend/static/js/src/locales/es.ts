@@ -1055,6 +1055,7 @@ export const es: Translations = {
         mapsBtnTitle: 'Abrir la ubicación de este viaje en Google Maps',
         shareBtnLabel: 'Compartir',
         shareBtnTitle: 'Compartir este viaje',
+        poiToggleLabel: 'Descubrir lugares cercanos',
         tripStatsLine: 'Tienes {count} gastos registrados para {trip}.',
         daysOfAdventure: {
             one: '{count} Día de aventura',
