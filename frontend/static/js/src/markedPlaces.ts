@@ -27,51 +27,45 @@
 // so the array shape stays consistent.
 
 import { guessCategoryByTypes } from './pages/home/poiCategories.js';
+import type { Trip, MarkedPlace } from './types';
 
-/**
- * @typedef {object} MarkedPlace
- * @property {string} placeId
- * @property {string} name
- * @property {string} address
- * @property {number} lat
- * @property {number} lng
- * @property {string} icon                Category emoji from POI_CATEGORIES
- * @property {string} color               Category color
- * @property {boolean} forAI              Ticked in AI planner — included in generation
- * @property {boolean} forManual          Lives in the To-do list
- * @property {string | null} [dayId]      Optional day assignment (AI honour)
- * @property {'morning'|'afternoon'|'evening'|null} [timeOfDay]
- */
+/** Trips passed in are sometimes the active trip (present) and sometimes
+ *  a `.find()` result (maybe undefined); accept both. */
+type MaybeTrip = Trip | null | undefined;
+
+/** A raw Google Places result. Externally typed by the Maps SDK (declared
+ *  `any` in types.d.ts) — kept loose on purpose at this boundary. */
+type PlaceResult = google.maps.places.PlaceResult;
 
 /** Read marked places off a trip object (always returns an array). */
-export function getMarkedPlaces(trip: any): any[] {
+export function getMarkedPlaces(trip: MaybeTrip): MarkedPlace[] {
     return Array.isArray(trip?.markedPlaces) ? trip.markedPlaces : [];
 }
 
 /** Find a marked place by its placeId. Returns the entry or undefined. */
-export function findMarkedPlace(trip: any, placeId: string | null | undefined) {
+export function findMarkedPlace(trip: MaybeTrip, placeId: string | null | undefined) {
     if (!placeId) return undefined;
-    return getMarkedPlaces(trip).find((p: any) => p.placeId === placeId);
+    return getMarkedPlaces(trip).find((p) => p.placeId === placeId);
 }
 
 /** Drop a marked place entirely (called from the AI planner panel's
  *  remove button and from the Home → To do list tab). Safe no-op if
  *  the place isn't there. */
-export function removeMarkedPlace(trip: any, placeId: string): void {
+export function removeMarkedPlace(trip: MaybeTrip, placeId: string): void {
     if (!trip || !Array.isArray(trip.markedPlaces)) return;
-    trip.markedPlaces = trip.markedPlaces.filter((p: any) => p.placeId !== placeId);
+    trip.markedPlaces = trip.markedPlaces.filter((p) => p.placeId !== placeId);
 }
 
 /** Update day / time-of-day assignment on a marked place (or remove the
  *  assignment if both are null). */
 export function setMarkedPlaceAssignment(
-    trip: any,
+    trip: MaybeTrip,
     placeId: string,
     dayId: string | null,
     timeOfDay: 'morning' | 'afternoon' | 'evening' | null,
 ): void {
     if (!trip || !Array.isArray(trip.markedPlaces)) return;
-    const entry = trip.markedPlaces.find((p: any) => p.placeId === placeId);
+    const entry = trip.markedPlaces.find((p) => p.placeId === placeId);
     if (!entry) return;
     entry.dayId = dayId || null;
     entry.timeOfDay = timeOfDay || null;
@@ -94,27 +88,25 @@ export function setMarkedPlaceAssignment(
  *  Remove semantics: if the place IS tracked, drop it entirely — there's no
  *  "in to-do but invisible" state in the merged model.
  *
- *  @param {any} trip
- *  @param {any} place — Google Places result (uses place.place_id, name, etc.)
- *  @param {{icon?:string, color?:string}=} cat — POI_CATEGORIES entry for visuals
- *  @param {string|null} [currentDayId] — wheel-selected day to auto-pin to.
+ *  @param place — Google Places result (uses place.place_id, name, etc.)
+ *  @param cat — POI_CATEGORIES entry for visuals
+ *  @param currentDayId — wheel-selected day to auto-pin to.
  */
 export function toggleTodoListMembership(
-    trip: any,
-    place: any,
+    trip: MaybeTrip,
+    place: PlaceResult,
     cat?: { icon?: string; color?: string },
     currentDayId?: string | null,
 ): void {
     if (!trip || !place?.place_id) return;
     if (!Array.isArray(trip.markedPlaces)) trip.markedPlaces = [];
-    const existing = trip.markedPlaces.find((p: any) => p.placeId === place.place_id);
+    const existing = trip.markedPlaces.find((p) => p.placeId === place.place_id);
     if (existing) {
         // Already in to-do — remove entirely.
-        trip.markedPlaces = trip.markedPlaces.filter((p: any) => p.placeId !== place.place_id);
+        trip.markedPlaces = trip.markedPlaces.filter((p) => p.placeId !== place.place_id);
         return;
     }
-    /** @type {MarkedPlace} */
-    const fresh: any = {
+    const fresh: MarkedPlace = {
         placeId: place.place_id,
         name: place.name || '',
         address: place.vicinity || place.formatted_address || '',
@@ -157,9 +149,9 @@ export function toggleTodoListMembership(
 
 /** Toggle just the AI tick on an existing to-do entry. Used by the AI
  *  planner's checkbox. No-op if the entry isn't found. */
-export function toggleMarkedPlaceForAI(trip: any, placeId: string): void {
+export function toggleMarkedPlaceForAI(trip: MaybeTrip, placeId: string): void {
     if (!trip || !Array.isArray(trip.markedPlaces)) return;
-    const entry = trip.markedPlaces.find((p: any) => p.placeId === placeId);
+    const entry = trip.markedPlaces.find((p) => p.placeId === placeId);
     if (!entry) return;
     entry.forAI = !entry.forAI;
 }
@@ -170,7 +162,7 @@ export function toggleMarkedPlaceForAI(trip: any, placeId: string): void {
  *  they want to include or exclude the whole list from the next AI
  *  generation. Only touches forManual items (the ones visible on
  *  the to-do surface); legacy non-manual rows stay untouched. */
-export function setAllMarkedPlacesForAI(trip: any, value: boolean): void {
+export function setAllMarkedPlacesForAI(trip: MaybeTrip, value: boolean): void {
     if (!trip || !Array.isArray(trip.markedPlaces)) return;
     for (const p of trip.markedPlaces) {
         if (!p.forManual) continue;
@@ -186,7 +178,7 @@ export function setAllMarkedPlacesForAI(trip: any, value: boolean): void {
  *  touches forManual rows. Items whose placeId isn't in the set
  *  are left exactly as they were. */
 export function setMarkedPlacesForAIByIds(
-    trip: any,
+    trip: MaybeTrip,
     placeIds: Iterable<string>,
     value: boolean,
 ): void {
@@ -194,7 +186,7 @@ export function setMarkedPlacesForAIByIds(
     const targetIds = new Set(placeIds);
     for (const p of trip.markedPlaces) {
         if (!p.forManual) continue;
-        if (!targetIds.has(p.placeId)) continue;
+        if (!p.placeId || !targetIds.has(p.placeId)) continue;
         p.forAI = !!value;
     }
 }
@@ -244,7 +236,7 @@ export interface VerifiedAIItem {
  *  only auto-add places we can identify, otherwise we'd litter the
  *  to-do list with the LLM's freeform suggestions. */
 export function addOrUpdatePlaceFromVerified(
-    trip: any,
+    trip: MaybeTrip,
     item: VerifiedAIItem,
     dayId: string | null,
     timeOfDay: 'morning' | 'afternoon' | 'evening' | null = null,
@@ -258,7 +250,7 @@ export function addOrUpdatePlaceFromVerified(
     // back to null on a miss — caller branches below decide the
     // fallback shape (existing: keep stored icon; fresh: stamp 📋).
     const cat = guessCategoryByTypes(item.types);
-    const existing = trip.markedPlaces.find((p: any) => p.placeId === item.placeId);
+    const existing = trip.markedPlaces.find((p) => p.placeId === item.placeId);
     if (existing) {
         // Refresh rich fields so a second AI run picks up updated
         // photo URLs / ratings (these can drift, e.g. ratings tick
@@ -299,7 +291,7 @@ export function addOrUpdatePlaceFromVerified(
         if (!existing.forManual) existing.forManual = true;
         return;
     }
-    const fresh: any = {
+    const fresh: MarkedPlace = {
         placeId: item.placeId,
         name: item.verifiedName || item.text || '',
         address: item.address || '',
@@ -322,15 +314,17 @@ export function addOrUpdatePlaceFromVerified(
         dayId: dayId || null,
         timeOfDay: timeOfDay || null,
         verified: true,
-        verifiedName: item.verifiedName,
-        photoUrl: item.photoUrl,
-        rating: item.rating,
-        userRatingsTotal: item.userRatingsTotal,
-        mapsUrl: item.mapsUrl,
-        why: item.why,
-        fact: item.fact,
         // Provenance — see dropAITaggedPlaces for the cleanup contract.
         source: 'ai',
+        // exactOptionalPropertyTypes: include the rich optional fields only
+        // when the item actually carries them (don't write explicit undefined).
+        ...(item.verifiedName !== undefined ? { verifiedName: item.verifiedName } : {}),
+        ...(item.photoUrl !== undefined ? { photoUrl: item.photoUrl } : {}),
+        ...(item.rating !== undefined ? { rating: item.rating } : {}),
+        ...(item.userRatingsTotal !== undefined ? { userRatingsTotal: item.userRatingsTotal } : {}),
+        ...(item.mapsUrl !== undefined ? { mapsUrl: item.mapsUrl } : {}),
+        ...(item.why !== undefined ? { why: item.why } : {}),
+        ...(item.fact !== undefined ? { fact: item.fact } : {}),
     };
     trip.markedPlaces.push(fresh);
 }
@@ -346,16 +340,16 @@ export function addOrUpdatePlaceFromVerified(
  *  whose origin we can't be sure of). The cost is that on the FIRST
  *  Accept Plan after upgrading, those legacy items stay; subsequent
  *  AI runs replace cleanly because the new items DO carry source. */
-export function dropAITaggedPlaces(trip: any): void {
+export function dropAITaggedPlaces(trip: MaybeTrip): void {
     if (!trip || !Array.isArray(trip.markedPlaces)) return;
-    trip.markedPlaces = trip.markedPlaces.filter((p: any) => p?.source !== 'ai');
+    trip.markedPlaces = trip.markedPlaces.filter((p) => p?.source !== 'ai');
 }
 
 /** Drop EVERY markedPlace from the trip — the "Clean slate" path
  *  the user invokes from the to-do page when they want to start
  *  over. Skips the source filter; this is the user's explicit
  *  "wipe it all" action, no smart replacement. */
-export function clearAllMarkedPlaces(trip: any): void {
+export function clearAllMarkedPlaces(trip: MaybeTrip): void {
     if (!trip) return;
     trip.markedPlaces = [];
 }

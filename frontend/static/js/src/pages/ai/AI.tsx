@@ -1670,11 +1670,11 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
     if (sortMode === 'name-asc') {
         visibleItems = visibleItems
             .slice()
-            .sort((a, b) => a.name.localeCompare(b.name));
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     } else if (sortMode === 'name-desc') {
         visibleItems = visibleItems
             .slice()
-            .sort((a, b) => b.name.localeCompare(a.name));
+            .sort((a, b) => (b.name || '').localeCompare(a.name || ''));
     } else if (sortMode === 'recent') {
         // markedPlaces is append-order — reversing gives newest-first.
         visibleItems = visibleItems.slice().reverse();

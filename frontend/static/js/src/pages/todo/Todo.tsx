@@ -393,9 +393,10 @@ export function Todo() {
     }
 
     const tripIsEditable = canEdit(activeTrip);
-    const todoItems: TodoMarkedPlace[] = getMarkedPlaces(activeTrip).filter(
-        (p: TodoMarkedPlace) => p.forManual,
-    );
+    // getMarkedPlaces now returns the canonical MarkedPlace[] (all fields
+    // optional). To-do entries always carry placeId/name/icon/color (stamped by
+    // toggleTodoListMembership), so narrow to the stricter local view here.
+    const todoItems = getMarkedPlaces(activeTrip).filter((p) => p.forManual) as TodoMarkedPlace[];
     const tickedCount = todoItems.filter((p: TodoMarkedPlace) => p.forAI).length;
 
     const handleTickToggle = (placeId: string) => {
