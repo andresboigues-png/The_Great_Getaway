@@ -21,8 +21,9 @@ import { navigate } from '../../router.js';
 import { shareTripToFeed, fetchShareStatus, unshareFeedPost, cloneTrip, pullFromServer } from '../../api.js';
 import { openDayView, openPdfPreview, looksLikePdfUrl, openShareToFeedModal, updateShareBtnVisualState } from '../home.js';
 import { openShareChooserModal } from '../../modals.js';
-import { restoreTrip, toggleTripPrivacy } from './handlers.js';
+import { restoreTrip, toggleTripPrivacy, type TripPrivacyLevel } from './handlers.js';
 import { iconSvg } from '../../icons.js';
+import type { Trip } from '../../types';
 
 /**
  * Render a read-only archived-trip detail page.
@@ -35,7 +36,7 @@ import { iconSvg } from '../../icons.js';
  *
  * @param {string | any} tripIdOrTrip
  */
-export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
+export function renderArchivedTripDetail(tripIdOrTrip: string | Trip) {
     const trip = typeof tripIdOrTrip === 'string'
         ? (STATE.archivedTrips.find(t => t.id === tripIdOrTrip)
             || STATE.trips.find(t => t.id === tripIdOrTrip))
@@ -52,21 +53,21 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
     // Documents/Photos tabs on Home. Archive carries the trip object
     // intact, so trip.photos / trip.documents survive without any
     // migration on this side.
-    const expenses = (trip.expenses || []).filter((e: any) => !e.isSettlement);
-    const totalSpent = expenses.reduce((sum: number, e: any) => sum + (e.euroValue || 0), 0);
+    const expenses = (trip.expenses || []).filter((e) => !e.isSettlement);
+    const totalSpent = expenses.reduce((sum, e) => sum + (e.euroValue || 0), 0);
     const tripDays = (trip.tripDays || []);
     // 2026-05-21: the Hub (day 0) shouldn't be counted as a planned
     // day — it's the trip's headquarters, not a day on the itinerary.
     // Filter on dayNumber > 0 so "3 DAYS" on the archived hero reflects
     // the user's mental model.
-    const dayCount = tripDays.filter((d: any) => (d.dayNumber || 0) > 0).length;
+    const dayCount = tripDays.filter((d) => (d.dayNumber || 0) > 0).length;
     const tripPhotos = Array.isArray(trip.photos) ? trip.photos : [];
     const tripDocs = Array.isArray(trip.documents) ? trip.documents : [];
     const totalPhotos =
-        tripDays.reduce((n: number, d: any) => n + ((d.photos || []).length), 0)
+        tripDays.reduce((n, d) => n + ((d.photos || []).length), 0)
         + tripPhotos.length;
     const totalDocs =
-        tripDays.reduce((n: number, d: any) => n + ((d.tickets || []).length), 0)
+        tripDays.reduce((n, d) => n + ((d.tickets || []).length), 0)
         + tripDocs.length;
 
     // Hero background source — priority chain (post-Phase-C feature):
@@ -77,10 +78,10 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
     //   4. <none> → falls back to the gradient-only hero below.
     let firstPhoto: string | null = null;
     if (trip.coverUrl) firstPhoto = trip.coverUrl;
-    if (!firstPhoto && tripPhotos.length > 0) firstPhoto = tripPhotos[0].src;
+    if (!firstPhoto && tripPhotos.length > 0) firstPhoto = tripPhotos[0]!.src;
     if (!firstPhoto) {
         for (const day of tripDays) {
-            if (day.photos && day.photos.length > 0) { firstPhoto = day.photos[0]; break; }
+            if (day.photos && day.photos.length > 0) { firstPhoto = day.photos[0]!; break; }
         }
     }
 
@@ -206,15 +207,15 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
             <span class="ad-text-muted-sm">${esc(t('archivedDetail.journeySubtitle'))}</span>
         </div>
         <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:18px;">
-            ${tripDays.sort((a: any, b: any) => a.dayNumber - b.dayNumber).map((day: any) => {
+            ${tripDays.sort((a, b) => a.dayNumber - b.dayNumber).map((day) => {
                 // Per-day media counts: legacy day-level arrays + any
                 // trip-level entries this day was tagged with via the
                 // Documents/Photos tabs.
                 const dayPhotosFromDay = day.photos || [];
-                const dayPhotosFromTrip = tripPhotos.filter((p: any) => p.dayId === day.id);
+                const dayPhotosFromTrip = tripPhotos.filter((p) => p.dayId === day.id);
                 const totalDayPhotos = dayPhotosFromDay.length + dayPhotosFromTrip.length;
                 const dayDocsFromDay = day.tickets || [];
-                const dayDocsFromTrip = tripDocs.filter((d: any) => d.dayId === day.id);
+                const dayDocsFromTrip = tripDocs.filter((d) => d.dayId === day.id);
                 const totalDayDocs = dayDocsFromDay.length + dayDocsFromTrip.length;
                 const isStartingPoint = Number(day.dayNumber) === 0;
                 // The day-card background uses ONLY photos that are
@@ -278,13 +279,13 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
             // a Anchor day) fall back to a neutral "Unsorted" chip.
             const dayLabel = (id: string | null | undefined) => {
                 if (!id) return null;
-                const d = tripDays.find((x: any) => x.id === id);
+                const d = tripDays.find((x) => x.id === id);
                 if (!d) return null;
                 return Number(d.dayNumber) === 0 ? t('archivedDetail.dayBadgeHub') : t('tripMedia.dayBucketDay', { n: d.dayNumber });
             };
             const isAnchorId = (id: string | null | undefined) => {
                 if (!id) return false;
-                const d = tripDays.find((x: any) => x.id === id);
+                const d = tripDays.find((x) => x.id === id);
                 return !!d && Number(d.dayNumber) === 0;
             };
             const dayChip = (id: string | null | undefined) => {
@@ -302,24 +303,24 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
             interface UnionDoc { name: string; url: string; dayId: string | null; source: 'trip' | 'day'; _key: string }
             const allDocs: UnionDoc[] = [];
             const docFallback = t('tripMedia.docsFallbackName');
-            tripDocs.forEach((d: any) => allDocs.push({
+            tripDocs.forEach((d) => allDocs.push({
                 name: d.name || docFallback, url: d.url || '', dayId: d.dayId || null,
                 source: 'trip', _key: d.id || `${d.name}-${d.url}`,
             }));
-            tripDays.forEach((day: any) => {
+            tripDays.forEach((day) => {
                 // `t` is the imported i18n helper at module scope. The
                 // ticket var was previously named `t` here and silently
                 // shadowed it, which would crash at runtime if we used
                 // the i18n helper inside this callback. Rename to `tk`
                 // to avoid the shadow.
-                (day.tickets || []).forEach((tk: any, i: number) => allDocs.push({
+                (day.tickets || []).forEach((tk, i) => allDocs.push({
                     name: tk.name || docFallback, url: tk.url || '', dayId: day.id,
                     source: 'day', _key: `${day.id}#${i}`,
                 }));
             });
             const dayOrder = (id: string | null) => {
                 if (!id) return -1; // Trip-wide first
-                const d = tripDays.find((x: any) => x.id === id);
+                const d = tripDays.find((x) => x.id === id);
                 return d ? d.dayNumber : 999;
             };
             allDocs.sort((a, b) => dayOrder(a.dayId) - dayOrder(b.dayId));
@@ -327,11 +328,11 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
             // Same union for photos.
             interface UnionPhoto { src: string; dayId: string | null; source: 'trip' | 'day'; _key: string }
             const allPhotos: UnionPhoto[] = [];
-            tripPhotos.forEach((p: any) => allPhotos.push({
+            tripPhotos.forEach((p) => allPhotos.push({
                 src: p.src || '', dayId: p.dayId || null,
                 source: 'trip', _key: p.id || p.src,
             }));
-            tripDays.forEach((day: any) => {
+            tripDays.forEach((day) => {
                 (day.photos || []).forEach((src: string, i: number) => allPhotos.push({
                     src, dayId: day.id,
                     source: 'day', _key: `${day.id}#${i}`,
@@ -575,7 +576,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
         // global list), so we look them up off the trip object directly.
         const dayBlock = (target?.closest('.archived-day-block') as HTMLElement | null);
         if (dayBlock?.dataset.dayId) {
-            const day = (trip.tripDays || []).find((d: any) => d.id === dayBlock.dataset.dayId);
+            const day = (trip.tripDays || []).find((d) => d.id === dayBlock.dataset.dayId);
             if (day) openDayView(day);
             return;
         }
@@ -587,7 +588,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
         // maps the string-union back to the two server booleans.
         const privacySel = target?.closest('.trip-privacy-select') as HTMLSelectElement | null;
         if (privacySel?.dataset.tripId) {
-            toggleTripPrivacy(privacySel.dataset.tripId, privacySel.value as any);
+            toggleTripPrivacy(privacySel.dataset.tripId, privacySel.value as TripPrivacyLevel);
         }
     });
 
