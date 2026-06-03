@@ -47,6 +47,7 @@ import {
     POI_CATEGORIES,
     pickPlaceIcon,
     isPrimaryMatch,
+    type PoiCategory,
 } from '../home/poiCategories.js';
 import { setupSlideshow, stopHomeSlideshow } from '../home/slideshow.js';
 import {
@@ -192,7 +193,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
         ];
 
         const buildPoiStyles = (enabledSet: Set<string>) => {
-            const styles: any[] = HIDE_ALL_POI_STYLES.slice();
+            const styles: google.maps.MapTypeStyle[] = HIDE_ALL_POI_STYLES.slice();
             if (enabledSet.has('traffic')) {
                 // Highway / arterial road labels visible only when
                 // Roads & traffic is on. Local streets stay hidden.
@@ -235,7 +236,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
         };
 
         // ── Places API: per-pill Nearby Search ──────────────────
-        let _placesService: any | null = null;
+        let _placesService: google.maps.places.PlacesService | null = null;
         const getPlacesService = () => {
             if (_placesService) return _placesService;
             if (typeof google === 'undefined' || !google.maps || !google.maps.places) return null;
@@ -245,19 +246,19 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
 
         // Markers grouped by pill key so we can clear one category
         // without disturbing the others.
-        const placesMarkers: Record<string, any[]> = {};
+        const placesMarkers: Record<string, google.maps.Marker[]> = {};
 
         // Cache of nearbySearch results keyed by `${tripId}|${pillKey}|${anchorId}|${strategy}`.
-        const placesCache: Record<string, any[]> = {};
+        const placesCache: Record<string, google.maps.places.PlaceResult[]> = {};
 
         // In-flight fetches keyed the same way. Concurrent toggles
         // resolve to the same promise instead of firing duplicate
         // searches.
-        const placesPending: Record<string, Promise<any[]> | undefined> = {};
+        const placesPending: Record<string, Promise<google.maps.places.PlaceResult[]> | undefined> = {};
 
         // Single shared InfoWindow — reused across every Places
         // marker so only one bubble is ever open at a time.
-        let placesInfoWindow: any | null = null;
+        let placesInfoWindow: google.maps.InfoWindow | null = null;
         const getInfoWindow = () => {
             if (placesInfoWindow) return placesInfoWindow;
             placesInfoWindow = new google.maps.InfoWindow();
@@ -266,7 +267,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
 
         const tripIsEditable = canEdit(activeTrip);
 
-        const buildInfoWindowHtml = (cat: any, place: any) => {
+        const buildInfoWindowHtml = (cat: PoiCategory, place: google.maps.places.PlaceResult) => {
             const safeName = esc(place.name || cat.label);
             const safeVicinity = esc(place.vicinity || '');
             const ratingHtml =
@@ -304,7 +305,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
             `;
         };
 
-        const wireInfoWindowMarkButtons = (cat: any, place: any) => {
+        const wireInfoWindowMarkButtons = (cat: PoiCategory, place: google.maps.places.PlaceResult) => {
             const iw = getInfoWindow();
             const todoBtn = document.querySelector(
                 `.gm-style-iw [data-action="toggle-todo"][data-place-id="${place.place_id}"]`,
@@ -330,7 +331,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
             };
         };
 
-        const dropPlaceMarker = (cat: any, place: any) => {
+        const dropPlaceMarker = (cat: PoiCategory, place: google.maps.places.PlaceResult) => {
             const loc = place.geometry?.location;
             if (!loc) return null;
             const markerIcon = pickPlaceIcon(cat, place);
@@ -356,8 +357,8 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
             });
             marker.addListener('click', () => {
                 const iw = getInfoWindow();
-                const anchor = (iw as any).getAnchor?.();
-                const iwIsOpen = !!(iw as any).getMap?.();
+                const anchor = iw.getAnchor?.();
+                const iwIsOpen = !!iw.getMap?.();
                 if (iwIsOpen && anchor === marker) {
                     iw.close();
                     return;
@@ -406,12 +407,12 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
             return { center: null, anchorId: '' };
         };
 
-        const shouldForceAnchor = (cat: any) => {
+        const shouldForceAnchor = (cat: PoiCategory) => {
             const userPref = STATE.preferences?.poiAnchoring?.[cat.key];
             return userPref === 'anchor';
         };
 
-        const fetchPlacesForTrip = (cat: any): Promise<any[]> => {
+        const fetchPlacesForTrip = (cat: PoiCategory): Promise<google.maps.places.PlaceResult[]> => {
             const tripId = activeTrip?.id || '';
             const { center, anchorId } = resolveSearchCenter(shouldForceAnchor(cat));
             const key = `${tripId}|${cat.key}|${anchorId}|${cat.searchStrategy}`;
@@ -429,11 +430,15 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                     resolve([]);
                     return;
                 }
-                const all: any[] = [];
+                const all: google.maps.places.PlaceResult[] = [];
                 const typesToSearch = [cat.placesType, ...(cat.extraPlacesTypes || [])];
                 const keywordsToSearch = cat.extraKeywords || [];
                 let pendingSearches = typesToSearch.length + keywordsToSearch.length;
-                const sharedHandle = (results: any, status: string, pagination: any) => {
+                const sharedHandle = (
+                    results: google.maps.places.PlaceResult[] | null,
+                    status: google.maps.places.PlacesServiceStatus,
+                    pagination: google.maps.places.PlaceSearchPagination | null,
+                ) => {
                     const ok =
                         status === google.maps.places.PlacesServiceStatus.OK ||
                         status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS;
@@ -445,7 +450,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                         setTimeout(() => pagination.nextPage(), 200);
                     } else if (--pendingSearches === 0) {
                         const seen = new Set();
-                        const deduped: any[] = [];
+                        const deduped: google.maps.places.PlaceResult[] = [];
                         for (const p of all) {
                             if (!p?.place_id || seen.has(p.place_id)) continue;
                             seen.add(p.place_id);
@@ -454,14 +459,14 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                         resolve(deduped);
                     }
                 };
-                const runSearch = (extra: Record<string, any>) => {
+                const runSearch = (extra: Record<string, unknown>) => {
                     const base =
                         cat.searchStrategy === 'distance'
                             ? { location: center, rankBy: google.maps.places.RankBy.DISTANCE }
                             : { location: center, radius: 50000 };
                     svc.nearbySearch({ ...base, ...extra }, sharedHandle);
                 };
-                typesToSearch.forEach((t: string) => runSearch({ type: t }));
+                typesToSearch.forEach((t) => runSearch({ type: t }));
                 keywordsToSearch.forEach((kw: string) => runSearch({ keyword: kw }));
             });
             placesPending[key] = promise;
@@ -492,7 +497,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
             const minRating =
                 typeof userFilter.minRating === 'number' ? userFilter.minRating : cat.defaultMinRating;
 
-            const markers: any[] = [];
+            const markers: google.maps.Marker[] = [];
             const seen = new Set();
             results.forEach((place) => {
                 const pid = place.place_id;
@@ -535,13 +540,13 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
         };
 
         const map = new google.maps.Map(mapContainer, mapOptions);
-        (window as any).activeMap = map;
+        window.activeMap = map;
         // Phase D2: merge dark map style on top of the POI styles
         // when the user is in dark mode.
         applyMapTheme(map, buildPoiStyles(enabledPois));
 
         // ── Live traffic overlay ───────────────────────────────
-        let trafficLayer: any | null = null;
+        let trafficLayer: google.maps.TrafficLayer | null = null;
         const setTrafficVisible = (visible: boolean) => {
             if (visible) {
                 if (!trafficLayer) trafficLayer = new google.maps.TrafficLayer();
@@ -671,7 +676,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
         // ── Re-attach pin-edit map click listener if active ──
         if (activeMapClickListener) {
             const cb = activeMapClickListener;
-            map.addListener('click', (e: any) =>
+            map.addListener('click', (e: google.maps.MapMouseEvent) =>
                 cb({ latlng: { lat: e.latLng.lat(), lng: e.latLng.lng() } }),
             );
             mapContainer.style.cursor = 'crosshair';
@@ -704,8 +709,10 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 });
             } else {
                 const geocoder = new google.maps.Geocoder();
-                geocoder.geocode({ address: cleanQuery }, (results: any, status: string) => {
-                    if (status === 'OK' && results[0]) {
+                geocoder.geocode(
+                    { address: cleanQuery },
+                    (results: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
+                        if (status !== 'OK' || !results || !results[0]) return;
                         const bounds = results[0].geometry.viewport;
                         google.maps.event.addListenerOnce(map, 'tilesloaded', () => {
                             map.fitBounds(bounds);
@@ -722,8 +729,8 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                             east: ne.lng(),
                         };
                         upsertTrip(activeTrip);
-                    }
-                });
+                    },
+                );
             }
         }
 
@@ -754,9 +761,9 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 try {
                     const geocoder = new google.maps.Geocoder();
                     const resp = await geocoder.geocode({ location: { lat, lng } });
-                    const results = (resp && resp.results) || [];
+                    const results: google.maps.GeocoderResult[] = (resp && resp.results) || [];
                     for (const r of results) {
-                        const cc = (r.address_components || []).find((c: any) =>
+                        const cc = (r.address_components || []).find((c: google.maps.GeocoderAddressComponent) =>
                             (c.types || []).includes('country'),
                         );
                         if (cc && cc.short_name) {

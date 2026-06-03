@@ -699,6 +699,7 @@ declare global {
             type Map = any;
             type Marker = any;
             type Polyline = any;
+            type TrafficLayer = any;
             type LatLng = any;
             type LatLngLiteral = any;
             type LatLngBounds = any;
@@ -712,6 +713,7 @@ declare global {
             type DirectionsResult = any;
             type DirectionsStatus = any;
             type GeocoderResult = any;
+            type GeocoderAddressComponent = any;
             type GeocoderStatus = any;
             type MapMouseEvent = any;
             type MapTypeStyle = any;

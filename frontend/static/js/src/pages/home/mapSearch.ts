@@ -20,8 +20,9 @@
 // are unchanged — same selectors, same template-side hooks, no
 // surface-area change for tests or other modules.
 
-import { POI_CATEGORIES } from './poiCategories.js';
+import { POI_CATEGORIES, type PoiCategory } from './poiCategories.js';
 import { esc } from '../../utils.js';
+import type { Trip } from '../../types';
 
 /** What the map-search wiring needs from home.ts to do its job.
  *  All four helpers are inline closures inside renderHome that
@@ -29,14 +30,26 @@ import { esc } from '../../utils.js';
  *  passing them in keeps a single source of truth for those bits. */
 export interface MapSearchContext {
     map: google.maps.Map;
-    activeTrip: any;
+    activeTrip: Trip;
     getInfoWindow: () => google.maps.InfoWindow;
     getPlacesService: () => google.maps.places.PlacesService;
-    buildInfoWindowHtml: (cat: any, place: any) => string;
-    wireInfoWindowMarkButtons: (cat: any, place: any) => void;
+    buildInfoWindowHtml: (cat: PoiCategory, place: google.maps.places.PlaceResult) => string;
+    wireInfoWindowMarkButtons: (cat: PoiCategory, place: google.maps.places.PlaceResult) => void;
 }
 
-const _FALLBACK_CAT = { key: 'search', icon: '📍', color: '#0071e3', label: 'Search result' };
+/** Pseudo-category for free-form search hits that don't match any POI
+ *  pill. A full PoiCategory so it can flow through the shared
+ *  buildInfoWindowHtml / dropMarker display path; the search-strategy /
+ *  placesType fields are inert here (never used to drive a nearbySearch). */
+const _FALLBACK_CAT: PoiCategory = {
+    key: 'search',
+    placesType: null,
+    searchStrategy: 'wide',
+    icon: '📍',
+    color: '#0071e3',
+    label: 'Search result',
+    defaultMinRating: 0,
+};
 
 /** Wire the home-map free-form search banner. Returns void; the
  *  function attaches its own input/click/document listeners and
@@ -86,14 +99,14 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
         return `${Math.round(km)} km`;
     };
 
-    const renderPredictions = (preds: any[] | null | undefined) => {
+    const renderPredictions = (preds: google.maps.places.AutocompletePrediction[] | null | undefined) => {
         if (!preds || preds.length === 0) {
             resultsEl.style.display = 'block';
             resultsEl.innerHTML = `<div style="padding:14px 18px; color:var(--text-secondary); font-size:0.85rem;">No matches.</div>`;
             return;
         }
         resultsEl.style.display = 'block';
-        resultsEl.innerHTML = preds.slice(0, 6).map((p: any) => {
+        resultsEl.innerHTML = preds.slice(0, 6).map((p) => {
             // distance_meters is populated by the AutocompleteService
             // when the request carried an `origin` (the trip's anchor
             // pin lat/lng, see the request builder below). Falls back
@@ -121,7 +134,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
      *  search hit. Uses the same icon shape as POI markers (colour-
      *  fill SVG) so it reads as a search-pin rather than something
      *  arbitrary. */
-    const dropMarker = (place: any, cat: any) => {
+    const dropMarker = (place: google.maps.places.PlaceResult, cat: PoiCategory) => {
         const loc = place?.geometry?.location;
         if (!loc) return;
         const color = cat.color || '#0071e3';
@@ -162,7 +175,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
         svc.getDetails({
             placeId,
             fields: ['place_id', 'name', 'formatted_address', 'vicinity', 'geometry', 'types', 'rating', 'user_ratings_total', 'icon', 'url'],
-        }, (place: any, status: string) => {
+        }, (place: google.maps.places.PlaceResult | null, status: google.maps.places.PlacesServiceStatus) => {
             if (status !== google.maps.places.PlacesServiceStatus.OK || !place) return;
             const cat = guessCategory(place.types) || _FALLBACK_CAT;
             dropMarker(place, cat);
@@ -194,7 +207,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
             if (activeTrip && typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
                 req.origin = { lat: activeTrip.lat, lng: activeTrip.lng };
             }
-            autocomplete.getPlacePredictions(req, (preds: any, status: string) => {
+            autocomplete.getPlacePredictions(req, (preds: google.maps.places.AutocompletePrediction[] | null, status: google.maps.places.PlacesServiceStatus) => {
                 if (status !== google.maps.places.PlacesServiceStatus.OK) {
                     if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
                         renderPredictions([]);
