@@ -405,6 +405,11 @@ def init_db():
         ''')
 
         # Categories Table (user-scoped custom categories)
+        # `updated_at` (epoch-ms) is the per-row version stamp for the per-row
+        # delta sync (#3): the server applies an incoming upsert only when its
+        # updated_at >= the stored row's, so the newer write wins regardless
+        # of request order. Fresh DBs get it here; existing DBs via migration
+        # b2d4f6a8c0e1.
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS categories (
                 id TEXT,
@@ -412,7 +417,21 @@ def init_db():
                 name TEXT,
                 icon TEXT,
                 color TEXT,
+                updated_at INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY(id, user_id),
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        ''')
+
+        # Category tombstones — record a category deletion (deleted_at,
+        # epoch-ms) so a stale tab that still holds the row can't resurrect it
+        # via a later upsert whose updated_at predates the delete (#3).
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS category_deletes (
+                user_id TEXT NOT NULL,
+                category_id TEXT NOT NULL,
+                deleted_at INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(user_id, category_id),
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')

@@ -955,7 +955,15 @@ def _compute_data_version(cursor, user_id, visible_trip_ids):
         # polling ?knownVersion= would stay stale. For those tables hash the row
         # CONTENT instead — they're tiny per-user config tables, so the full
         # scan is cheap.
-        if "updated_at" in cols:
+        # `categories` now carries updated_at (for the #3 per-row delta sync),
+        # but its LEGACY full-list save path is still delete-all-then-reinsert
+        # (which leaves updated_at=0), so MAX(updated_at) isn't a reliable
+        # monotonic signal across an in-place edit. Keep content-hashing it —
+        # the hash includes updated_at, so the delta path's stamp bump AND a
+        # legacy rename both move the version, timing-independent.
+        if table == "categories":
+            ts = None
+        elif "updated_at" in cols:
             ts = "updated_at"
         elif "created_at" in cols:
             ts = "created_at"
@@ -1225,9 +1233,17 @@ def get_data():
             from routes.settlements import serialize_settlement_row
             settlements = [serialize_settlement_row(row) for row in cursor.fetchall()]
 
-        # Get categories
-        cursor.execute("SELECT id, name, icon, color FROM categories WHERE user_id = ?", (user_id,))
-        categories = [dict(row) for row in cursor.fetchall()]
+        # Get categories. `updatedAt` (camelCase, from updated_at) is the
+        # per-row version stamp the #3 delta sync bases its upserts on.
+        cursor.execute(
+            "SELECT id, name, icon, color, updated_at FROM categories WHERE user_id = ?",
+            (user_id,),
+        )
+        categories = [
+            {"id": r["id"], "name": r["name"], "icon": r["icon"],
+             "color": r["color"], "updatedAt": r["updated_at"]}
+            for r in cursor.fetchall()
+        ]
 
         # Get budgets. 2026-05-25 (audit B1): now reads + ships the 4
         # filter columns the frontend needs to render the budget card

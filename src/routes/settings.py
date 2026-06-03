@@ -6,9 +6,12 @@ on the same /personalization page in the frontend (`pages/settings.ts`)
 and the user reads them as one cluster.
 
 Endpoints:
-  POST /api/categories      — replace the user's category list
+  POST /api/categories      — per-row category delta sync (or legacy
+                              full-list replace; see sync_categories)
   POST /api/profile/update  — patch user bio / status / home currency
 """
+
+import time
 
 from flask import Blueprint, jsonify, request
 
@@ -27,6 +30,146 @@ bp = Blueprint("settings", __name__)
 _CATEGORY_COLOR_RE = __import__("re").compile(r"^#[0-9a-fA-F]{6}$")
 
 
+def _coerce_ts(value) -> int:
+    """Coerce a client-supplied epoch-ms timestamp to a positive int.
+    Falls back to the server's current time for missing/garbage values so a
+    malformed payload still reconciles as 'just now' rather than as epoch 0
+    (which would never win LWW)."""
+    try:
+        n = int(value)
+        # reject NaN-ish / non-positive; int(float('nan')) raises, so the
+        # try/except already covers NaN, but guard <= 0 explicitly.
+        return n if n > 0 else int(time.time() * 1000)
+    except (TypeError, ValueError):
+        return int(time.time() * 1000)
+
+
+def _apply_category_deltas(user_id: str, data: dict):
+    """Per-row category reconciliation (#3).
+
+    Body: { upserts: [{id,name,icon,color,updatedAt}], deletes: [{id,deletedAt}] }.
+
+    Reconciliation rules (epoch-ms timestamps; latest wins, deterministic
+    regardless of request arrival order):
+      - UPSERT applies only if its updatedAt >= the stored row's updated_at
+        (a stale re-send of an older edit can't overwrite a newer one), AND
+        only if no tombstone with a strictly-later deleted_at exists (a more
+        recent delete is not resurrected). A winning upsert clears any
+        now-stale tombstone so the row is live again.
+      - DELETE writes/raises a tombstone (keeps the max deleted_at) and removes
+        the row only when its updated_at <= the delete (an edit made AFTER the
+        delete survives). Deleted categories have their dangling category_id
+        references on the caller's expenses/budgets nulled, matching the bulk
+        path (orphaned refs silently break scoped budgets).
+    Deletes are applied before upserts so a same-batch re-add (newer ts) wins.
+    Returns the reconciled current list so the client can sync to truth.
+    """
+    upserts_in = data.get("upserts", []) or []
+    deletes_in = data.get("deletes", []) or []
+    if not isinstance(upserts_in, list) or not isinstance(deletes_in, list):
+        return jsonify({"error": "upserts and deletes must be lists"}), 400
+    if len(upserts_in) > 200 or len(deletes_in) > 200:
+        return jsonify({"error": "too many category changes (max 200)"}), 400
+
+    cleaned_upserts: list[tuple[str, str, str, str, int]] = []
+    cleaned_deletes: list[tuple[str, int]] = []
+    try:
+        for cat in upserts_in:
+            if not isinstance(cat, dict):
+                return jsonify({"error": "upsert entry must be an object"}), 400
+            cat_id = clean_text(cat.get("id"), max_len=64, allow_newlines=False,
+                                field_name="category id")
+            if not cat_id:
+                return jsonify({"error": "category id is required"}), 400
+            name = clean_text(cat.get("name"), max_len=64, allow_newlines=False,
+                              field_name="category name")
+            if not name:
+                return jsonify({"error": "category name is required"}), 400
+            icon = clean_text(cat.get("icon", ""), max_len=8, allow_newlines=False,
+                              field_name="category icon")
+            color = cat.get("color", "#007aff")
+            if not isinstance(color, str) or not _CATEGORY_COLOR_RE.match(color):
+                color = "#007aff"
+            cleaned_upserts.append((cat_id, name, icon, color, _coerce_ts(cat.get("updatedAt"))))
+        for d in deletes_in:
+            if not isinstance(d, dict):
+                return jsonify({"error": "delete entry must be an object"}), 400
+            cat_id = clean_text(d.get("id"), max_len=64, allow_newlines=False,
+                                field_name="category id")
+            if not cat_id:
+                return jsonify({"error": "delete id is required"}), 400
+            cleaned_deletes.append((cat_id, _coerce_ts(d.get("deletedAt"))))
+    except ValidationError as ve:
+        return jsonify({"error": str(ve)}), 400
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        doomed: list[str] = []
+        for cat_id, deleted_at in cleaned_deletes:
+            cursor.execute(
+                """
+                INSERT INTO category_deletes (user_id, category_id, deleted_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(user_id, category_id) DO UPDATE SET
+                    deleted_at = MAX(category_deletes.deleted_at, excluded.deleted_at)
+                """,
+                (user_id, cat_id, deleted_at),
+            )
+            cursor.execute(
+                "DELETE FROM categories WHERE user_id = ? AND id = ? AND updated_at <= ?",
+                (user_id, cat_id, deleted_at),
+            )
+            doomed.append(cat_id)
+        if doomed:
+            ph = ",".join(["?"] * len(doomed))
+            cursor.execute(
+                f"UPDATE expenses SET category_id = NULL "
+                f"WHERE category_id IN ({ph}) "
+                f"  AND trip_id IN (SELECT id FROM trips WHERE user_id = ?)",
+                doomed + [user_id],
+            )
+            cursor.execute(
+                f"UPDATE budgets SET category_id = NULL "
+                f"WHERE category_id IN ({ph}) AND user_id = ?",
+                doomed + [user_id],
+            )
+        for cat_id, name, icon, color, updated_at in cleaned_upserts:
+            tomb = cursor.execute(
+                "SELECT deleted_at FROM category_deletes WHERE user_id = ? AND category_id = ?",
+                (user_id, cat_id),
+            ).fetchone()
+            if tomb and tomb["deleted_at"] > updated_at:
+                continue  # deleted more recently than this edit — don't resurrect
+            cursor.execute(
+                """
+                INSERT INTO categories (id, user_id, name, icon, color, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id, user_id) DO UPDATE SET
+                    name = excluded.name, icon = excluded.icon,
+                    color = excluded.color, updated_at = excluded.updated_at
+                WHERE excluded.updated_at >= categories.updated_at
+                """,
+                (cat_id, user_id, name, icon, color, updated_at),
+            )
+            cursor.execute(
+                "DELETE FROM category_deletes WHERE user_id = ? AND category_id = ? AND deleted_at <= ?",
+                (user_id, cat_id, updated_at),
+            )
+        conn.commit()
+        rows = cursor.execute(
+            "SELECT id, name, icon, color, updated_at FROM categories WHERE user_id = ? ORDER BY name",
+            (user_id,),
+        ).fetchall()
+    return jsonify({
+        "status": "ok",
+        "categories": [
+            {"id": r["id"], "name": r["name"], "icon": r["icon"],
+             "color": r["color"], "updatedAt": r["updated_at"]}
+            for r in rows
+        ],
+    })
+
+
 @bp.route("/api/categories", methods=["POST"])
 @require_auth
 @retry_on_lock()
@@ -43,6 +186,15 @@ def sync_categories():
     """
     data = request.json or {}
     user_id = current_user_id()
+
+    # #3 per-row delta sync: if the client sent `upserts`/`deletes` (each
+    # timestamped), reconcile per-row by last-write-wins + tombstones so two
+    # tabs editing categories concurrently can't wholesale-clobber each other.
+    # Older clients (and a defensive fallback) still send the full `categories`
+    # list, handled by the legacy replace path below.
+    if "upserts" in data or "deletes" in data:
+        return _apply_category_deltas(user_id, data)
+
     categories = data.get("categories", [])
     if not isinstance(categories, list):
         return jsonify({"error": "categories must be a list"}), 400
