@@ -49,7 +49,7 @@ export async function attemptPendingClone(): Promise<void> {
             showLiquidAlert(t('errors.cloneFailedFromCollections'));
             return;
         }
-        const newTripId = res.body.tripId;
+        const newTripId = res.body?.tripId as string;
         // Mirror the defensive pattern from archivedDetail.ts — stamp
         // activeTripId BEFORE the pull so the pull's re-validate sees
         // it as a valid id (no fallback to trips[0]), then re-stamp

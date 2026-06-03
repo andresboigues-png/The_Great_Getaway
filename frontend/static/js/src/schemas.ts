@@ -124,33 +124,29 @@ function _checkOptionalArray(
 // malformed inner row doesn't fail the whole snapshot — that's by
 // design (audit fix #4 from pre-zod schemas.ts).
 
-/** What pullFromServer's `data` is after validation. Members keep
- *  `any` inner shapes — the inner row contracts are enforced at the
- *  consumer level (e.g. normalizeTripCompanions for trip rows). This
- *  validator only guarantees the top-level keys are arrays of the
- *  right kind, not an HTML error page disguised as JSON. */
-/* eslint-disable @typescript-eslint/no-explicit-any --
-   Intentional: this is a SHALLOW boundary type. validateServerData only
-   guarantees these keys are arrays — the inner row shapes are NOT checked
-   here (by design; see the file header + the doc comment above). They're
-   enforced downstream (e.g. normalizeTripCompanions for trip rows), and
-   the media-merge path in api.ts manipulates trip rows generically via
-   `Record<string, unknown>` casts. `any[]` documents "array of
-   unvalidated rows"; tightening these would misrepresent the contract
-   and risk the trip-media merge. */
+/** What pullFromServer's `data` is after validation. This validator does
+ *  SHALLOW shape-checking only — it guarantees each present key is an
+ *  array, NOT that every row matches its domain type (per-row validation
+ *  is intentionally skipped for perf; see the file header). So the rows
+ *  are typed `unknown[]`, not `Trip[]` etc. — an honest "array of
+ *  unvalidated rows" that the consumer narrows explicitly (e.g. an
+ *  `as Trip[]` cast in pullFromServer, or normalizeTripCompanions). Using
+ *  `unknown[]` (not `any[]`) removes the infectious `any` + its
+ *  eslint-disable without over-claiming a contract the runtime doesn't
+ *  enforce, and keeps the trip-media merge's generic
+ *  `Record<string, unknown>` handling safe. */
 export interface ServerDataPayload {
-    trips?: any[];
-    expenses?: any[];
-    settlements?: any[];
-    achievements?: any[];
-    newlyEarnedAchievements?: any[];
-    companions?: any[];
-    categories?: any[];
-    budgets?: any[];
-    tripDays?: any[];
+    trips?: unknown[];
+    expenses?: unknown[];
+    settlements?: unknown[];
+    achievements?: unknown[];
+    newlyEarnedAchievements?: unknown[];
+    companions?: unknown[];
+    categories?: unknown[];
+    budgets?: unknown[];
+    tripDays?: unknown[];
     [k: string]: unknown;
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export function validateServerData(raw: unknown): ValidationResult<ServerDataPayload> {
     const issues: ValidationIssue[] = [];

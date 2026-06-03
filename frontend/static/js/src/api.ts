@@ -14,7 +14,7 @@ import { validateServerData } from './schemas.js';
 import { normalizeTripCompanions } from './companions.js';
 import { showLiquidAlert } from './utils.js';
 import { t } from './i18n.js';
-import type { Trip, Expense, Budget, TripDay, Category } from './types';
+import type { Trip, Expense, Budget, TripDay, Category, Settlement, Achievement } from './types';
 import { computeCategoryDelta } from './utils/categoryDelta.js';
 import {
     apiFetch,
@@ -201,19 +201,19 @@ export async function pullFromServer() {
             STATE.activeTripId = STATE.trips[0]!.id;
         }
 
-        STATE.expenses = data.expenses || [];
+        STATE.expenses = (data.expenses || []) as Expense[];
         // §4.5 — new member-keyed settlements ride alongside expenses.
         // `data.settlements` is always an array (server-side default)
         // but we guard with `|| []` so an older /api/data response
         // (mid-deploy / cache) doesn't leave STATE.settlements undefined.
-        STATE.settlements = data.settlements || [];
+        STATE.settlements = (data.settlements || []) as Settlement[];
         // §4.4 — achievements arrive with the same payload. Server runs
         // detection on every /api/data hit so newly earned badges appear
         // here without a separate request. `newlyEarnedAchievements`
         // is the diff for this poll — fire one toast per new unlock so
         // the user sees the reward immediately rather than discovering
         // it next time they visit their profile.
-        STATE.achievements = data.achievements || [];
+        STATE.achievements = (data.achievements || []) as Achievement[];
         const newly = (data.newlyEarnedAchievements || []) as Array<{
             emoji?: string; label?: string;
         }>;
@@ -233,14 +233,14 @@ export async function pullFromServer() {
         }
         // Account-level companions (data.companions) is no longer used —
         // companions live per-trip on `trip.companions`.
-        STATE.categories = data.categories || [];
+        STATE.categories = (data.categories || []) as Category[];
         // Re-baseline the category delta sync to server truth so the next
         // edit diffs against what the server actually has (#3). After a
         // merge this reflects the post-merge set, which is what the next
         // outgoing category delta must diff against.
         setCategorySyncBaseline(STATE.categories);
-        STATE.budgets = data.budgets || [];
-        STATE.tripDays = data.tripDays || [];
+        STATE.budgets = (data.budgets || []) as Budget[];
+        STATE.tripDays = (data.tripDays || []) as TripDay[];
 
         // Self-heal duplicate Day-0 (Anchor) rows across ALL trips
         // (active + archived). The home.ts dedup at line ~1330 only
@@ -373,15 +373,18 @@ export async function pullFromServer() {
  *  the result. Fire-and-forget callers simply ignore the return value, so
  *  this is backward-compatible with every existing `void upsert*()` site.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- heterogeneous domain row (Trip/Expense/Budget/Day) passthrough; typed at the public upsert* wrappers, server JSON in Phase A4 (zod).
-async function _upsertWithUpdatedAt(url: string, key: string, obj: any): Promise<ApiJsonResult> {
+async function _upsertWithUpdatedAt<T extends object>(url: string, key: string, obj: T): Promise<ApiJsonResult> {
+    // `obj` is a typed domain row (Trip/Expense/Budget/Day) at the public
+    // upsert* wrappers. Inside we touch a few dynamic stamp fields
+    // (updatedAt/euroValue) generically, so view it as a string-keyed bag
+    // for those reads/writes — mutations are in-place so a caller holding a
+    // STATE reference gets the fresh server stamp back.
+    const row = obj as Record<string, unknown>;
     const payload: Record<string, unknown> = { [key]: obj };
-    let payloadBody: unknown = obj;
-    if (obj && typeof obj === 'object' && obj.updatedAt) {
+    if (row.updatedAt) {
         // Spread so we don't accidentally add a `clientUpdatedAt`
         // property to the live STATE row.
-        payloadBody = { ...obj, clientUpdatedAt: obj.updatedAt };
-        payload[key] = payloadBody;
+        payload[key] = { ...row, clientUpdatedAt: row.updatedAt };
     }
     try {
         const res = await apiFetch(url, {
@@ -396,16 +399,16 @@ async function _upsertWithUpdatedAt(url: string, key: string, obj: any): Promise
             // its updatedAt back into the caller's obj so a retry
             // from the same modal sends a current stamp instead of
             // looping forever on the stale one.
-            const conflictBody = await res.json().catch(() => null);
-            const cur = conflictBody && conflictBody.current;
+            const conflictBody = await res.json().catch(() => null) as Record<string, unknown> | null;
+            const cur = (conflictBody?.current ?? null) as Record<string, unknown> | null;
             // Server endpoints vary — /api/trips ships the raw DB
             // row (snake_case `updated_at`), others may serialize
             // through helpers.py which renames to camelCase. Accept
             // either form so the rebind survives a future
             // serializer refactor without silently losing stamps.
             const liveStamp = cur && (cur.updatedAt || cur.updated_at);
-            if (liveStamp && obj && typeof obj === 'object') {
-                obj.updatedAt = liveStamp;
+            if (liveStamp) {
+                row.updatedAt = liveStamp;
             }
             showLiquidAlert(t('errors.staleEdit'));
             // Fresh state from server so the UI reflects what
@@ -414,18 +417,17 @@ async function _upsertWithUpdatedAt(url: string, key: string, obj: any): Promise
             return { ok: false, status: 409, body: conflictBody };
         }
         if (!res.ok) return { ok: false, status: res.status, body: null };
-        const body = await res.json().catch(() => null);
-        const fresh = body && body.updatedAt;
-        if (fresh && obj && typeof obj === 'object') {
-            obj.updatedAt = fresh;
+        const body = await res.json().catch(() => null) as Record<string, unknown> | null;
+        if (body && body.updatedAt) {
+            row.updatedAt = body.updatedAt;
         }
         // Integration audit C2: reconcile the server-FROZEN euroValue back
         // onto the live row so a freshly-saved foreign-currency expense stops
         // showing the client's static-table estimate until the next poll.
         // Guarded by `!== undefined` so non-expense callers (budgets/days/
         // trips, whose responses carry no euroValue) are untouched.
-        if (body && body.euroValue !== undefined && obj && typeof obj === 'object') {
-            obj.euroValue = body.euroValue;
+        if (body && body.euroValue !== undefined) {
+            row.euroValue = body.euroValue;
         }
         return { ok: true, status: res.status, body };
     } catch (e) {
@@ -434,11 +436,11 @@ async function _upsertWithUpdatedAt(url: string, key: string, obj: any): Promise
     }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- heterogeneous domain row passthrough; see _upsertWithUpdatedAt.
-async function _upsertWithUpdatedAtJson(url: string, key: string, obj: any): Promise<ApiJsonResult> {
+async function _upsertWithUpdatedAtJson<T extends object>(url: string, key: string, obj: T): Promise<ApiJsonResult> {
+    const row = obj as Record<string, unknown>;
     const payload: Record<string, unknown> = { [key]: obj };
-    if (obj && typeof obj === 'object' && obj.updatedAt) {
-        payload[key] = { ...obj, clientUpdatedAt: obj.updatedAt };
+    if (row.updatedAt) {
+        payload[key] = { ...row, clientUpdatedAt: row.updatedAt };
     }
     try {
         const res = await apiFetch(url, {
@@ -446,21 +448,20 @@ async function _upsertWithUpdatedAtJson(url: string, key: string, obj: any): Pro
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- loosely-typed API JSON response; field-accessed below, tightened in Phase A4 (zod).
-        let body: any = null;
-        try { body = await res.json(); } catch { /* not JSON */ }
+        let body: Record<string, unknown> | null = null;
+        try { body = await res.json() as Record<string, unknown> | null; } catch { /* not JSON */ }
         if (res.status === 409) {
             // R4-B6: same rebind pattern as _upsertWithUpdatedAt so
             // a retry from the day modal carries a current stamp.
-            const cur = body && body.current;
+            const cur = (body?.current ?? null) as Record<string, unknown> | null;
             const liveStamp = cur && (cur.updatedAt || cur.updated_at);
-            if (liveStamp && obj && typeof obj === 'object') {
-                obj.updatedAt = liveStamp;
+            if (liveStamp) {
+                row.updatedAt = liveStamp;
             }
             showLiquidAlert(t('errors.staleEdit'));
             pullFromServer().catch(() => { /* best-effort */ });
-        } else if (res.ok && body && body.updatedAt && obj && typeof obj === 'object') {
-            obj.updatedAt = body.updatedAt;
+        } else if (res.ok && body && body.updatedAt) {
+            row.updatedAt = body.updatedAt;
         }
         return { ok: res.ok, status: res.status, body };
     } catch (e) {

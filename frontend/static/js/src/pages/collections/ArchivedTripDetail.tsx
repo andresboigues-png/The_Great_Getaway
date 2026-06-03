@@ -163,7 +163,7 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                 setCloning(false);
                 return;
             }
-            const newTripId = res.body.tripId;
+            const newTripId = res.body?.tripId as string;
             // Stamp the clone active BEFORE pulling so pullFromServer's
             // re-validate gate sees it in STATE.trips and leaves it alone.
             STATE.activeTripId = newTripId;

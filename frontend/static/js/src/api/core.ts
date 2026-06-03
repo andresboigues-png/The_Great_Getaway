@@ -301,15 +301,15 @@ export const _delete = (url: string, body: unknown) => apiFetch(url, {
  *  invitation (already cancelled, already accepted, deleted trip) should
  *  surface an error message rather than silently optimistically-update
  *  the UI. */
-/** Result envelope returned by every `_postJson` caller. `body` is `any`
- *  so each call site can read its own response shape without an extra
- *  cast — these endpoints are loosely typed; tightening them is a job
- *  for Phase A4 (zod schema validation at API boundaries). */
+/** Result envelope returned by every `_postJson` caller. `body` is the
+ *  parsed JSON response as a string-keyed bag (or null when absent / parse
+ *  failed) — NOT `any`. Each call site reads its own fields off it and
+ *  narrows/casts the ones it uses (e.g. `body?.tripId as string`), so a
+ *  typo'd field is a compile error instead of silently typed `any`. */
 export interface ApiJsonResult {
     ok: boolean;
     status: number;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- loosely-typed API JSON response; tightened at boundaries in Phase A4 (zod).
-    body: any;
+    body: Record<string, unknown> | null;
 }
 
 export const _postJson = async (url: string, body: unknown): Promise<ApiJsonResult> => {
@@ -319,8 +319,8 @@ export const _postJson = async (url: string, body: unknown): Promise<ApiJsonResu
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
         });
-        let payload: unknown = null;
-        try { payload = await res.json(); } catch { /* not JSON, ignore */ }
+        let payload: Record<string, unknown> | null = null;
+        try { payload = await res.json() as Record<string, unknown> | null; } catch { /* not JSON, ignore */ }
         return { ok: res.ok, status: res.status, body: payload };
     } catch (e) {
         console.error(`POST ${url} failed:`, e);
