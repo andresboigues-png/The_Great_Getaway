@@ -35,7 +35,6 @@
 import { STATE, emit } from '../state.js';
 import { showConfirmModal, q, esc } from '../utils.js';
 import { syncCategories } from '../api.js';
-import { navigate } from '../router.js';
 import { showModal } from '../components/Modal.js';
 import { t } from '../i18n.js';
 import { setSettingsTab, type SettingsTab } from './settings/tabState.js';
@@ -57,31 +56,15 @@ export const showSettingsTab = (tab: string): void => {
 };
 
 
-// Exported because home.js (Getting Started Guide → "Set your own
-// categories" action) reaches in here to switch the personalization
-// tab after navigating to the page. Direct DOM toggle on the IDs
-// rendered by Personalization.tsx — both the legacy imperative
-// renderer and the new JSX component render the same #persMenu /
-// #persContent / #persCategories ids so this helper works
-// regardless of which renderer is active.
-//
-// The Companions sub-tab was removed when companions became
-// per-trip; `tab === 'companions'` is treated as 'categories' so
-// legacy callers don't break.
-export const showPersTab = (tab: string) => {
-    const menu = document.getElementById('persMenu');
-    const content = document.getElementById('persContent');
-    const catSection = document.getElementById('persCategories');
-
-    if (tab === 'menu') {
-        if (menu) menu.style.display = 'grid';
-        if (content) content.style.display = 'none';
-    } else {
-        if (menu) menu.style.display = 'none';
-        if (content) content.style.display = 'block';
-        if (catSection) catSection.style.display = 'block';
-    }
-};
+// (#4 migration) `showPersTab` is gone: it was an imperative
+// display-toggle on #persMenu/#persContent/#persCategories that only
+// existed to coexist with the old renderer. The React Personalization
+// component owns its tab via useState, and a cross-page deep-link
+// (gettingStartedGuide → "Set your own categories") now uses
+// requestPersonalizationTab('categories') instead. The category
+// mutators below no longer re-navigate either — the component
+// re-renders from the `state:changed` emit, so the edited/deleted row
+// updates in place.
 
 
 // Exported so the React Personalization page can dispatch this from
@@ -96,8 +79,6 @@ export const deleteCategory = (id: string) => {
             STATE.categories = STATE.categories.filter(c => c.id !== id);
             emit('state:changed');
             void syncCategories();
-            navigate('personalization');
-            setTimeout(() => showPersTab('categories'), 50);
         }
     });
 };
@@ -150,7 +131,5 @@ export function openEditCategoryModal(categoryId: string) {
         emit('state:changed');
         void syncCategories();
         close();
-        navigate('personalization');
-        setTimeout(() => showPersTab('categories'), 50);
     };
 }

@@ -18,10 +18,9 @@ import { useRef, useState } from 'react';
 import { useStore } from '../../react/store.js';
 import { STATE, emit } from '../../state.js';
 import { syncCategories } from '../../api.js';
-import { navigate } from '../../router.js';
 import { generateId } from '../../utils.js';
 import { t } from '../../i18n.js';
-import { showPersTab, openEditCategoryModal, deleteCategory } from '../settings.js';
+import { openEditCategoryModal, deleteCategory } from '../settings.js';
 import { RatesEditor } from './RatesEditor.js';
 import { takePendingPersonalizationTab, type PersTab } from '../../utils/persTab.js';
 
@@ -52,11 +51,13 @@ export function Personalization() {
         STATE.categories.push({ id: generateId(), name, icon, color });
         emit('state:changed');
         void syncCategories();
-        navigate('personalization');
-        setTimeout(() => {
-            showPersTab('categories');
-            setAdding(false);
-        }, 50);
+        // The component re-renders from the emit above (useStore on
+        // categories), so the new row appears in place — no navigate /
+        // re-mount needed. Clear the name field for the next add; the empty
+        // field also guards against a rapid double-submit (the `!name` early
+        // return above fires on the second click).
+        if (nameRef.current) nameRef.current.value = '';
+        setAdding(false);
     };
 
     const pills: [PersTab, string][] = [
@@ -86,13 +87,8 @@ export function Personalization() {
             </div>
 
             {/* ── Categories pill ───────────────────────────────────────────── */}
-            {/* #persMenu/#persContent/#persCategories kept as anchors so the
-                legacy showPersTab() (gettingStartedGuide) never crashes. */}
-            <div id="persMenu" className="hidden" />
-            <div id="persContent" className={tab === 'categories' ? 'contents' : 'hidden'}>
-                <div id="persCategories" className="contents">
-                    {tab === 'categories' ? (
-                        <div className="card glass settings-section card-glow-blue">
+            {tab === 'categories' ? (
+                <div className="card glass settings-section card-glow-blue">
                             <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
                                 <h2 className="card-title m-0">{t('settings.categoriesTitle')}</h2>
                                 <span className="cat-count-chip">{categories.length}</span>
@@ -168,10 +164,8 @@ export function Personalization() {
                                     </button>
                                 </div>
                             </div>
-                        </div>
-                    ) : null}
                 </div>
-            </div>
+            ) : null}
 
             {/* ── Exchange-rate + Inflation pills ───────────────────────────── */}
             {tab === 'fx' ? <RatesEditor mode="fx" /> : null}

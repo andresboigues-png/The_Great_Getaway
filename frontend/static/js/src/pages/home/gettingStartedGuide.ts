@@ -26,7 +26,7 @@
 import { STATE, emit } from '../../state.js';
 import { navigate } from '../../router.js';
 import { openNewTripModal, openAddDayModal, openCompanionPickerModal } from '../../modals.js';
-import { showPersTab } from '../settings.js';
+import { requestPersonalizationTab } from '../../utils/persTab.js';
 import { t } from '../../i18n.js';
 import { esc } from '../../utils.js';
 import { iconSvg } from '../../icons.js';
@@ -132,11 +132,10 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
             if (activeTrip) openCompanionPickerModal(activeTrip.id);
             else navigate('home');
         } },
-        // Personalization page DOM (#persMenu/#persContent/
-        // #persCategories) only exists once the page has
-        // rendered, so navigate first and switch the tab on the
-        // next tick.
-        { text: t('home.guideStep4'), done: !!STATE.guideProgress.categories, iconName: 'tag', action: () => { navigate('personalization'); setTimeout(() => showPersTab('categories'), 50); } },
+        // Request the Categories pill, then navigate — Personalization reads
+        // the pending tab on mount (takePendingPersonalizationTab), so it
+        // opens on Categories without any post-render DOM poke.
+        { text: t('home.guideStep4'), done: !!STATE.guideProgress.categories, iconName: 'tag', action: () => { requestPersonalizationTab('categories'); navigate('personalization'); } },
         { text: `${t('home.guideStep5')}<br><span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">(${t('home.guideStep5Prefix')} — ${planSubLink})</span>`, done: !!STATE.guideProgress.plan, iconName: 'sparkles', action: () => navigate('ai') },
         { text: `${t('home.guideStep6')}<br><span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">(${expenseManual} ${t('home.guideStep6Or')} ${expenseBatch})</span>`, done: !!STATE.guideProgress.expenses, iconName: 'wallet', action: () => navigate('expenses') },
         { text: t('home.guideStep7'), done: !!STATE.guideProgress.budgets, iconName: 'barChart', action: () => navigate('budgets') },
