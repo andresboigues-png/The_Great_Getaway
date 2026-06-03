@@ -11,9 +11,12 @@
         "watch": "vite build --watch",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",
+        "lint:ci": "eslint . --quiet",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "typecheck": "tsc --noEmit",
+        "test:unit": "vitest run",
+        "test:unit:watch": "vitest",
         "test:e2e": "playwright test",
         "test:e2e:ui": "playwright test --ui",
         "test:e2e:nonvisual": "playwright test --grep-invert='Visual regression'",
@@ -25,8 +28,11 @@
         "prepare": "husky"
     },
     "lint-staged": {
-        "frontend/static/js/src/**/*.{js,ts}": [
+        "frontend/static/js/src/**/*.js": [
             "eslint --fix",
+            "prettier --write"
+        ],
+        "frontend/static/js/src/**/*.{ts,tsx}": [
             "prettier --write"
         ],
         "tests/e2e/**/*.{js,ts}": [
@@ -55,6 +61,7 @@
         "@vitejs/plugin-react": "^6.0.1",
         "eslint": "^9.39.4",
         "eslint-config-prettier": "^10.1.8",
+        "eslint-plugin-react-hooks": "^7.1.1",
         "globals": "^17.5.0",
         "husky": "^9.1.7",
         "lint-staged": "^16.4.0",
@@ -62,7 +69,9 @@
         "rollup-plugin-visualizer": "^7.0.1",
         "tailwindcss": "^4.3.0",
         "typescript": "^6.0.3",
-        "vite": "^8.0.10"
+        "typescript-eslint": "^8.60.1",
+        "vite": "^8.0.10",
+        "vitest": "^4.1.8"
     },
     "dependencies": {
         "exifr": "^7.1.3",

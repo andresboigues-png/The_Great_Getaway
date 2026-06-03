@@ -25,6 +25,29 @@
 
 set -e
 
+# Fast unit gate FIRST (fail before the slower build). Covers the pure
+# present-value money math (utils/presentValue), which used to be verifiable
+# only via a Python harness + a live browser — so a silent regression in the
+# Spent / Worth-today figures now blocks the push. Run `npm run test:unit`
+# locally to reproduce. ~1-2s.
+echo "==> pre-push: running unit tests…"
+npm run test:unit > /tmp/gg-pre-push-test.log 2>&1 || {
+    echo "❌ pre-push: unit tests failed. Last 30 lines:"
+    tail -30 /tmp/gg-pre-push-test.log
+    exit 1
+}
+
+# Type-aware lint (errors only via --quiet, so the ~560 warnings — the `any`
+# + floating-promise + hook-deps worklist — don't spam the push). Gates the
+# .ts/.tsx files, which the per-file pre-commit lint-staged no longer touches
+# (typed linting is too slow per-file). Run `npm run lint` for the full report.
+echo "==> pre-push: type-aware lint (errors only)…"
+npm run lint:ci > /tmp/gg-pre-push-lint.log 2>&1 || {
+    echo "❌ pre-push: lint failed (error-level). Last 40 lines:"
+    tail -40 /tmp/gg-pre-push-lint.log
+    exit 1
+}
+
 echo "==> pre-push: rebuilding bundle to verify freshness…"
 npm run build > /tmp/gg-pre-push-build.log 2>&1 || {
     echo "❌ pre-push: build failed. Last 20 lines:"

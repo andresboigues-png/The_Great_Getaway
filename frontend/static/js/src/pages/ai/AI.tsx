@@ -665,7 +665,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
             } else if (/key|api[_ ]?key|UNAUTHENTICATED|401|403/i.test(rawMsg)) {
                 msg = t('ai.errorBadKey');
                 hint = t('ai.errorBadKeyHint');
-            } else if (/network|fetch|timed?[\- ]?out|ECONN/i.test(rawMsg)) {
+            } else if (/network|fetch|timed?[- ]?out|ECONN/i.test(rawMsg)) {
                 msg = t('ai.errorNetwork');
                 hint = t('ai.errorNetworkHint');
             }

@@ -162,6 +162,7 @@ export function stripLeadingEmoji(label: string): string {
 export function stripEmoji(label: string): string {
     if (!label) return label;
     return label
+        // eslint-disable-next-line no-misleading-character-class -- intentional: stripping leftover emoji-sequence marks (VS16 / ZWJ / combining keycap), not matching standalone glyphs.
         .replace(/[\p{Extended_Pictographic}☀-➿️‍⃣]/gu, '')
         .replace(/\s{2,}/g, ' ')
         .trim();

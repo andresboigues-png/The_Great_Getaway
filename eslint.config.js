@@ -1,12 +1,23 @@
 // ESLint flat config — modern format (ESLint 9+).
 // Lints frontend/static/js/src/** only; the vite-bundled output and one-off
 // data files are ignored.
+//
+// TypeScript: the `.ts`/`.tsx` block below adds type-aware linting via
+// typescript-eslint. It is intentionally SCOPED, not the full
+// recommendedTypeChecked preset: the base `recommended` rules (low noise) plus
+// the three type-aware bug-catchers that `tsc` genuinely cannot do
+// (no-floating-promises / no-misused-promises / await-thenable). `no-explicit-any`
+// stays a WARN so the ~200 existing anys surface as a worklist (the domain-model
+// typing effort) without blocking. Type-aware lint is slower (it builds the TS
+// program), so it runs at PRE-PUSH (`npm run lint`), not per-file at pre-commit.
 
 import js from '@eslint/js';
 import globals from 'globals';
+import tseslint from 'typescript-eslint';
+import reactHooks from 'eslint-plugin-react-hooks';
 import prettier from 'eslint-config-prettier';
 
-export default [
+export default tseslint.config(
     {
         ignores: [
             'node_modules/**',
@@ -104,6 +115,84 @@ export default [
         },
     },
 
+    // TypeScript source — type-aware lint (scoped; see header note). Runs at
+    // pre-push, not pre-commit, because building the TS program is slow.
+    {
+        files: ['frontend/static/js/src/**/*.{ts,tsx}'],
+        extends: [tseslint.configs.recommended],
+        plugins: { 'react-hooks': reactHooks },
+        languageOptions: {
+            ecmaVersion: 2024,
+            sourceType: 'module',
+            parserOptions: {
+                // projectService auto-discovers the nearest tsconfig.json so the
+                // type-aware rules below have type info.
+                projectService: true,
+                tsconfigRootDir: import.meta.dirname,
+            },
+            globals: {
+                ...globals.browser,
+                google: 'readonly', // Google Maps + Identity SDK
+                Chart: 'readonly', // chart.js
+                XLSX: 'readonly', // sheetjs
+            },
+        },
+        rules: {
+            // The reason for typed linting: catch unhandled async, which `tsc`
+            // cannot. This app is fetch-heavy (rates, CPI, sync, saveState).
+            // 'warn' for now: ~144 pre-existing fire-and-forget sites are a
+            // worklist (add `void` / `.catch`, or fix the real bugs), not a
+            // blocker. await-thenable is already clean, so it stays an error.
+            '@typescript-eslint/no-floating-promises': 'warn',
+            '@typescript-eslint/no-misused-promises': 'warn',
+            '@typescript-eslint/await-thenable': 'error',
+
+            // React hooks. The codebase already carries exhaustive-deps disable
+            // directives — the flat-config migration had silently dropped the
+            // plugin. rules-of-hooks is a real-correctness gate; exhaustive-deps
+            // is a warn worklist (lots of intentional manual dep arrays).
+            'react-hooks/rules-of-hooks': 'error',
+            'react-hooks/exhaustive-deps': 'warn',
+
+            // The ~200 anys are a worklist (domain-model typing), not a blocker.
+            '@typescript-eslint/no-explicit-any': 'warn',
+            // `!` is used deliberately (noUncheckedIndexedAccess makes it
+            // ergonomic); @ts-ignore appears in a handful of spots — surface,
+            // don't block.
+            '@typescript-eslint/no-non-null-assertion': 'off',
+            '@typescript-eslint/ban-ts-comment': 'warn',
+            // tsc's noUnusedLocals is the real gate; keep eslint's a warn so it
+            // doesn't double-block, and honour the project's `_`-prefix opt-out.
+            '@typescript-eslint/no-unused-vars': [
+                'warn',
+                { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' },
+            ],
+
+            // Mirror the .js bug-catchers above.
+            eqeqeq: ['error', 'always', { null: 'ignore' }],
+            'no-var': 'error',
+            'prefer-const': 'warn',
+            'no-implicit-globals': 'error',
+            'no-throw-literal': 'error',
+            'no-unused-expressions': ['warn', { allowShortCircuit: true, allowTernary: true }],
+            'no-empty': ['warn', { allowEmptyCatch: true }],
+            'no-prototype-builtins': 'off',
+            'no-inner-declarations': 'off',
+            'no-console': ['warn', { allow: ['warn', 'error'] }],
+        },
+    },
+
+    // Insights.tsx calls several hooks AFTER early returns (a pre-existing
+    // structural issue, surfaced the moment typed lint turned on). The proper
+    // fix — hoisting every hook above the early returns — is a sizeable,
+    // separately-tested refactor, so downgrade rules-of-hooks to a WARN *for
+    // this one file* (tracked debt). The rule stays an ERROR everywhere else,
+    // so no new component can regress while this is outstanding.
+    {
+        files: ['frontend/static/js/src/pages/insights/Insights.tsx'],
+        rules: { 'react-hooks/rules-of-hooks': 'warn' },
+    },
+
     // Must be last: turns off any eslint rules that conflict with prettier.
-    prettier,
-];
+    prettier
+);
