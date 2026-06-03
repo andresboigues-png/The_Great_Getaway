@@ -64,7 +64,7 @@ export const restoreTrip = (id: string) => {
         title: t('errors.restoreTripTitle'),
         message: t('errors.restoreTripBody'),
         confirmText: t('errors.restoreTripConfirmBtn'),
-        onConfirm: async () => {
+        onConfirm: () => { void (async () => {
             trip.isArchived = false;
 
             // Restore expenses and days to global lists
@@ -109,7 +109,7 @@ export const restoreTrip = (id: string) => {
                 await unarchiveTripOnServer(id);
             } catch { /* outbox / next pull reconciles */ }
             navigate('home');
-        },
+        })(); },
     });
 };
 
@@ -118,7 +118,7 @@ export const deleteArchivedTrip = (id: string) => {
         title: t('errors.deleteTripTitle'),
         message: t('errors.deleteTripBody'),
         confirmText: t('errors.deleteTripConfirmBtn'),
-        onConfirm: async () => {
+        onConfirm: () => { void (async () => {
             STATE.archivedTrips = STATE.archivedTrips.filter((t) => t.id !== id);
             emit('state:changed');
             // 2026-05-26 (audit TR1): was calling the non-existent
@@ -138,6 +138,6 @@ export const deleteArchivedTrip = (id: string) => {
                 console.error('Delete archived trip failed:', err);
             }
             navigate('collections');
-        },
+        })(); },
     });
 };

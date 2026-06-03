@@ -286,7 +286,7 @@ export function handleNotificationClick(notification: { type?: string; related_i
     // side, so the bell catches up on the next poll).
     const isTripInvite = notification.type === 'trip_invite';
     if (!isTripInvite && notification.id !== undefined && notification.id !== null) {
-        markNotificationRead(notification.id);
+        void markNotificationRead(notification.id);
     }
 
     const relatedId = notification.related_id ? String(notification.related_id) : null;

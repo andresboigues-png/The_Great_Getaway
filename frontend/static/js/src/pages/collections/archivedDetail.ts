@@ -404,7 +404,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | Trip) {
     // toggle; no new server endpoint needed.
     const shareBtnEl = (div.querySelector('#shareTripBtn') as HTMLElement | null);
     if (shareBtnEl) {
-        fetchShareStatus(trip.id).then(status => {
+        void fetchShareStatus(trip.id).then(status => {
             if (!status?.shared) return;
             shareBtnEl.dataset.shared = '1';
             shareBtnEl.dataset.postId = String(status.post_id);
@@ -412,7 +412,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | Trip) {
         });
     }
 
-    div.addEventListener('click', async (e) => {
+    div.addEventListener('click', (e) => { void (async () => {
         const target = (e.target as HTMLElement | null);
         const restoreBtn = (target?.closest('.restore-trip-btn') as HTMLElement | null);
         if (restoreBtn?.dataset.tripId) { restoreTrip(restoreBtn.dataset.tripId); return; }
@@ -503,7 +503,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | Trip) {
                             title: t('archivedDetail.unshareConfirmTitle'),
                             message: t('archivedDetail.unshareConfirmBody'),
                             confirmText: t('archivedDetail.unshareConfirmBtn'),
-                            onConfirm: async () => {
+                            onConfirm: () => { void (async () => {
                                 const result = await unshareFeedPost(postId);
                                 if (!result || !result.ok) {
                                     showLiquidAlert(t('archivedDetail.unshareError'));
@@ -513,7 +513,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | Trip) {
                                 shareBtn.dataset.postId = '';
                                 updateShareBtnVisualState(shareBtn, false);
                                 showLiquidAlert(t('archivedDetail.unshareSuccess'));
-                            },
+                            })(); },
                         });
                         return;
                     }
@@ -580,7 +580,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | Trip) {
             if (day) openDayView(day);
             return;
         }
-    });
+    })(); });
     div.addEventListener('change', (e) => {
         const target = e.target as HTMLElement | null;
         // Public granularity — 3-option select (private / public-plan /
@@ -588,7 +588,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | Trip) {
         // maps the string-union back to the two server booleans.
         const privacySel = target?.closest('.trip-privacy-select') as HTMLSelectElement | null;
         if (privacySel?.dataset.tripId) {
-            toggleTripPrivacy(privacySel.dataset.tripId, privacySel.value as TripPrivacyLevel);
+            void toggleTripPrivacy(privacySel.dataset.tripId, privacySel.value as TripPrivacyLevel);
         }
     });
 

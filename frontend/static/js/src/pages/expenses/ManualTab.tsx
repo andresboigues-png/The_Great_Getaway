@@ -456,7 +456,7 @@ export function ManualTab() {
         };
 
         emit('state:changed');
-        upsertExpense(expense);
+        void upsertExpense(expense);
 
         setSaveStatus({
             text: isEdit
@@ -773,7 +773,7 @@ export function ManualTab() {
                             type="file"
                             accept="image/*"
                             className="hidden"
-                            onChange={onReceiptChange}
+                            onChange={(e) => void onReceiptChange(e)}
                         />
                         <div
                             className="flex gap-3 items-center w-full max-w-[440px] box-border"

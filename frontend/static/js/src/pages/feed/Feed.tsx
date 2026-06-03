@@ -183,14 +183,14 @@ export function Feed() {
                 setInitialFetchDone(true);
             }
         };
-        refresh();
+        void refresh();
         // 2026-05-19: if the user's saved tab IS 'explore', we land
         // here with `_explore === null` and the existing tab-switch
         // handler (onSwitchTab) never fires because tab didn't
         // change. Kick the Explore fetch on mount so the tab paints
         // with data on first visit instead of spinning forever.
         if (activeTab === 'explore' && explore === null) {
-            ensureExploreLoaded(() => {
+            void ensureExploreLoaded(() => {
                 setExplore(getCachedExplore());
             });
         }
@@ -274,7 +274,7 @@ export function Feed() {
             (entries) => {
                 for (const entry of entries) {
                     if (entry.isIntersecting) {
-                        loadMore();
+                        void loadMore();
                     }
                 }
             },
@@ -290,7 +290,7 @@ export function Feed() {
         setActiveTabState(tab);
         setActiveFeedTab(tab);
         if (tab === 'explore') {
-            ensureExploreLoaded(() => {
+            void ensureExploreLoaded(() => {
                 setExplore(getCachedExplore());
             });
         }
@@ -515,7 +515,7 @@ export function Feed() {
             title: t('feed.toastUnshareConfirmTitle'),
             message: t('feed.toastUnshareConfirmMessage'),
             confirmText: t('feed.toastUnshareConfirmBtn'),
-            onConfirm: async () => {
+            onConfirm: () => { void (async () => {
                 const result = await unshareFeedPost(postId);
                 if (!result || !result.ok) {
                     showLiquidAlert(t('feed.toastUnshareFailed'));
@@ -548,7 +548,7 @@ export function Feed() {
                     console.error('refresh after unshare failed:', e);
                 }
                 showLiquidAlert(t('feed.toastRemovedFromFeed'));
-            },
+            })(); },
         });
     };
 
@@ -673,15 +673,15 @@ export function Feed() {
                             setBookmarkedOnlyState(false);
                             setBookmarkedOnly(false);
                         }}
-                        onLike={onLike}
-                        onBookmark={onBookmark}
+                        onLike={(eventId, btn) => void onLike(eventId, btn)}
+                        onBookmark={(eventId, willBookmark, btn) => void onBookmark(eventId, willBookmark, btn)}
                         onToggleBundle={onToggleBundle}
-                        onToggleComment={onToggleComment}
-                        onCommentSubmit={onCommentSubmit}
+                        onToggleComment={(eventId) => void onToggleComment(eventId)}
+                        onCommentSubmit={(eventId, body, input) => void onCommentSubmit(eventId, body, input)}
                         onCommentDelete={onCommentDelete}
-                        onCommentEdit={onCommentEdit}
+                        onCommentEdit={(eventId, commentId, body) => void onCommentEdit(eventId, commentId, body)}
                         onUnshare={onUnshare}
-                        onRepost={onRepost}
+                        onRepost={(postId, btn) => void onRepost(postId, btn)}
                         sentinelRef={sentinelRef}
                         loadingMore={loadingMore}
                         hasMore={nextCursor !== null}
@@ -1252,7 +1252,7 @@ function EventCard(props: EventCardProps) {
                     type="button"
                     className="feed-trip-card mt-2.5 w-full text-left bg-[var(--card-bg-elevated)] border border-[rgba(88,86,214,0.22)] border-l-4 border-[#5856d6] rounded-[14px] py-3 px-3.5 cursor-pointer flex items-center gap-3 shadow-[0_2px_8px_rgba(0,45,91,0.04)] transition-[transform_0.15s_ease,_box-shadow_0.15s_ease]"
                     data-trip-id={ev.trip.id}
-                    onClick={() => viewArchivedDetails(ev.trip!.id)}
+                    onClick={() => void viewArchivedDetails(ev.trip!.id)}
                 >
                     <span
                         className="shrink-0 text-[#5856d6] inline-flex"

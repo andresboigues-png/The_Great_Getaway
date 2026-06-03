@@ -97,7 +97,7 @@ async function init() {
     // Anonymous endpoint, so we fire it before restoreSession.
     // Fire-and-forget: any error just leaves the static table in
     // place, which is the pre-fix behaviour.
-    refreshFxRates();
+    void refreshFxRates();
 
     // Check session: apiFetch attaches the stored JWT (if any). The server
     // returns logged_in:true with the user payload when the token is still
@@ -124,7 +124,7 @@ async function init() {
         }
         await syncWithServer();
         await pullFromServer();
-        fetchNotifications();
+        void fetchNotifications();
         // §4.6 — if the user is already logged in AND arrived via
         // /?cloneFromShare=<token>, fire the clone now. The helper
         // navigates to home on success.
@@ -185,7 +185,7 @@ async function init() {
     // status do we get? Gives us enough to triangulate auth-cookie
     // problems on iOS Safari ITP without DevTools.
     if (window.location.search.includes('debug=api')) {
-        setTimeout(async () => {
+        setTimeout(() => { void (async () => {
             const ua = (navigator.userAgent || '').slice(0, 80);
             const isLoggedIn = !!STATE.user;
             const userInfo = STATE.user ? `${STATE.user.name} <${STATE.user.email}>` : '(none)';
@@ -217,7 +217,7 @@ async function init() {
                 'test /api/data: ' + testResult + '\n' +
                 'UA: ' + ua,
             );
-        }, 800);
+        })(); }, 800);
     }
 
     // Audit fix (2026-05-27): capture the timer id so we can clearInterval
@@ -236,8 +236,8 @@ async function init() {
             // previously paying for sync + notifications fetches every
             // 15s indefinitely.
             if (!STATE.user || document.hidden) return;
-            syncWithServer();
-            fetchNotifications();
+            void syncWithServer();
+            void fetchNotifications();
         }, 15000);
     };
     const _stopPoll = () => {
@@ -254,8 +254,8 @@ async function init() {
     // the user waited up to 15s seeing stale data.
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden && STATE.user) {
-            syncWithServer();
-            fetchNotifications();
+            void syncWithServer();
+            void fetchNotifications();
         }
     });
 
@@ -267,8 +267,8 @@ async function init() {
         if (e.persisted) {
             _startPoll();
             if (STATE.user) {
-                syncWithServer();
-                fetchNotifications();
+                void syncWithServer();
+                void fetchNotifications();
             }
         }
     });
@@ -289,8 +289,8 @@ async function init() {
     window.addEventListener('online', () => {
         if (STATE.user) {
             drainOutbox().catch(() => { /* best-effort */ });
-            syncWithServer();
-            fetchNotifications();
+            void syncWithServer();
+            void fetchNotifications();
         }
     });
 
@@ -321,9 +321,9 @@ async function init() {
 
 // Start the app
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', () => void init());
 } else {
-    init();
+    void init();
 }
 
 // PWA: register the service worker after the page has loaded so it doesn't
@@ -399,13 +399,13 @@ if ('serviceWorker' in navigator) {
                 // If a waiting SW was already present at boot (e.g.
                 // page reload after a previous miss), prompt now.
                 if (registration.waiting && navigator.serviceWorker.controller) {
-                    tryPrompt();
+                    void tryPrompt();
                 }
                 registration.addEventListener('updatefound', () => {
                     const installing = registration.installing;
                     if (!installing) return;
                     installing.addEventListener('statechange', () => {
-                        if (installing.state === 'installed') tryPrompt();
+                        if (installing.state === 'installed') void tryPrompt();
                     });
                 });
                 // Reload once the new SW takes control. Guarded so we
@@ -427,7 +427,7 @@ if ('serviceWorker' in navigator) {
     // app-switcher resume should detect a server-side new version.
     window.addEventListener('pageshow', (e) => {
         if (!e.persisted) return;
-        navigator.serviceWorker.getRegistration()?.then((reg) => {
+        void navigator.serviceWorker.getRegistration()?.then((reg) => {
             reg?.update().catch(() => { /* best-effort */ });
         });
     });

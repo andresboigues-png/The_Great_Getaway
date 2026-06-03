@@ -98,7 +98,7 @@ async function handleGoogleLogin(response: { credential?: string; [key: string]:
 // initialize is OK — it's just configuration; whichever fires later
 // wins, and they pass the same callback.
 // @ts-ignore
-window.handleGoogleLogin = handleGoogleLogin;
+window.handleGoogleLogin = (response) => void handleGoogleLogin(response as { credential?: string; [key: string]: unknown });
 
 // R11-EMERGENCY: GSI initialize guard. Pre-fix BOTH this module's
 // `initGoogleLogin()` AND `pages/profile.ts`'s login-wall renderer

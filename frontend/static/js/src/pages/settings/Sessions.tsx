@@ -73,7 +73,7 @@ export function SessionsView() {
     }, []);
 
     useEffect(() => {
-        refresh();
+        void refresh();
     }, [refresh]);
 
     const onRevoke = useCallback(
@@ -96,7 +96,7 @@ export function SessionsView() {
                 title: isCurrent ? 'Sign out here?' : 'Sign out that device?',
                 message,
                 confirmText: isCurrent ? 'Sign out' : 'Revoke',
-                onConfirm: async () => {
+                onConfirm: () => { void (async () => {
                     setBusyId(s.id);
                     const ok = await revokeAuthSession(s.id);
                     setBusyId(null);
@@ -109,7 +109,7 @@ export function SessionsView() {
                     if (ok) {
                         await refresh();
                     }
-                },
+                })(); },
             });
         },
         [refresh],

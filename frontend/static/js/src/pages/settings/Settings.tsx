@@ -135,7 +135,7 @@ function confirmResetTrips(): void {
         title: t('settings.resetTripsConfirmTitle'),
         message: t('settings.resetTripsConfirmMessage'),
         confirmText: t('settings.resetTripsConfirmBtn'),
-        onConfirm: async () => {
+        onConfirm: () => { void (async () => {
             STATE.trips = [];
             STATE.archivedTrips = [];
             STATE.tripDays = [];
@@ -154,7 +154,7 @@ function confirmResetTrips(): void {
                     console.error('Server wipe failed', e);
                 }
             }
-        },
+        })(); },
     });
 }
 
@@ -170,7 +170,7 @@ function confirmResetCategories(): void {
                 { id: 'c3', name: 'Accommodation', icon: '🏨', color: '#5856d6' },
             ];
             emit('state:changed');
-            syncCategories();
+            void syncCategories();
         },
     });
 }
@@ -180,7 +180,7 @@ function confirmResetApp(): void {
         title: t('settings.resetFactoryConfirmTitle'),
         message: t('settings.resetFactoryConfirmMessage'),
         confirmText: t('settings.resetFactoryConfirmBtn'),
-        onConfirm: async () => {
+        onConfirm: () => { void (async () => {
             if (STATE.user) {
                 try {
                     await apiFetch('/api/user-data', {
@@ -205,7 +205,7 @@ function confirmResetApp(): void {
             emit('state:changed');
             localStorage.clear();
             location.reload();
-        },
+        })(); },
     });
 }
 

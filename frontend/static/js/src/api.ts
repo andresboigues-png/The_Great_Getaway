@@ -494,7 +494,7 @@ export async function pullFromServer() {
             // idempotent (returns {status: deleted} for unknown ids)
             // so a second pull after we deleted locally is a no-op.
             for (const id of _duplicateDay0Ids) {
-                deleteDayOnServer(id);
+                void deleteDayOnServer(id);
             }
         }
 
@@ -756,7 +756,7 @@ export function upsertTrip(trip: Trip) {
     // upsertTrip contexts (it's the active trip being edited), so the
     // media POST always carries real arrays, never an empty placeholder.
     const metaResult = _upsertWithUpdatedAt('/api/trips', 'trip', trip);
-    persistTripMedia(trip);
+    void persistTripMedia(trip);
     return metaResult;
 }
 
@@ -934,7 +934,7 @@ export async function fetchTripMedia(tripId: string): Promise<void> {
                 // media version we just stored, so a peer write that
                 // landed between our GET and this flush still 409-merges
                 // rather than clobbering (TRIP-4).
-                _postTripMedia(tripId, merged);
+                void _postTripMedia(tripId, merged);
             } else {
                 tt.photos = serverMedia.photos;
                 tt.documents = serverMedia.documents;

@@ -117,7 +117,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
             setLocalTimeClockInterval(null);
         }
         if (typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
-            fetchTimeZone(activeTrip.lat, activeTrip.lng).then((tz) => {
+            void fetchTimeZone(activeTrip.lat, activeTrip.lng).then((tz) => {
                 if (cancelled || !tz) return;
                 const chip = document.getElementById('homeTripLocalTimeChip');
                 if (!chip) return;
@@ -326,7 +326,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 const dayIdForAdd = selectedDay && selectedDay.dayNumber > 0 ? selectedDay.id : null;
                 toggleTodoListMembership(activeTrip, place, cat, dayIdForAdd);
                 emit('state:changed');
-                upsertTrip(activeTrip);
+                void upsertTrip(activeTrip);
                 refresh();
             };
         };
@@ -470,7 +470,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 keywordsToSearch.forEach((kw: string) => runSearch({ keyword: kw }));
             });
             placesPending[key] = promise;
-            promise.then((list) => {
+            void promise.then((list) => {
                 placesCache[key] = list;
                 delete placesPending[key];
             });
@@ -592,7 +592,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
             // the same underlying promise, so the spinner clears
             // cleanly even with toggle-on/off/on bursts.
             if (willBeOn) pill.classList.add('is-loading');
-            Promise.resolve(setPlacesPillVisible(key, willBeOn)).finally(() => {
+            void Promise.resolve(setPlacesPillVisible(key, willBeOn)).finally(() => {
                 pill.classList.remove('is-loading');
             });
             persistEnabledPois();
@@ -609,7 +609,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                     pill.classList.add('is-on');
                     pill.setAttribute('aria-pressed', 'true');
                 }
-                setPlacesPillVisible(key, true);
+                void setPlacesPillVisible(key, true);
             });
         }
 
@@ -622,8 +622,8 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 enabledPois.forEach((key) => {
                     const cat = POI_CATEGORIES.find((c) => c.key === key);
                     if (cat && shouldForceAnchor(cat)) return;
-                    setPlacesPillVisible(key, false);
-                    setPlacesPillVisible(key, true);
+                    void setPlacesPillVisible(key, false);
+                    void setPlacesPillVisible(key, true);
                 });
             },
         });
@@ -728,7 +728,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                             north: ne.lat(),
                             east: ne.lng(),
                         };
-                        upsertTrip(activeTrip);
+                        void upsertTrip(activeTrip);
                     },
                 );
             }
@@ -781,7 +781,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 }
                 return '';
             };
-            (async () => {
+            void (async () => {
                 // Build the discovered-set fresh each pass. Seed with the
                 // primary country (always position 0 in the persisted
                 // array) + any previously-persisted codes so we DON'T
@@ -827,7 +827,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 // run, i.e. there were day pins to geocode.
                 if (!sameOrder && discovered.length > 0) {
                     activeTrip.countries = discovered;
-                    upsertTrip(activeTrip);
+                    void upsertTrip(activeTrip);
                 }
             })();
         }

@@ -489,7 +489,7 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                 role="button"
                 tabIndex={0}
                 aria-label={`Open ${trip.name} details`}
-                onClick={() => viewArchivedDetails(trip.id)}
+                onClick={() => void viewArchivedDetails(trip.id)}
             >
                 {trip.coverUrl && (
                     <img
@@ -634,7 +634,7 @@ function PrivacySelect({ trip }: { trip: Trip }) {
                 data-trip-id={trip.id}
                 aria-label={t('archivedDetail.visibilityAria')}
                 defaultValue={initial}
-                onChange={(e) => toggleTripPrivacy(trip.id, e.target.value as TripPrivacyLevel)}
+                onChange={(e) => void toggleTripPrivacy(trip.id, e.target.value as TripPrivacyLevel)}
                 style={{
                     background: 'transparent',
                     border: 0,

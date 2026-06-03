@@ -308,11 +308,11 @@ export function wireNavChrome(): void {
     for (const id of ['markAllReadBtn', 'markAllReadBtnDesktop']) {
         document.getElementById(id)?.addEventListener('click', (e) => {
             e.stopPropagation();
-            markNotificationsRead();
+            void markNotificationsRead();
         });
     }
 
-    document.getElementById('sidebarLogoutBtn')?.addEventListener('click', () => logout());
+    document.getElementById('sidebarLogoutBtn')?.addEventListener('click', () => void logout());
     document.getElementById('completeTripBtn')?.addEventListener('click', archiveActiveTrip);
     document.getElementById('completeTripBtnSidebar')?.addEventListener('click', archiveActiveTrip);
     document.getElementById('deleteTripBtn')?.addEventListener('click', deleteActiveTrip);

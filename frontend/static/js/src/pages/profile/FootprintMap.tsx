@@ -154,7 +154,7 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
         }
         const localUniqueCountries = countriesRef.current;
 
-        fetch(
+        void fetch(
             'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson',
         )
             .then((res) => res.json())
@@ -305,7 +305,7 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
             infoContent.addEventListener('click', (e) => {
                 const target = e.target as HTMLElement | null;
                 const btn = target?.closest('.archived-trip-view-btn') as HTMLElement | null;
-                if (btn?.dataset.tripId) viewArchivedDetails(btn.dataset.tripId);
+                if (btn?.dataset.tripId) void viewArchivedDetails(btn.dataset.tripId);
             });
 
             const infoWindow = new google.maps.InfoWindow({ content: infoContent });
@@ -335,7 +335,7 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
                 await new Promise((r) => setTimeout(r, 800));
             }
         };
-        addPins();
+        void addPins();
         // Happy path has no cleanup — map + markers are GC'd when the
         // container DOM node is removed on unmount. Explicit undefined
         // satisfies tsc's noImplicitReturns since the early bail-out

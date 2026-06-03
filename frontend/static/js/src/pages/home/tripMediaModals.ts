@@ -244,11 +244,11 @@ export const openTripDocumentsModal = (trip: Trip): void => {
             const removed = removeTripDocument(trip, docRemoveBtn.dataset.docId);
             if (removed) {
                 emit('state:changed');
-                if (removed === 'trip') upsertTrip(trip);
+                if (removed === 'trip') void upsertTrip(trip);
                 else {
                     const dayId = (docRemoveBtn.dataset.docId || '').split('#')[0];
                     const day = STATE.tripDays.find(d => d.id === dayId);
-                    if (day) upsertDay(day);
+                    if (day) void upsertDay(day);
                 }
                 repaint();
             }
@@ -262,7 +262,7 @@ export const openTripDocumentsModal = (trip: Trip): void => {
         if (docSel?.dataset.docId && tripIsEditable) {
             setDocumentDay(trip, docSel.dataset.docId, docSel.value || null);
             emit('state:changed');
-            upsertTrip(trip);
+            void upsertTrip(trip);
             // Repaint so the doc card moves to its new day-group
             // header — without it the visual would be out of
             // sync.
@@ -402,7 +402,7 @@ export const openTripPhotosModal = (trip: Trip): void => {
     const wireFileInput = () => {
         const input = (root.querySelector('#addPhotosInput') as HTMLInputElement | null);
         if (!input) return;
-        input.addEventListener('change', async () => {
+        input.addEventListener('change', () => { void (async () => {
             const files = Array.from(input.files || []);
             if (files.length === 0) return;
             showLiquidAlert(files.length === 1
@@ -456,7 +456,7 @@ export const openTripPhotosModal = (trip: Trip): void => {
             } else {
                 showLiquidAlert(t('tripMedia.photoUploadFailed'));
             }
-        });
+        })(); });
     };
 
     const repaint = () => {
@@ -484,11 +484,11 @@ export const openTripPhotosModal = (trip: Trip): void => {
             const removed = removeTripPhoto(trip, photoRemoveBtn.dataset.photoId);
             if (removed) {
                 emit('state:changed');
-                if (removed === 'trip') upsertTrip(trip);
+                if (removed === 'trip') void upsertTrip(trip);
                 else {
                     const dayId = (photoRemoveBtn.dataset.photoId || '').split('#')[0];
                     const day = STATE.tripDays.find(d => d.id === dayId);
-                    if (day) upsertDay(day);
+                    if (day) void upsertDay(day);
                 }
                 repaint();
             }
@@ -658,7 +658,7 @@ export const openTripPhotosModal = (trip: Trip): void => {
         const [moved_item] = trip.photos.splice(fromIdx, 1);
         trip.photos.splice(toIdx, 0, moved_item!);
         emit('state:changed');
-        upsertTrip(trip);
+        void upsertTrip(trip);
         repaint();
     };
 
@@ -675,7 +675,7 @@ export const openTripPhotosModal = (trip: Trip): void => {
         if (photoSel?.dataset.photoId && tripIsEditable) {
             setPhotoDay(trip, photoSel.dataset.photoId, photoSel.value || null);
             emit('state:changed');
-            upsertTrip(trip);
+            void upsertTrip(trip);
             // No repaint — chip is purely visual on a photo, the
             // select already shows the new value.
         }
@@ -754,7 +754,7 @@ export const openAddTripDocumentModal = (trip: Trip): void => {
     const dayEl = (q(root, '#newDocDay') as HTMLSelectElement);
     const statusEl = (q(root, '#newDocStatus') as HTMLElement);
     const fileEl = (q(root, '#newDocUpload') as HTMLInputElement);
-    fileEl.addEventListener('change', async () => {
+    fileEl.addEventListener('change', () => { void (async () => {
         const file = fileEl.files?.[0];
         if (!file) return;
         statusEl.textContent = t('tripMedia.addDocStatusUploading');
@@ -770,7 +770,7 @@ export const openAddTripDocumentModal = (trip: Trip): void => {
         } catch (e) {
             statusEl.textContent = t('tripMedia.addDocStatusFailed');
         }
-    });
+    })(); });
     (q(root, '#newDocCancelBtn') as HTMLButtonElement).onclick = () => close();
     (q(root, '#newDocSaveBtn') as HTMLButtonElement).onclick = async () => {
         const name = nameEl.value.trim();
@@ -848,7 +848,7 @@ export const openEditTripDocumentModal = (trip: Trip, docId: string): void => {
     const dayEl = (root.querySelector('#editDocDay') as HTMLSelectElement | null);
     const statusEl = (q(root, '#editDocStatus') as HTMLElement);
     const fileEl = (q(root, '#editDocUpload') as HTMLInputElement);
-    fileEl.addEventListener('change', async () => {
+    fileEl.addEventListener('change', () => { void (async () => {
         const file = fileEl.files?.[0];
         if (!file) return;
         statusEl.textContent = t('tripMedia.addDocStatusUploading');
@@ -863,7 +863,7 @@ export const openEditTripDocumentModal = (trip: Trip, docId: string): void => {
         } catch (e) {
             statusEl.textContent = t('tripMedia.addDocStatusFailed');
         }
-    });
+    })(); });
     (q(root, '#editDocCancelBtn') as HTMLButtonElement).onclick = () => close();
     (q(root, '#editDocSaveBtn') as HTMLButtonElement).onclick = async () => {
         const name = nameEl.value.trim();

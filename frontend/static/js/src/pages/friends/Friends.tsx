@@ -178,7 +178,7 @@ export function Friends() {
     };
 
     useEffect(() => {
-        updateNetwork();
+        void updateNetwork();
         // updateNetwork captures a stable user via closure; re-fetching
         // when user identity changes is the right intent.
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -238,7 +238,7 @@ export function Friends() {
             if (data.status === 'success') {
                 setSearchQuery('');
                 setSearchStatus({ kind: 'sent' });
-                updateNetwork();
+                void updateNetwork();
             } else if (data.status === 'error') {
                 showLiquidAlert(data.message || t('friends.toastSendFailed'));
             }
@@ -258,7 +258,7 @@ export function Friends() {
             title: t('friends.toastRemoveConfirmTitle'),
             message: t('friends.toastRemoveConfirmMessage', { name: displayName }),
             confirmText: t('friends.toastRemoveConfirmBtn'),
-            onConfirm: async () => {
+            onConfirm: () => { void (async () => {
                 // Optimistic: remove from both following + mutuals.
                 // The server response will reconcile via updateNetwork()
                 // below.
@@ -279,8 +279,8 @@ export function Friends() {
                 } catch (err) {
                     showLiquidAlert(t('friends.toastRemoveFailedNetwork'));
                 }
-                updateNetwork();
-            },
+                void updateNetwork();
+            })(); },
         });
     };
 
@@ -346,7 +346,7 @@ export function Friends() {
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             onKeyUp={(e) => {
-                                if (e.key === 'Enter') searchForUsers();
+                                if (e.key === 'Enter') void searchForUsers();
                             }}
                             placeholder={t('friends.searchPlaceholder')}
                             className="w-full box-border pt-2.5 pr-3 pb-2.5 pl-9 border border-[var(--border-subtle)] rounded-full text-[0.9rem] bg-card font-semibold text-brand-navy outline-0"
@@ -354,7 +354,7 @@ export function Friends() {
                     </div>
                     <button
                         type="button"
-                        onClick={searchForUsers}
+                        onClick={() => void searchForUsers()}
                         className="bg-accent-blue text-white border-0 py-2.5 px-[22px] rounded-full font-extrabold text-[0.85rem] cursor-pointer shadow-[0_4px_12px_rgba(0,113,227,0.22)]"
                     >
                         {t('friends.searchButton')}
@@ -406,7 +406,7 @@ export function Friends() {
                                     rightSide={
                                         <button
                                             type="button"
-                                            onClick={() => followUser(u.id)}
+                                            onClick={() => void followUser(u.id)}
                                             className="bg-accent-blue text-white border-0 py-2 px-4 rounded-full font-extrabold text-[0.78rem] cursor-pointer shrink-0 shadow-[0_4px_12px_rgba(0,113,227,0.22)]"
                                         >
                                             {t('friends.sendRequestBtn')}
@@ -477,7 +477,7 @@ export function Friends() {
                             type="button"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                followUser(u.id);
+                                void followUser(u.id);
                             }}
                             className="bg-accent-blue text-white border-0 py-[7px] px-3.5 rounded-full font-extrabold text-[0.76rem] cursor-pointer shrink-0 shadow-[0_4px_12px_rgba(0,113,227,0.22)]"
                         >

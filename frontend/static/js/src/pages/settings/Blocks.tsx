@@ -49,7 +49,7 @@ export function BlocksView() {
     }, []);
 
     useEffect(() => {
-        refresh();
+        void refresh();
     }, [refresh]);
 
     const onUnblock = useCallback(
@@ -61,12 +61,12 @@ export function BlocksView() {
                     `${label} will be able to follow you and see your shared posts again. ` +
                     `You can re-block them at any time from their profile.`,
                 confirmText: 'Unblock',
-                onConfirm: async () => {
+                onConfirm: () => { void (async () => {
                     setBusyId(u.id);
                     const ok = await unblockUser(u.id);
                     setBusyId(null);
                     if (ok) await refresh();
-                },
+                })(); },
             });
         },
         [refresh],

@@ -157,7 +157,7 @@ export function Settlement() {
         ) {
             settleBtn.disabled = true;
             settleBtn.textContent = t('settlement.recordingBtn');
-            settleDebt(
+            void settleDebt(
                 settleBtn.dataset.tripId,
                 settleBtn.dataset.from,
                 settleBtn.dataset.to,
@@ -193,7 +193,7 @@ export function Settlement() {
             const source = (unsettleBtn.dataset.source === 'settlement'
                 ? 'settlement'
                 : 'expense') as 'expense' | 'settlement';
-            deleteSettlement(unsettleBtn.dataset.settlementId, source);
+            void deleteSettlement(unsettleBtn.dataset.settlementId, source);
             return;
         }
     };

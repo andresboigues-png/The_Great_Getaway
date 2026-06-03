@@ -51,7 +51,7 @@ export function Personalization() {
         setAdding(true);
         STATE.categories.push({ id: generateId(), name, icon, color });
         emit('state:changed');
-        syncCategories();
+        void syncCategories();
         navigate('personalization');
         setTimeout(() => {
             showPersTab('categories');

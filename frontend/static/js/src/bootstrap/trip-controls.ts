@@ -94,7 +94,7 @@ export function archiveActiveTrip() {
         message: t('errors.completeTripBody'),
         confirmText: t('errors.completeTripConfirmBtn'),
         confirmColor: "#34c759",
-        onConfirm: async () => {
+        onConfirm: () => { void (async () => {
             trip.isArchived = true;
             // Stamp the moment of completion so Collections can sort
             // by "Recently completed" without relying on array-order
@@ -143,10 +143,10 @@ export function archiveActiveTrip() {
             // (e.g. trip flipped to private mid-archive) or 429s (rate
             // limit), the archive still succeeds.
             if (trip.isPublic) {
-                notifyTripPublic(trip.id);
+                void notifyTripPublic(trip.id);
             }
             navigate('collections');
-        }
+        })(); }
     });
 }
 
@@ -171,7 +171,7 @@ export function deleteActiveTrip(): void {
         title: t('errors.permaDeleteTitle'),
         message: t('errors.permaDeleteBody', { name: trip.name }),
         confirmText: t('errors.permaDeleteConfirmBtn'),
-        onConfirm: async () => {
+        onConfirm: () => { void (async () => {
             STATE.trips = STATE.trips.filter(t => t.id !== trip.id);
             STATE.expenses = STATE.expenses.filter(e => e.tripId !== trip.id);
             STATE.tripDays = STATE.tripDays.filter(d => d.tripId !== trip.id);
@@ -203,6 +203,6 @@ export function deleteActiveTrip(): void {
                 console.error('Delete trip failed:', e);
             }
             navigate('home');
-        }
+        })(); }
     });
 }

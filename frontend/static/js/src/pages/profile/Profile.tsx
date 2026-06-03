@@ -675,7 +675,7 @@ function ProfilePicSection({
                         type="file"
                         accept="image/*"
                         className="hidden"
-                        onChange={onFileChange}
+                        onChange={(e) => void onFileChange(e)}
                     />
                 </>
             ) : null}
@@ -1058,7 +1058,7 @@ function BioBlock({
                         <button
                             type="button"
                             className="btn btn-small"
-                            onClick={onSave}
+                            onClick={() => void onSave()}
                             disabled={saving || !dirty}
                             style={{
                                 background: 'var(--text-primary)',

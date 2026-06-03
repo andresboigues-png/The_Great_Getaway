@@ -144,7 +144,7 @@ export const deleteExpense = (id: string) => {
         onConfirm: () => {
             STATE.expenses = STATE.expenses.filter((e) => e.id !== id);
             emit('state:changed');
-            deleteExpenseOnServer(id);
+            void deleteExpenseOnServer(id);
             setActiveExpensesTab('history');
             navigate('expenses');
         },

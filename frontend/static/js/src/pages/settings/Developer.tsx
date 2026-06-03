@@ -81,7 +81,7 @@ export function Developer() {
     };
 
     useEffect(() => {
-        fetchStats();
+        void fetchStats();
     }, []);
 
     return (
@@ -97,7 +97,7 @@ export function Developer() {
                 <button
                     type="button"
                     className="btn btn-small btn-liquid-glass py-2 px-3.5 rounded-md"
-                    onClick={fetchStats}
+                    onClick={() => void fetchStats()}
                     disabled={loading}
                 >
                     {loading ? t('settings.devRefreshing') : t('settings.devRefresh')}

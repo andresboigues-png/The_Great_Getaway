@@ -589,7 +589,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 if (!item) return;
                 item.done = !item.done;
                 emit('state:changed');
-                upsertTrip(trip);
+                void upsertTrip(trip);
                 // Inline patch — flip THIS button's visual
                 // state + strike-through the sibling text.
                 // Cheaper than a full panel re-render.
@@ -701,7 +701,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         emit('state:changed'); // local persistence + UI subscribers
         flashStatus(t('dayDetail.statusEditing'));
         if (saveTimer) clearTimeout(saveTimer);
-        saveTimer = setTimeout(() => { saveTimer = null; persistNow(); }, 700);
+        saveTimer = setTimeout(() => { saveTimer = null; void persistNow(); }, 700);
     };
 
     // Now that persistNow exists, wire the modal-close flush.
@@ -895,7 +895,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         // the user is staring at a different tab and sees no
         // change).
         switchPlanTab(time);
-        persistNow();
+        void persistNow();
         refreshShortlistButtons();
         refreshPlanTabCounts();
     });

@@ -50,7 +50,7 @@ export const openTripChecklistModal = (trip: Trip): void => {
     /** Persist + paint. Called after every add/toggle/edit/delete. */
     const persist = () => {
         emit('state:changed');
-        upsertTrip(trip);
+        void upsertTrip(trip);
     };
 
     const renderItemRow = (item: ChecklistItem) => {

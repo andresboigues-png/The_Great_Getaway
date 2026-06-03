@@ -466,8 +466,8 @@ export const openNewTripModal = () => {
         }
 
         emit('state:changed');               // saveState + updateTripSelector via subscriber
-        upsertTrip(newTrip);                 // server delta still explicit
-        scaffolded.forEach(d => upsertDay(d));
+        void upsertTrip(newTrip);                 // server delta still explicit
+        scaffolded.forEach(d => { void upsertDay(d); });
 
         close();
         navigate('home');
@@ -843,9 +843,9 @@ export const openEditTripModal = (trip: Trip) => {
             if (startInput.value) trip.dateFrom = startInput.value;
             if (endInput.value) trip.dateTo = endInput.value;
             emit('state:changed');
-            upsertTrip(trip);
-            scaffolded.forEach(d => upsertDay(d));
-            rebased.forEach(d => upsertDay(d));
+            void upsertTrip(trip);
+            scaffolded.forEach(d => { void upsertDay(d); });
+            rebased.forEach(d => { void upsertDay(d); });
             close();
             navigate('home', null, true);
         };
@@ -866,7 +866,7 @@ export const openEditTripModal = (trip: Trip) => {
                         d => !doomedIds.has(d.id),
                     );
                     // Then fire delete-on-server for each (idempotent + outbox-replayable).
-                    daysToDelete.forEach((d) => deleteDayOnServer(d.id));
+                    daysToDelete.forEach((d) => { void deleteDayOnServer(d.id); });
                     finalizeAndClose();
                 },
             });
@@ -1514,8 +1514,8 @@ export const openShareTripModal = (trip: Trip) => {
             showLiquidAlert(t('share.toggleFailed'));
         }
     };
-    costToggle.addEventListener('change', () => persistTogglesIfShared(costToggle, 'showCost'));
-    plansToggle.addEventListener('change', () => persistTogglesIfShared(plansToggle, 'showPlans'));
+    costToggle.addEventListener('change', () => void persistTogglesIfShared(costToggle, 'showCost'));
+    plansToggle.addEventListener('change', () => void persistTogglesIfShared(plansToggle, 'showPlans'));
 
     generateBtn.onclick = generateOrCopy;
     secondaryBtn.onclick = revokeOrClose;

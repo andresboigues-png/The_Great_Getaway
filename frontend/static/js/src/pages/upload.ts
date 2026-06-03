@@ -601,7 +601,7 @@ export function renderUpload() {
                     // Persist per-row (audit P0): syncWithServer() below only
                     // sends categories, so without this the import lived in
                     // localStorage only and vanished on the next /api/data poll.
-                    upsertExpense(expense);
+                    void upsertExpense(expense);
                 });
 
                 // Capture the batch so the user can undo it from the
@@ -619,7 +619,7 @@ export function renderUpload() {
                 emit('state:changed');
                 // Persists the categories the import created; the expenses
                 // themselves were persisted per-row via upsertExpense above.
-                syncWithServer();
+                void syncWithServer();
                 statusDiv.innerText = skipped.length === 0
                     ? t('upload.successImported', { count: added })
                     : `${t('upload.successImported', { count: added })} ${t('upload.skippedRows', { count: skipped.length, rows: skipped.join(', ') })}`;

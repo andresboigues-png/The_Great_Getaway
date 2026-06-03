@@ -211,7 +211,7 @@ export function ensureDayZero(activeTrip: Trip | null | undefined): void {
     if (existingDay0s.length > 1) {
         for (const dup of existingDay0s.slice(1)) {
             STATE.tripDays = STATE.tripDays.filter((d) => d.id !== dup.id);
-            deleteDayOnServer(dup.id);
+            void deleteDayOnServer(dup.id);
         }
     }
 
@@ -263,7 +263,7 @@ export function ensureDayZero(activeTrip: Trip | null | undefined): void {
         } catch (_) {
             /* unavailable */
         }
-        upsertDay(day0);
+        void upsertDay(day0);
         emit('state:changed');
     }
 }
@@ -286,7 +286,7 @@ export const deleteDay = (dayId: string): void => {
         title: t('errors.deleteDayTitle', { n: day.dayNumber }),
         message: t('errors.deleteDayBody'),
         confirmText: t('errors.deleteDayConfirmBtn'),
-        onConfirm: async () => {
+        onConfirm: () => { void (async () => {
             const tripId = day.tripId;
             STATE.tripDays = STATE.tripDays.filter((d) => d.id !== dayId);
 
@@ -320,6 +320,6 @@ export const deleteDay = (dayId: string): void => {
             );
             showLiquidAlert('Day deleted');
             navigate('home', null, true);
-        },
+        })(); },
     });
 };

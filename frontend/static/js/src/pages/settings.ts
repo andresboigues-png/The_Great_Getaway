@@ -95,7 +95,7 @@ export const deleteCategory = (id: string) => {
         onConfirm: () => {
             STATE.categories = STATE.categories.filter(c => c.id !== id);
             emit('state:changed');
-            syncCategories();
+            void syncCategories();
             navigate('personalization');
             setTimeout(() => showPersTab('categories'), 50);
         }
@@ -148,7 +148,7 @@ export function openEditCategoryModal(categoryId: string) {
         cat.name = name;
         cat.color = color;
         emit('state:changed');
-        syncCategories();
+        void syncCategories();
         close();
         navigate('personalization');
         setTimeout(() => showPersTab('categories'), 50);

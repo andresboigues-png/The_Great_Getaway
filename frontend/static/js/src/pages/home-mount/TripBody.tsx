@@ -179,7 +179,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
 
         // Weather forecast — load async, repaint when it lands.
         if (typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
-            loadAndPaintWeather(activeTrip.lat, activeTrip.lng, pathTabInnerRef.current).then(
+            void loadAndPaintWeather(activeTrip.lat, activeTrip.lng, pathTabInnerRef.current).then(
                 (forecast) => {
                     weatherForecastRef.current = forecast;
                 },
@@ -286,12 +286,12 @@ export function TripBody({ activeTrip }: TripBodyProps) {
             // Per-day pin / journal / delete buttons
             const saveBtn = target.closest('.day-pin-save-btn') as HTMLElement | null;
             if (saveBtn?.dataset.dayId) {
-                saveDayPin(saveBtn.dataset.dayId);
+                void saveDayPin(saveBtn.dataset.dayId);
                 return;
             }
             const delPinBtn = target.closest('.day-pin-delete-btn') as HTMLElement | null;
             if (delPinBtn?.dataset.dayId) {
-                deleteDayPin(delPinBtn.dataset.dayId);
+                void deleteDayPin(delPinBtn.dataset.dayId);
                 return;
             }
             const togglePinBtn = target.closest('.day-pin-toggle-btn') as HTMLElement | null;
@@ -606,7 +606,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                                     : t('tripActions.silenceOffAria')
                             }
                             aria-pressed={activeTrip.actionsHidden ? 'true' : 'false'}
-                            onClick={onSilenceTrip}
+                            onClick={(e) => void onSilenceTrip(e)}
                         >
                             {activeTrip.actionsHidden ? (
                                 <svg

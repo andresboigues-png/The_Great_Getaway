@@ -905,7 +905,7 @@ export async function settleDebt(
         // next /api/sync poll firing AND succeeding. A tab close in
         // that window lost the settlement. Same outbox-safe pattern
         // as the edit path above.
-        upsertExpense(settlementExp);
+        void upsertExpense(settlementExp);
         showLiquidAlert(t('settlement.toastRecorded', {
             amount: formatHome(euroValue, 'EUR'),
             from,
@@ -941,7 +941,7 @@ export async function deleteSettlement(
         title: t('settlement.toastUnsettleConfirmTitle'),
         message: t('settlement.toastUnsettleConfirmMessage'),
         confirmText: t('settlement.toastUnsettleConfirmBtn'),
-        onConfirm: async () => {
+        onConfirm: () => { void (async () => {
             if (source === 'settlement') {
                 const result = await deleteSettlementOnServer(id);
                 if (result.error) {
@@ -959,7 +959,7 @@ export async function deleteSettlement(
             // round-trip persists the removal server-side.
             STATE.expenses = STATE.expenses.filter((e) => e.id !== id);
             emit(EVENTS.STATE_CHANGED);
-        },
+        })(); },
     });
 }
 
@@ -1057,7 +1057,7 @@ export function openManualSettleModal(tripId: string): void {
             // parties have linkedUserIds (see settleDebt step 2). They
             // get dropped silently for the legacy companion-by-name path
             // since there's no server-side record to attach them to.
-            settleDebt(tripId, from, to, amount, cur, { method, note });
+            void settleDebt(tripId, from, to, amount, cur, { method, note });
             close();
         };
         if (amount > owed + 0.005) {
@@ -1166,7 +1166,7 @@ export function openEditSettlementModal(id: string): void {
         // to ship; a tab close before that poll lost the edit
         // entirely. upsertExpense is fire-and-forget — the offline
         // outbox (R7-F1) catches network failures.
-        upsertExpense(s);
+        void upsertExpense(s);
         close();
     };
 }

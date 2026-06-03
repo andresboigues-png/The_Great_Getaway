@@ -402,13 +402,13 @@ export function Todo() {
     const handleTickToggle = (placeId: string) => {
         toggleMarkedPlaceForAI(activeTrip, placeId);
         emit(EVENTS.STATE_CHANGED);
-        upsertTrip(activeTrip);
+        void upsertTrip(activeTrip);
     };
 
     const handleRemove = (placeId: string) => {
         removeMarkedPlace(activeTrip, placeId);
         emit(EVENTS.STATE_CHANGED);
-        upsertTrip(activeTrip);
+        void upsertTrip(activeTrip);
     };
 
     /** Phase G v3 — "Clean slate" wipe of the to-do list. The user
@@ -432,7 +432,7 @@ export function Todo() {
             onConfirm: () => {
                 clearAllMarkedPlaces(activeTrip);
                 emit(EVENTS.STATE_CHANGED);
-                upsertTrip(activeTrip);
+                void upsertTrip(activeTrip);
                 showLiquidAlert(t('todo.clearedToast'));
             },
         });
@@ -579,7 +579,7 @@ export function Todo() {
             !allVisibleTicked,
         );
         emit(EVENTS.STATE_CHANGED);
-        upsertTrip(activeTrip);
+        void upsertTrip(activeTrip);
     };
 
     // ── LIST STATE ──────────────────────────────────────────────────

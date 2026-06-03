@@ -165,9 +165,9 @@ export function openShareToFeedModal(
     }
     (root.querySelector('#shareModalClose') as HTMLButtonElement | null)?.addEventListener('click', close);
     (root.querySelector('#shareModalCancel') as HTMLButtonElement | null)?.addEventListener('click', close);
-    (root.querySelector('#shareModalSubmit') as HTMLButtonElement | null)?.addEventListener('click', async () => {
+    (root.querySelector('#shareModalSubmit') as HTMLButtonElement | null)?.addEventListener('click', () => { void (async () => {
         const caption = (textarea?.value || '').trim();
         close();
         await onSubmit(caption);
-    });
+    })(); });
 }

@@ -281,7 +281,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
 
     useEffect(() => {
         let cancelled = false;
-        fetchGeminiHostKeyStatus().then((s) => {
+        void fetchGeminiHostKeyStatus().then((s) => {
             if (!cancelled) setHostPoolStatus(s);
         });
         return () => {
@@ -690,7 +690,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
             // re-fetch that could read back "0% used" — the bar flipped
             // from "fully drained" to "empty" right after the quota error.
             if (!poolUpdatedInline) {
-                fetchGeminiHostKeyStatus().then((s) => {
+                void fetchGeminiHostKeyStatus().then((s) => {
                     if (s) setHostPoolStatus(s);
                 });
             }
@@ -709,7 +709,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
         STATE.tripDays = STATE.tripDays.filter(
             (d) => !(d.tripId === activeTrip.id && d.dayNumber > 0),
         );
-        existingNumbered.forEach((d) => deleteDayOnServer(d.id));
+        existingNumbered.forEach((d) => { void deleteDayOnServer(d.id); });
 
         // Drop AI-tagged places from previous run.
         dropAITaggedPlaces(activeTrip);
@@ -764,7 +764,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
             };
             if (tip) newDay.tip = tip;
             STATE.tripDays.push(newDay);
-            upsertDay(newDay);
+            void upsertDay(newDay);
 
             // Auto-push verified places to the to-do list.
             if (usesFoodSights) {
@@ -816,7 +816,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                 }
             }
         });
-        upsertTrip(activeTrip);
+        void upsertTrip(activeTrip);
         emit('state:changed');
         // Don't reset itinerary — keep showing the accepted plan.
     };
@@ -984,7 +984,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         <button
                             type="button"
                             className="ai-generate-btn w-full rounded-[var(--radius-lg)] flex-none"
-                            onClick={runGenerate}
+                            onClick={() => void runGenerate()}
                             disabled={generating}
                         >
                             {generating ? t('ai.generatingBtn') : t('ai.generateBtn')}
@@ -1058,7 +1058,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         error={generationError}
                         onRetry={() => {
                             setGenerationError(null);
-                            runGenerate();
+                            void runGenerate();
                         }}
                     />
                 ) : itinerary ? (
@@ -1973,7 +1973,7 @@ function MarkedCard({
         const dayId = e.target.value || null;
         setMarkedPlaceAssignment(activeTrip, place.placeId!, dayId, place.timeOfDay || null);
         emit('state:changed');
-        upsertTrip(activeTrip);
+        void upsertTrip(activeTrip);
     };
     const onTimeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         // The <select> options are exactly '' / morning / afternoon /
@@ -1981,7 +1981,7 @@ function MarkedCard({
         const timeOfDay = (e.target.value as 'morning' | 'afternoon' | 'evening' | '') || null;
         setMarkedPlaceAssignment(activeTrip, place.placeId!, place.dayId || null, timeOfDay);
         emit('state:changed');
-        upsertTrip(activeTrip);
+        void upsertTrip(activeTrip);
     };
 
     // Per-user request 2026-05-18: name + icon are a Maps link so the

@@ -69,7 +69,7 @@ export function FollowButton({ targetUserId, initialIsFollowing, onFollowersChan
             type="button"
             aria-pressed={isFollowing}
             disabled={busy}
-            onClick={onClick}
+            onClick={() => void onClick()}
             style={{
                 padding: '8px 18px',
                 borderRadius: 999,

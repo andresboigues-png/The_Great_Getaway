@@ -185,7 +185,7 @@ export function Insights() {
         }
         let cancelled = false;
         setRatesSettled(false);
-        fetchHistoricalRates(uniqueDates).finally(() => {
+        void fetchHistoricalRates(uniqueDates).finally(() => {
             if (!cancelled) setRatesSettled(true);
         });
         return () => {
@@ -211,7 +211,7 @@ export function Insights() {
         // as they land (cpiCache is a useStore dep).
         let released = false;
         const release = () => { if (!released) { released = true; setCpiChecked(true); } };
-        Promise.allSettled(curs.map((c) => fetchCpiSeries(c))).then(release);
+        void Promise.allSettled(curs.map((c) => fetchCpiSeries(c))).then(release);
         const timer = setTimeout(release, 4000);
         return () => clearTimeout(timer);
     }, [tripExps]);

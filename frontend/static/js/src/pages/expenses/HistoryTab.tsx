@@ -110,7 +110,7 @@ export function HistoryTab() {
                 // Server delta: each expense gets its own DELETE.
                 // Fire-and-forget — local STATE already reflects the
                 // removal so a slow server doesn't block the UI.
-                ids.forEach((id) => deleteExpenseOnServer(id));
+                ids.forEach((id) => { void deleteExpenseOnServer(id); });
                 navigate('expenses');
             },
         });

@@ -256,13 +256,13 @@ export const openCompanionPickerModal = (tripId: string) => {
         }
         addTripCompanion(trip, newName);
         emit('state:changed');
-        upsertTrip(trip);
+        void upsertTrip(trip);
         addInput.value = '';
         refreshList();
     };
 
     // Delegated clicks inside the modal — handle remove, link, friend add.
-    root.addEventListener('click', async (ev) => {
+    root.addEventListener('click', (ev) => { void (async () => {
         const target = (ev.target as HTMLElement | null);
         if (!target) return;
 
@@ -284,9 +284,9 @@ export const openCompanionPickerModal = (tripId: string) => {
             const removeIt = () => {
                 removeTripCompanion(trip, name);
                 emit('state:changed');
-                upsertTrip(trip);
+                void upsertTrip(trip);
                 if (companion.linkedUserId) {
-                    removeTripMember(trip.id, companion.linkedUserId);
+                    void removeTripMember(trip.id, companion.linkedUserId);
                 }
                 refreshList();
             };
@@ -365,13 +365,13 @@ export const openCompanionPickerModal = (tripId: string) => {
                 }
             }
             emit('state:changed');
-            upsertTrip(trip);
+            void upsertTrip(trip);
             await inviteTripMember(trip.id, friendId, role);
             friendSheet.hidden = true;
             refreshList();
             showLiquidAlert(t('companions.invitedToast', { name: friendName, role: roleLabel(role) }));
         }
-    });
+    })(); });
 };
 
 // ── Phase 3: trip-member modals ─────────────────────────────────────────────
