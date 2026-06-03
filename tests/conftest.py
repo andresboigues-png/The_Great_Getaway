@@ -147,3 +147,69 @@ def other_auth_headers(seed_other_user):
     verify per-user gates (e.g. non-planner can't edit someone else's trip)."""
     from auth import issue_token
     return {"Authorization": f"Bearer {issue_token(seed_other_user)}"}
+
+
+
+# ── Shared helpers hoisted from the former tests/test_api.py monolith ──────────
+# Used across multiple test_api_*.py modules; imported via `from tests.conftest
+# import _create_trip, ...`. Bodies are verbatim from the original file.
+
+def _create_trip(client, headers, trip_id="trip-feed", name="Test Trip", public=False):
+    """Mint a trip via /api/trips. Pass `public=True` to flip
+    `is_public = 1` so the trip is shareable to the feed — the
+    /api/feed/share endpoint requires public visibility (2026-05-18
+    change closing the "share private trip card with broken
+    click-through" hole). Defaults to private (matching the trip-
+    create endpoint's own default) so non-share tests keep their
+    pre-change behaviour."""
+    trip_payload: dict = {"id": trip_id, "name": name, "country": "Test"}
+    if public:
+        trip_payload["isPublic"] = True
+    res = client.post("/api/trips", headers=headers, json={"trip": trip_payload})
+    assert res.status_code == 200
+    return trip_id
+
+def _befriend(client, headers_a, headers_b, user_a, user_b):
+    """Helper: establish a mutual-follow between user_a and user_b.
+
+    Pre-Model-B this called /api/friends/add then /api/friends/accept
+    to land both halves of the legacy friend-request dance. Post-
+    Model-B the same calls still work (they're façades over follows
+    now — see routes/friends.py) so the test surface didn't have to
+    change. Two POSTs = two follow edges = one mutual."""
+    client.post("/api/friends/add", headers=headers_a, json={"friend_id": user_b})
+    client.post("/api/friends/accept", headers=headers_b, json={"friend_id": user_a})
+
+def _make_friends(user_a, user_b):
+    """Establish a mutual-follow between user_a and user_b at the DB
+    level (bypassing the friend-add → follow-back façade for speed).
+    Under Model B, "friend" = mutual follow, so we just insert both
+    follow edges. CURRENT_TIMESTAMP keeps the rows fresh enough for
+    the feed's 30-day window."""
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT OR IGNORE INTO follows (follower_id, followee_id, created_at) "
+            "VALUES (?, ?, CURRENT_TIMESTAMP)",
+            (user_a, user_b),
+        )
+        c.execute(
+            "INSERT OR IGNORE INTO follows (follower_id, followee_id, created_at) "
+            "VALUES (?, ?, CURRENT_TIMESTAMP)",
+            (user_b, user_a),
+        )
+        conn.commit()
+
+def _seed_member(trip_id, user_id, role="planner"):
+    """Drop an accepted trip_members row directly so the test can focus
+    on settle-up rather than re-litigating the invite flow."""
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO trip_members "
+            "(trip_id, user_id, role, is_archived, invitation_status, invited_by) "
+            "VALUES (?, ?, ?, 0, 'accepted', ?)",
+            (trip_id, user_id, role, user_id),
+        )
+        conn.commit()
