@@ -25,6 +25,10 @@ def _budget(client, h, bid):
     })
 
 
+def _trip(client, h, tid):
+    return client.post("/api/trips", headers=h, json={"trip": {"id": tid, "name": "T", "country": "PT"}})
+
+
 def _data(client, h, **params):
     qs = "&".join(f"{k}={v}" for k, v in params.items())
     return client.get("/api/data" + ("?" + qs if qs else ""), headers=h).get_json()
@@ -32,14 +36,14 @@ def _data(client, h, **params):
 
 def test_since_pull_sets_every_entity_delta_flag(client, auth_headers):
     d = _data(client, auth_headers, since=0)
-    for key in ("expensesDelta", "categoriesDelta", "budgetsDelta", "tripDaysDelta"):
+    for key in ("tripsDelta", "expensesDelta", "categoriesDelta", "budgetsDelta", "tripDaysDelta"):
         assert d.get(key) is True, key
     assert isinstance(d.get("serverTime"), int)
 
 
 def test_full_pull_clears_every_entity_delta_flag(client, auth_headers):
     d = _data(client, auth_headers)  # no ?since=
-    for key in ("expensesDelta", "categoriesDelta", "budgetsDelta", "tripDaysDelta"):
+    for key in ("tripsDelta", "expensesDelta", "categoriesDelta", "budgetsDelta", "tripDaysDelta"):
         assert d.get(key) is False, key
 
 
@@ -63,6 +67,18 @@ def test_budget_delta_changed_then_deleted(client, auth_headers):
     d2 = _data(client, auth_headers, since=0)
     assert "b1" in d2["budgetsDeleted"]
     assert "b1" not in {b["id"] for b in d2["budgetsChanged"]}
+
+
+def test_trip_delta_changed_then_deleted(client, auth_headers):
+    _trip(client, auth_headers, "t1")
+    d = _data(client, auth_headers, since=0)
+    assert d.get("tripsDelta") is True
+    assert "t1" in {t["id"] for t in d["tripsChanged"]}
+    assert d["trips"] == []  # full list omitted on a delta
+    client.delete("/api/trips/t1", headers=auth_headers)
+    d2 = _data(client, auth_headers, since=0)
+    assert "t1" in d2["tripsDeleted"]
+    assert "t1" not in {t["id"] for t in d2["tripsChanged"]}
 
 
 def test_far_future_since_returns_empty_deltas_for_all(client, auth_headers):

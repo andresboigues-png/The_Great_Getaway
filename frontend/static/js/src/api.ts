@@ -150,11 +150,46 @@ export async function pullFromServer() {
         }
         const data = result.value;
 
+        // Sync Phase 2: each delta'd collection arrives as a full list
+        // (normal pull) or a delta (`?since=` pull). `applyDelta` merges a
+        // delta (upsert changed by id + drop tombstoned) or replaces with
+        // the full list. Defined here (before the trips block) so trips can
+        // use it too. The delta fields sit behind the validated payload's
+        // index signature → read via a typed view; a malformed shape falls
+        // back to a no-op merge and the periodic full pull self-heals.
+        const _delta = data as unknown as {
+            tripsDelta?: boolean; tripsChanged?: Trip[]; tripsDeleted?: string[];
+            expensesDelta?: boolean; expensesChanged?: Expense[]; expensesDeleted?: string[];
+            categoriesDelta?: boolean; categoriesChanged?: Category[]; categoriesDeleted?: string[];
+            budgetsDelta?: boolean; budgetsChanged?: Budget[]; budgetsDeleted?: string[];
+            tripDaysDelta?: boolean; tripDaysChanged?: TripDay[]; tripDaysDeleted?: string[];
+            serverTime?: number;
+        };
+        const applyDelta = <T extends { id: string }>(
+            isDelta: boolean | undefined,
+            current: T[],
+            changed: T[] | undefined,
+            deleted: string[] | undefined,
+            full: T[],
+        ): T[] => (isDelta
+            ? mergeById(current, Array.isArray(changed) ? changed : [], Array.isArray(deleted) ? deleted : [])
+            : full);
+
         // Split trips into active and archived. Each trip's `companions`
-        // field is normalized through the trip-companion shape upgrade so
-        // legacy `string[]` payloads (or partial objects from older clients)
-        // get promoted to the canonical `Companion[]` shape.
-        const allTrips = (data.trips || []).map(t => ({
+        // field is normalized to the canonical `Companion[]` shape. On a
+        // `?since=` pull the trip list is a delta — merge tripsChanged /
+        // tripsDeleted into the trips already in STATE (the media-merge
+        // below re-attaches loaded media to any changed trip from its
+        // existing copy), then re-process the whole set exactly as a full
+        // pull would.
+        const _mergedTrips = applyDelta(
+            _delta.tripsDelta,
+            [...(STATE.trips || []), ...(STATE.archivedTrips || [])],
+            _delta.tripsChanged,
+            _delta.tripsDeleted,
+            (data.trips || []) as unknown as Trip[],
+        );
+        const allTrips = _mergedTrips.map(t => ({
             ...t,
             companions: normalizeTripCompanions(t.companions),
         }));
@@ -211,29 +246,7 @@ export async function pullFromServer() {
             STATE.activeTripId = STATE.trips[0]!.id;
         }
 
-        // Sync Phase 2: each delta'd collection arrives either as a full
-        // list (normal pull) or as a delta (`?since=` pull). On a delta,
-        // merge changed/deleted into the current list by id; otherwise
-        // replace wholesale. The delta fields live behind the validated
-        // payload's index signature, so read them through a typed view;
-        // malformed shapes fall back to a no-op merge and the periodic full
-        // pull self-heals.
-        const _delta = data as unknown as {
-            expensesDelta?: boolean; expensesChanged?: Expense[]; expensesDeleted?: string[];
-            categoriesDelta?: boolean; categoriesChanged?: Category[]; categoriesDeleted?: string[];
-            budgetsDelta?: boolean; budgetsChanged?: Budget[]; budgetsDeleted?: string[];
-            tripDaysDelta?: boolean; tripDaysChanged?: TripDay[]; tripDaysDeleted?: string[];
-            serverTime?: number;
-        };
-        const applyDelta = <T extends { id: string }>(
-            isDelta: boolean | undefined,
-            current: T[],
-            changed: T[] | undefined,
-            deleted: string[] | undefined,
-            full: T[],
-        ): T[] => (isDelta
-            ? mergeById(current, Array.isArray(changed) ? changed : [], Array.isArray(deleted) ? deleted : [])
-            : full);
+        // Expenses delta/full (via the applyDelta + _delta defined above).
         STATE.expenses = applyDelta(
             _delta.expensesDelta, STATE.expenses || [],
             _delta.expensesChanged, _delta.expensesDeleted, data.expenses || [],

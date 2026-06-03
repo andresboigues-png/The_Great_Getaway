@@ -1445,8 +1445,42 @@ def get_data():
             conn.commit()
         achievements = list_user_achievements(cursor, user_id)
 
+        # Sync Phase 2: trips delta. The full `trips` list above drives
+        # trip_ids + every other entity's scoping + the version hash, so we
+        # keep it intact and only derive the RESPONSE payload here: trips
+        # changed since the cursor + trip_deletes tombstones. Changed ids
+        # come from a cheap updated_at compare (then we pick those out of the
+        # already-serialized `trips`, no re-serialization). trip_deletes is
+        # global — after a delete trip_members is gone so we can't tell who
+        # to notify; the client simply drops any tombstoned trip it holds
+        # (a deleted trip's UUID is useless to a client that never had it).
+        trips_changed = []
+        trips_deleted = []
+        trips_delta = since_floor is not None
+        if trips_delta:
+            if all_trip_ids:
+                _tph = ','.join(['?'] * len(all_trip_ids))
+                cursor.execute(
+                    f"SELECT id FROM trips WHERE id IN ({_tph}) "
+                    f"AND CAST(strftime('%s', updated_at) AS INTEGER) * 1000 > ?",
+                    (*all_trip_ids, since_floor),
+                )
+                _changed_ids = {r["id"] for r in cursor.fetchall()}
+                trips_changed = [t for t in trips if t.get("id") in _changed_ids]
+            cursor.execute(
+                "SELECT trip_id FROM trip_deletes "
+                "WHERE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 > ?",
+                (since_floor,),
+            )
+            trips_deleted = [r["trip_id"] for r in cursor.fetchall()]
+
         return jsonify({
-            "trips": trips,
+            # Trips: full list on a normal pull; empty + tripsChanged/Deleted
+            # on a `?since=` pull (Phase 2). tripsDelta tells the client mode.
+            "trips": [] if trips_delta else trips,
+            "tripsDelta": trips_delta,
+            "tripsChanged": trips_changed,
+            "tripsDeleted": trips_deleted,
             # Expenses: full list on a normal pull; on a `?since=` pull the
             # list is empty and the client merges expensesChanged/Deleted
             # (Phase 2). expensesDelta tells the client which mode this is.
