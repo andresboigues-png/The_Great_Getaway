@@ -39,10 +39,10 @@ import { clearAllFxOverrides } from '../../utils/fxOverrides.js';
 import { t, tn } from '../../i18n.js';
 import {
     logout,
-    renderLoginWall,
     openFriendsListModal,
     type ProfileFriend,
 } from '../profile.js';
+import { LoginWall } from './LoginWall.js';
 import { FootprintMap } from './FootprintMap.js';
 import { AchievementsStrip, type ProfileAchievement } from './AchievementsStrip.js';
 import { FollowButton } from './FollowButton.js';
@@ -137,22 +137,6 @@ function useAchievementStyles(): void {
 }
 
 
-// ── helper: imperative login wall ──────────────────────────────────
-// renderLoginWall returns an HTMLElement (kept imperative because
-// Google's GIS button needs a real DOM target). Bridge it into the
-// React tree via a ref + appendChild on mount.
-function LoginWallHost() {
-    const hostRef = useRef<HTMLDivElement | null>(null);
-    useEffect(() => {
-        const host = hostRef.current;
-        if (!host) return;
-        host.innerHTML = '';
-        host.appendChild(renderLoginWall());
-    }, []);
-    return <div ref={hostRef} />;
-}
-
-
 // ── derived helper: unique country names from a trips array ───────
 //
 // §4.3 follow-up (2026-05-17): pre-§4.3 this returned one entry per
@@ -212,7 +196,7 @@ export function Profile({ targetUserId }: ProfileProps) {
     // the app-wide login wall instead. Kept defensive in case a stale
     // link routes here without a session.
     if (!user && isOwnProfile) {
-        return <LoginWallHost />;
+        return <LoginWall />;
     }
 
     return isOwnProfile ? (

@@ -14,11 +14,9 @@
 //     clear local STATE, navigate to /profile (which now shows
 //     the login wall since STATE.user is null).
 //
-//   - `renderLoginWall()` — used by router.ts for every route while
-//     STATE.user is null. Returns an HTMLElement because Google's
-//     GIS button needs a real DOM target — kept imperative even
-//     though the rest of Profile is JSX now. Profile.tsx bridges
-//     it into the React tree via a host div + appendChild.
+//     (The app-wide login wall moved to profile/LoginWall.tsx in #4 —
+//     it's now a React component the router mounts via mountReact, so it
+//     no longer lives here.)
 //
 //   - `openFriendsListModal(friends)` — used by the React
 //     Profile.tsx's FriendsStat sub-component. showModal-driven
@@ -38,12 +36,6 @@ import { navigate } from '../router.js';
 import { showModal } from '../components/Modal.js';
 import { t } from '../i18n.js';
 import { clearOutbox } from '../outbox.js';
-// R11-EMERGENCY: shared, idempotent GSI initialize helper. The circular
-// import (bootstrap/auth.ts imports updateUserUI from this file) is safe
-// because both sides only reference each other's exports from inside
-// functions — module-eval time is decoupled.
-import { ensureGsiInitialized } from '../bootstrap/auth.js';
-import { iconSvg } from '../icons.js';
 
 
 export interface ProfileFriend {
@@ -117,95 +109,6 @@ export const logout = async () => {
         navigate('profile');
     } catch (e) {}
 };
-
-/** App-wide login wall — rendered by the router for every route while
- *  `STATE.user` is null. Lifts the previous "Log In" markup out of the
- *  Profile page so the same surface shows up everywhere a logged-out user
- *  tries to land, instead of half the pages working anonymously and the
- *  other half rendering ad-hoc Login-Required cards.
- *
- *  Kept imperative (returns HTMLElement) because Google's GIS button
- *  needs a real DOM target. Profile.tsx bridges it into the React tree
- *  via a host div + appendChild. */
-export function renderLoginWall() {
-    const div = document.createElement('div');
-    const isReturning = STATE.hasLoggedInBefore;
-    // D6 (i18n): all user-facing strings flow through t(). Brand
-    // name kept un-translated (it's a proper noun). Returning vs
-    // new-user copy switches via the per-state key on subtitle +
-    // CTA card title.
-    div.innerHTML = `
-        <div class="login-wall">
-            <div class="login-wall__inner">
-                <h1 class="login-wall__title" style="background: linear-gradient(135deg, #0071e3 0%, #ff9500 50%, #34c759 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${t('login.brand')}</h1>
-                <p class="login-wall__subtitle">${isReturning ? t('login.subtitleReturning') : t('login.subtitleNewUser')}</p>
-
-                <div class="login-wall__features">
-                    <div class="login-wall__feature">
-                        <span class="login-wall__feature-icon" style="color: var(--accent-blue);">${iconSvg('map', { size: 24 })}</span>
-                        <div><strong>${t('login.feature1Title')}</strong><span>${t('login.feature1Body')}</span></div>
-                    </div>
-                    <div class="login-wall__feature">
-                        <span class="login-wall__feature-icon" style="color: var(--accent-blue);">${iconSvg('wallet', { size: 24 })}</span>
-                        <div><strong>${t('login.feature2Title')}</strong><span>${t('login.feature2Body')}</span></div>
-                    </div>
-                    <div class="login-wall__feature">
-                        <span class="login-wall__feature-icon" style="color: var(--accent-blue);">${iconSvg('users', { size: 24 })}</span>
-                        <div><strong>${t('login.feature3Title')}</strong><span>${t('login.feature3Body')}</span></div>
-                    </div>
-                </div>
-
-                <div class="card glass login-wall__card">
-                    <h2 class="login-wall__card-title">${isReturning ? t('login.ctaCardTitleReturning') : t('login.ctaCardTitleNewUser')}</h2>
-                    <div id="loginWallBtnContainer" class="login-wall__btn-container"></div>
-                    <p class="login-wall__fineprint">${t('login.finePrint')}</p>
-                </div>
-            </div>
-        </div>
-    `;
-
-    // Google's button renderer needs a real DOM target, so do it after the
-    // wall is mounted. Retries briefly if the GIS script hasn't loaded yet.
-    //
-    // R11-EMERGENCY: previously this re-called `google.accounts.id.initialize(...)`
-    // with `window.handleGoogleLogin || (() => {})` as the callback. The
-    // comment claimed multiple initialize calls were safe, but per Google's
-    // own console warning ("only the last initialized instance will be
-    // used"), the second init overwrites the first. If a timing race left
-    // `window.handleGoogleLogin` undefined at the moment this evaluated,
-    // the last initialize wired `() => {}` — every subsequent account
-    // selection dispatched to a no-op, producing the "click account → blank
-    // page, no /api/auth/google in the network log" symptom we shipped to
-    // prod.
-    //
-    // Fix: route through the shared, idempotent `ensureGsiInitialized()`
-    // helper from bootstrap/auth.ts. First caller wires the real
-    // handleGoogleLogin from import scope (no `window.` lookup race);
-    // subsequent callers no-op. This module only calls renderButton, not
-    // initialize, so we can never overwrite the callback to a stale one.
-    const renderButton = () => {
-        const target = div.querySelector('#loginWallBtnContainer');
-        if (!target) return;
-        if (window.google && window.google.accounts && window.globalGoogleClientId) {
-            if (!ensureGsiInitialized()) {
-                // GSI not yet ready inside the helper — try again.
-                setTimeout(renderButton, 250);
-                return;
-            }
-            target.innerHTML = '';
-            window.google.accounts.id.renderButton(
-                target,
-                { theme: 'outline', size: 'large', width: 280, shape: 'pill' }
-            );
-            return;
-        }
-        // GIS script still loading — try again shortly.
-        setTimeout(renderButton, 250);
-    };
-    setTimeout(renderButton, 0);
-
-    return div;
-}
 
 /** Pop a modal listing the caller's accepted friends — each row is a
  *  click target that closes the modal and navigates to that friend's

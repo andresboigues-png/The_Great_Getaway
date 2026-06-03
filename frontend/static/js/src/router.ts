@@ -27,13 +27,13 @@ import { stopHomeSlideshow } from './pages/home.js';
 // navigating, and the React wrapper reads the legacy module-level
 // variable on mount.
 import { setExpensesTab } from './pages/expenses.js';
-import { clearReactMount } from './react/reactMount.js';
-// renderLoginWall stays imperative for now; it's only invoked from
-// the signed-out branch below and doesn't need React's lifecycle.
-// Login wall is in the initial bundle because it must paint
-// instantly when the user lands signed-out — there's no time to
-// fetch a chunk before the first paint.
-import { renderLoginWall } from './pages/profile.js';
+import { createElement } from 'react';
+import { clearReactMount, mountReact } from './react/reactMount.js';
+// LoginWall is STATICALLY imported (not a lazy chunk) so it paints
+// instantly when a signed-out user lands — there's no time to fetch a
+// chunk before the first paint. The signed-out branch below mounts it
+// via mountReact, same as every other (now React) page.
+import { LoginWall } from './pages/profile/LoginWall.js';
 
 let isInternalNav = false;
 /** Last page rendered. Used to distinguish "user clicked a nav link
@@ -216,12 +216,12 @@ export function navigate(
     // out. Lifts the dual code paths (anonymous-then-logged-in) out of
     // every page; logged-out users only ever see this single surface.
     // The hash still updates so deep links survive a sign-in round trip.
-    // Login wall mounts SYNCHRONOUSLY (it's in the entry bundle) so we
-    // can clear and paint in one tick.
+    // <LoginWall/> is in the entry bundle (static import), so this mounts
+    // + paints in one tick. mountReact unmounts any prior page's React
+    // root first (flushing its effect cleanups), so we don't clear the
+    // container by hand.
     if (!STATE.user) {
-        clearReactMount();
-        content.innerHTML = '';
-        content.appendChild(renderLoginWall());
+        mountReact(content, createElement(LoginWall));
         document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
         isInternalNav = true;
         window.location.hash = page;
