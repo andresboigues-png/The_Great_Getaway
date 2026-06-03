@@ -64,6 +64,24 @@ export interface FeedComment {
     author: Actor;
     body: string;
     when: string;
+    /** ISO timestamp when the comment was edited; absent = never edited.
+     *  Drives the "(edited)" marker + its hover title. */
+    editedAt?: string | null;
+}
+
+/** Temporary marker pushed into the bundle build array, then replaced by a
+ *  FeedBundle in the map pass. Distinguished from a FeedEvent by `__slot`. */
+interface SlotMarker {
+    __slot: string;
+}
+/** An aggregated card — ≥2 same-(actor, type, day) events merged into one. */
+interface FeedBundle {
+    bundled: true;
+    id: string;
+    type: string;
+    actor: Actor;
+    when: string | null;
+    members: FeedEvent[];
 }
 
 // Show like-count chips only above this threshold. Below it the heart
@@ -131,9 +149,7 @@ export function dayKey(iso: string | null | undefined): string {
  *  in a day is repetitive noise. */
 export function bundleEvents(events: FeedEvent[]) {
     const groups: Map<string, FeedEvent[]> = new Map();
-    const out: Array<
-        FeedEvent | { bundled: true; id: string; type: string; actor: Actor; when: string | null; members: FeedEvent[] }
-    > = [];
+    const out: Array<FeedEvent | SlotMarker> = [];
     for (const ev of events) {
         if (POSTS_EVENT_TYPES.has(ev.type)) {
             out.push(ev);
@@ -144,20 +160,19 @@ export function bundleEvents(events: FeedEvent[]) {
         if (!bucket) {
             bucket = [];
             groups.set(key, bucket);
-            out.push({ __slot: key } as any);
+            out.push({ __slot: key });
         }
         bucket.push(ev);
     }
-    return out.map((slot) => {
-        const slotKey = (slot as any).__slot;
-        if (!slotKey) return slot as FeedEvent;
-        const members = groups.get(slotKey) || [];
+    return out.map((slot): FeedEvent | FeedBundle => {
+        if (!('__slot' in slot)) return slot;
+        const members = groups.get(slot.__slot) || [];
         if (members.length === 1) return members[0]!;
         // length > 1 here, so members[0] is guaranteed.
         const first = members[0]!;
         return {
             bundled: true,
-            id: `bundle_${slotKey}`,
+            id: `bundle_${slot.__slot}`,
             type: first.type,
             actor: first.actor,
             when: first.when,
@@ -168,7 +183,7 @@ export function bundleEvents(events: FeedEvent[]) {
 
 /** Verb for an aggregated bundle. Mirrors the singular eventLine shapes
  *  but pluralises the trip count. */
-export function bundleLine(bundle: { actor: any; members: FeedEvent[]; type: string }) {
+export function bundleLine(bundle: { actor: Actor; members: FeedEvent[]; type: string }) {
     const who = `<strong style="color:#002d5b;">${esc(bundle.actor.name)}</strong>`;
     const n = bundle.members.length;
     const noun = n === 1 ? 'trip' : 'trips';
@@ -266,7 +281,7 @@ export function relativeTime(iso: string | null | undefined): string {
  *  escaped at the source so passing them through t() with their literal
  *  HTML markup is safe — translations must keep the `{…}` tokens intact
  *  so the wrapped HTML lands in the right grammatical slot for each locale. */
-export function eventLine(ev: any) {
+export function eventLine(ev: FeedEvent) {
     const meId = STATE.user?.id;
     const isSelf = !!meId && ev.actor?.id === meId;
     const who = isSelf
@@ -415,7 +430,7 @@ export function actionButton(opts: {
  *  bookmark; Actions get bookmark only (no comments/likes on passive
  *  activity logs). The thread `<div>` ships with every Posts card so
  *  the lazy expand handler always has a slot to populate. */
-export function actionsRow(ev: any) {
+export function actionsRow(ev: FeedEvent) {
     const isPost = POSTS_EVENT_TYPES.has(ev.type);
     const bookmarked = !!ev.is_bookmarked;
 
@@ -481,7 +496,7 @@ export function actionsRow(ev: any) {
 
 /** Render a single comment row for the thread. canDelete=true when
  *  the current user authored the comment — adds a small ✕ button. */
-export function commentRowHtml(c: any, canDelete: boolean) {
+export function commentRowHtml(c: FeedComment, canDelete: boolean) {
     // Audit fix (2026-05-27): escape `c.id` everywhere it's
     // interpolated. The server normally returns an auto-increment
     // INTEGER, but the type is `any` here and a tampered API
