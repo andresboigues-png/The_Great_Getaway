@@ -8,7 +8,7 @@ import { normalizeTripCompanions } from './companions.js';
 import { showLiquidAlert } from './utils.js';
 import { t } from './i18n.js';
 import { enqueueMutation } from './outbox.js';
-import type { Expense, Budget, TripDay } from './types';
+import type { Trip, Expense, Budget, TripDay } from './types';
 
 // All fetch URLs are built via apiUrl() so the API_BASE_URL constant is the
 // single point that needs to change when the backend isn't co-located with
@@ -740,7 +740,7 @@ async function _upsertWithUpdatedAtJson(url: string, key: string, obj: any): Pro
  *  hold a STATE reference get their copy refreshed automatically.
  *  On 409 the server's `current` row + a stale-edit toast surface
  *  to the user. */
-export function upsertTrip(trip: any) {
+export function upsertTrip(trip: Trip) {
     if (!STATE.user) return;
     // R12-B4: dual-write. Trip METADATA (name, cover, dates,
     // companions, viewport, country list, archive flag) goes to
@@ -791,19 +791,20 @@ export function markTripMediaLoaded(tripId: string): void {
  *  resurrect a peer device's delete. */
 const _pendingMedia = new Map<
     string,
-    { photos: any[]; documents: any[]; markedPlaces: any[]; checklist: any[] }
+    { photos: unknown[]; documents: unknown[]; markedPlaces: unknown[]; checklist: unknown[] }
 >();
 
-function _mediaKey(item: any): string {
+function _mediaKey(item: unknown): string {
     if (item && typeof item === 'object') {
-        return String(item.id ?? item.url ?? item.name ?? JSON.stringify(item));
+        const o = item as { id?: unknown; url?: unknown; name?: unknown };
+        return String(o.id ?? o.url ?? o.name ?? JSON.stringify(item));
     }
     return String(item);
 }
 
 /** Union server + parked-local items by key: server items first, then
  *  any parked item whose key the server doesn't already have. */
-function _mergeMediaField(serverItems: any[], pendingItems: any[]): any[] {
+function _mergeMediaField(serverItems: unknown[], pendingItems: unknown[]): unknown[] {
     const out = Array.isArray(serverItems) ? [...serverItems] : [];
     const seen = new Set(out.map(_mediaKey));
     for (const it of Array.isArray(pendingItems) ? pendingItems : []) {
@@ -823,7 +824,7 @@ function _mergeMediaField(serverItems: any[], pendingItems: any[]): any[] {
  *  last-write-wins. */
 const _mediaVersion = new Map<string, string>();
 
-interface MediaSnapshot { photos: any[]; documents: any[]; markedPlaces: any[]; checklist: any[]; }
+interface MediaSnapshot { photos: unknown[]; documents: unknown[]; markedPlaces: unknown[]; checklist: unknown[]; }
 
 /** POST trip media with optimistic concurrency. On a 409 (a peer device
  *  wrote media since our last read) the server echoes the live media +
@@ -906,10 +907,10 @@ export async function fetchTripMedia(tripId: string): Promise<void> {
         if (target) {
             const tt = target as unknown as Record<string, unknown>;
             const serverMedia = {
-                photos: (media.photos ?? []) as any[],
-                documents: (media.documents ?? []) as any[],
-                markedPlaces: (media.markedPlaces ?? []) as any[],
-                checklist: (media.checklist ?? []) as any[],
+                photos: (media.photos ?? []) as unknown[],
+                documents: (media.documents ?? []) as unknown[],
+                markedPlaces: (media.markedPlaces ?? []) as unknown[],
+                checklist: (media.checklist ?? []) as unknown[],
             };
             const pending = _pendingMedia.get(tripId);
             if (pending) {
@@ -970,7 +971,7 @@ export async function fetchTripMedia(tripId: string): Promise<void> {
  *  server's real media. Skipping is safe — upsert_trip ignores media
  *  server-side, so the column is simply left untouched until the trip
  *  is opened (fetchTripMedia) and a real write follows. */
-export function persistTripMedia(trip: any) {
+export function persistTripMedia(trip: Trip) {
     if (!STATE.user || !trip?.id) return;
     const snapshot = {
         photos: Array.isArray(trip.photos) ? trip.photos : [],
