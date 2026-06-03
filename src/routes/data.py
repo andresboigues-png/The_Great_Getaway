@@ -1276,60 +1276,106 @@ def get_data():
 
         # Get categories. `updatedAt` (camelCase, from updated_at) is the
         # per-row version stamp the #3 delta sync bases its upserts on.
-        cursor.execute(
-            "SELECT id, name, icon, color, updated_at FROM categories WHERE user_id = ?",
-            (user_id,),
-        )
-        categories = [
-            {"id": r["id"], "name": r["name"], "icon": r["icon"],
-             "color": r["color"], "updatedAt": r["updated_at"]}
-            for r in cursor.fetchall()
-        ]
+        # categories.updated_at is epoch-ms INTEGER (not TEXT), so the
+        # `?since=` compare is direct — no strftime conversion. Deletions
+        # ride the category_deletes tombstone table (also epoch-ms INTEGER).
+        def _cat_row(r):
+            return {"id": r["id"], "name": r["name"], "icon": r["icon"],
+                    "color": r["color"], "updatedAt": r["updated_at"]}
+        categories = []
+        categories_changed = []
+        categories_deleted = []
+        categories_delta = since_floor is not None
+        if categories_delta:
+            cursor.execute(
+                "SELECT id, name, icon, color, updated_at FROM categories "
+                "WHERE user_id = ? AND updated_at > ?",
+                (user_id, since_floor),
+            )
+            categories_changed = [_cat_row(r) for r in cursor.fetchall()]
+            cursor.execute(
+                "SELECT category_id FROM category_deletes "
+                "WHERE user_id = ? AND deleted_at > ?",
+                (user_id, since_floor),
+            )
+            categories_deleted = [r["category_id"] for r in cursor.fetchall()]
+        else:
+            cursor.execute(
+                "SELECT id, name, icon, color, updated_at FROM categories WHERE user_id = ?",
+                (user_id,),
+            )
+            categories = [_cat_row(r) for r in cursor.fetchall()]
 
         # Get budgets. 2026-05-25 (audit B1): now reads + ships the 4
         # filter columns the frontend needs to render the budget card
         # subtitle ("was X USD") and to scope `spentForBudget` to the
         # right category + owner. Translates `owner_name` (snake_case
         # storage) → `user` (camelCase frontend field).
-        cursor.execute(
+        _budget_cols = (
             "SELECT id, trip_id, label, amount, currency, "
-            "category_id, owner_name, original_amount, original_currency, "
-            "updated_at "
-            "FROM budgets WHERE user_id = ?",
-            (user_id,),
+            "category_id, owner_name, original_amount, original_currency, updated_at "
+            "FROM budgets WHERE user_id = ?"
         )
-        budgets_rows = cursor.fetchall()
-        budgets = [{
-            'id': r['id'],
-            'tripId': r['trip_id'],
-            'label': r['label'],
-            'amount': r['amount'],
-            'currency': r['currency'],
-            'categoryId': r['category_id'],
-            'user': r['owner_name'],
-            'originalAmount': r['original_amount'],
-            'originalCurrency': r['original_currency'],
-            # R3-Round 5: stamp for client-side optimistic concurrency.
-            'updatedAt': r['updated_at'],
-        } for r in budgets_rows]
 
-        # Get trip days for every trip the caller can see.
-        #
-        # 2026-05-26 (audit SY5): `deleted_at IS NULL` filters out
-        # tombstoned days the same way the expenses SELECT above does.
-        # See migration b7c8d9e0f1a2_add_tombstone_columns for the
-        # rationale.
+        def _budget_row(r):
+            return {
+                'id': r['id'], 'tripId': r['trip_id'], 'label': r['label'],
+                'amount': r['amount'], 'currency': r['currency'],
+                'categoryId': r['category_id'], 'user': r['owner_name'],
+                'originalAmount': r['original_amount'],
+                'originalCurrency': r['original_currency'],
+                # R3-Round 5: stamp for client-side optimistic concurrency.
+                'updatedAt': r['updated_at'],
+            }
+        budgets = []
+        budgets_changed = []
+        budgets_deleted = []
+        budgets_delta = since_floor is not None
+        if budgets_delta:
+            # budgets.updated_at is TEXT → convert to epoch-ms for the compare.
+            # Deletions ride the budget_deletes tombstone table (also TEXT).
+            cursor.execute(
+                _budget_cols + " AND CAST(strftime('%s', updated_at) AS INTEGER) * 1000 > ?",
+                (user_id, since_floor),
+            )
+            budgets_changed = [_budget_row(r) for r in cursor.fetchall()]
+            cursor.execute(
+                "SELECT budget_id FROM budget_deletes WHERE user_id = ? "
+                "AND CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 > ?",
+                (user_id, since_floor),
+            )
+            budgets_deleted = [r["budget_id"] for r in cursor.fetchall()]
+        else:
+            cursor.execute(_budget_cols, (user_id,))
+            budgets = [_budget_row(r) for r in cursor.fetchall()]
+
+        # Get trip days for every trip the caller can see. `deleted_at IS
+        # NULL` filters tombstoned days. On a `?since=` pull this is a delta
+        # (changed live days since the cursor; deletions queried separately
+        # below); else the full set. updated_at/deleted_at are TEXT → epoch-ms.
+        trip_days = []
+        trip_days_changed = []
+        trip_days_deleted = []
+        trip_days_delta = since_floor is not None
         if trip_ids:
             placeholders = ','.join(['?'] * len(trip_ids))
-            cursor.execute(
-                f"SELECT * FROM trip_days "
-                f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL",
-                trip_ids,
-            )
+            if trip_days_delta:
+                cursor.execute(
+                    f"SELECT * FROM trip_days "
+                    f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL "
+                    f"AND CAST(strftime('%s', updated_at) AS INTEGER) * 1000 > ?",
+                    (*trip_ids, since_floor),
+                )
+            else:
+                cursor.execute(
+                    f"SELECT * FROM trip_days "
+                    f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL",
+                    trip_ids,
+                )
         else:
             cursor.execute("SELECT * FROM trip_days WHERE 1=0")
         days_rows = cursor.fetchall()
-        trip_days = []
+        _days_serialized = []
         for r in days_rows:
             day = dict(r)
             day['tripId'] = day.pop('trip_id')
@@ -1358,7 +1404,20 @@ def get_data():
             except (json.JSONDecodeError, TypeError, KeyError):
                 day['documents'] = []
 
-            trip_days.append(day)
+            _days_serialized.append(day)
+
+        if trip_days_delta:
+            trip_days_changed = _days_serialized
+            if trip_ids:
+                cursor.execute(
+                    f"SELECT id FROM trip_days WHERE trip_id IN ({placeholders}) "
+                    f"AND deleted_at IS NOT NULL "
+                    f"AND CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 > ?",
+                    (*trip_ids, since_floor),
+                )
+                trip_days_deleted = [r["id"] for r in cursor.fetchall()]
+        else:
+            trip_days = _days_serialized
 
         # §4.4 — achievement detection runs piggybacked on /api/data.
         # The cadence is the natural moment to re-evaluate ("user just
@@ -1397,9 +1456,22 @@ def get_data():
             "expensesDeleted": expenses_deleted,
             "serverTime": now_ms,
             "settlements": settlements,
+            # Categories / budgets / trip_days mirror the expenses delta
+            # shape: full list on a normal pull, empty + *Changed/*Deleted
+            # on a `?since=` pull (Phase 2). Their *Delta flags tell the
+            # client which mode each is in.
             "categories": categories,
+            "categoriesDelta": categories_delta,
+            "categoriesChanged": categories_changed,
+            "categoriesDeleted": categories_deleted,
             "budgets": budgets,
+            "budgetsDelta": budgets_delta,
+            "budgetsChanged": budgets_changed,
+            "budgetsDeleted": budgets_deleted,
             "tripDays": trip_days,
+            "tripDaysDelta": trip_days_delta,
+            "tripDaysChanged": trip_days_changed,
+            "tripDaysDeleted": trip_days_deleted,
             "achievements": achievements,
             "newlyEarnedAchievements": newly_earned,
             "version": current_version,

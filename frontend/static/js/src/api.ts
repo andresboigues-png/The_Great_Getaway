@@ -16,7 +16,7 @@ import { showLiquidAlert } from './utils.js';
 import { t } from './i18n.js';
 import type { Trip, Expense, Budget, TripDay, Category } from './types';
 import { computeCategoryDelta } from './utils/categoryDelta.js';
-import { mergeExpenseDelta } from './utils/expenseDelta.js';
+import { mergeById } from './utils/deltaMerge.js';
 import {
     apiFetch,
     _post,
@@ -211,27 +211,33 @@ export async function pullFromServer() {
             STATE.activeTripId = STATE.trips[0]!.id;
         }
 
-        // Sync Phase 2: expenses arrive either as a full list (normal pull)
-        // or as a delta (`?since=` pull). On a delta, merge changed/deleted
-        // into the current list by id; otherwise replace wholesale. The
-        // delta fields live behind the validated payload's index signature,
-        // so read them through a typed view; malformed shapes fall back to
-        // empty (a no-op merge) and the periodic full pull self-heals.
+        // Sync Phase 2: each delta'd collection arrives either as a full
+        // list (normal pull) or as a delta (`?since=` pull). On a delta,
+        // merge changed/deleted into the current list by id; otherwise
+        // replace wholesale. The delta fields live behind the validated
+        // payload's index signature, so read them through a typed view;
+        // malformed shapes fall back to a no-op merge and the periodic full
+        // pull self-heals.
         const _delta = data as unknown as {
-            expensesDelta?: boolean;
-            expensesChanged?: Expense[];
-            expensesDeleted?: string[];
+            expensesDelta?: boolean; expensesChanged?: Expense[]; expensesDeleted?: string[];
+            categoriesDelta?: boolean; categoriesChanged?: Category[]; categoriesDeleted?: string[];
+            budgetsDelta?: boolean; budgetsChanged?: Budget[]; budgetsDeleted?: string[];
+            tripDaysDelta?: boolean; tripDaysChanged?: TripDay[]; tripDaysDeleted?: string[];
             serverTime?: number;
         };
-        if (_delta.expensesDelta) {
-            STATE.expenses = mergeExpenseDelta(
-                STATE.expenses || [],
-                Array.isArray(_delta.expensesChanged) ? _delta.expensesChanged : [],
-                Array.isArray(_delta.expensesDeleted) ? _delta.expensesDeleted : [],
-            );
-        } else {
-            STATE.expenses = data.expenses || [];
-        }
+        const applyDelta = <T extends { id: string }>(
+            isDelta: boolean | undefined,
+            current: T[],
+            changed: T[] | undefined,
+            deleted: string[] | undefined,
+            full: T[],
+        ): T[] => (isDelta
+            ? mergeById(current, Array.isArray(changed) ? changed : [], Array.isArray(deleted) ? deleted : [])
+            : full);
+        STATE.expenses = applyDelta(
+            _delta.expensesDelta, STATE.expenses || [],
+            _delta.expensesChanged, _delta.expensesDeleted, data.expenses || [],
+        );
         // §4.5 — new member-keyed settlements ride alongside expenses.
         // `data.settlements` is always an array (server-side default)
         // but we guard with `|| []` so an older /api/data response
@@ -263,12 +269,23 @@ export async function pullFromServer() {
         }
         // Account-level companions (data.companions) is no longer used —
         // companions live per-trip on `trip.companions`.
-        STATE.categories = data.categories || [];
+        STATE.categories = applyDelta(
+            _delta.categoriesDelta, STATE.categories || [],
+            _delta.categoriesChanged, _delta.categoriesDeleted, data.categories || [],
+        );
         // Re-baseline the category delta sync to server truth so the next
-        // edit diffs against what the server actually has (#3).
+        // edit diffs against what the server actually has (#3). After a
+        // merge this reflects the post-merge set, which is what the next
+        // outgoing category delta must diff against.
         setCategorySyncBaseline(STATE.categories);
-        STATE.budgets = data.budgets || [];
-        STATE.tripDays = data.tripDays || [];
+        STATE.budgets = applyDelta(
+            _delta.budgetsDelta, STATE.budgets || [],
+            _delta.budgetsChanged, _delta.budgetsDeleted, data.budgets || [],
+        );
+        STATE.tripDays = applyDelta(
+            _delta.tripDaysDelta, STATE.tripDays || [],
+            _delta.tripDaysChanged, _delta.tripDaysDeleted, data.tripDays || [],
+        );
 
         // Self-heal duplicate Day-0 (Anchor) rows across ALL trips
         // (active + archived). The home.ts dedup at line ~1330 only
