@@ -15,6 +15,18 @@ import { enqueueMutation } from './outbox.js';
 // Exported so page-level files can use it for their direct fetches too.
 export const apiUrl = (path: string): string => `${API_BASE_URL}${path}`;
 
+// Typed-catch helpers — catch clauses are `unknown` under strict mode, so these
+// read the conventional Error / DOMException fields without an `any` cast.
+function errMessage(e: unknown): string {
+    if (e instanceof Error) return e.message;
+    if (typeof e === 'object' && e !== null && 'message' in e) return String((e as { message: unknown }).message);
+    return '';
+}
+function errName(e: unknown): string {
+    if (typeof e === 'object' && e !== null && 'name' in e) return String((e as { name: unknown }).name);
+    return '';
+}
+
 // ── Auth: HttpOnly session cookie (FIXING_ROADMAP §0.4 v2) ─────────────────
 // The session JWT now lives in an HttpOnly cookie (`gg_session`, set by
 // the server's /api/auth/google response). JS can't read it — that's
@@ -309,11 +321,11 @@ export async function syncWithServer() {
         }
         _syncConsecutiveFailures = 0;
         _syncOfflineToastShown = false;
-    } catch (e: any) {
+    } catch (e) {
         // FIXING_ROADMAP §1.8 — a user navigating mid-sync aborts the
         // in-flight fetch. That's expected behaviour, not a failure,
         // so we don't count it toward the offline-toast threshold.
-        if (e?.name === 'AbortError') return;
+        if (errName(e) === 'AbortError') return;
         console.error('Sync failed:', e);
         _syncConsecutiveFailures++;
         // After 2 consecutive failures, warn the user once. We don't
@@ -547,10 +559,10 @@ export async function pullFromServer() {
             const current: PageName = (known.includes(hash) ? hash : PAGES.HOME) as PageName;
             navigate(current);
         }
-    } catch (e: any) {
+    } catch (e) {
         // AbortError fires when the user navigated mid-pull. Not a
         // bug — the new page's mount handles its own data load.
-        if (e?.name === 'AbortError') return;
+        if (errName(e) === 'AbortError') return;
         console.error("Pull from server failed:", e);
     }
 }
@@ -1444,8 +1456,8 @@ export async function followUser(userId: string): Promise<{ state?: FollowState;
         const body = await res.json().catch(() => ({}));
         if (!res.ok) return { error: body?.error || `HTTP ${res.status}` };
         return { state: body as FollowState };
-    } catch (e: any) {
-        return { error: e?.message || 'Network error' };
+    } catch (e) {
+        return { error: errMessage(e) || 'Network error' };
     }
 }
 
@@ -1456,8 +1468,8 @@ export async function unfollowUser(userId: string): Promise<{ state?: FollowStat
         const body = await res.json().catch(() => ({}));
         if (!res.ok) return { error: body?.error || `HTTP ${res.status}` };
         return { state: body as FollowState };
-    } catch (e: any) {
-        return { error: e?.message || 'Network error' };
+    } catch (e) {
+        return { error: errMessage(e) || 'Network error' };
     }
 }
 
@@ -1494,8 +1506,8 @@ export async function fetchExploreFeed(): Promise<{ items?: ExploreFeedItem[]; e
         const body = await res.json().catch(() => ({}));
         if (!res.ok) return { error: body?.error || `HTTP ${res.status}` };
         return body;
-    } catch (e: any) {
-        return { error: e?.message || 'Network error' };
+    } catch (e) {
+        return { error: errMessage(e) || 'Network error' };
     }
 }
 
@@ -1529,8 +1541,8 @@ export async function createSettlement(input: {
         const body = await res.json().catch(() => ({}));
         if (!res.ok) return { error: body?.error || `HTTP ${res.status}` };
         return body;
-    } catch (e: any) {
-        return { error: e?.message || 'Network error' };
+    } catch (e) {
+        return { error: errMessage(e) || 'Network error' };
     }
 }
 
@@ -1545,8 +1557,8 @@ export async function deleteSettlementOnServer(settlementId: string): Promise<{ 
         const body = await res.json().catch(() => ({}));
         if (!res.ok) return { error: body?.error || `HTTP ${res.status}` };
         return body;
-    } catch (e: any) {
-        return { error: e?.message || 'Network error' };
+    } catch (e) {
+        return { error: errMessage(e) || 'Network error' };
     }
 }
 
@@ -1718,8 +1730,8 @@ export async function fetchGeminiHostKeyStatus(): Promise<GeminiHostKeyStatus | 
             return body as GeminiHostKeyStatus;
         }
         return null;
-    } catch (e: any) {
-        if (e?.name === 'AbortError') return null;
+    } catch (e) {
+        if (errName(e) === 'AbortError') return null;
         console.error('fetchGeminiHostKeyStatus failed:', e);
         return null;
     }
@@ -1821,9 +1833,9 @@ export async function fetchHistoricalRates(dates: string[]) {
         }
         STATE.rateCache = nextRateCache;
         emit(EVENTS.STATE_CHANGED);
-    } catch (e: any) {
+    } catch (e) {
         // AbortError = user navigated away mid-fetch; not a failure.
-        if (e?.name === 'AbortError') return;
+        if (errName(e) === 'AbortError') return;
         console.error("Failed to fetch historical rates:", e);
     }
 }
@@ -1870,8 +1882,8 @@ export async function fetchCpiSeries(currency: string): Promise<void> {
         } else {
             console.warn('World Bank CPI fetch returned', resp.status);
         }
-    } catch (e: any) {
-        if (e?.name !== 'AbortError') console.error('Failed to fetch CPI series:', e);
+    } catch (e) {
+        if (errName(e) !== 'AbortError') console.error('Failed to fetch CPI series:', e);
         // fall through and negative-cache (empty) so we don't re-stall every mount
     }
     // Always record the attempt (even empty → makeInflationFactor returns 1, an
