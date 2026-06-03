@@ -1,11 +1,16 @@
 /// <reference types="vitest/config" />
 //
-// Vitest config for FAST frontend unit tests of pure logic (no browser).
-// Deliberately standalone (not the production vite.config.js): these tests
-// exercise framework-free modules — currently the present-value money math in
-// utils/presentValue — so they need no React/Tailwind plugins and run in the
-// Node environment. Vite's resolver still maps the codebase's `.js` import
-// specifiers onto their `.ts` sources, same as the build.
+// Vitest config for FAST frontend unit tests of pure logic. These exercise
+// framework-free modules (the present-value + FX money math, the settlement
+// balance engine, the trip-media merge) — no React/Tailwind plugins needed.
+// Vite's resolver still maps the codebase's `.js` import specifiers onto their
+// `.ts` sources, same as the build.
+//
+// Environment is `jsdom`, not `node`: although the functions under test are
+// pure, importing them transitively pulls low-level modules (state → router →
+// pages → bootstrap) that touch `window`/`document` at module-eval time (e.g.
+// `window.onhashchange = …`). jsdom provides those globals so the import graph
+// loads; the assertions themselves remain pure.
 //
 // Scope is narrow on purpose: only `*.test.ts` under the frontend src tree, so
 // the Playwright e2e specs in tests/e2e (*.spec.js) are never picked up here.
@@ -16,7 +21,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
     test: {
-        environment: 'node',
+        environment: 'jsdom',
         include: ['frontend/static/js/src/**/*.test.ts'],
     },
 });
