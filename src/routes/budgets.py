@@ -125,6 +125,20 @@ def upsert_budget():
         # Fix: SELECT existing row first; if present and belongs to
         # someone else, refuse. The "new row" path is unaffected (no
         # existing owner to clash with).
+        # Sync Phase 1: refuse to resurrect a tombstoned budget. A peer's
+        # offline outbox can replay an upsert for a budget another device
+        # deleted; once a budget_deletes tombstone exists for this id the
+        # upsert is a no-op. Budgets always get a fresh uuid on create, so
+        # a legitimate re-create never reuses a tombstoned id — the
+        # tombstone is terminal (mirrors the expense `deleted_at IS NULL`
+        # upsert gate). Idempotent success so the offline client doesn't
+        # error-loop; its next /api/data pull drops the budget locally.
+        cursor.execute(
+            "SELECT 1 FROM budget_deletes WHERE user_id = ? AND budget_id = ?",
+            (user_id, budget_id),
+        )
+        if cursor.fetchone():
+            return jsonify({"status": "ok", "updatedAt": None})
         cursor.execute(
             "SELECT user_id, updated_at FROM budgets WHERE id = ?",
             (budget_id,),
@@ -248,6 +262,22 @@ def delete_budget(budget_id):
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
+        # Sync Phase 1: soft-delete via tombstone. Record the deletion in
+        # budget_deletes BEFORE the hard delete so (a) a peer's queued
+        # upsert can't resurrect it — upsert_budget refuses any id with a
+        # tombstone — and (b) the Phase-2 `?since=` delta can propagate the
+        # deletion to other tabs. The hard delete then frees the
+        # UNIQUE(user_id, trip_id, category_id, owner_name) scope slot so a
+        # same-scope budget can be re-created. User-scoped to match the
+        # delete's WHERE (a tombstone keyed to the caller can't affect any
+        # other user's row).
+        cursor.execute(
+            "INSERT INTO budget_deletes (user_id, budget_id, deleted_at) "
+            "VALUES (?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now')) "
+            "ON CONFLICT(user_id, budget_id) DO UPDATE SET "
+            "deleted_at = excluded.deleted_at",
+            (user_id, budget_id),
+        )
         cursor.execute(
             "DELETE FROM budgets WHERE id = ? AND user_id = ?",
             (budget_id, user_id),

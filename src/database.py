@@ -468,6 +468,22 @@ def init_db():
             )
         ''')
 
+        # Budget tombstones — record a budget deletion (user_id,
+        # budget_id, deleted_at) so an offline peer's queued upsert can't
+        # resurrect a deleted budget (budgets hard-delete to free the
+        # UNIQUE scope slot; the tombstone is the resurrection guard +
+        # the Phase-2 `?since=` deletion channel). Mirrors category_deletes.
+        # Migration c3e5a7b9d1f0 adds this for existing DBs.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS budget_deletes (
+                user_id TEXT NOT NULL,
+                budget_id TEXT NOT NULL,
+                deleted_at TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY (user_id, budget_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        ''')
+
         # Notifications Table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS notifications (
