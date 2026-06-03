@@ -697,7 +697,7 @@ export const en = {
         valueTodayInfoInflation: 'Each currency uses its own region’s inflation (up to about {pct}% here), based on the years you travelled.',
         valueTodayInfoSources: 'Inflation comes from World Bank consumer-price (CPI) data and exchange rates from the European Central Bank — these are estimates, so take them with a grain of salt.',
         // D-2: currencies/years without CPI data simply aren't inflation-adjusted.
-        valueTodayInfoOldRates: 'Currencies or years we have no inflation data for aren’t adjusted — treat their “value today” as a rough estimate.',
+        valueTodayInfoOldRates: 'Inflation data lags ~1–2 years, so the most recent years are estimated from the latest trend; currencies/years with no data aren’t adjusted. Treat “value today” as a good estimate, not a quote.',
         valueTodayManualCta: 'Set the rates yourself →',
         valueTodaySettingsCta: 'Set rates by year in Settings →',
         overrideTitle: 'Your own rates',
@@ -710,6 +710,8 @@ export const en = {
         currencySelectorAriaLabel: 'Display currency for insights',
         // Currency story (home-currency hint + multi-currency breakdown).
         heroHomeCurrencyHint: 'Shown in {currency} — changes with your profile home currency.',
+        pvPricier: 'This trip would cost about {pct}% more to do today than the {then} you paid.',
+        pvCheaper: 'This trip would cost about {pct}% less to do today than the {then} you paid.',
         seeCurrencyBreakdown: 'See currency breakdown →',
         hideCurrencyBreakdown: 'Hide currency breakdown',
         currencyBreakdownTitle: 'Spent by currency',

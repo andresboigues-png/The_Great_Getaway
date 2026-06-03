@@ -22,7 +22,7 @@ import { useActiveTrip } from '../../react/TripContext.js';
 import { useNavigate } from '../../react/useNavigate.js';
 import { STATE, emit } from '../../state.js';
 import { EVENTS, CURRENCY_SYMBOLS } from '../../constants.js';
-import { convertCurrency } from '../../utils/currency.js';
+import { convertCurrency, hasRate } from '../../utils/currency.js';
 import { fetchHistoricalRates, fetchCpiSeries } from '../../api.js';
 import { getTripFxOverrides, setTripFxOverride, clearTripFxOverrides } from '../../utils/fxOverrides.js';
 import { getIntlLocale, formatNumber, formatNumberForCurrency } from '../../i18n.js';
@@ -59,6 +59,11 @@ interface ConvertedExpense {
     euroValue?: number;
     isSettlement?: boolean;
     displayValue: number;
+    /** The two legs, kept on every row so the "more expensive / cheaper than
+     *  you paid" comparison can sum both regardless of the active mode.
+     *  spentValue = at-the-time home cost; todayValue = cost to do it today. */
+    spentValue: number;
+    todayValue: number;
 }
 
 /** True when the date keys span more than one calendar year — used to
@@ -93,37 +98,54 @@ function timelineDateLabel(isoKey: string, includeYear: boolean): string {
 }
 
 /** Build a CPI inflation-factor lookup from a year→index series (World
- *  Bank FP.CPI.TOTL). `factor(date)` = CPI(latest available year) /
- *  CPI(expense's year), clamped to the series: recent / undated / future
- *  years clamp to the latest (factor 1 — no inflation), and gaps walk down
- *  to the nearest year with data. Returns 1 when there's no usable series
- *  (→ "worth today" == as-spent for that currency). Pure + per-series, so
- *  the same helper drives BOTH the main calc and the override-panel auto
- *  figures — each indexed by the EXPENSE's own currency, not a single
- *  home-region figure smeared across every currency. */
-function makeInflationFactor(cpi: Record<number, number> | undefined): (date: string) => number {
-    let latestYear = 0;
-    let latestVal = 0;
-    let earliestYear = 0;
-    if (cpi) {
-        const ys = Object.keys(cpi).map(Number).filter((y) => Number.isFinite(y));
-        if (ys.length) {
-            latestYear = Math.max(...ys);
-            earliestYear = Math.min(...ys);
-            latestVal = cpi[latestYear] || 0;
+ *  Bank FP.CPI.TOTL). `factor(date)` = CPI(today) / CPI(expense's year).
+ *
+ *  PV-2 (present-value audit): World Bank CPI lags ~1–2 years, so the latest
+ *  published year is often 2 years behind "today". Pre-fix the numerator was
+ *  frozen at that latest year, so a 2024/2025/2026 expense showed +0% inflation
+ *  — "worth today" wasn't actually today. We now PROJECT the index forward from
+ *  the latest published year to `currentYear` using the latest observed annual
+ *  inflation rate (capped at 4 years to avoid runaway extrapolation). The
+ *  expense-year denominator uses real data when available, the same projection
+ *  beyond the latest year. Undated / future / pre-1900 → factor 1. Returns 1
+ *  when there's no usable series. Pure + per-series, so the same helper drives
+ *  both the main calc and the override-panel auto figures, each indexed by the
+ *  EXPENSE's own currency. */
+function makeInflationFactor(
+    cpi: Record<number, number> | undefined,
+    currentYear: number,
+): (date: string) => number {
+    if (!cpi) return () => 1;
+    const ys = Object.keys(cpi).map(Number).filter((y) => Number.isFinite(y)).sort((a, b) => a - b);
+    if (!ys.length) return () => 1;
+    const latestYear = ys[ys.length - 1]!;
+    const earliestYear = ys[0]!;
+    const latestVal = cpi[latestYear] || 0;
+    if (!latestVal) return () => 1;
+    const prevVal = cpi[latestYear - 1];
+    // Latest year-over-year inflation, used to project past the published data.
+    const annualRate = prevVal && prevVal > 0 ? latestVal / prevVal : 1;
+    const PROJ_CAP = 4;
+    // CPI for any year: real data ≤ latest (walking down for gaps), projected
+    // (capped) beyond it.
+    const valForYear = (y: number): number => {
+        if (y <= latestYear) {
+            let by = Math.max(earliestYear, y);
+            let v = cpi[by];
+            while (v == null && by > earliestYear) { by -= 1; v = cpi[by]; }
+            return v || latestVal;
         }
-    }
+        const steps = Math.min(y - latestYear, PROJ_CAP);
+        return latestVal * Math.pow(annualRate, steps);
+    };
+    // "Today" = the index projected to the current year.
+    const todayVal = valForYear(currentYear);
     return (date: string): number => {
-        if (!cpi || !latestVal) return 1;
         let y = Number((date || '').slice(0, 4));
-        if (!Number.isFinite(y) || y < 1900 || y > latestYear + 1) y = latestYear;
-        let baseYear = Math.max(earliestYear, Math.min(latestYear, y));
-        let baseCpi = cpi[baseYear];
-        while (baseCpi == null && baseYear > earliestYear) {
-            baseYear -= 1;
-            baseCpi = cpi[baseYear];
-        }
-        return baseCpi ? latestVal / baseCpi : 1;
+        // Undated / garbage / future → no inflation (can't age it to today).
+        if (!Number.isFinite(y) || y < 1900 || y > currentYear) y = currentYear;
+        const base = valForYear(y);
+        return base ? todayVal / base : 1;
     };
 }
 
@@ -254,6 +276,8 @@ export function Insights() {
 
     const {
         totalDisplay,
+        totalSpent,
+        totalToday,
         totalCount,
         highestExpense,
         sortedSpenders,
@@ -289,8 +313,9 @@ export function Insights() {
             // auto World-Bank CPI factor for the currency. Setting one year does
             // NOT disable auto for the currency's other years.
             const manualPct = manualRates[c] && manualRates[c]![y] ? manualRates[c]![y]!.inflationPct : undefined;
-            if (Number.isFinite(manualPct)) return 1 + (manualPct as number) / 100;
-            if (!_autoFactorByCur[c]) _autoFactorByCur[c] = makeInflationFactor(cpiCache[c]);
+            // PV-5: floor at 0 — a manual −120% must not produce a negative value.
+            if (Number.isFinite(manualPct)) return Math.max(0, 1 + (manualPct as number) / 100);
+            if (!_autoFactorByCur[c]) _autoFactorByCur[c] = makeInflationFactor(cpiCache[c], _curYear);
             return _autoFactorByCur[c]!(date);
         };
         // Manual per-year exchange rate (1 unit of `cur` in home units) for a
@@ -338,43 +363,44 @@ export function Insights() {
                 const euroVal = e.euroValue ?? convertCurrency(e.value, e.currency, 'EUR');
                 spentHome = targetCurr === 'EUR' ? euroVal : convertCurrency(euroVal, 'EUR', targetCurr);
             }
-            // "Worth today" = the foreign amount converted at TODAY'S FX,
-            // grown by that currency's OWN inflation since the expense's year
-            // — UNLESS the user set a manual override for this currency, in
-            // which case we use their numbers (original amount × their rate ×
-            // (1 + their inflation%)). `at_trip` (Spent) stays the at-the-time
-            // cost (historical FX, no inflation). User feedback: current FX is
-            // the right lens for "what's it worth now", and inflation is
-            // per-currency — not one home-region figure for every currency.
-            // This unifies the auto path with the manual-override formula.
-            let displayValue: number;
-            if (mode === 'today') {
-                const ov = tripOverrides[curUp];
-                // IA-1: only trust an override whose numbers are actually finite.
-                // A corrupt/hand-edited localStorage entry (NaN, Infinity, string)
-                // would otherwise turn displayValue into NaN and poison the total,
-                // donut, and timeline with no recovery — validateLoadedState never
-                // inspects this field. Bad override ⇒ fall back to the auto estimate.
-                const ovValid = ov && Number.isFinite(ov.fxToHome) && Number.isFinite(ov.inflationPct);
-                if (ovValid) {
-                    displayValue = e.value * ov.fxToHome * (1 + ov.inflationPct / 100);
-                } else {
-                    // Current FX: a manual CURRENT-year rate (Settings) overrides
-                    // the live one; the inflation factor prefers the manual annual
-                    // series, else the auto CPI (both handled in inflationFactorFor).
-                    const manualNowFx = manualFxFor(curUp, _curYear);
-                    const currentHome = manualNowFx != null
-                        ? e.value * manualNowFx
-                        : convertCurrency(e.value, e.currency, targetCurr);
-                    displayValue = currentHome * inflationFactorFor(curUp, e.date);
-                }
+            // "Worth today" = what this expense would cost TODAY, in home money:
+            // the foreign amount at TODAY'S FX, grown by that currency's OWN
+            // inflation since the expense's year — so it rises when prices/FX
+            // rose and FALLS when the currency got cheaper (the "did the trip get
+            // pricier or cheaper?" signal the user wants). A per-trip override
+            // replaces it; a no-rate currency falls back to the frozen euroValue
+            // (PV-1) instead of convertCurrency's 1:1 garbage. Computed for EVERY
+            // expense (not just in `today` mode) so the comparison works either way.
+            let todayValue: number;
+            const ov = tripOverrides[curUp];
+            // IA-1: only trust an override whose numbers are actually finite — a
+            // corrupt localStorage entry would otherwise poison the total with NaN.
+            const ovValid = ov && Number.isFinite(ov.fxToHome) && Number.isFinite(ov.inflationPct);
+            if (ovValid) {
+                todayValue = e.value * ov.fxToHome * Math.max(0, 1 + ov.inflationPct / 100);
             } else {
-                displayValue = spentHome;
+                const manualNowFx = manualFxFor(curUp, _curYear);
+                let currentHome: number;
+                if (manualNowFx != null) {
+                    currentHome = e.value * manualNowFx;
+                } else if (curUp === targetCurr || hasRate(curUp)) {
+                    currentHome = convertCurrency(e.value, e.currency, targetCurr);
+                } else {
+                    // PV-1: no live/static rate (VND/EGP/ARS…) → use the frozen
+                    // euroValue (a real, C1-gated conversion), NOT the 1:1 fallback.
+                    const euroVal = e.euroValue ?? convertCurrency(e.value, e.currency, 'EUR');
+                    currentHome = targetCurr === 'EUR' ? euroVal : convertCurrency(euroVal, 'EUR', targetCurr);
+                }
+                todayValue = currentHome * inflationFactorFor(curUp, e.date);
             }
-            return { ...e, displayValue };
+            const displayValue = mode === 'today' ? todayValue : spentHome;
+            return { ...e, displayValue, spentValue: spentHome, todayValue };
         });
 
         const totalDisplay = convertedExps.reduce((sum, e) => sum + e.displayValue, 0);
+        // Both legs summed so the hero can show "X% pricier / cheaper to do today".
+        const totalSpent = convertedExps.reduce((sum, e) => sum + e.spentValue, 0);
+        const totalToday = convertedExps.reduce((sum, e) => sum + e.todayValue, 0);
         const totalCount = convertedExps.length;
 
         let highestExpense: ConvertedExpense | null = null;
@@ -467,6 +493,8 @@ export function Insights() {
 
         return {
             totalDisplay,
+            totalSpent,
+            totalToday,
             totalCount,
             highestExpense,
             sortedSpenders,
@@ -654,6 +682,15 @@ export function Insights() {
     const heroCalculating = mode === 'today'
         ? !cpiChecked
         : (hasForeignSpend && !ratesSettled);
+
+    // "Did this trip get more expensive or cheaper to do today?" — compare the
+    // cost-to-do-today (Σ todayValue) against what was actually paid at the time
+    // (Σ spentValue), both in home currency. Positive ⇒ pricier now; negative ⇒
+    // cheaper now (e.g. the local currency weakened more than prices rose). Only
+    // surfaced once the inputs have settled and there's a non-trivial gap.
+    const pvDelta = totalSpent > 0 ? (totalToday - totalSpent) / totalSpent : 0;
+    const pvPct = Math.round(Math.abs(pvDelta) * 100);
+    const showPvCompare = !heroCalculating && totalSpent > 0 && pvPct >= 1;
 
     // ── Chart.js side-effects ─────────────────────────────────────────────
     const pieCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -900,7 +937,7 @@ export function Insights() {
             const avgYear = yrs.length ? Math.round(yrs.reduce((a, b) => a + b, 0) / yrs.length) : new Date().getFullYear();
             // Per-currency CPI (each currency's own region), matching the main
             // calc — so the override prefill IS the auto "worth today" figure.
-            const factor = makeInflationFactor(cpiCache[cur]);
+            const factor = makeInflationFactor(cpiCache[cur], new Date().getFullYear());
             return {
                 code: cur,
                 autoInflationPct: Math.round((factor(`${avgYear}-06-15`) - 1) * 1000) / 10,
@@ -1132,6 +1169,16 @@ export function Insights() {
                     <p className="hero-stat-card__sub" style={{ opacity: 0.7, marginTop: '4px' }}>
                         {t('insights.heroHomeCurrencyHint', { currency: targetCurr })}
                     </p>
+                    {/* "More expensive / cheaper to do today" — the headline answer
+                        to "did the trip get pricier or cheaper since then". */}
+                    {showPvCompare ? (
+                        <p className="text-[0.85rem] font-bold mt-2.5" style={{ color: pvDelta > 0 ? '#ff9500' : '#34c759' }}>
+                            {t(pvDelta > 0 ? 'insights.pvPricier' : 'insights.pvCheaper', {
+                                pct: String(pvPct),
+                                then: targetSym + formatNumberForCurrency(totalSpent, targetCurr),
+                            })}
+                        </p>
+                    ) : null}
                     {hasForeignSpend ? (
                         <button
                             type="button"

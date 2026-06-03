@@ -157,6 +157,13 @@ export const CURRENCY_TO_CPI_COUNTRY: Record<string, string> = {
     DKK: 'DNK', PLN: 'POL', CZK: 'CZE', HUF: 'HUN', CNY: 'CHN',
     INR: 'IND', BRL: 'BRA', MXN: 'MEX', ZAR: 'ZAF', KRW: 'KOR',
     SGD: 'SGP', HKD: 'HKG', IDR: 'IDN', THB: 'THA', TRY: 'TUR',
+    // PV-8 (present-value audit): the rest of the server-allowed +
+    // Frankfurter-pickable currencies, so their expenses get a real
+    // inflation factor instead of a silent 1.0. (TWN/Taiwan isn't in the
+    // World Bank dataset — left mapped; fetch just yields no series → 1.0.)
+    AED: 'ARE', ARS: 'ARG', BGN: 'BGR', CLP: 'CHL', COP: 'COL',
+    EGP: 'EGY', HRK: 'HRV', ILS: 'ISR', ISK: 'ISL', MYR: 'MYS',
+    PEN: 'PER', PHP: 'PHL', RON: 'ROU', SAR: 'SAU', TWD: 'TWN', VND: 'VNM',
 };
 
 // Country / region display name → ISO 4217 currency code.

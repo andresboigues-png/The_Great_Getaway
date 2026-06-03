@@ -203,6 +203,7 @@ export function ManualRatesEditor() {
                             <input
                                 type="number"
                                 step="0.1"
+                                min="-100"
                                 inputMode="decimal"
                                 className="glass-input"
                                 style={{ flex: 1, minWidth: '120px', padding: '7px 10px', borderRadius: '10px' }}
