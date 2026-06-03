@@ -9,6 +9,7 @@ clients don't break, but new code should prefer the delta routes.
 """
 
 import json
+import time
 
 from flask import Blueprint, jsonify, request
 
@@ -1070,6 +1071,23 @@ def get_data():
         known_version = request.args.get("knownVersion")
         if known_version and known_version == current_version:
             return jsonify({"unchanged": True, "version": current_version})
+        # Sync Phase 2: incremental expense pull. When the client sends a
+        # `?since=<epoch_ms>` cursor we return expenses as a DELTA (rows
+        # changed + ids deleted since the cursor) instead of the whole list;
+        # `serverTime` (now_ms) is the client's next cursor. A 2s safety
+        # margin absorbs sub-second timestamp truncation (strftime('%s') is
+        # second-resolution) + clock skew, so the delta can only OVER-send,
+        # never miss — the client merge applies it idempotently by id, and
+        # its periodic full pull self-heals any drift. So `?since=` is a
+        # pure optimization with a full-snapshot backstop.
+        now_ms = int(time.time() * 1000)
+        since_raw = request.args.get("since")
+        since_floor = None
+        if since_raw is not None:
+            try:
+                since_floor = int(since_raw) - 2000
+            except (TypeError, ValueError):
+                since_floor = None
         my_member_by_trip = {}
         members_by_trip = {}
         if all_trip_ids:
@@ -1192,14 +1210,37 @@ def get_data():
         # this clause is backwards-compatible.
         trip_ids = [t['id'] for t in trips]
         expenses = []
+        expenses_changed = []
+        expenses_deleted = []
+        expenses_delta = since_floor is not None
         if trip_ids:
             placeholders = ','.join(['?'] * len(trip_ids))
-            cursor.execute(
-                f"SELECT * FROM expenses "
-                f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL",
-                trip_ids,
-            )
-            expenses = [serialize_expense_row(row) for row in cursor.fetchall()]
+            if expenses_delta:
+                # DELTA: only rows changed (live, updated since the cursor) +
+                # ids tombstoned since the cursor. ms() = second-resolution
+                # epoch-ms via strftime('%s'); the 2s since_floor margin makes
+                # the boundary inclusive so nothing is missed (over-send only).
+                cursor.execute(
+                    f"SELECT * FROM expenses "
+                    f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL "
+                    f"AND CAST(strftime('%s', updated_at) AS INTEGER) * 1000 > ?",
+                    (*trip_ids, since_floor),
+                )
+                expenses_changed = [serialize_expense_row(row) for row in cursor.fetchall()]
+                cursor.execute(
+                    f"SELECT id FROM expenses "
+                    f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NOT NULL "
+                    f"AND CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 > ?",
+                    (*trip_ids, since_floor),
+                )
+                expenses_deleted = [row['id'] for row in cursor.fetchall()]
+            else:
+                cursor.execute(
+                    f"SELECT * FROM expenses "
+                    f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL",
+                    trip_ids,
+                )
+                expenses = [serialize_expense_row(row) for row in cursor.fetchall()]
 
         # §4.5 — settlements ride alongside expenses on the same /api/data
         # poll so the settlement page can subtract them from the raw
@@ -1347,7 +1388,14 @@ def get_data():
 
         return jsonify({
             "trips": trips,
+            # Expenses: full list on a normal pull; on a `?since=` pull the
+            # list is empty and the client merges expensesChanged/Deleted
+            # (Phase 2). expensesDelta tells the client which mode this is.
             "expenses": expenses,
+            "expensesDelta": expenses_delta,
+            "expensesChanged": expenses_changed,
+            "expensesDeleted": expenses_deleted,
+            "serverTime": now_ms,
             "settlements": settlements,
             "categories": categories,
             "budgets": budgets,

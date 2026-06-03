@@ -16,6 +16,7 @@ import { showLiquidAlert } from './utils.js';
 import { t } from './i18n.js';
 import type { Trip, Expense, Budget, TripDay, Category } from './types';
 import { computeCategoryDelta } from './utils/categoryDelta.js';
+import { mergeExpenseDelta } from './utils/expenseDelta.js';
 import {
     apiFetch,
     _post,
@@ -43,6 +44,16 @@ import { fetchNotifications } from './api/misc.js';
  *  spans every syncWithServer() call. */
 let _syncConsecutiveFailures = 0;
 let _syncOfflineToastShown = false;
+
+// Sync Phase 2: incremental-expense-pull cursor. `_expenseCursor` is the
+// server epoch-ms timestamp (serverTime) of the last applied pull; the
+// next pull sends it as `?since=` so the server returns expenses as a
+// delta instead of the full list. `_pullsSinceFull` forces a periodic
+// FULL pull (no `?since=`) as a self-heal backstop — even if a delta apply
+// ever drifted, the full list re-syncs within ~PULLS_BEFORE_FULL polls.
+let _expenseCursor: number | null = null;
+let _pullsSinceFull = 0;
+const PULLS_BEFORE_FULL = 20; // ~5 min at the 15s poll cadence
 
 export async function syncWithServer() {
     if (!STATE.user) return;
@@ -112,9 +123,16 @@ export async function pullFromServer() {
     if (!STATE.user) return;
     try {
         const _lastDataVersion = _getLastDataVersion();
-        const _url = _lastDataVersion
-            ? `/api/data?knownVersion=${encodeURIComponent(_lastDataVersion)}`
-            : '/api/data';
+        // Self-heal: force a periodic FULL expense pull (drop `?since=`) so
+        // any delta drift re-syncs. Also full whenever we have no cursor yet.
+        _pullsSinceFull += 1;
+        const _forceFull = _expenseCursor === null || _pullsSinceFull >= PULLS_BEFORE_FULL;
+        if (_forceFull) _pullsSinceFull = 0;
+        const _params = new URLSearchParams();
+        if (_lastDataVersion) _params.set('knownVersion', _lastDataVersion);
+        if (!_forceFull && _expenseCursor !== null) _params.set('since', String(_expenseCursor));
+        const _qs = _params.toString();
+        const _url = _qs ? `/api/data?${_qs}` : '/api/data';
         const res = await apiFetch(_url);
         const raw = await res.json();
         // MK3-10 change-detection: nothing in the caller's view changed since
@@ -193,7 +211,27 @@ export async function pullFromServer() {
             STATE.activeTripId = STATE.trips[0]!.id;
         }
 
-        STATE.expenses = data.expenses || [];
+        // Sync Phase 2: expenses arrive either as a full list (normal pull)
+        // or as a delta (`?since=` pull). On a delta, merge changed/deleted
+        // into the current list by id; otherwise replace wholesale. The
+        // delta fields live behind the validated payload's index signature,
+        // so read them through a typed view; malformed shapes fall back to
+        // empty (a no-op merge) and the periodic full pull self-heals.
+        const _delta = data as unknown as {
+            expensesDelta?: boolean;
+            expensesChanged?: Expense[];
+            expensesDeleted?: string[];
+            serverTime?: number;
+        };
+        if (_delta.expensesDelta) {
+            STATE.expenses = mergeExpenseDelta(
+                STATE.expenses || [],
+                Array.isArray(_delta.expensesChanged) ? _delta.expensesChanged : [],
+                Array.isArray(_delta.expensesDeleted) ? _delta.expensesDeleted : [],
+            );
+        } else {
+            STATE.expenses = data.expenses || [];
+        }
         // §4.5 — new member-keyed settlements ride alongside expenses.
         // `data.settlements` is always an array (server-side default)
         // but we guard with `|| []` so an older /api/data response
@@ -297,6 +335,10 @@ export async function pullFromServer() {
         // MK3-10: cache the version ONLY after a successful apply, so a failed
         // apply can never make the next poll skip a real change.
         if (_incomingVersion) _setLastDataVersion(_incomingVersion);
+        // Advance the incremental-pull cursor to this response's server
+        // timestamp, but ONLY after a successful apply — so a failed apply
+        // can't skip a real change on the next `?since=` window.
+        if (typeof _delta.serverTime === 'number') _expenseCursor = _delta.serverTime;
 
         // R12-B4 Phase 2: hydrate the ACTIVE trip's media if it hasn't
         // loaded yet (cold start / first paint after login). Cheap +
