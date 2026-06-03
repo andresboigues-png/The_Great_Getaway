@@ -709,7 +709,14 @@ declare global {
             type Geocoder = any;
             type DirectionsService = any;
             type DirectionsRenderer = any;
+            type DirectionsResult = any;
+            type DirectionsStatus = any;
+            type GeocoderResult = any;
+            type GeocoderStatus = any;
+            type MapMouseEvent = any;
+            type MapTypeStyle = any;
             type Data = any;
+            type DataFeature = any;
             namespace places {
                 type Autocomplete = any;
                 type AutocompleteService = any;
@@ -717,6 +724,8 @@ declare global {
                 type PlacesService = any;
                 type PlaceResult = any;
                 type AutocompletePrediction = any;
+                type PlacesServiceStatus = any;
+                type PlaceSearchPagination = any;
             }
         }
     }

@@ -17,7 +17,7 @@
 // a new one), same pattern as the inline version in home.ts —
 // callers don't need to track the rAF id themselves.
 
-declare const google: any;
+import type { TripDay } from '../../types';
 
 
 // One-shot console hint when we suspect the Directions / Routes
@@ -61,7 +61,7 @@ type RouteResult = { path: Leg[]; success: number };
  * Directions.
  */
 async function fetchTripRouteViaRoutes(legs: Leg[]): Promise<RouteResult | null> {
-    const key = (window as any).googleMapsApiKey || '';
+    const key = window.googleMapsApiKey || '';
     if (!key || !Array.isArray(legs) || legs.length < 2) return null;
     // length-checked above so first/last are guaranteed.
     const origin = legs[0]!;
@@ -166,15 +166,15 @@ export async function fetchDayRoutePath(legs: Leg[]): Promise<RouteResult | null
                         origin,
                         destination: dest,
                         travelMode: google.maps.TravelMode.DRIVING,
-                    }, (response: any, status: string) => {
+                    }, (response: google.maps.DirectionsResult | null, status: google.maps.DirectionsStatus) => {
                         if (status === 'OK' && response) resolve(response);
                         else reject(new Error(String(status)));
                     });
                 }),
                 new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 6000)),
             ]);
-            const route = (result as any).routes?.[0];
-            const overview = route?.overview_path?.map((p: any) => ({ lat: p.lat(), lng: p.lng() })) || [];
+            const route = (result as google.maps.DirectionsResult).routes?.[0];
+            const overview = route?.overview_path?.map((p: google.maps.LatLng) => ({ lat: p.lat(), lng: p.lng() })) || [];
             if (overview.length > 0) {
                 if (out.length > 0) out.push(...overview.slice(1));
                 else out.push(...overview);
@@ -232,8 +232,8 @@ export async function fetchDayRoutePath(legs: Leg[]): Promise<RouteResult | null
  * coords (nothing to connect).
  */
 export function renderDayRoutePolyline(
-    map: any,
-    currentTripDays: Array<any>,
+    map: google.maps.Map,
+    currentTripDays: TripDay[],
     activeTrip: { id?: string } | null,
 ): void {
     // Cancel prior pulse before starting a new one. Idempotent
@@ -243,9 +243,9 @@ export function renderDayRoutePolyline(
         _dayRouteAnimationFrame = null;
     }
     const dayPath: Leg[] = currentTripDays
-        .filter((d: any) => d.dayNumber > 0 && d.lat != null && (d.lon != null || d.lng != null))
-        .sort((a: any, b: any) => a.dayNumber - b.dayNumber)
-        .map((d: any) => ({ lat: Number(d.lat), lng: Number(d.lon ?? d.lng) }));
+        .filter((d) => d.dayNumber > 0 && d.lat != null && (d.lon != null || d.lng != null))
+        .sort((a, b) => a.dayNumber - b.dayNumber)
+        .map((d) => ({ lat: Number(d.lat), lng: Number(d.lon ?? d.lng) }));
     if (dayPath.length < 2) return;
 
     // Electric cyan reads as classic neon. Falls in the same

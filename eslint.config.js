@@ -182,6 +182,15 @@ export default tseslint.config(
         },
     },
 
+    // Declaration files are the home for external-SDK / CDN type stubs
+    // (the google.maps.* namespace, Chart, XLSX) which are intentionally `any` —
+    // we don't model those APIs. Exempt .d.ts from no-explicit-any so the stubs
+    // don't each report; real code references the typed alias names.
+    {
+        files: ['frontend/static/js/src/**/*.d.ts'],
+        rules: { '@typescript-eslint/no-explicit-any': 'off' },
+    },
+
     // Must be last: turns off any eslint rules that conflict with prettier.
     prettier
 );
