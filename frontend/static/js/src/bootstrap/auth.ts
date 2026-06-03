@@ -12,7 +12,7 @@ import { t } from '../i18n.js';
 import { updateUserUI } from '../pages/profile.js';
 import { attemptPendingClone, hasPendingCloneIntent } from './clone-intent.js';
 
-async function handleGoogleLogin(response: { credential?: string; [key: string]: any }) {
+async function handleGoogleLogin(response: { credential?: string; [key: string]: unknown }) {
     try {
         const res = await fetch(apiUrl('/api/auth/google'), {
             method: 'POST',

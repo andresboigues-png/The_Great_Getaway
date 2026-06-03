@@ -23,14 +23,22 @@ import { fetchWeatherForecast, pickDaySummary } from '../../googleMapsServices.j
 import { esc } from '../../utils.js';
 
 
-/** A multi-day forecast as returned by Google's Weather API. We don't
- *  model the row shape — `pickDaySummary` handles the structural
- *  variants (some endpoints return a `displayDate` object, others an
- *  ISO `interval.startTime`). Treat this as opaque.
+/** A single forecast row. The Weather API returns structural variants:
+ *  some rows expose a `displayDate` {year,month,day} object, others an
+ *  ISO `interval.startTime`. Only the date fields are modelled here —
+ *  everything else (temperature, condition, …) is consumed opaquely by
+ *  `pickDaySummary`, so the row carries an `unknown` index signature. */
+export interface WeatherForecastDay {
+    displayDate?: string | { year: number; month: number; day: number };
+    interval?: { startTime?: string };
+    [key: string]: unknown;
+}
+
+/** A multi-day forecast as returned by Google's Weather API.
  *
  *  `null` means "no forecast available" (no API key set, network
  *  blip, missing trip lat/lng) — the paint helper silently no-ops. */
-export type WeatherForecast = ReadonlyArray<Record<string, any>> | null;
+export type WeatherForecast = ReadonlyArray<WeatherForecastDay> | null;
 
 
 /** Paint weather chip content into every `.day-card__weather` slot
@@ -47,7 +55,7 @@ export function paintWeatherChips(
     if (!forecast || !pathTabInner) return;
     // Index forecastDays by YYYY-MM-DD for O(1) lookups inside the
     // querySelectorAll loop.
-    const byDate = new Map<string, Record<string, any>>();
+    const byDate = new Map<string, WeatherForecastDay>();
     for (const fd of forecast) {
         const dd = fd?.displayDate || fd?.interval?.startTime?.slice(0, 10);
         if (!dd) continue;

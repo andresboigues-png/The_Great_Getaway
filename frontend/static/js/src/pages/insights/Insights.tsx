@@ -39,8 +39,21 @@ import { showModal } from '../../components/Modal.js';
 import { iconSvg } from '../../icons.js';
 import { esc } from '../../utils.js';
 
-// Chart is loaded via CDN in index.html and declared as a global in types.d.ts
-declare const Chart: any;
+// Chart is loaded via CDN in index.html and declared as a global in types.d.ts.
+
+/** Minimal Chart.js tooltip-context shapes the callbacks below read. We
+ *  don't pull in @types/chart.js (Chart is a CDN `any`), so only the
+ *  fields actually touched are modelled. `parsed` is a scalar for
+ *  pie/doughnut charts and an {x,y} point for line/bar charts. */
+interface PieTooltipCtx {
+    label: string;
+    parsed: number;
+}
+interface XYTooltipCtx {
+    label: string;
+    parsed: { x: number; y: number };
+    dataset: { label?: string };
+}
 
 interface ConvertedExpense {
     id: string;
@@ -446,7 +459,7 @@ export function Insights() {
 
     // Net balances (who owes whom) — reuses the settlement engine (splits +
     // settlements), shown in the home currency. Hidden when everyone's even.
-    const activeTrip = STATE.trips.find((tr: any) => tr.id === activeTripId);
+    const activeTrip = STATE.trips.find((tr) => tr.id === activeTripId);
     const netBalances = activeTrip
         ? Object.entries(computeTripBalances(activeTrip).balances)
               .map(([name, eur]) => ({ name, eur: eur as number, home: convertCurrency(eur as number, 'EUR', targetCurr) }))
@@ -461,8 +474,8 @@ export function Insights() {
     // Budget vs. spent — planned (EUR canonical) vs actual spend per budget
     // scope, both shown in the home currency. Reuses the budgets helpers.
     const tripBudgets = (STATE.budgets || [])
-        .filter((b: any) => b.tripId === activeTripId || b.tripId === 'all')
-        .map((b: any) => {
+        .filter((b) => b.tripId === activeTripId || b.tripId === 'all')
+        .map((b) => {
             const stat = budgetStatus(b);
             const spentHome = convertCurrency(stat.spent, 'EUR', targetCurr);
             const targetHome = convertCurrency(stat.target, 'EUR', targetCurr);
@@ -581,7 +594,7 @@ export function Insights() {
                     legend: { position: 'right' },
                     tooltip: {
                         callbacks: {
-                            label: (ctx: any) => `${ctx.label}: ${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}`,
+                            label: (ctx: PieTooltipCtx) => `${ctx.label}: ${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}`,
                         },
                     },
                 },
@@ -632,12 +645,12 @@ export function Insights() {
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            title: (items: any[]) => {
+                            title: (items: XYTooltipCtx[]) => {
                                 const v = items && items[0] ? Number(items[0].parsed.x) : NaN;
                                 if (!Number.isFinite(v)) return '';
                                 return timelineDateLabel(new Date(v).toISOString().slice(0, 10), includeYear);
                             },
-                            label: (ctx: any) => targetSym + formatNumberForCurrency(ctx.parsed.y, targetCurr),
+                            label: (ctx: XYTooltipCtx) => targetSym + formatNumberForCurrency(ctx.parsed.y, targetCurr),
                         },
                     },
                 },
@@ -697,7 +710,7 @@ export function Insights() {
                     legend: { position: 'right' },
                     tooltip: {
                         callbacks: {
-                            label: (ctx: any) => `${ctx.label}: ${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}`,
+                            label: (ctx: PieTooltipCtx) => `${ctx.label}: ${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}`,
                         },
                     },
                 },
@@ -761,7 +774,7 @@ export function Insights() {
                     legend: { position: 'bottom' },
                     tooltip: {
                         callbacks: {
-                            label: (ctx: any) => `${ctx.dataset.label}: ${targetSym}${formatNumberForCurrency(ctx.parsed.y, targetCurr)}`,
+                            label: (ctx: XYTooltipCtx) => `${ctx.dataset.label}: ${targetSym}${formatNumberForCurrency(ctx.parsed.y, targetCurr)}`,
                         },
                     },
                 },

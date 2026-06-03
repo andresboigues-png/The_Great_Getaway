@@ -470,7 +470,7 @@ export async function pullFromServer() {
         // page with multiple "⚓ Anchor" cards because both rows have
         // dayNumber=0. Run a global pass here so the dedup self-heals
         // regardless of which trip is currently active.
-        const _day0sByTrip: Record<string, any[]> = {};
+        const _day0sByTrip: Record<string, TripDay[]> = {};
         for (const d of STATE.tripDays) {
             if (Number(d.dayNumber) !== 0) continue;
             (_day0sByTrip[d.tripId] ||= []).push(d);

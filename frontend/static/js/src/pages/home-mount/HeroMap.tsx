@@ -420,7 +420,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
             const pending = placesPending[key];
             if (pending) return pending;
 
-            const promise = new Promise<any[]>((resolve) => {
+            const promise = new Promise<google.maps.places.PlaceResult[]>((resolve) => {
                 if (!center || typeof center.lat !== 'number' || typeof center.lng !== 'number') {
                     resolve([]);
                     return;
