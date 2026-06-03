@@ -1,0 +1,482 @@
+// pages/settlement/actions.ts — settlement mutations + modal flows.
+//
+// The page's HTML-string builders used to live here too (the file was
+// `legacyRender.ts`); the §4 migration moved them to JSX in
+// SettlementView.tsx and the pure view-data helpers to viewData.ts. What
+// remains is the imperative side that JSX shouldn't own:
+//
+//   - settleDebt / deleteSettlement — async STATE mutations + server
+//     writes. No `root` parameter: they emit STATE_CHANGED and React's
+//     useStore subscriber repaints.
+//   - openManualSettleModal / openEditSettlementModal — transient
+//     showModal flows (focus-trap + form wiring), the same imperative
+//     modal pattern used across the app (e.g. openEditCategoryModal).
+//
+// The Settlement shell imports settleDebt/deleteSettlement/the modal
+// openers and passes them to SettlementView as callbacks.
+
+import { STATE, emit } from '../../state.js';
+import { EVENTS } from '../../constants.js';
+import {
+    generateId,
+    showConfirmModal,
+    q,
+    formatHome,
+    getHomeCurrency,
+    convertCurrency,
+    esc,
+    showLiquidAlert,
+} from '../../utils.js';
+import {
+    getTripCompanionNames,
+    findAcceptedMemberUserId,
+} from '../../companions.js';
+import { createSettlement, deleteSettlementOnServer, upsertExpense } from '../../api.js';
+import { showModal } from '../../components/Modal.js';
+import {
+    computeTripBalancesByCurrency,
+    simplifyDebts,
+} from './balances.js';
+import { tripPrimarySpendCurrency } from './viewData.js';
+import { t, formatCurrency } from '../../i18n.js';
+import type { Trip } from '../../types';
+
+// ── Mutations (no `root` parameter — emit triggers React re-render) ───
+
+/** Record a settlement between two trip members.
+ *
+ *  §4.5 — single-write architecture (post-cleanup of the dual-write
+ *  transition pattern). Routes by whether the two parties have user
+ *  accounts:
+ *
+ *    A. Both parties have `companion.linkedUserId`:
+ *       - POST /api/settlements with the user_ids + amount + method
+ *         + note + currency.
+ *       - On success: splice the server's `Settlement` row into
+ *         STATE.settlements and emit STATE_CHANGED. The balance math
+ *         in balances.ts reads STATE.settlements via
+ *         applySettlementToBalances, producing the right shift.
+ *       - On failure: keep silent (no fake-expense fallback for
+ *         this path — the user can retry; this avoids polluting
+ *         the data layer with "did it or didn't it" rows).
+ *       - Notifications + the `settled_up` feed event fire on the
+ *         server side automatically.
+ *
+ *    B. At least one party is a name-only companion (no
+ *       linkedUserId):
+ *       - Cannot POST to /api/settlements (the table is user_id
+ *         keyed). Push a legacy "Settlement: X → Y" expense row
+ *         with `isSettlement: true` into STATE.expenses. The
+ *         expense-based balance math handles it as before.
+ *       - No notification, no feed event for this path — there's
+ *         no user account to notify.
+ *
+ *  Pre-cleanup history: the previous version of this function did
+ *  both — pushed a fake-expense AND posted to the API. That avoided
+ *  the impedance mismatch in balances.ts during the §4.5 frontend
+ *  wiring rollout. balances.ts now reads STATE.settlements directly
+ *  via applySettlementToBalances, so the fake-expense is no longer
+ *  load-bearing for the linked-user path. */
+/** Integration audit A2: in-flight settle keys, to drop a concurrent
+ *  double-fire of the same settlement (tripId|from|to|amount) before the
+ *  optimistic repaint removes the button. Cleared in settleDebt's finally. */
+const _settleInFlight = new Set<string>();
+
+export async function settleDebt(
+    tripId: string,
+    from: string,
+    to: string,
+    amount: number,
+    currency: string,
+    options?: { method?: string; note?: string },
+): Promise<void> {
+    if (from === to) {
+        showLiquidAlert(t('settlement.toastSenderEqualsReceiver'));
+        return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+        showLiquidAlert(t('settlement.toastAmountInvalid'));
+        return;
+    }
+    // R3-Round 2 fix: explicit offline check. The settle flow POSTs
+    // to /api/settlements (PATH A below) — without this gate the
+    // submit blocks for ~30s on a metro / plane connection until the
+    // fetch errors out, leaving the modal open with no feedback. The
+    // api.ts offline toast only fires after two consecutive /api/sync
+    // failures, not for one-shot writes. navigator.onLine is the
+    // browser's best-effort signal — false positives possible (it
+    // returns true when on a captive wifi with no DNS) but false
+    // negatives are very rare, so an "offline" reading is reliable.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        showLiquidAlert(t('errors.offline'));
+        return;
+    }
+    const euroValue = convertCurrency(amount, currency, 'EUR');
+
+    const trip = STATE.trips.find((tr) => tr.id === tripId);
+    // Integration audit INT-2: resolve each party to an ACCEPTED-member
+    // user id. Prefer the companion's explicit `linkedUserId`, then fall
+    // back to the trip's accepted-members roster (Trip.members) by name.
+    // Pre-fix this read ONLY `findTripCompanion(...).linkedUserId`, so an
+    // accepted member whose companion row was never linked (the common
+    // "invite, then separately-named companion" flow) was wrongly routed
+    // to the legacy fake-expense path EVEN THOUGH the server would have
+    // accepted a real settlement (it gates on `_is_accepted_member` —
+    // settlements.py:226). findAcceptedMemberUserId realigns the PATH A/B
+    // decision with what the API actually accepts.
+    const fromUserId = findAcceptedMemberUserId(trip, from);
+    const toUserId = findAcceptedMemberUserId(trip, to);
+
+    // Integration audit A2 (idempotency): the one-click Settle button used
+    // to give NO on-screen feedback — a mutating `.push` (below) left the
+    // balances' array-ref identity unchanged, so Settlement.tsx's useMemo
+    // never recomputed and the page kept showing the pre-settle debts.
+    // Users re-clicked and DUPLICATED the settlement, inverting the ledger
+    // ("Sara owes Alex €X" became "Alex owes Sara €X"). The repaint is
+    // fixed below via immutable replace; this guard additionally blocks a
+    // concurrent double-fire during the async PATH A round-trip.
+    const inFlightKey = `${tripId}::${from}::${to}::${amount}`;
+    if (_settleInFlight.has(inFlightKey)) return;
+    _settleInFlight.add(inFlightKey);
+    try {
+        if (fromUserId && toUserId) {
+            // PATH A — server-side settlement. Await the POST so we can
+            // splice the server's row (with its real id + createdAt) into
+            // STATE.settlements before emitting. The brief in-flight wait
+            // (~200-500ms) is acceptable; the next /api/data poll would
+            // hydrate the same row anyway, but we don't want to block on
+            // it for the UI update.
+            const result = await createSettlement({
+                tripId,
+                fromUserId,
+                toUserId,
+                amount,
+                currency,
+                euroValue,
+                ...(options?.method ? { method: options.method } : {}),
+                ...(options?.note ? { note: options.note } : {}),
+            });
+            if (result.settlement) {
+                // INT-3: immutable replace (not `.push`) so the new array
+                // identity bumps Settlement.tsx's useStore(settlements) dep
+                // and the balances repaint immediately.
+                STATE.settlements = [...STATE.settlements, result.settlement];
+                emit(EVENTS.STATE_CHANGED);
+                showLiquidAlert(t('settlement.toastRecordedNotified', {
+                    amount: formatHome(euroValue, 'EUR'),
+                    from,
+                    to,
+                }));
+            } else {
+                // Log + toast. We deliberately don't fall back to the
+                // fake-expense pattern here — keeping the data layer
+                // clean is worth the user-visible failure mode.
+                // Sentry catches via §3.8's structured logging.
+                console.warn('[settlement] /api/settlements failed:', result.error);
+                showLiquidAlert(t('settlement.toastSettlementFailed', {
+                    error: result.error || t('settlement.toastSettlementFailedNetwork'),
+                }));
+                // 2026-05-25 (audit S3): emit STATE_CHANGED so the Settle
+                // button re-renders out of its disabled "Recording…" state.
+                // Without this, the button stayed permanently disabled on
+                // failure since no state mutation triggered a repaint —
+                // user had to navigate away to re-arm the row.
+                emit(EVENTS.STATE_CHANGED);
+            }
+            return;
+        }
+
+        // PATH B — legacy fake-expense for name-only companions. The
+        // settlements table can't store these rows (it's user_id keyed),
+        // so we keep the expense-driven balance shift as the only path.
+        const settlementExp = {
+            id: generateId(),
+            tripId: tripId,
+            label: t('settlement.settlementLabel', { from, to }),
+            value: amount,
+            euroValue: euroValue,
+            currency: currency,
+            who: from,
+            categoryId: STATE.categories[0]?.id ?? '',
+            country: t('settlement.expenseCountry'),
+            date: new Date().toISOString().split('T')[0] ?? '',
+            splits: { [to]: 100 },
+            isSettlement: true,
+        };
+        // INT-3: immutable replace (not `.push`) so the new array identity
+        // bumps Settlement.tsx's useMemo `expenses` dep and the balances
+        // repaint immediately — pre-fix the push left the page showing the
+        // pre-settle debts, so users re-clicked and duplicated the row.
+        STATE.expenses = [...STATE.expenses, settlementExp];
+        emit(EVENTS.STATE_CHANGED);
+        // R10-B1 P0-2: POST the new fake-expense row to /api/expenses
+        // immediately. Pre-fix the legacy name-only path only pushed
+        // into STATE.expenses; the ship-to-server depended on the
+        // next /api/sync poll firing AND succeeding. A tab close in
+        // that window lost the settlement. Same outbox-safe pattern
+        // as the edit path above.
+        void upsertExpense(settlementExp);
+        showLiquidAlert(t('settlement.toastRecorded', {
+            amount: formatHome(euroValue, 'EUR'),
+            from,
+            to,
+        }));
+    } finally {
+        _settleInFlight.delete(inFlightKey);
+    }
+}
+
+/** Undo a recorded settlement. Routes by source:
+ *
+ *    - 'expense'    (legacy isSettlement fake-row) — filter
+ *                   STATE.expenses synchronously. The next /api/sync
+ *                   pushes the removal to the server.
+ *
+ *    - 'settlement' (post-§4.5 server row) — DELETE
+ *                   /api/settlements/<id>. The server enforces the
+ *                   "creator OR trip owner" rule (recipient gets
+ *                   403 — see settlements.py:delete_settlement).
+ *                   On success we splice the row out of
+ *                   STATE.settlements locally so the UI updates
+ *                   immediately; on failure we log + toast and
+ *                   leave local state intact.
+ *
+ *  Falls back to 'expense' when source isn't supplied (back-compat
+ *  with any earlier callsite that didn't pass it). */
+export async function deleteSettlement(
+    id: string,
+    source: 'expense' | 'settlement' = 'expense',
+): Promise<void> {
+    showConfirmModal({
+        title: t('settlement.toastUnsettleConfirmTitle'),
+        message: t('settlement.toastUnsettleConfirmMessage'),
+        confirmText: t('settlement.toastUnsettleConfirmBtn'),
+        onConfirm: () => { void (async () => {
+            if (source === 'settlement') {
+                const result = await deleteSettlementOnServer(id);
+                if (result.error) {
+                    console.warn('[settlement] delete failed:', result.error);
+                    showLiquidAlert(
+                        `Couldn't undo: ${result.error || 'Network error'}`,
+                    );
+                    return;
+                }
+                STATE.settlements = STATE.settlements.filter((s) => s.id !== id);
+                emit(EVENTS.STATE_CHANGED);
+                return;
+            }
+            // Legacy expense path — local mutation; the next /api/sync
+            // round-trip persists the removal server-side.
+            STATE.expenses = STATE.expenses.filter((e) => e.id !== id);
+            emit(EVENTS.STATE_CHANGED);
+        })(); },
+    });
+}
+
+// ── Modals ────────────────────────────────────────────────────────────
+
+/** Method quick-picks for the manual settle modal. The `value` is the
+ *  enum sent to /api/settlements (mirrors server-side _ALLOWED_METHODS
+ *  in routes/settlements.py — any value here gets accepted unchanged;
+ *  'custom' is the catch-all for free-form notes). The `labelKey`
+ *  resolves at render time so the dropdown reflects the active locale.
+ *  Roadmap §4.5 calls out this list. */
+const SETTLE_METHODS = [
+    { value: 'cash',          labelKey: 'settlement.methodCash' as const },
+    { value: 'revolut',       labelKey: 'settlement.methodRevolut' as const },
+    { value: 'bank_transfer', labelKey: 'settlement.methodBankTransfer' as const },
+    { value: 'wise',          labelKey: 'settlement.methodWise' as const },
+    { value: 'paypal',        labelKey: 'settlement.methodPayPal' as const },
+    { value: 'custom',        labelKey: 'settlement.methodCustom' as const },
+];
+
+export function openManualSettleModal(tripId: string): void {
+    const trip = STATE.trips.find((tr) => tr.id === tripId);
+    const peopleSource = getTripCompanionNames(trip);
+    const peopleOptions = peopleSource.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+    const methodOptions = SETTLE_METHODS
+        .map(m => `<option value="${esc(m.value)}">${esc(t(m.labelKey))}</option>`)
+        .join('');
+    const home = getHomeCurrency();
+    // MK3-8: per-currency manual settle. Offer the trip's actual spend
+    // currencies (default = the primary one), falling back to home when the
+    // trip has no expenses yet. The debt is settled in the chosen currency
+    // and the overpay check compares like-for-like.
+    const _manualByCur = computeTripBalancesByCurrency(trip).byCurrency;
+    const _manualCurs = Object.keys(_manualByCur);
+    const _manualDefaultCur = (tripPrimarySpendCurrency(trip?.id ?? '') || home).toUpperCase();
+    const _manualCurList = _manualCurs.length > 0 ? _manualCurs : [home.toUpperCase()];
+    const currencyOptions = _manualCurList
+        .map((c) => `<option value="${esc(c)}" ${c === _manualDefaultCur ? 'selected' : ''}>${esc(c)}</option>`)
+        .join('');
+
+    const { root: modalRoot, close } = showModal({
+        variant: 'glass-light',
+        cardStyle: 'width: 440px; max-width: calc(100vw - 32px);',
+        innerHTML: `
+            <h2 class="h2-display">${t('settlement.manualTitle')}</h2>
+            <p class="text-subtitle">${t('settlement.manualSubtitle')}</p>
+            <form id="manualSettleForm" style="display:flex; flex-direction:column; gap: var(--space-3); margin-top: var(--space-4);">
+                <label class="form-label">${esc(t('settlement.labelFrom'))}</label>
+                <select id="manualSettleFrom" class="glass-input stl-card-minor-bg">${peopleOptions}</select>
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelTo'))}</label>
+                <select id="manualSettleTo" class="glass-input stl-card-minor-bg">${peopleOptions}</select>
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelAmount', { currency: _manualDefaultCur }))}</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input stl-card-minor" placeholder="0.00" required style="flex:2;">
+                    <select id="manualSettleCurrency" class="glass-input stl-card-minor-bg" style="flex:1;" aria-label="${esc(t('settlement.labelAmount', { currency: '' }))}">${currencyOptions}</select>
+                </div>
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelMethod'))}</label>
+                <select id="manualSettleMethod" class="glass-input stl-card-minor-bg">${methodOptions}</select>
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelNote'))} <span class="text-subtitle" style="font-weight:500;">${esc(t('settlement.labelNoteOptional'))}</span></label>
+                <input type="text" id="manualSettleNote" class="glass-input" maxlength="240" placeholder="${esc(t('settlement.notePlaceholder'))}" class="stl-card-minor">
+                <div style="display:flex; gap: var(--space-3); margin-top: var(--space-4);">
+                    <button type="button" id="cancelManualSettleBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">${esc(t('settlement.cancelBtn'))}</button>
+                    <button type="submit" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">${esc(t('settlement.recordPaymentBtn'))}</button>
+                </div>
+            </form>
+        `,
+    });
+    (q(modalRoot, '#cancelManualSettleBtn') as HTMLButtonElement).onclick = () => close();
+    (q(modalRoot, '#manualSettleForm') as HTMLFormElement).onsubmit = (evt) => {
+        evt.preventDefault();
+        const from = (q(modalRoot, '#manualSettleFrom') as HTMLSelectElement).value;
+        const to = (q(modalRoot, '#manualSettleTo') as HTMLSelectElement).value;
+        const amount = parseFloat((q(modalRoot, '#manualSettleAmount') as HTMLInputElement).value);
+        const cur = ((q(modalRoot, '#manualSettleCurrency') as HTMLSelectElement)?.value || home).toUpperCase();
+        const method = (q(modalRoot, '#manualSettleMethod') as HTMLSelectElement).value;
+        const note = (q(modalRoot, '#manualSettleNote') as HTMLInputElement).value.trim();
+        if (from === to) {
+            showLiquidAlert(t('settlement.toastSenderEqualsReceiver'));
+            return;
+        }
+        // 2026-05-26 (audit S5): warn when the entered amount exceeds
+        // the actual outstanding debt from `from` → `to`. Without this
+        // check, typing €60 when only €30 is owed silently flipped the
+        // balance — Bob now owes Alice €30 — and the user thought
+        // they'd settled the debt cleanly. Now we compute the
+        // pairwise outstanding via simplifyDebts() on the current trip
+        // balance map and pop a confirm if amount > owed (any positive
+        // owed; the value-of-zero case is "settling a fictional debt"
+        // which is also worth confirming). Confirms always settle as
+        // requested — this is a UX nudge, not a hard gate.
+        // MK3-8: overpay check is per-currency (owed in `cur`, no conversion).
+        const owed = _pairwiseOwed(trip, from, to, cur);
+        const proceed = () => {
+            // The method + note flow into /api/settlements when both
+            // parties have linkedUserIds (see settleDebt step 2). They
+            // get dropped silently for the legacy companion-by-name path
+            // since there's no server-side record to attach them to.
+            void settleDebt(tripId, from, to, amount, cur, { method, note });
+            close();
+        };
+        if (amount > owed + 0.005) {
+            showConfirmModal({
+                title: t('settlement.overpayConfirmTitle'),
+                message: owed > 0.005
+                    ? t('settlement.overpayConfirmBody', {
+                        amount: formatCurrency(amount, cur),
+                        owed: formatCurrency(owed, cur),
+                        from,
+                        to,
+                    })
+                    : t('settlement.overpayConfirmBodyNone', {
+                        amount: formatCurrency(amount, cur),
+                        from,
+                        to,
+                    }),
+                confirmText: t('settlement.overpayConfirmBtn'),
+                onConfirm: proceed,
+            });
+            return;
+        }
+        proceed();
+    };
+}
+
+
+/** Compute how much `from` net-owes `to` on a trip, in the user's
+ *  home currency. Drives the overpayment warning on the manual-settle
+ *  modal (audit S5). Walks the simplified-debt graph since pairwise
+ *  netting can hide behind a chain (Alice owes Bob via Charlie etc.);
+ *  if the direct from→to edge exists, that's the answer, otherwise 0
+ *  (no direct debt; the user is paying into a chain we can't simplify
+ *  without re-running netting from scratch). */
+function _pairwiseOwed(trip: Trip | undefined, from: string, to: string, currency: string): number {
+    if (!trip) return 0;
+    // MK3-8: per-currency. Net debts within the requested currency only and
+    // return the direct from→to edge in that currency (no conversion), so the
+    // overpay nudge compares like-for-like with the entered amount.
+    const { byCurrency } = computeTripBalancesByCurrency(trip);
+    const bal = byCurrency[(currency || 'EUR').toUpperCase()];
+    if (!bal) return 0;
+    const edge = simplifyDebts(bal).find((d) => d.from === from && d.to === to);
+    return edge ? edge.amount : 0;
+}
+
+export function openEditSettlementModal(id: string): void {
+    const s = STATE.expenses.find((e) => e.id === id);
+    if (!s) return;
+    const trip = STATE.trips.find((tr) => tr.id === s.tripId);
+    const peopleSource = getTripCompanionNames(trip);
+    const fromOpts = peopleSource
+        .map((p) => `<option value="${esc(p)}" ${s.who === p ? 'selected' : ''}>${esc(p)}</option>`)
+        .join('');
+    const toPerson = Object.keys(s.splits || {})[0];
+    const toOpts = peopleSource
+        .map((p) => `<option value="${esc(p)}" ${toPerson === p ? 'selected' : ''}>${esc(p)}</option>`)
+        .join('');
+    const home = getHomeCurrency();
+
+    const { root: modalRoot, close } = showModal({
+        variant: 'glass-light',
+        cardStyle: 'width: 440px; max-width: calc(100vw - 32px);',
+        innerHTML: `
+            <h2 class="h2-display">${t('settlement.editTitle')}</h2>
+            <form id="editSettlementForm" style="display:flex; flex-direction:column; gap: var(--space-3); margin-top: var(--space-4);">
+                <label class="form-label">${esc(t('settlement.labelFrom'))}</label>
+                <select id="editSettleFrom" class="glass-input stl-card-minor-bg">${fromOpts}</select>
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelTo'))}</label>
+                <select id="editSettleTo" class="glass-input stl-card-minor-bg">${toOpts}</select>
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelAmount', { currency: home }))}</label>
+                <input type="number" step="0.01" min="0.01" id="editSettleAmount" value="${convertCurrency(s.euroValue || 0, 'EUR', home).toFixed(2)}" class="glass-input" required class="stl-card-minor">
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelDate'))}</label>
+                <input type="date" id="editSettleDate" value="${esc(s.date || '')}" class="glass-input" required class="stl-card-minor">
+                <div style="display:flex; gap: var(--space-3); margin-top: var(--space-4);">
+                    <button type="button" id="cancelEditSettleBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">${esc(t('settlement.cancelBtn'))}</button>
+                    <button type="submit" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">${esc(t('settlement.updateBtn'))}</button>
+                </div>
+            </form>
+        `,
+    });
+    (q(modalRoot, '#cancelEditSettleBtn') as HTMLButtonElement).onclick = () => close();
+    (q(modalRoot, '#editSettlementForm') as HTMLFormElement).onsubmit = (evt) => {
+        evt.preventDefault();
+        const from = (q(modalRoot, '#editSettleFrom') as HTMLSelectElement).value;
+        const to = (q(modalRoot, '#editSettleTo') as HTMLSelectElement).value;
+        const amount = parseFloat((q(modalRoot, '#editSettleAmount') as HTMLInputElement).value);
+        const date = (q(modalRoot, '#editSettleDate') as HTMLInputElement).value;
+        if (from === to) {
+            showLiquidAlert(t('settlement.toastSenderEqualsReceiver'));
+            return;
+        }
+        s.who = from;
+        s.splits = { [to]: 100 };
+        s.value = amount;
+        s.currency = home;
+        s.euroValue = convertCurrency(amount, home, 'EUR');
+        s.date = date;
+        s.label = t('settlement.settlementLabel', { from, to });
+        emit(EVENTS.STATE_CHANGED);
+        // R10-B1 P0-1: POST the edit to /api/expenses (these legacy
+        // settlement rows live as is_settlement=1 expenses, so the
+        // existing upsert path handles them — splits + is_settlement
+        // persist server-side per R3-Fix #18). Pre-fix the mutation
+        // landed ONLY in STATE and waited for the next /api/sync poll
+        // to ship; a tab close before that poll lost the edit
+        // entirely. upsertExpense is fire-and-forget — the offline
+        // outbox (R7-F1) catches network failures.
+        void upsertExpense(s);
+        close();
+    };
+}

@@ -7626,7 +7626,7 @@ def test_settlement_failure_error_shape_is_top_level_error_key(
     client, seed_user, auth_headers,
 ):
     """R12-B2: pin the FAILURE error shape the frontend toast depends
-    on. `legacyRender.ts` settle-now path renders
+    on. The `settlement/actions.ts` settle-now path renders
     `t('settlement.toastSettlementFailed', { error: result.error })`.
     If a future refactor changes the server's failure body to
     `{message: ...}` (or nests under `{detail: ...}`), the toast would
