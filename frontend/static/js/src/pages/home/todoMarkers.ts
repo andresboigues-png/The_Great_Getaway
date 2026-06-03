@@ -24,16 +24,17 @@
 
 import { esc } from '../../utils.js';
 import { getIntlLocale } from '../../i18n.js';
+import type { Trip, TripDay, MarkedPlace } from '../../types';
 
 /** Inputs paintTodoMarkers needs from renderHome. */
 export interface TodoMarkersContext {
     map: google.maps.Map;
     /** The active trip (read .markedPlaces from this). */
-    activeTrip: any;
+    activeTrip: Trip | null | undefined;
     /** Trip's days (used to look up the selected day's dayNumber so
      *  we know whether the user is on Anchor — show all — or on a
      *  numbered day — filter). */
-    days: any[];
+    days: TripDay[];
     /** Day id currently selected on the path-tab wheel. Null = no
      *  selection yet (treat like Anchor — show all). */
     selectedDayId: string | null;
@@ -106,7 +107,7 @@ export function paintTodoMarkers(ctx: TodoMarkersContext): Record<string, google
      *  The reset of inline styles match the POI InfoWindow style
      *  (font, type scale, padding) so a place that's both POI and
      *  to-do reads consistently across both windows. */
-    const openTodoInfoWindow = (marker: google.maps.Marker, place: any) => {
+    const openTodoInfoWindow = (marker: google.maps.Marker, place: MarkedPlace) => {
         const iw = getIw();
         const displayName = place.verifiedName || place.name || 'Place';
         // Phase G v3 — photo height tightened (120 → 96) so the
@@ -216,9 +217,9 @@ export function paintTodoMarkers(ctx: TodoMarkersContext): Record<string, google
             // X — neither obvious. Re-clicking the same marker is the
             // intuitive "I'm done with this" gesture.
             const iw = getIw();
-            const anchor = (iw as any).getAnchor?.();
+            const anchor = iw.getAnchor?.();
             const iwIsOnThisMarker = anchor === marker;
-            const iwIsOpen = !!(iw as any).getMap?.();
+            const iwIsOpen = !!iw.getMap?.();
             if (iwIsOpen && iwIsOnThisMarker) {
                 iw.close();
                 return;
