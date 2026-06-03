@@ -8,6 +8,7 @@ import { normalizeTripCompanions } from './companions.js';
 import { showLiquidAlert } from './utils.js';
 import { t } from './i18n.js';
 import { enqueueMutation } from './outbox.js';
+import type { Expense, Budget, TripDay } from './types';
 
 // All fetch URLs are built via apiUrl() so the API_BASE_URL constant is the
 // single point that needs to change when the backend isn't co-located with
@@ -594,6 +595,7 @@ const _delete = (url: string, body: unknown) => apiFetch(url, {
 export interface ApiJsonResult {
     ok: boolean;
     status: number;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- loosely-typed API JSON response; tightened at boundaries in Phase A4 (zod).
     body: any;
 }
 
@@ -604,7 +606,7 @@ const _postJson = async (url: string, body: unknown): Promise<ApiJsonResult> => 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
         });
-        let payload: any = null;
+        let payload: unknown = null;
         try { payload = await res.json(); } catch { /* not JSON, ignore */ }
         return { ok: res.ok, status: res.status, body: payload };
     } catch (e) {
@@ -634,9 +636,10 @@ const _postJson = async (url: string, body: unknown): Promise<ApiJsonResult> => 
  *  variant for callers (openAddDayModal) that need the result
  *  envelope.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- heterogeneous domain row (Trip/Expense/Budget/Day) passthrough; typed at the public upsert* wrappers, server JSON in Phase A4 (zod).
 async function _upsertWithUpdatedAt(url: string, key: string, obj: any) {
-    const payload: any = { [key]: obj };
-    let payloadBody: any = obj;
+    const payload: Record<string, unknown> = { [key]: obj };
+    let payloadBody: unknown = obj;
     if (obj && typeof obj === 'object' && obj.updatedAt) {
         // Spread so we don't accidentally add a `clientUpdatedAt`
         // property to the live STATE row.
@@ -692,8 +695,9 @@ async function _upsertWithUpdatedAt(url: string, key: string, obj: any) {
     }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- heterogeneous domain row passthrough; see _upsertWithUpdatedAt.
 async function _upsertWithUpdatedAtJson(url: string, key: string, obj: any): Promise<ApiJsonResult> {
-    const payload: any = { [key]: obj };
+    const payload: Record<string, unknown> = { [key]: obj };
     if (obj && typeof obj === 'object' && obj.updatedAt) {
         payload[key] = { ...obj, clientUpdatedAt: obj.updatedAt };
     }
@@ -703,6 +707,7 @@ async function _upsertWithUpdatedAtJson(url: string, key: string, obj: any): Pro
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- loosely-typed API JSON response; field-accessed below, tightened in Phase A4 (zod).
         let body: any = null;
         try { body = await res.json(); } catch { /* not JSON */ }
         if (res.status === 409) {
@@ -1360,7 +1365,7 @@ export function removeTripMember(tripId: string, targetUserId: string) {
 
 /** Upsert a single expense to the server. See upsertTrip for
  *  the optimistic-concurrency contract. */
-export function upsertExpense(expense: any) {
+export function upsertExpense(expense: Expense) {
     if (!STATE.user) return;
     return _upsertWithUpdatedAt('/api/expenses', 'expense', expense);
 }
@@ -1403,7 +1408,7 @@ export function syncCategories() {
 
 /** Upsert a single budget to the server. See upsertTrip for
  *  the optimistic-concurrency contract. */
-export function upsertBudget(budget: any) {
+export function upsertBudget(budget: Budget) {
     if (!STATE.user) return;
     return _upsertWithUpdatedAt('/api/budgets', 'budget', budget);
 }
@@ -1424,7 +1429,7 @@ export function deleteBudgetOnServer(budgetId: string) {
  * day in local state only, so pull-from-server on the other device
  * would never see it. With the result envelope, openAddDayModal can
  * now toast on failure and the user knows to retry. */
-export function upsertDay(day: any) {
+export function upsertDay(day: TripDay) {
     if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null } as ApiJsonResult);
     // R3-Round 5: wire optimistic-concurrency. Same shape as
     // upsertTrip/Expense/Budget but keeps the existing
