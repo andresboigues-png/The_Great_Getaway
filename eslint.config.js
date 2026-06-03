@@ -154,8 +154,13 @@ export default tseslint.config(
             'react-hooks/rules-of-hooks': 'error',
             'react-hooks/exhaustive-deps': 'warn',
 
-            // The ~200 anys are a worklist (domain-model typing), not a blocker.
-            '@typescript-eslint/no-explicit-any': 'warn',
+            // The domain-model typing effort cleared every `any` in src/**
+            // (the ~200-any worklist is done). Now a HARD gate: a new bare
+            // `any` fails lint. Genuine dynamic boundaries (the /api/data
+            // shallow validator, Google Weather JSON, SheetJS rows) carry a
+            // documented inline eslint-disable; external-SDK/CDN `any` stubs
+            // live in .d.ts, which the override below exempts.
+            '@typescript-eslint/no-explicit-any': 'error',
             // `!` is used deliberately (noUncheckedIndexedAccess makes it
             // ergonomic); @ts-ignore appears in a handful of spots — surface,
             // don't block.
