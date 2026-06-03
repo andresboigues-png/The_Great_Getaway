@@ -550,6 +550,15 @@ export interface AppState {
      *  `{ [tripId]: { [CURRENCY]: { inflationPct, fxToHome } } }`. Client-only
      *  display preference — settlements/budgets stay nominal. */
     fxOverridesByTrip: Record<string, Record<string, { inflationPct: number; fxToHome: number }>>;
+    /** Global (device-local) manual exchange + inflation rates the user sets
+     *  in Settings → Personalization, keyed by UPPERCASE currency then year
+     *  string. `fx` = how many HOME-currency units 1 unit of the currency was
+     *  worth THAT year; `inflationPct` = that currency's annual inflation %
+     *  for that year. Both fields optional (blank ⇒ fall back to automatic).
+     *  Insights prefers these over the auto World-Bank CPI + Frankfurter FX;
+     *  a per-trip fxOverride still wins over them. Settlements/budgets never
+     *  read this (they stay nominal). */
+    manualRates: Record<string, Record<string, { fx?: number; inflationPct?: number }>>;
     user: User | null;
     hasLoggedInBefore: boolean;
     excelMapping: Record<string, string>;

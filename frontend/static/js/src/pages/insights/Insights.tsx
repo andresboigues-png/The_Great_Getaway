@@ -145,6 +145,10 @@ export function Insights() {
     // reference) recomputes the calc useMemo below; the active trip's slice
     // is read inside it.
     const fxOverridesByTrip = useStore((s) => s.fxOverridesByTrip);
+    // Global manual exchange/inflation rates (Settings → Personalization).
+    // Subscribed so an edit there re-runs the calc useMemo below; the actual
+    // per-currency/per-year lookups go through utils/manualRates.
+    const manualRates = useStore((s) => s.manualRates);
     // Currency-breakdown expander (multi-currency trips only).
     const [showCurrencyBreakdown, setShowCurrencyBreakdown] = useState(false);
     // Has the CPI fetch settled (resolved or failed)? Gates the
@@ -275,11 +279,28 @@ export function Insights() {
         // which the user flagged ("inflation happened for the other
         // currencies as well"). makeInflationFactor returns 1 for a
         // currency whose series hasn't loaded / doesn't exist.
-        const _factorByCur: Record<string, (d: string) => number> = {};
+        const _curYear = new Date().getFullYear();
+        const _autoFactorByCur: Record<string, (d: string) => number> = {};
         const inflationFactorFor = (cur: string, date: string): number => {
             const c = (cur || 'EUR').toUpperCase();
-            if (!_factorByCur[c]) _factorByCur[c] = makeInflationFactor(cpiCache[c]);
-            return _factorByCur[c]!(date);
+            const y = (date || '').slice(0, 4);
+            // Per-YEAR precedence: a manual cumulative-to-today % the user pinned
+            // for THIS expense's year (Settings) wins; otherwise fall back to the
+            // auto World-Bank CPI factor for the currency. Setting one year does
+            // NOT disable auto for the currency's other years.
+            const manualPct = manualRates[c] && manualRates[c]![y] ? manualRates[c]![y]!.inflationPct : undefined;
+            if (Number.isFinite(manualPct)) return 1 + (manualPct as number) / 100;
+            if (!_autoFactorByCur[c]) _autoFactorByCur[c] = makeInflationFactor(cpiCache[c]);
+            return _autoFactorByCur[c]!(date);
+        };
+        // Manual per-year exchange rate (1 unit of `cur` in home units) for a
+        // given year, or null. Used for BOTH the at-trip historical FX and the
+        // worth-today current-year FX, taking precedence over the auto rates.
+        const manualFxFor = (cur: string, year: string | number): number | null => {
+            const c = (cur || 'EUR').toUpperCase();
+            if (c === targetCurr) return 1;
+            const r = manualRates[c] && manualRates[c]![String(year)];
+            return r && Number.isFinite(r.fx) && (r.fx as number) > 0 ? (r.fx as number) : null;
         };
 
         const convertedExps: ConvertedExpense[] = tripExps.map((e: Expense) => {
@@ -295,12 +316,20 @@ export function Insights() {
             // from the same Frankfurter fetch, so in practice they land
             // together; when either is missing we fall back to the
             // write-time frozen euroValue + a single static/live hop.
+            const curUp = (e.currency || 'EUR').toUpperCase();
+            const eYear = (e.date || '').slice(0, 4);
             const k = `${e.date}_${e.currency}_EUR`;
             const hk = `${e.date}_${targetCurr}_EUR`;
             const histForeign = rateCache ? rateCache[k] : undefined;
             const histHome = targetCurr === 'EUR' ? 1 : (rateCache ? rateCache[hk] : undefined);
+            const manualSpentFx = manualFxFor(curUp, eYear);
             let spentHome: number;
-            if (histForeign && histHome) {
+            if (manualSpentFx != null) {
+                // Manual per-year rate (Settings → Personalization) overrides the
+                // historical FX for this expense's year (and is 1 for the home
+                // currency itself). User-pinned rate beats the auto Frankfurter one.
+                spentHome = e.value * manualSpentFx;
+            } else if (histForeign && histHome) {
                 const euroVal = e.value * histForeign;
                 spentHome = targetCurr === 'EUR' ? euroVal : euroVal / histHome;
             } else {
@@ -320,7 +349,6 @@ export function Insights() {
             // This unifies the auto path with the manual-override formula.
             let displayValue: number;
             if (mode === 'today') {
-                const curUp = (e.currency || 'EUR').toUpperCase();
                 const ov = tripOverrides[curUp];
                 // IA-1: only trust an override whose numbers are actually finite.
                 // A corrupt/hand-edited localStorage entry (NaN, Infinity, string)
@@ -331,7 +359,13 @@ export function Insights() {
                 if (ovValid) {
                     displayValue = e.value * ov.fxToHome * (1 + ov.inflationPct / 100);
                 } else {
-                    const currentHome = convertCurrency(e.value, e.currency, targetCurr);
+                    // Current FX: a manual CURRENT-year rate (Settings) overrides
+                    // the live one; the inflation factor prefers the manual annual
+                    // series, else the auto CPI (both handled in inflationFactorFor).
+                    const manualNowFx = manualFxFor(curUp, _curYear);
+                    const currentHome = manualNowFx != null
+                        ? e.value * manualNowFx
+                        : convertCurrency(e.value, e.currency, targetCurr);
                     displayValue = currentHome * inflationFactorFor(curUp, e.date);
                 }
             } else {
@@ -444,7 +478,7 @@ export function Insights() {
             currencyOwnTotals,
             currencyDateTotals,
         };
-    }, [tripExps, mode, targetCurr, rateCache, cpiCache, fxOverridesByTrip, activeTripId, categories]);
+    }, [tripExps, mode, targetCurr, rateCache, cpiCache, fxOverridesByTrip, manualRates, activeTripId, categories]);
 
     // ── Empty: trip has no expenses ───────────────────────────────────────
     if (tripExps.length === 0) {
@@ -946,6 +980,7 @@ export function Insights() {
                         <p style="margin:0;">${t('insights.valueTodayInfoInflation', { pct: String(repInflation) })}</p>
                         <p style="margin:4px 0 0; font-size:0.82rem; color:var(--text-secondary);">${t('insights.valueTodayInfoSources')}</p>
                         <p style="margin:4px 0 0; font-size:0.82rem; color:var(--text-secondary);">${t('insights.valueTodayInfoOldRates')}</p>
+                        <p style="margin:8px 0 0; font-size:0.85rem;"><a id="vtSettingsLink" href="#" style="color:var(--accent-blue); font-weight:700; text-decoration:none; cursor:pointer;">${t('insights.valueTodaySettingsCta')}</a></p>
                     </div>
                     <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:20px; flex-wrap:wrap;">
                         <button id="vtManual" class="btn-ghost" style="padding:9px 16px; border-radius:999px; font-weight:700; color:var(--accent-blue);">${t('insights.valueTodayManualCta')}</button>
@@ -955,6 +990,20 @@ export function Insights() {
             });
             (root.querySelector('#rateInfoClose') as HTMLButtonElement | null)?.addEventListener('click', close);
             (root.querySelector('#vtManual') as HTMLButtonElement | null)?.addEventListener('click', () => { close(); openOverridePanel(); });
+            // Deep-link to the global per-year rate editor in Settings →
+            // Personalization, then scroll it into view once that page mounts.
+            (root.querySelector('#vtSettingsLink') as HTMLAnchorElement | null)?.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                close();
+                // Defer the nav until AFTER the modal's close() history.back()
+                // popstate fires — otherwise that back() reverts the navigate and
+                // we'd stay on #expenses. Then scroll the editor into view once
+                // the Personalization page has mounted.
+                setTimeout(() => {
+                    navigate('personalization');
+                    setTimeout(() => document.getElementById('customRates')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400);
+                }, 80);
+            });
             return;
         }
         const { root, close } = showModal({

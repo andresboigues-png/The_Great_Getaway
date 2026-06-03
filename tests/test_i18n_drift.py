@@ -185,6 +185,13 @@ _INTENTIONAL_ENGLISH = {
     'insights.overrideInflationLabel': 'fr: "Inflation" identical (pt/es translated)',
     'collections.continents.europe':   'fr: "Europe" identical (pt/es: "Europa")',
     'collections.continents.asia':     'es: "Asia" identical (the Spanish spelling; pt/fr translated)',
+
+    # ── Custom rates editor (Settings → Personalization) ──────────────
+    # 'ratesFxHint' is a format template ("1 {cur} = ? {home}") — no words.
+    # 'ratesAutoPlaceholder' is the compact universal "auto" marker (same
+    # precedent as insights.overrideAutoNote / modals.addDayDateAuto).
+    'settings.ratesFxHint':          'format template "1 {cur} = ? {home}", no words',
+    'settings.ratesAutoPlaceholder': 'compact universal "auto" marker',
 }
 
 

@@ -28,6 +28,7 @@ import { navigate } from '../../router.js';
 import { generateId } from '../../utils.js';
 import { t } from '../../i18n.js';
 import { showPersTab, openEditCategoryModal, deleteCategory } from '../settings.js';
+import { ManualRatesEditor } from './ManualRatesEditor.js';
 
 // Same icon roster the legacy form offered. Kept inline rather than
 // shared with openEditCategoryModal's roster because the modal also
@@ -250,6 +251,12 @@ export function Personalization() {
                     </div>
                 </div>
             </div>
+
+            {/* Custom exchange + inflation rates for Insights "Worth today".
+                Lives outside #persContent so showPersTab() can't hide it — it's
+                a standalone Personalization section, not part of the categories
+                sub-tab. */}
+            <ManualRatesEditor />
         </div>
     );
 }

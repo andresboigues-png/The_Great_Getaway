@@ -46,6 +46,12 @@ export const STATE: AppState = {
     // (a display preference; settlements/budgets stay nominal). Empty ⇒ the
     // auto CPI + historical-FX estimate is used for that currency.
     fxOverridesByTrip: {},
+    // Global (device-local) manual exchange + inflation rates set in
+    // Settings → Personalization: { [CURRENCY]: { [year]: { fx?, inflationPct? } } }.
+    // fx = 1 unit of the currency in HOME units that year; inflationPct = that
+    // currency's annual inflation % that year. Insights prefers these over the
+    // auto World-Bank CPI + Frankfurter FX (a per-trip override still wins).
+    manualRates: {},
     user: null, // Stores { id, name, email, picture }
     hasLoggedInBefore: false, // Tracks if user has ever signed in
     /** User's personal Gemini API key for the AI planner. Bring-your-own
@@ -155,6 +161,29 @@ export function loadState() {
                 }
             }
             if (Object.keys(byCur).length === 0) delete all[tid];
+        }
+    }
+    // Global manual rates (Settings → Personalization). Same hardening as the
+    // per-trip overrides: drop any non-finite / non-positive entry on boot so a
+    // corrupt localStorage value can't poison the Insights calc. Each year
+    // entry keeps only the finite fields; empty entries/years/currencies pruned.
+    if (!STATE.manualRates || typeof STATE.manualRates !== 'object') {
+        STATE.manualRates = {};
+    } else {
+        const all = STATE.manualRates as Record<string, Record<string, { fx?: number; inflationPct?: number }>>;
+        for (const cur of Object.keys(all)) {
+            const byYear = all[cur];
+            if (!byYear || typeof byYear !== 'object') { delete all[cur]; continue; }
+            for (const yr of Object.keys(byYear)) {
+                const r = byYear[yr] as { fx?: unknown; inflationPct?: unknown } | undefined;
+                if (!r || typeof r !== 'object') { delete byYear[yr]; continue; }
+                const clean: { fx?: number; inflationPct?: number } = {};
+                if (Number.isFinite(r.fx) && (r.fx as number) > 0) clean.fx = r.fx as number;
+                if (Number.isFinite(r.inflationPct)) clean.inflationPct = r.inflationPct as number;
+                if (Object.keys(clean).length > 0) byYear[yr] = clean;
+                else delete byYear[yr];
+            }
+            if (Object.keys(byYear).length === 0) delete all[cur];
         }
     }
     if (!STATE.preferences) STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'], poiFilters: {}, pillEpicenters: {}, poiAnchoring: {}, poiVisible: {}, enabledPois: {} };
