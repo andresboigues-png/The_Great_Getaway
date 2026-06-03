@@ -26,6 +26,7 @@
 
 import { STATE, emit } from '../../state.js';
 import { upsertDay, upsertTrip } from '../../api.js';
+import type { MarkedPlace } from '../../types';
 import { canEdit } from '../../permissions.js';
 import { showModal } from '../../components/Modal.js';
 import { esc, q, formatDayDate, shortPlaceName, showLiquidAlert } from '../../utils.js';
@@ -86,9 +87,9 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // name appears in that section's textarea, so the user can
     // see at a glance where each shortlisted place currently
     // lives.
-    const allShortlist = (trip?.markedPlaces || []).filter((p: any) => p.forManual);
+    const allShortlist = (trip?.markedPlaces || []).filter((p) => p.forManual);
 
-    const shortlistRowHtml = (p: any) => {
+    const shortlistRowHtml = (p: MarkedPlace) => {
         // Round 1 audit fix: place name is now a Maps link (per-user
         // request — to-do places should be clickable to Google Maps
         // from anywhere they appear). Falls back to a place_id deep
@@ -100,7 +101,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             || (p.placeId ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(p.placeId)}` : null);
         const nameHtml = mapsUrl
             ? `<a href="${esc(mapsUrl)}" target="_blank" rel="noopener noreferrer"
-                title="${esc(t('dayDetail.openOnMaps', { name: p.name }))}"
+                title="${esc(t('dayDetail.openOnMaps', { name: p.name || '' }))}"
                 style="font-weight:700; color:#002d5b; font-size:0.9rem; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-decoration:none; display:inline-flex; align-items:center; gap:4px; max-width:100%;">
                 <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.name)}</span>
                 <span aria-hidden="true" style="font-size:0.7rem; color:var(--accent-blue); opacity:0.7; flex-shrink:0;">↗</span>
@@ -347,14 +348,14 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     const _renderPlacesForSlot = (slot: string): string => {
         if (!trip) return '';
         const places = (trip.markedPlaces || []).filter(
-            (p: any) =>
+            (p) =>
                 p
                 && p.forManual
                 && p.dayId === day.id
                 && (p.timeOfDay === slot || !p.timeOfDay),
         );
         if (places.length === 0) return '';
-        const cardsHtml = places.map((p: any) => {
+        const cardsHtml = places.map((p) => {
             const photoHtml = p.photoUrl
                 ? `<img class="day-plan-place__photo" src="${esc(p.photoUrl)}" alt="" referrerpolicy="no-referrer" loading="lazy">`
                 : `<div class="day-plan-place__photo day-plan-place__photo--empty" aria-hidden="true">${esc(p.icon || '📍')}</div>`;
@@ -442,7 +443,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // keep one editing surface.
     const checklistPanelHtml = (() => {
         const items = (trip?.checklist || []);
-        const remaining = items.filter((i: any) => !i.done).length;
+        const remaining = items.filter((i) => !i.done).length;
         if (items.length === 0) {
             return `
                 <div style="background: rgba(212,160,23,0.04); padding: var(--space-5); border-radius: 24px; border: 1.5px dashed rgba(212,160,23,0.32);">
@@ -451,7 +452,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 </div>
             `;
         }
-        const rowsHtml = items.map((item: any) => {
+        const rowsHtml = items.map((item) => {
             const id = esc(item.id);
             const done = !!item.done;
             return `
@@ -584,7 +585,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         root.querySelectorAll('.day-checklist-toggle').forEach(btn => {
             (btn as HTMLButtonElement).onclick = () => {
                 const id = (btn as HTMLElement).dataset.itemId;
-                const item = (trip.checklist || []).find((i: any) => i.id === id);
+                const item = (trip.checklist || []).find((i) => i.id === id);
                 if (!item) return;
                 item.done = !item.done;
                 emit('state:changed');
@@ -605,7 +606,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 }
                 // Update the "X of Y left" summary chip.
                 const items = trip.checklist || [];
-                const remaining = items.filter((i: any) => !i.done).length;
+                const remaining = items.filter((i) => !i.done).length;
                 const summary = (root.querySelector('.day-checklist-summary') as HTMLElement | null);
                 if (summary) summary.textContent = `${remaining} of ${items.length} left`;
             };
@@ -738,7 +739,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             const pid = btn.dataset.placeId;
             const time = (btn.dataset.time as 'morning' | 'afternoon' | 'evening');
             if (!pid || !time) return;
-            const place = allShortlist.find((p: any) => p.placeId === pid);
+            const place = allShortlist.find((p) => p.placeId === pid);
             if (!place || !place.name) return;
             const isThere = (planVals[time] ?? '').includes(place.name.toLowerCase());
             // Restore the canonical label, then prefix with ✓
@@ -843,7 +844,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         const pid = (btn as HTMLElement).dataset.placeId;
         const time = (btn as HTMLElement).dataset.time;
         if (!pid || !time || !trip) return;
-        const place = allShortlist.find((p: any) => p.placeId === pid);
+        const place = allShortlist.find((p) => p.placeId === pid);
         if (!place || !place.name) return;
         const ta = (root.querySelector(`textarea.plan-input[data-time="${time}"]`) as HTMLTextAreaElement | null);
         if (!ta) return;
@@ -920,7 +921,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         root.querySelectorAll('.day-shortlist-row').forEach(rowEl => {
             const row = (rowEl as HTMLElement);
             const pid = row.dataset.placeId;
-            const place = allShortlist.find((p: any) => p.placeId === pid);
+            const place = allShortlist.find((p) => p.placeId === pid);
             if (!place) return;
             const queryMatches = !query
                 || (place.name || '').toLowerCase().includes(query)
