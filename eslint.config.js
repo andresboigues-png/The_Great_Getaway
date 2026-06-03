@@ -140,11 +140,11 @@ export default tseslint.config(
         rules: {
             // The reason for typed linting: catch unhandled async, which `tsc`
             // cannot. This app is fetch-heavy (rates, CPI, sync, saveState).
-            // 'warn' for now: ~144 pre-existing fire-and-forget sites are a
-            // worklist (add `void` / `.catch`, or fix the real bugs), not a
-            // blocker. await-thenable is already clean, so it stays an error.
-            '@typescript-eslint/no-floating-promises': 'warn',
-            '@typescript-eslint/no-misused-promises': 'warn',
+            // The ~144-site fire-and-forget worklist is cleared (every call
+            // is `void`-marked or its handler wrapped), so these are now HARD
+            // gates alongside await-thenable: a new unhandled async fails lint.
+            '@typescript-eslint/no-floating-promises': 'error',
+            '@typescript-eslint/no-misused-promises': 'error',
             '@typescript-eslint/await-thenable': 'error',
 
             // React hooks. The codebase already carries exhaustive-deps disable
