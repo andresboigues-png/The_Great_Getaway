@@ -130,7 +130,7 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
                 latLngBounds: { north: 85, south: -85, west: -180, east: 180 },
                 strictBounds: true,
             },
-            styles: profileMapStyles as any,
+            styles: profileMapStyles,
         });
         applyMapTheme(map, profileMapStyles);
 
@@ -148,7 +148,7 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
         if (tripCodes.size === 0) {
             tripCodes = new Set(
                 (tripsRef.current || [])
-                    .map((tr: any) => (tr.countryCode || '').toUpperCase())
+                    .map((tr) => (tr.countryCode || '').toUpperCase())
                     .filter(Boolean),
             );
         }
@@ -160,7 +160,7 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
             .then((res) => res.json())
             .then((data) => {
                 map.data.addGeoJson(data);
-                map.data.setStyle((feature: any) => {
+                map.data.setStyle((feature: google.maps.DataFeature) => {
                     const iso2 = (
                         feature.getProperty('ISO_A2') || feature.getProperty('iso_a2') || ''
                     ).toUpperCase();
@@ -243,10 +243,10 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
         // archived-AND-public — so the day the toggle shows up on
         // active trips, pins follow automatically.)
         const geocoder = new google.maps.Geocoder();
-        const tripsByCountry: Record<string, any[]> = {};
-        (tripsRef.current as any[])
-            .filter((tr: any) => tr.isPublic)
-            .forEach((tr: any) => {
+        const tripsByCountry: Record<string, Trip[]> = {};
+        tripsRef.current
+            .filter((tr) => tr.isPublic)
+            .forEach((tr) => {
                 const k = tr.country || tr.name;
                 if (k) {
                     if (!tripsByCountry[k]) tripsByCountry[k] = [];
@@ -254,7 +254,11 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
                 }
             });
 
-        const placeMarker = (pos: any, countryKey: string, tps: any[]) => {
+        const placeMarker = (
+            pos: google.maps.LatLng | google.maps.LatLngLiteral,
+            countryKey: string,
+            tps: Trip[],
+        ) => {
             const marker = new google.maps.Marker({
                 position: pos,
                 map,
@@ -270,7 +274,7 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
 
             const tripList = tps
                 .map(
-                    (tr: any) => `
+                    (tr) => `
                 <div class="profile-iw__trip-row">
                     <div class="profile-iw__trip-info">
                         <span class="profile-iw__trip-icon">🗺️</span>
@@ -313,18 +317,21 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
                 // Prefer stored coords on any trip in the cluster.
                 // Falls back to Geocoder for legacy trips that were
                 // created before the Places migration.
-                const withCoords = (tps as any[]).find(
-                    (tr: any) => typeof tr.lat === 'number' && typeof tr.lng === 'number',
+                const withCoords = tps.find(
+                    (tr) => typeof tr.lat === 'number' && typeof tr.lng === 'number',
                 );
                 if (withCoords) {
                     placeMarker({ lat: withCoords.lat, lng: withCoords.lng }, countryKey, tps);
                     continue; // no API call, no throttle needed
                 }
-                geocoder.geocode({ address: countryKey }, (results: any, status: string) => {
-                    if (status === 'OK' && results[0]) {
-                        placeMarker(results[0].geometry.location, countryKey, tps);
-                    }
-                });
+                geocoder.geocode(
+                    { address: countryKey },
+                    (results: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
+                        if (status === 'OK' && results && results[0]) {
+                            placeMarker(results[0].geometry.location, countryKey, tps);
+                        }
+                    },
+                );
                 await new Promise((r) => setTimeout(r, 800));
             }
         };
