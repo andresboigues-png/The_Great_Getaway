@@ -21,7 +21,7 @@
 
 import { STATE } from './state.js';
 import { generateId } from './utils.js';
-import type { TripDocument as BaseTripDocument, TripPhoto as BaseTripPhoto } from './types';
+import type { Trip, TripDocument as BaseTripDocument, TripPhoto as BaseTripPhoto } from './types';
 
 /** Same as `TripDocument` from types but with an extra `_source` tag the
  *  union view (getAllTripDocuments) attaches so delete handlers know
@@ -29,15 +29,19 @@ import type { TripDocument as BaseTripDocument, TripPhoto as BaseTripPhoto } fro
 type TripDocument = BaseTripDocument & { _source?: 'trip' | 'day' };
 type TripPhoto = BaseTripPhoto & { _source?: 'trip' | 'day' };
 
+/** Trips passed in are sometimes the active trip (always present) and
+ *  sometimes a `.find()` result (maybe undefined); accept both. */
+type MaybeTrip = Trip | null | undefined;
+
 /** Pull every document tied to this trip — both trip-level entries AND
  *  legacy day.tickets entries surfaced as if they had `dayId` set. */
-export function getAllTripDocuments(trip: any): TripDocument[] {
+export function getAllTripDocuments(trip: MaybeTrip): TripDocument[] {
     if (!trip) return [];
     const tripScoped: TripDocument[] = (Array.isArray(trip.documents) ? trip.documents : [])
-        .map((d: any) => ({ ...d, _source: 'trip' as const }));
-    const days = (STATE.tripDays || []).filter(d => d.tripId === trip.id);
-    const dayScoped: TripDocument[] = days.flatMap((d: any) =>
-        (Array.isArray(d.tickets) ? d.tickets : []).map((t: any, i: number) => ({
+        .map((d) => ({ ...d, _source: 'trip' as const }));
+    const days = (STATE.tripDays || []).filter((d) => d.tripId === trip.id);
+    const dayScoped: TripDocument[] = days.flatMap((d) =>
+        (Array.isArray(d.tickets) ? d.tickets : []).map((t, i) => ({
             // Legacy day.tickets entries don't carry an id;
             // synthesise one from `${dayId}#${index}` so delete
             // handlers can find them again. Stable as long as
@@ -47,7 +51,9 @@ export function getAllTripDocuments(trip: any): TripDocument[] {
             name: t.name || 'Document',
             url: t.url || '',
             dayId: d.id,
-            addedAt: t.addedAt,
+            // exactOptionalPropertyTypes: only set addedAt when present
+            // (legacy rows have none) — don't pass an explicit undefined.
+            ...(t.addedAt !== undefined ? { addedAt: t.addedAt } : {}),
             _source: 'day' as const,
         })),
     );
@@ -55,15 +61,15 @@ export function getAllTripDocuments(trip: any): TripDocument[] {
 }
 
 /** Same idea as getAllTripDocuments — union of trip.photos + day.photos. */
-export function getAllTripPhotos(trip: any): TripPhoto[] {
+export function getAllTripPhotos(trip: MaybeTrip): TripPhoto[] {
     if (!trip) return [];
     const tripScoped: TripPhoto[] = (Array.isArray(trip.photos) ? trip.photos : [])
-        .map((p: any) => ({ ...p, _source: 'trip' as const }));
-    const days = (STATE.tripDays || []).filter(d => d.tripId === trip.id);
+        .map((p) => ({ ...p, _source: 'trip' as const }));
+    const days = (STATE.tripDays || []).filter((d) => d.tripId === trip.id);
     // Legacy day.photos is a flat array of strings (URLs);
     // promote to the object shape so the union has uniform
     // fields.
-    const dayScoped: TripPhoto[] = days.flatMap((d: any) =>
+    const dayScoped: TripPhoto[] = days.flatMap((d) =>
         (Array.isArray(d.photos) ? d.photos : []).map((src: string, i: number) => ({
             id: `${d.id}#${i}`,
             src,
@@ -77,17 +83,17 @@ export function getAllTripPhotos(trip: any): TripPhoto[] {
 /** Filter the union to a specific day. `dayId` may be null for
  *  trip-wide-only items (those with no dayId on the trip-level
  *  store). */
-export function getDocumentsForDay(trip: any, dayId: string | null): TripDocument[] {
-    return getAllTripDocuments(trip).filter(d => d.dayId === dayId);
+export function getDocumentsForDay(trip: MaybeTrip, dayId: string | null): TripDocument[] {
+    return getAllTripDocuments(trip).filter((d) => d.dayId === dayId);
 }
-export function getPhotosForDay(trip: any, dayId: string | null): TripPhoto[] {
-    return getAllTripPhotos(trip).filter(p => p.dayId === dayId);
+export function getPhotosForDay(trip: MaybeTrip, dayId: string | null): TripPhoto[] {
+    return getAllTripPhotos(trip).filter((p) => p.dayId === dayId);
 }
 
 /** Append a new trip-level document. Returns the appended entry so
  *  callers can use the assigned id for follow-up actions. */
 export function addTripDocument(
-    trip: import('./types').Trip | null | undefined,
+    trip: MaybeTrip,
     { name, url, dayId = null }: { name: string; url: string; dayId?: string | null },
 ): TripDocument | null {
     if (!trip || !name || !url) return null;
@@ -105,7 +111,7 @@ export function addTripDocument(
 
 /** Append a new trip-level photo. */
 export function addTripPhoto(
-    trip: import('./types').Trip | null | undefined,
+    trip: MaybeTrip,
     { src, dayId = null }: { src: string; dayId?: string | null },
 ): TripPhoto | null {
     if (!trip || !src) return null;
@@ -126,11 +132,11 @@ export function addTripPhoto(
  *
  *  Returns the source it was removed from ('trip' | 'day' | null) so
  *  callers can decide whether to upsertTrip vs upsertDay. */
-export function removeTripDocument(trip: any, id: string): 'trip' | 'day' | null {
+export function removeTripDocument(trip: MaybeTrip, id: string): 'trip' | 'day' | null {
     if (!trip || !id) return null;
     if (Array.isArray(trip.documents)) {
         const before = trip.documents.length;
-        trip.documents = trip.documents.filter((d: any) => d.id !== id);
+        trip.documents = trip.documents.filter((d) => d.id !== id);
         if (trip.documents.length !== before) return 'trip';
     }
     // Legacy day.tickets entries — id is `${dayId}#${index}`.
@@ -138,7 +144,7 @@ export function removeTripDocument(trip: any, id: string): 'trip' | 'day' | null
     if (hashIdx > 0) {
         const dayId = id.slice(0, hashIdx);
         const idx = parseInt(id.slice(hashIdx + 1), 10);
-        const day = (STATE.tripDays || []).find(d => d.id === dayId) as any;
+        const day = (STATE.tripDays || []).find((d) => d.id === dayId);
         if (day && Array.isArray(day.tickets) && Number.isFinite(idx) && idx >= 0 && idx < day.tickets.length) {
             day.tickets.splice(idx, 1);
             return 'day';
@@ -148,18 +154,18 @@ export function removeTripDocument(trip: any, id: string): 'trip' | 'day' | null
 }
 
 /** Same shape as removeTripDocument, but for photos. */
-export function removeTripPhoto(trip: any, id: string): 'trip' | 'day' | null {
+export function removeTripPhoto(trip: MaybeTrip, id: string): 'trip' | 'day' | null {
     if (!trip || !id) return null;
     if (Array.isArray(trip.photos)) {
         const before = trip.photos.length;
-        trip.photos = trip.photos.filter((p: any) => p.id !== id);
+        trip.photos = trip.photos.filter((p) => p.id !== id);
         if (trip.photos.length !== before) return 'trip';
     }
     const hashIdx = id.indexOf('#');
     if (hashIdx > 0) {
         const dayId = id.slice(0, hashIdx);
         const idx = parseInt(id.slice(hashIdx + 1), 10);
-        const day = (STATE.tripDays || []).find(d => d.id === dayId) as any;
+        const day = (STATE.tripDays || []).find((d) => d.id === dayId);
         if (day && Array.isArray(day.photos) && Number.isFinite(idx) && idx >= 0 && idx < day.photos.length) {
             day.photos.splice(idx, 1);
             return 'day';
@@ -180,19 +186,15 @@ export function removeTripPhoto(trip: any, id: string): 'trip' | 'day' | null {
  *  we keep the array index. But moving the doc between days would
  *  break the index reference, so dayId reassignment is REJECTED on
  *  legacy entries (matches setDocumentDay's behaviour).
- *
- *  @param {*} trip
- *  @param {string} id
- *  @param {{name?: string, url?: string, dayId?: string|null}} patch
  */
 export function updateTripDocument(
-    trip: any,
+    trip: MaybeTrip,
     id: string,
     patch: { name?: string; url?: string; dayId?: string | null },
 ): 'trip' | 'day' | null {
     if (!trip || !id || !patch) return null;
     if (Array.isArray(trip.documents)) {
-        const entry = trip.documents.find((d: any) => d.id === id);
+        const entry = trip.documents.find((d) => d.id === id);
         if (entry) {
             if (typeof patch.name === 'string') entry.name = patch.name;
             if (typeof patch.url === 'string') entry.url = patch.url;
@@ -205,9 +207,10 @@ export function updateTripDocument(
     if (hashIdx > 0) {
         const dayId = id.slice(0, hashIdx);
         const idx = parseInt(id.slice(hashIdx + 1), 10);
-        const day = (STATE.tripDays || []).find(d => d.id === dayId) as any;
+        const day = (STATE.tripDays || []).find((d) => d.id === dayId);
         if (day && Array.isArray(day.tickets) && Number.isFinite(idx) && idx >= 0 && idx < day.tickets.length) {
-            const t = day.tickets[idx];
+            // Bounds-checked above, so the index is in range.
+            const t = day.tickets[idx]!;
             if (typeof patch.name === 'string') t.name = patch.name;
             if (typeof patch.url === 'string') t.url = patch.url;
             // dayId reassignment is intentionally NOT supported
@@ -222,16 +225,16 @@ export function updateTripDocument(
  *  works for trip-level entries (legacy day.tickets entries can't be
  *  reassigned without losing the legacy index reference; we treat
  *  them as immutable until the user deletes + re-adds). */
-export function setDocumentDay(trip: any, id: string, dayId: string | null): boolean {
+export function setDocumentDay(trip: MaybeTrip, id: string, dayId: string | null): boolean {
     if (!trip || !Array.isArray(trip.documents)) return false;
-    const entry = trip.documents.find((d: any) => d.id === id);
+    const entry = trip.documents.find((d) => d.id === id);
     if (!entry) return false;
     entry.dayId = dayId || null;
     return true;
 }
-export function setPhotoDay(trip: any, id: string, dayId: string | null): boolean {
+export function setPhotoDay(trip: MaybeTrip, id: string, dayId: string | null): boolean {
     if (!trip || !Array.isArray(trip.photos)) return false;
-    const entry = trip.photos.find((p: any) => p.id === id);
+    const entry = trip.photos.find((p) => p.id === id);
     if (!entry) return false;
     entry.dayId = dayId || null;
     return true;
@@ -273,7 +276,7 @@ function gmailQuote(term: string): string {
  *  chunk of trip.country (split on comma or " - " for legacy
  *  "USA - California" entries), and the full country if it has no
  *  ambiguous separators. De-duplicates and drops empties. */
-function locationAlternatives(trip: any): string[] {
+function locationAlternatives(trip: Trip): string[] {
     const out: string[] = [];
     const push = (s: string | null | undefined) => {
         const v = (s || '').trim();
@@ -284,7 +287,7 @@ function locationAlternatives(trip: any): string[] {
     if (country) {
         // First chunk (handles "Atlanta, GA" → "Atlanta", "USA -
         // California" → "USA"). Best signal in most cases.
-        const firstChunk = country.split(/[,–-]/)[0].trim();
+        const firstChunk = country.split(/[,–-]/)[0]!.trim();
         push(firstChunk);
         // Full country only if it didn't split — otherwise
         // commas/hyphens confuse Gmail's tokeniser.
@@ -299,10 +302,10 @@ function locationAlternatives(trip: any): string[] {
  *  which Gmail interprets as `(any-location-term) AND (any-keyword)`.
  *  Wide enough to catch forwarded confirmations sent months ahead;
  *  tight enough to filter out unrelated emails. */
-export function buildGmailTripSearchUrl(trip: any): string | null {
+export function buildGmailTripSearchUrl(trip: MaybeTrip): string | null {
     if (!trip) return null;
     const locations = locationAlternatives(trip);
-        const parts: string[] = [];
+    const parts: string[] = [];
     if (locations.length > 0) {
         parts.push(`(${locations.map(gmailQuote).join(' OR ')})`);
     }
