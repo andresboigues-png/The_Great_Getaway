@@ -2,32 +2,26 @@
 //
 // The legacy renderCollections() lived here for years until the §3.3
 // React migration (see pages/collections-mount/Collections.tsx for
-// the new JSX implementation). What's left in this file is the
-// cross-page surface that other modules still depend on:
+// the new JSX implementation). The archived-trip detail view
+// (renderArchivedTripDetail) was the last imperative piece; the §4
+// migration moved it to JSX (pages/collections/ArchivedTripDetail.tsx).
 //
-//   - `renderArchivedTripDetail` — used by profile.ts (archived-
-//     trips section) and feed.ts (share/repost trip-card click-
-//     through) to render an archived-trip detail page. The actual
-//     implementation lives in ./collections/archivedDetail.ts;
-//     this file just re-exports.
-//
-//   - `viewArchivedDetails(id)` — the imperative-DOM navigation
-//     helper that swaps #app-container's contents to an archived-
-//     trip detail view. Called by feed/profile when the user
-//     clicks through to a foreign trip. Bypasses the React router
-//     because the destination view itself is still imperative
-//     (renderArchivedTripDetail returns an HTMLElement). When
-//     that view migrates to React this helper can fold into the
-//     normal navigate() flow.
+// What's left here is `viewArchivedDetails(id)` — the cross-page
+// navigation helper that opens an archived-trip detail view. Called by
+// Feed.tsx / Collections.tsx / FootprintMap.tsx when the user clicks
+// through to an archived or foreign (shared/reposted) trip. It mounts
+// the React <ArchivedTripDetail/> directly into #app-container via
+// mountReact, OUTSIDE the hash router — the destination isn't a routed
+// page, it's an on-demand detail overlay. The router's clearReactMount()
+// at the top of navigate() unmounts it cleanly on the next navigation
+// (e.g. the detail page's Back button → navigate('collections')).
 
+import { createElement } from 'react';
 import { STATE } from '../state.js';
 import { apiFetch, fetchTripMedia } from '../api.js';
 import { t } from '../i18n.js';
-import { renderArchivedTripDetail } from './collections/archivedDetail.js';
-
-// Re-export for the two external consumers (profile.ts archived-trips
-// section, feed.ts share/repost trip-card click-through).
-export { renderArchivedTripDetail } from './collections/archivedDetail.js';
+import { mountReact } from '../react/reactMount.js';
+import { ArchivedTripDetail, ArchivedTripMessage } from './collections/ArchivedTripDetail.js';
 
 
 /** Open the archived-trip detail view for a given trip id.
@@ -38,8 +32,8 @@ export { renderArchivedTripDetail } from './collections/archivedDetail.js';
  *  Slow path — foreign trip (not in STATE). Typical for trip cards
  *  on shared/reposted feed posts where the trip belongs to a friend.
  *  Lazily fetches via /api/public-trip and renders off the fetched
- *  object directly. `renderArchivedTripDetail` accepts both shapes
- *  so callers don't branch.
+ *  object directly. <ArchivedTripDetail/> accepts both shapes so
+ *  callers don't branch.
  *
  *  Pre-§3.3 the Collections list page also dispatched here on
  *  card-click; that path moved to the React Collections.tsx (which
@@ -60,14 +54,13 @@ export const viewArchivedDetails = async (id: string) => {
         // fetchTripMedia splices into the same STATE object `local`
         // references + is dedupe-guarded, so a repeat view is free.
         await fetchTripMedia(id);
-        content.innerHTML = '';
-        content.appendChild(renderArchivedTripDetail(local));
+        mountReact(content, createElement(ArchivedTripDetail, { trip: local }));
         return;
     }
     // Slow path — foreign trip. Show a loading placeholder so the
     // user gets feedback while the request is in flight, then swap
     // in the rendered content (or a not-found message) when it lands.
-    content.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-secondary); font-size:0.95rem;">${t('collections.loadingTrip')}</div>`;
+    mountReact(content, createElement(ArchivedTripMessage, { text: t('collections.loadingTrip') }));
     try {
         // apiFetch attaches the bearer token automatically when the
         // user is logged in — needed so the endpoint can grant
@@ -76,18 +69,17 @@ export const viewArchivedDetails = async (id: string) => {
         // logged-out feed views too).
         const res = await apiFetch(`/api/public-trip/${encodeURIComponent(id)}`);
         if (!res.ok) {
-            content.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-secondary);">${t('collections.tripUnavailable')}</div>`;
+            mountReact(content, createElement(ArchivedTripMessage, { text: t('collections.tripUnavailable') }));
             return;
         }
         const data = await res.json();
         if (!data?.trip) {
-            content.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-secondary);">${t('collections.tripNotFound')}</div>`;
+            mountReact(content, createElement(ArchivedTripMessage, { text: t('collections.tripNotFound') }));
             return;
         }
-        content.innerHTML = '';
-        content.appendChild(renderArchivedTripDetail(data.trip));
+        mountReact(content, createElement(ArchivedTripDetail, { trip: data.trip }));
     } catch (err) {
         console.error('viewArchivedDetails fetch failed:', err);
-        content.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-secondary);">${t('collections.loadFailed')}</div>`;
+        mountReact(content, createElement(ArchivedTripMessage, { text: t('collections.loadFailed') }));
     }
 };

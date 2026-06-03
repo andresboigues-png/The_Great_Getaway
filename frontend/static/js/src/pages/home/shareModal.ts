@@ -2,12 +2,10 @@
 // state machines for the Share + Silence buttons. Phase B1
 // fifth slice. Extracted from home.ts.
 //
-// Three things live here:
+// Two things live here:
 //   - applySilenceBtnVisual(btn, silenced) — paints the trip
 //     header's silence/mute button. Outline = visible, filled
 //     red = silenced. Swaps the SVG icon to match.
-//   - updateShareBtnVisualState(btn, shared) — paints the Share
-//     button. Filled purple when the trip is already shared.
 //   - openShareToFeedModal(trip, onSubmit, seedCaption?) —
 //     opens the caption-textarea modal that drives the actual
 //     share-to-feed POST. Calls back with the cleaned caption.
@@ -63,38 +61,6 @@ export function applySilenceBtnVisual(btn: HTMLElement | null, silenced: boolean
                 <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
             </svg>
         `;
-    }
-}
-
-
-/** Flip the Share button between outline and filled states.
- *  Outline state inherits the standard `.icon-btn-circle` look
- *  (subtle purple tint from --accent: 88,86,214); filled state
- *  goes solid-purple with a white icon so the "already shared"
- *  state pops visually. The same purple anchors the share/repost
- *  event accent in the feed, carrying visual identity across
- *  home → feed.
- *
- *  Exported so collections.ts (the new home of the Share button
- *  — rendered on public-trip detail pages only) can drive the
- *  same visual state machine without re-implementing it. */
-export function updateShareBtnVisualState(btn: HTMLElement | null, shared: boolean): void {
-    if (!btn) return;
-    if (shared) {
-        btn.style.background = '#5856d6';
-        btn.style.color = 'white';
-        btn.style.borderColor = '#5856d6';
-        btn.title = 'Already shared — click to unshare';
-        btn.setAttribute('aria-label', 'Unshare this trip');
-    } else {
-        // Clear the inline overrides so the .icon-btn-circle
-        // base styles (driven by --accent on the element) take
-        // back over.
-        btn.style.background = '';
-        btn.style.color = '';
-        btn.style.borderColor = '';
-        btn.title = 'Share this trip to your feed';
-        btn.setAttribute('aria-label', 'Share to feed');
     }
 }
 

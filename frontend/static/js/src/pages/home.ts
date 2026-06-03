@@ -21,11 +21,10 @@
 //   - `POI_CATEGORIES` — settings/Settings.tsx reads this to render
 //     the per-pill toggles. Re-exported from ./home/poiCategories.
 //   - `openDayView` / `openPdfPreview` / `looksLikePdfUrl` /
-//     `updateShareBtnVisualState` / `openShareToFeedModal` —
-//     collections/archivedDetail.ts pulls these to render the
-//     archived-trip detail page (day-plan modal + PDF preview +
-//     share-to-feed button visual state). Re-exported from their
-//     respective ./home/* helpers.
+//     `openShareToFeedModal` — collections/ArchivedTripDetail.tsx
+//     pulls these to render the archived-trip detail page (day-plan
+//     modal + PDF preview + share-to-feed modal). Re-exported from
+//     their respective ./home/* helpers.
 
 // Re-exports for external consumers — the React Home itself imports
 // from these helpers directly, so this file is purely a façade for
@@ -33,5 +32,5 @@
 export { POI_CATEGORIES, getPoiTooltip } from './home/poiCategories.js';
 export { stopHomeSlideshow } from './home/slideshow.js';
 export { openPdfPreview, looksLikePdfUrl } from './home/lightbox.js';
-export { updateShareBtnVisualState, openShareToFeedModal } from './home/shareModal.js';
+export { openShareToFeedModal } from './home/shareModal.js';
 export { openDayView } from './home/dayViewModal.js';
