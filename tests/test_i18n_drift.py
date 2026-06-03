@@ -60,6 +60,8 @@ _INTENTIONAL_ENGLISH = {
     'collections.publicLabel':  'fr: "Public" identical',
     'poi.restaurants':          'fr: identical (same word)',
     'poi.pharmacies':           'fr: identical (same word)',
+    'settings.ratesTabInflation': 'fr: identical loanword "Inflation"',
+    'settings.ratesAutoHint':     'universal "auto ≈ {n}" hint (like ratesAutoPlaceholder)',
 
     # ── "Email" is universal ───────────────────────────────────────
     # Settings dev panel label — pt/es/fr all use "Email" as the

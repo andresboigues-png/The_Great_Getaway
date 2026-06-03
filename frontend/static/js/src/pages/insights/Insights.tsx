@@ -24,7 +24,8 @@ import { STATE, emit } from '../../state.js';
 import { EVENTS, CURRENCY_SYMBOLS } from '../../constants.js';
 import { convertCurrency, hasRate } from '../../utils/currency.js';
 import { fetchHistoricalRates, fetchCpiSeries } from '../../api.js';
-import { getTripFxOverrides, setTripFxOverride, clearTripFxOverrides } from '../../utils/fxOverrides.js';
+import { getTripFxOverrides } from '../../utils/fxOverrides.js';
+import { requestPersonalizationTab } from '../../utils/persTab.js';
 import { makeInflationFactor, makePresentValueCalc } from '../../utils/presentValue.js';
 import { getIntlLocale, formatNumber, formatNumberForCurrency } from '../../i18n.js';
 import { getHomeCurrency, currencySymbol } from '../../utils.js';
@@ -825,57 +826,11 @@ export function Insights() {
         });
     };
 
-    // Manual-override panel: per-currency inflation % + exchange rate, pre-
-    // filled with the auto figures. Only affects "Value today" (the info
-    // popover links here). Settlements/budgets never read these.
-    const openOverridePanel = () => {
-        // Narrows activeTripId (const) for the per-trip override writes in the
-        // handlers below — the panel is only reachable with an active trip.
-        if (!activeTripId) return;
-        const autos = computeCurrencyAutos();
-        const rowsHtml = autos.map((a) => `
-            <div class="vt-ov-row" data-cur="${esc(a.code)}" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 0; border-bottom:1px solid var(--glass-border);">
-                <span style="font-weight:800; min-width:46px; color:var(--text-brand-navy);">${esc(a.code)}</span>
-                <label style="display:inline-flex; align-items:center; gap:5px; font-size:0.82rem; color:var(--text-secondary);">
-                    ${t('insights.overrideInflationLabel')}
-                    <input type="number" class="vt-inf" step="0.1" value="${a.ov ? a.ov.inflationPct : a.autoInflationPct}" style="width:70px; padding:5px 8px; border:1px solid var(--glass-border); border-radius:8px;">%
-                </label>
-                <label style="display:inline-flex; align-items:center; gap:5px; font-size:0.82rem; color:var(--text-secondary);">
-                    ${t('insights.overrideRatePrefix', { cur: esc(a.code) })}
-                    <input type="number" class="vt-fx" step="any" value="${a.ov ? a.ov.fxToHome : a.autoFx}" style="width:90px; padding:5px 8px; border:1px solid var(--glass-border); border-radius:8px;"> ${esc(targetCurr)}
-                </label>
-                <span style="font-size:0.72rem; color:var(--text-tertiary, var(--text-secondary)); margin-left:auto;">${t('insights.overrideAutoNote')}: ${a.autoInflationPct}% · 1 ${esc(a.code)} = ${a.autoFx} ${esc(targetCurr)}</span>
-            </div>
-        `).join('');
-        const { root, close } = showModal({
-            variant: 'glass',
-            cardStyle: 'width: 520px; max-width: calc(100vw - 32px); padding: 26px; border-radius: 24px; background: var(--glass-bg);',
-            innerHTML: `
-                <h2 style="margin:0 0 6px; font-size:1.3rem; font-weight:800; color:var(--text-brand-navy); letter-spacing:-0.02em;">${t('insights.overrideTitle')}</h2>
-                <p style="margin:0 0 14px; font-size:0.85rem; line-height:1.5; color:var(--text-secondary);">${t('insights.overrideIntro', { today: esc(t('insights.rateModeToday')) })}</p>
-                <div style="display:flex; flex-direction:column;">${rowsHtml || `<p style="color:var(--text-secondary);">—</p>`}</div>
-                <div style="display:flex; justify-content:space-between; gap:10px; margin-top:20px;">
-                    <button id="vtReset" class="btn-ghost" style="padding:9px 16px; border-radius:999px;">${t('insights.overrideReset')}</button>
-                    <button id="vtSave" class="btn-primary" style="padding:9px 20px; border-radius:999px;">${t('insights.overrideSave')}</button>
-                </div>
-            `,
-        });
-        (root.querySelector('#vtSave') as HTMLButtonElement | null)?.addEventListener('click', () => {
-            root.querySelectorAll('.vt-ov-row').forEach((rowEl) => {
-                const cur = (rowEl as HTMLElement).dataset.cur || '';
-                const inf = parseFloat((rowEl.querySelector('.vt-inf') as HTMLInputElement).value);
-                const fx = parseFloat((rowEl.querySelector('.vt-fx') as HTMLInputElement).value);
-                if (cur && Number.isFinite(inf) && Number.isFinite(fx) && fx > 0) {
-                    setTripFxOverride(activeTripId, cur, { inflationPct: inf, fxToHome: fx });
-                }
-            });
-            close();
-        });
-        (root.querySelector('#vtReset') as HTMLButtonElement | null)?.addEventListener('click', () => {
-            clearTripFxOverrides(activeTripId);
-            close();
-        });
-    };
+    // (Per-trip override panel removed — "Worth today" now has a single rates
+    // entry point: the "set in settings" link below → Personalization. The
+    // fxOverridesByTrip data model + calc precedence are kept for any overrides
+    // already saved on a device, but there's no longer a second UI to create new
+    // ones, which read as redundant alongside the global Settings editor.)
 
     // ⓘ explainer. In "Worth today" mode it explains the inflation + FX
     // logic and offers the manual-override link; otherwise the original
@@ -901,16 +856,14 @@ export function Insights() {
                         <p style="margin:4px 0 0; font-size:0.82rem; color:var(--text-secondary);">${t('insights.valueTodayInfoOldRates')}</p>
                         <p style="margin:8px 0 0; font-size:0.85rem;"><a id="vtSettingsLink" href="#" style="color:var(--accent-blue); font-weight:700; text-decoration:none; cursor:pointer;">${t('insights.valueTodaySettingsCta')}</a></p>
                     </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:20px; flex-wrap:wrap;">
-                        <button id="vtManual" class="btn-ghost" style="padding:9px 16px; border-radius:999px; font-weight:700; color:var(--accent-blue);">${t('insights.valueTodayManualCta')}</button>
+                    <div style="display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:20px; flex-wrap:wrap;">
                         <button id="rateInfoClose" class="btn-primary" style="padding:9px 20px; border-radius:999px;">${t('common.close')}</button>
                     </div>
                 `,
             });
             (root.querySelector('#rateInfoClose') as HTMLButtonElement | null)?.addEventListener('click', close);
-            (root.querySelector('#vtManual') as HTMLButtonElement | null)?.addEventListener('click', () => { close(); openOverridePanel(); });
             // Deep-link to the global per-year rate editor in Settings →
-            // Personalization, then scroll it into view once that page mounts.
+            // Personalization (Inflation pill), then scroll it into view.
             (root.querySelector('#vtSettingsLink') as HTMLAnchorElement | null)?.addEventListener('click', (ev) => {
                 ev.preventDefault();
                 close();
@@ -919,6 +872,7 @@ export function Insights() {
                 // we'd stay on #expenses. Then scroll the editor into view once
                 // the Personalization page has mounted.
                 setTimeout(() => {
+                    requestPersonalizationTab('infl');
                     navigate('personalization');
                     setTimeout(() => document.getElementById('customRates')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400);
                 }, 80);
