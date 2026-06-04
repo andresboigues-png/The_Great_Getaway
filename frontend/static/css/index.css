@@ -5995,6 +5995,9 @@ main#app-container.nav-anim-backward {
 .rates-matrix th,
 .rates-matrix td {
     padding: 0;
+    /* Center cell content vertically so the currency row-header lines up with
+       the (taller) input cell instead of floating at the top of the row. */
+    vertical-align: middle;
     /* Visible gridlines — the glass border var is nearly invisible on the
        white settings card, which made the cells unreadable. */
     border-bottom: 1px solid rgba(128, 128, 128, 0.28);
