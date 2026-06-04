@@ -126,6 +126,7 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
 
     const [draft, setDraft] = useState<Draft>({});
     const [newYear, setNewYear] = useState('');
+    const [newCur, setNewCur] = useState('');
     const [dirty, setDirty] = useState(false);
     const [savedFlash, setSavedFlash] = useState(false);
     const [autoBusy, setAutoBusy] = useState(false);
@@ -766,15 +767,24 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                             id={`ratesCurAdd-${mode}`}
                             className="glass-input"
                             style={{ padding: '8px 14px', borderRadius: '999px', fontSize: '0.82rem' }}
-                            value=""
+                            value={newCur}
                             aria-label={t('settings.ratesAddCurrencyLabel')}
-                            onChange={(e) => addCurrency(e.target.value)}
+                            onChange={(e) => setNewCur(e.target.value)}
                         >
                             <option value="">{t('settings.ratesAddCurrency')}</option>
                             {otherCurrencies.map((c) => (
                                 <option key={c} value={c}>{curLabel(c)}</option>
                             ))}
                         </select>
+                        <button
+                            type="button"
+                            className="btn-neutral text-[0.85rem]"
+                            style={{ padding: '8px 16px', borderRadius: '999px' }}
+                            disabled={!newCur}
+                            onClick={() => { addCurrency(newCur); setNewCur(''); }}
+                        >
+                            {t('settings.ratesAddYear')}
+                        </button>
                     </div>
                 ) : null}
                 <div className="rates-add-group">
