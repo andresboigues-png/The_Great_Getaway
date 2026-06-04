@@ -51,6 +51,7 @@ import {
 } from './tabState.js';
 import { Personalization } from './Personalization.js';
 import { Developer } from './Developer.js';
+import { Creator } from './Creator.js';
 import { SessionsView } from './Sessions.js';
 import { BlocksView } from './Blocks.js';
 // Page-scoped CSS — Theme picker styles. FIXING_ROADMAP §3.1 first
@@ -69,6 +70,13 @@ const ADMIN_EMAILS = new Set(['andres.boigues@gmail.com']);
 function isAdminUser(): boolean {
     const email = (STATE.user?.email || '').trim().toLowerCase();
     return ADMIN_EMAILS.has(email);
+}
+
+/** Trip Templates: show the Creator card to creator accounts. The dev is
+ *  always a creator (server-resolved STATE.user.isCreator already accounts
+ *  for that); the real gate is the 403 from /api/templates for non-creators. */
+function isCreatorUser(): boolean {
+    return !!STATE.user?.isCreator || isAdminUser();
 }
 
 
@@ -248,6 +256,7 @@ export function Settings() {
                     {tab === 'personalization' && <Personalization />}
                     {tab === 'sessions' && <SessionsView />}
                     {tab === 'blocks' && <BlocksView />}
+                    {tab === 'creator' && isCreatorUser() && <Creator />}
                     {tab === 'developer' && isAdminUser() && <Developer />}
                 </>
             )}
@@ -354,6 +363,28 @@ function MenuView() {
                     {t('settings.cardConfigureCta')}
                 </div>
             </button>
+
+            {/* Creator options — Trip Templates. Shown only to creator
+                accounts (STATE.user.isCreator; the dev is always one). The
+                403 from /api/templates is the real gate; this hide-the-card
+                check just keeps non-creators from seeing a card that errors. */}
+            {isCreatorUser() && (
+                <button
+                    type="button"
+                    className="card-button-reset card glass management-card"
+                    onClick={() => setSettingsTab('creator')}
+                >
+                    <h2 className="card-title m-0">
+                        {t('settings.cardCreatorTitle')}
+                    </h2>
+                    <p className="st-help-text">
+                        {t('settings.cardCreatorBody')}
+                    </p>
+                    <div className="mt-5 text-accent-blue-deep font-bold text-[0.85rem]">
+                        {t('settings.cardConfigureCta')}
+                    </div>
+                </button>
+            )}
 
             {/* Developer settings — admin-only secret dashboard.
                 Rendered only when STATE.user.email matches one of

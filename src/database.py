@@ -189,6 +189,12 @@ def init_db():
                 home_country TEXT,
                 language TEXT,
                 token_jti TEXT,
+                -- Trip Templates feature: 1 = "Creator" account, allowed to
+                -- publish trip templates. Granted by the dev account only
+                -- (see src/routes/admin.py). The dev email is always treated
+                -- as a creator regardless of this flag. Migration
+                -- e2a4c6b8d0f1 adds it to existing DBs.
+                is_creator INTEGER DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -285,6 +291,39 @@ def init_db():
         cursor.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_trips_share_token "
             "ON trips(share_token) WHERE share_token IS NOT NULL"
+        )
+
+        # Trip Templates Table — a "Creator" account publishes a FROZEN,
+        # pre-stripped snapshot of one of their trips under a short,
+        # human-typeable code. Any user can turn the code into their own
+        # new trip ("create from template"). The snapshot lives in
+        # snapshot_json and contains ONLY shareable content (name, place,
+        # day structure + optional plans/marked-places/checklist per the
+        # include_* toggles) — NEVER expenses / settlements / budgets /
+        # companions / photos / documents. That pre-strip is the privacy
+        # boundary: the public preview endpoint can't leak what isn't
+        # stored. Migration e2a4c6b8d0f1 adds this to existing DBs.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS trip_templates (
+                id TEXT PRIMARY KEY,
+                code TEXT UNIQUE NOT NULL,
+                owner_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                source_trip_id TEXT,
+                include_plans INTEGER DEFAULT 1,
+                include_places INTEGER DEFAULT 1,
+                include_checklist INTEGER DEFAULT 1,
+                snapshot_json TEXT
+                    CHECK(snapshot_json IS NULL OR json_valid(snapshot_json)),
+                use_count INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        ''')
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_trip_templates_owner "
+            "ON trip_templates(owner_id)"
         )
 
         # Expenses Table — receipt_url added post-baseline (FUTURE_

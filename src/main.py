@@ -37,6 +37,7 @@ from routes.pdf import bp as pdf_bp
 from routes.public import bp as public_bp, fetch_share_payload
 from routes.settings import bp as settings_bp
 from routes.settlements import bp as settlements_bp
+from routes.templates import bp as templates_bp, fetch_template_preview
 from routes.trips import bp as trips_bp
 
 # Load environment variables
@@ -183,6 +184,7 @@ app.register_blueprint(pdf_bp)
 app.register_blueprint(public_bp)
 app.register_blueprint(settings_bp)
 app.register_blueprint(settlements_bp)
+app.register_blueprint(templates_bp)
 app.register_blueprint(trips_bp)
 
 # Ensure DB is initialized
@@ -1198,6 +1200,34 @@ def share_page(token):
             # fresh host can still be plain http.
             secure=request.is_secure,
         )
+    return response
+
+
+@app.route("/t/<code>")
+@limiter.limit("60/minute")
+def template_preview_page(code):
+    """Public, server-rendered preview of a Trip Template by code, with a
+    "Use this template" CTA that deep-links into the SPA
+    (/?fromTemplate=<code>). The SPA's template-intent.ts captures the code
+    and instantiates it into a new owned trip after sign-in. Read-only; the
+    preview payload is pre-stripped of all sensitive data by construction, so
+    nothing private can leak here."""
+    preview = fetch_template_preview(code)
+    canonical = url_for("template_preview_page", code=code, _external=True)
+    og_image = url_for("static", filename="favicon.svg", _external=True)
+    status = 200 if preview else 404
+    response = app.make_response((
+        render_template(
+            "template.html",
+            preview=preview,
+            canonical_url=canonical,
+            og_image_url=og_image,
+        ),
+        status,
+    ))
+    # Same privacy posture as the share page — don't let intermediaries
+    # cache a per-code response.
+    response.headers["Cache-Control"] = "private, no-store"
     return response
 
 

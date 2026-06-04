@@ -1,0 +1,146 @@
+// api/templates.ts — Trip Templates (Creator accounts).
+// Creator CRUD over /api/templates, the public preview-by-code, the
+// authed create-from-code, and the dev-only creator-grant. Depends only
+// on core (apiFetch). NEVER imports api.ts.
+
+import { apiFetch } from './core.js';
+
+export interface TemplateSummary {
+    id: string;
+    code: string;
+    name: string;
+    sourceTripId: string | null;
+    includePlans: boolean;
+    includePlaces: boolean;
+    includeChecklist: boolean;
+    useCount: number;
+    createdAt: string | null;
+    updatedAt: string | null;
+}
+
+export interface TemplateInput {
+    name: string;
+    sourceTripId: string;
+    includePlans: boolean;
+    includePlaces: boolean;
+    includeChecklist: boolean;
+}
+
+export interface TemplatePreviewDay {
+    dayNumber?: number;
+    name?: string | null;
+    plan?: { morning?: string | null; afternoon?: string | null; evening?: string | null };
+}
+
+export interface TemplatePreview {
+    code: string;
+    name: string;
+    country?: string | null;
+    countryCode?: string | null;
+    dayCount: number;
+    placeCount: number;
+    checklistCount: number;
+    useCount: number;
+    days: TemplatePreviewDay[];
+    places: Array<{ name?: string | null; icon?: string | null }>;
+}
+
+export async function listTemplates(): Promise<TemplateSummary[]> {
+    try {
+        const res = await apiFetch('/api/templates');
+        if (!res.ok) return [];
+        const body = await res.json();
+        return Array.isArray(body && body.templates) ? body.templates : [];
+    } catch {
+        return [];
+    }
+}
+
+export async function createTemplate(input: TemplateInput): Promise<TemplateSummary | null> {
+    try {
+        const res = await apiFetch('/api/templates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(input),
+        });
+        if (!res.ok) return null;
+        const body = await res.json();
+        return (body && body.template) || null;
+    } catch {
+        return null;
+    }
+}
+
+export async function updateTemplate(
+    id: string,
+    input: Partial<TemplateInput>,
+): Promise<TemplateSummary | null> {
+    try {
+        const res = await apiFetch(`/api/templates/${encodeURIComponent(id)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(input),
+        });
+        if (!res.ok) return null;
+        const body = await res.json();
+        return (body && body.template) || null;
+    } catch {
+        return null;
+    }
+}
+
+export async function deleteTemplate(id: string): Promise<boolean> {
+    try {
+        const res = await apiFetch(`/api/templates/${encodeURIComponent(id)}`, {
+            method: 'DELETE',
+        });
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
+
+/** Public preview of a template by code — no auth required. Returns null
+ *  on a bad/dead code (404) or network error. */
+export async function previewTemplate(code: string): Promise<TemplatePreview | null> {
+    try {
+        const res = await apiFetch(`/api/templates/preview/${encodeURIComponent(code)}`);
+        if (!res.ok) return null;
+        return (await res.json()) as TemplatePreview;
+    } catch {
+        return null;
+    }
+}
+
+/** Instantiate a template into a new owned trip. Returns the new trip id
+ *  on success; `status` lets the caller distinguish 404 (bad code) from
+ *  other failures. */
+export async function createTripFromTemplateCode(
+    code: string,
+): Promise<{ ok: boolean; tripId?: string; status: number }> {
+    try {
+        const res = await apiFetch(`/api/templates/${encodeURIComponent(code)}/create`, {
+            method: 'POST',
+        });
+        if (!res.ok) return { ok: false, status: res.status };
+        const body = await res.json();
+        const tripId = body && typeof body.tripId === 'string' ? body.tripId : undefined;
+        return { ok: true, tripId, status: res.status };
+    } catch {
+        return { ok: false, status: 0 };
+    }
+}
+
+/** Dev-only: grant/revoke a user's Creator status. */
+export async function setUserCreator(userId: string, isCreator: boolean): Promise<boolean> {
+    try {
+        const res = await apiFetch('/api/admin/creator', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, isCreator }),
+        });
+        return res.ok;
+    } catch {
+        return false;
+    }
+}

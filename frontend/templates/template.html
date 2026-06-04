@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  {# Trip Templates — public, read-only preview of a template by code.
+
+     Like share.html, this is INTENTIONALLY NOT the SPA shell — a thin
+     Flask-rendered page so link previews work, no JS/JWT is needed to view,
+     and nothing private can leak (the `preview` payload is pre-stripped of
+     all sensitive data server-side). Values come from /t/<code> in main.py. #}
+
+  {% set page_title = (preview.name ~ ' · The Great Getaway') if preview else 'Template not found · The Great Getaway' %}
+  {% set page_desc = ('A ready-made trip you can copy in one tap — ' ~ (preview.country or 'plan your own adventure') ~ '.') if preview else 'This template link has expired or the code is wrong.' %}
+  <title>{{ page_title }}</title>
+  <meta name="description" content="{{ page_desc }}" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="{{ page_title }}" />
+  <meta property="og:description" content="{{ page_desc }}" />
+  <meta property="og:image" content="{{ og_image_url }}" />
+  <meta property="og:url" content="{{ canonical_url }}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="{{ page_title }}" />
+  <meta name="twitter:description" content="{{ page_desc }}" />
+  <meta name="twitter:image" content="{{ og_image_url }}" />
+
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}" />
+
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #1d1d1f;
+      background: linear-gradient(180deg, #f7f9fc 0%, #eef3f9 100%);
+      min-height: 100vh;
+    }
+    .tp { max-width: 720px; margin: 0 auto; padding: 24px 20px 80px; }
+    .tp-badge {
+      display: inline-block;
+      background: rgba(0, 113, 227, 0.10);
+      color: #0071e3;
+      font-size: 0.7rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      padding: 6px 12px; border-radius: 999px; margin-bottom: 16px;
+    }
+    .tp-hero {
+      position: relative; border-radius: 20px; overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0, 45, 91, 0.18);
+      margin-bottom: 20px; aspect-ratio: 16 / 9;
+      background: linear-gradient(135deg, #0071e3, #5856d6 55%, #34c759);
+      display: flex; align-items: flex-end; padding: 24px;
+    }
+    .tp-hero__title { color: #fff; font-size: 1.8rem; font-weight: 800; letter-spacing: -0.02em; text-shadow: 0 2px 8px rgba(0,0,0,0.35); margin: 0; }
+    .tp-hero__sub { color: rgba(255,255,255,0.92); font-size: 0.95rem; font-weight: 500; margin-top: 4px; }
+    .tp-stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 22px; }
+    .tp-chip { background: #fff; border-radius: 12px; padding: 10px 16px; box-shadow: 0 4px 14px rgba(0,45,91,0.06); font-weight: 700; font-size: 0.9rem; color: #1d1d1f; }
+    .tp-chip span { color: #8e8e93; font-weight: 600; font-size: 0.78rem; }
+    .section-label { text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.7rem; font-weight: 800; color: #0071e3; margin: 8px 4px 12px; }
+    .day-list { list-style: none; padding: 0; margin: 0; }
+    .day-row { display: flex; gap: 14px; padding: 14px 16px; background: #fff; border-radius: 14px; margin-bottom: 10px; box-shadow: 0 4px 14px rgba(0,45,91,0.06); align-items: flex-start; }
+    .day-num { flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; background: rgba(0,113,227,0.1); color: #0071e3; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.9rem; }
+    .day-body { flex: 1; min-width: 0; }
+    .day-name { font-weight: 700; font-size: 0.95rem; }
+    .day-plan { margin-top: 12px; display: grid; gap: 8px; }
+    .plan-slot { background: #f7faff; border-left: 3px solid #0071e3; padding: 8px 12px; border-radius: 0 8px 8px 0; font-size: 0.85rem; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
+    .plan-slot__label { display: block; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #0071e3; margin-bottom: 4px; }
+    .tp-cta { text-align: center; padding: 28px 20px 0; color: #5a5a5e; font-size: 0.9rem; }
+    .tp-cta__primary { display: inline-block; margin-top: 12px; padding: 14px 28px; background: linear-gradient(135deg, #0071e3, #5856d6 60%, #34c759); color: #fff; border-radius: 999px; text-decoration: none; font-weight: 800; font-size: 1rem; box-shadow: 0 8px 20px rgba(0,113,227,0.28); }
+    .tp-cta__primary:hover { transform: translateY(-1px); }
+    .tp-cta__secondary { display: inline-block; margin-top: 10px; margin-left: 8px; padding: 12px 20px; background: rgba(0,113,227,0.10); color: #0071e3; border-radius: 999px; text-decoration: none; font-weight: 700; font-size: 0.9rem; }
+    .tp-empty { text-align: center; padding: 60px 20px; }
+    .tp-empty h1 { font-size: 1.4rem; }
+    .tp-empty a { color: #0071e3; font-weight: 700; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <main class="tp">
+    {% if not preview %}
+    <div class="tp-empty">
+      <h1>This template isn't available</h1>
+      <p>The code may be wrong or the template was removed.</p>
+      <p><a href="/">Open The Great Getaway →</a></p>
+    </div>
+    {% else %}
+    <div class="tp-badge">Trip template</div>
+    <div class="tp-hero">
+      <div>
+        <h1 class="tp-hero__title">{{ preview.name }}</h1>
+        {% if preview.country %}<div class="tp-hero__sub">{{ preview.country }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="tp-stats">
+      {% if preview.dayCount %}<div class="tp-chip">{{ preview.dayCount }} <span>day{% if preview.dayCount != 1 %}s{% endif %} planned</span></div>{% endif %}
+      {% if preview.placeCount %}<div class="tp-chip">{{ preview.placeCount }} <span>place{% if preview.placeCount != 1 %}s{% endif %} to visit</span></div>{% endif %}
+      {% if preview.checklistCount %}<div class="tp-chip">{{ preview.checklistCount }} <span>checklist item{% if preview.checklistCount != 1 %}s{% endif %}</span></div>{% endif %}
+      {% if preview.useCount %}<div class="tp-chip">{{ preview.useCount }} <span>time{% if preview.useCount != 1 %}s{% endif %} used</span></div>{% endif %}
+    </div>
+
+    {% if preview.days %}
+    <div class="section-label">The itinerary</div>
+    <ol class="day-list">
+      {% for d in preview.days %}
+      {% set is_hub = (d.dayNumber == 0) %}
+      {% set day_label = d.dayNumber if d.dayNumber is not none else loop.index %}
+      <li class="day-row">
+        <div class="day-num">{% if is_hub %}★{% else %}{{ day_label }}{% endif %}</div>
+        <div class="day-body">
+          <div class="day-name">{{ d.name or ('Trip Hub' if is_hub else 'Day ' ~ day_label) }}</div>
+          {% if d.plan %}
+          <div class="day-plan">
+            {% if d.plan.morning %}<div class="plan-slot"><span class="plan-slot__label">Morning</span>{{ d.plan.morning }}</div>{% endif %}
+            {% if d.plan.afternoon %}<div class="plan-slot"><span class="plan-slot__label">Afternoon</span>{{ d.plan.afternoon }}</div>{% endif %}
+            {% if d.plan.evening %}<div class="plan-slot"><span class="plan-slot__label">Evening</span>{{ d.plan.evening }}</div>{% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+    {% endif %}
+
+    <div class="tp-cta">
+      {# "Use this template" deep-links into the SPA with ?fromTemplate=<code>.
+         template-intent.ts captures it (surviving the sign-up wall) and
+         instantiates the template into a new owned trip after login. #}
+      <div>Make this trip your own — copy it and edit freely.</div>
+      <a class="tp-cta__primary" href="/?fromTemplate={{ preview.code }}">✨ Use this template</a>
+      <a class="tp-cta__secondary" href="/">Open the app</a>
+    </div>
+    {% endif %}
+  </main>
+</body>
+</html>

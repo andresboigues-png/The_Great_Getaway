@@ -1,0 +1,566 @@
+"""Trip Templates — Creator accounts publish a reusable, code-addressable
+snapshot of a trip; any user turns the code into their own new trip.
+
+Design (see plan dreamy-watching-nebula.md):
+
+- A template is a FROZEN SNAPSHOT of one of the creator's trips, taken at
+  save time and stored pre-stripped in `trip_templates.snapshot_json`. The
+  snapshot holds ONLY shareable content — name, place, day structure +
+  plan text, marked places, checklist — gated by per-template include
+  toggles. It NEVER contains expenses, settlements, budgets, companions,
+  photos, or documents. That pre-strip is the privacy boundary: the public
+  preview-by-code endpoint cannot leak what was never stored.
+
+- Editing a template re-snapshots from a chosen trip but KEEPS the code, so
+  shared codes keep working.
+
+- Instantiation ("create from code") builds a brand-new trip OWNED by the
+  caller, mirroring src/routes/trips.py::_clone_trip_record — it writes the
+  media columns (marked_places_json / checklist_json) DIRECTLY in the fresh
+  INSERT, which is the media-write-invariant-safe path (upsert_trip never
+  touches them; this is a server-side INSERT, not an upsert).
+
+Creator gate: the dev account (admin.ADMIN_EMAILS) is always a creator;
+everyone else needs users.is_creator = 1 (granted via POST /api/admin/creator).
+"""
+
+import json
+import secrets
+
+from flask import Blueprint, jsonify, request
+
+from auth import current_user_id, require_auth
+from database import get_db, retry_on_lock
+from extensions import limiter
+from helpers import ensure_owner_member_row, is_trip_owner, json_body
+from routes.admin import ADMIN_EMAILS
+
+
+bp = Blueprint("templates", __name__)
+
+
+# ── Code generation ──────────────────────────────────────────────────
+# Short, human-typeable codes the creator reads out / texts to a friend.
+# Crockford-ish alphabet: no 0/O/1/I/L (ambiguous when typed). 8 chars of
+# 31-symbol alphabet ≈ 39.6 bits ≈ 8.5e11 space — paired with the public
+# preview rate-limit, enumeration is infeasible. Stored WITHOUT separators;
+# the UI may show a dash (XR4K-9PQ2) for readability.
+_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+_CODE_LEN = 8
+# Snapshot size ceiling (mirrors the per-trip media 512KB cap) so a giant
+# 60-day itinerary can't bloat a single row / public-preview response.
+_SNAPSHOT_MAX_BYTES = 400_000
+
+
+def _generate_code() -> str:
+    return "".join(secrets.choice(_CODE_ALPHABET) for _ in range(_CODE_LEN))
+
+
+def _normalize_code(raw: str) -> str:
+    """Uppercase + strip anything outside the alphabet (dashes, spaces,
+    lowercase) so a user can paste 'xr4k-9pq2' or 'XR4K 9PQ2' and still
+    match the stored 'XR4K9PQ2'."""
+    if not raw:
+        return ""
+    up = str(raw).upper()
+    return "".join(c for c in up if c in _CODE_ALPHABET)
+
+
+def _new_id() -> str:
+    """New trip / day id in the canonical 9-hex-char shape (matches
+    src/routes/trips.py::_generate_trip_id and the frontend generateId)."""
+    return secrets.token_hex(5)[:9]
+
+
+def _loads(raw):
+    """Parse a JSON column to a Python value, or None on empty/garbage."""
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+
+
+# ── Creator gate ─────────────────────────────────────────────────────
+def _is_creator(cursor, user_id) -> bool:
+    """True if the user is the dev account (always a creator) or has the
+    granted users.is_creator flag."""
+    if not user_id:
+        return False
+    cursor.execute(
+        "SELECT email, is_creator FROM users WHERE id = ?", (user_id,)
+    )
+    row = cursor.fetchone()
+    if not row:
+        return False
+    if (row["email"] or "").strip().lower() in ADMIN_EMAILS:
+        return True
+    return bool(row["is_creator"])
+
+
+# ── Snapshot builder (pre-stripped) ──────────────────────────────────
+def _build_template_snapshot(cursor, trip_id, include_plans, include_places, include_checklist):
+    """Read the live trip + its days/places/checklist and return the frozen
+    snapshot dict. Stores ONLY shareable content per the toggles; never any
+    expenses / settlements / budgets / companions / photos / documents.
+    Returns None if the trip doesn't exist."""
+    cursor.execute(
+        "SELECT name, country, country_code, place_id, lat, lng, "
+        "       viewport_json, place_types, trip_countries_json, "
+        "       marked_places_json, checklist_json "
+        "FROM trips WHERE id = ?",
+        (trip_id,),
+    )
+    t = cursor.fetchone()
+    if not t:
+        return None
+
+    snap = {
+        "name": t["name"] or "Trip",
+        "country": t["country"],
+        "countryCode": t["country_code"],
+        "placeId": t["place_id"],
+        "lat": t["lat"],
+        "lng": t["lng"],
+        "viewport": _loads(t["viewport_json"]),
+        "placeTypes": _loads(t["place_types"]),
+        "countries": _loads(t["trip_countries_json"]),
+        "days": [],
+        "markedPlaces": [],
+        "checklist": [],
+    }
+
+    if include_plans:
+        cursor.execute(
+            "SELECT day_number, name, morning, afternoon, evening, tip, lat, lng "
+            "FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL "
+            "ORDER BY day_number",
+            (trip_id,),
+        )
+        for d in cursor.fetchall():
+            snap["days"].append({
+                "dayNumber": d["day_number"],
+                "name": d["name"],
+                "plan": {
+                    "morning": d["morning"],
+                    "afternoon": d["afternoon"],
+                    "evening": d["evening"],
+                },
+                "tip": d["tip"],
+                "lat": d["lat"],
+                "lng": d["lng"],
+            })
+
+    if include_places:
+        places = _loads(t["marked_places_json"]) or []
+        if isinstance(places, list):
+            snap["markedPlaces"] = places
+
+    if include_checklist:
+        items = _loads(t["checklist_json"]) or []
+        if isinstance(items, list):
+            # Reset completion — the new owner starts fresh.
+            snap["checklist"] = [
+                {"id": _new_id(), "body": (it or {}).get("body", ""), "done": False}
+                for it in items
+                if isinstance(it, dict) and (it.get("body") or "").strip()
+            ]
+
+    return snap
+
+
+def _snapshot_too_big(snap) -> bool:
+    try:
+        return len(json.dumps(snap).encode("utf-8")) > _SNAPSHOT_MAX_BYTES
+    except (TypeError, ValueError):
+        return True
+
+
+# ── Instantiation (snapshot → new owned trip) ────────────────────────
+def _instantiate_template(cursor, snap, includes, new_owner_id):
+    """Build a brand-new trip owned by new_owner_id from a frozen snapshot.
+    Mirrors _clone_trip_record: new ids everywhere, owner member row, days
+    with dates blanked. Writes marked_places_json / checklist_json directly
+    in the INSERT (media-write-invariant-safe — this is a server INSERT, not
+    an upsert_trip). Returns the new trip id, or None on repeated id
+    collision."""
+    import sqlite3
+
+    include_places = includes.get("places", True)
+    include_checklist = includes.get("checklist", True)
+
+    marked = snap.get("markedPlaces") if include_places else None
+    checklist = snap.get("checklist") if include_checklist else None
+
+    new_trip_id = None
+    for _attempt in range(5):
+        candidate = _new_id()
+        try:
+            cursor.execute(
+                """
+                INSERT INTO trips (
+                    id, user_id, name, country, country_code,
+                    is_archived, is_public,
+                    place_id, lat, lng, viewport_json, place_types,
+                    companions_json, marked_places_json,
+                    documents_json, photos_json, checklist_json,
+                    trip_countries_json, actions_hidden, cover_url
+                ) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+                """,
+                (
+                    candidate,
+                    new_owner_id,
+                    snap.get("name") or "Trip",
+                    snap.get("country"),
+                    snap.get("countryCode"),
+                    snap.get("placeId"),
+                    snap.get("lat"),
+                    snap.get("lng"),
+                    json.dumps(snap["viewport"]) if snap.get("viewport") else None,
+                    json.dumps(snap["placeTypes"]) if snap.get("placeTypes") else None,
+                    # companions — never copied.
+                    None,
+                    json.dumps(marked) if marked else None,
+                    # documents / photos — never copied.
+                    None,
+                    None,
+                    json.dumps(checklist) if checklist else None,
+                    json.dumps(snap["countries"]) if snap.get("countries") else None,
+                    # cover — excluded (may be a personal upload); the new
+                    # trip falls back to its country-based default cover.
+                    None,
+                ),
+            )
+            new_trip_id = candidate
+            break
+        except sqlite3.IntegrityError:
+            continue
+    if new_trip_id is None:
+        return None
+
+    ensure_owner_member_row(cursor, new_trip_id, new_owner_id)
+
+    # Days — only present when the template included plans. Dates blanked so
+    # the new owner's chosen start auto-assigns (same rule as clone TR2).
+    for d in (snap.get("days") or []):
+        if not isinstance(d, dict):
+            continue
+        plan = d.get("plan") or {}
+        for _attempt in range(5):
+            day_id = _new_id()
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO trip_days (
+                        id, trip_id, day_number, date, name,
+                        morning, afternoon, evening, tip, lat, lng
+                    ) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        day_id,
+                        new_trip_id,
+                        d.get("dayNumber"),
+                        d.get("name"),
+                        plan.get("morning"),
+                        plan.get("afternoon"),
+                        plan.get("evening"),
+                        d.get("tip"),
+                        d.get("lat"),
+                        d.get("lng"),
+                    ),
+                )
+                break
+            except sqlite3.IntegrityError:
+                continue
+
+    return new_trip_id
+
+
+def _template_summary(row) -> dict:
+    """Metadata-only view of a template row for the creator's list (no
+    snapshot blob)."""
+    return {
+        "id": row["id"],
+        "code": row["code"],
+        "name": row["name"],
+        "sourceTripId": row["source_trip_id"],
+        "includePlans": bool(row["include_plans"]),
+        "includePlaces": bool(row["include_places"]),
+        "includeChecklist": bool(row["include_checklist"]),
+        "useCount": row["use_count"] or 0,
+        "createdAt": row["created_at"],
+        "updatedAt": row["updated_at"],
+    }
+
+
+# ── Creator CRUD ─────────────────────────────────────────────────────
+@bp.route("/api/templates", methods=["GET"])
+@require_auth
+@limiter.limit("60/minute")
+def list_templates():
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if not _is_creator(cursor, user_id):
+            return jsonify({"error": "Forbidden"}), 403
+        cursor.execute(
+            "SELECT id, code, name, source_trip_id, include_plans, "
+            "       include_places, include_checklist, use_count, "
+            "       created_at, updated_at "
+            "FROM trip_templates WHERE owner_id = ? ORDER BY created_at DESC",
+            (user_id,),
+        )
+        rows = cursor.fetchall()
+    return jsonify({"templates": [_template_summary(r) for r in rows]})
+
+
+@bp.route("/api/templates", methods=["POST"])
+@require_auth
+@limiter.limit("30/minute")
+@retry_on_lock()
+def create_template():
+    user_id = current_user_id()
+    body = json_body()
+    name = (body.get("name") or "").strip()
+    source_trip_id = (body.get("sourceTripId") or "").strip()
+    include_plans = 1 if body.get("includePlans", True) else 0
+    include_places = 1 if body.get("includePlaces", True) else 0
+    include_checklist = 1 if body.get("includeChecklist", True) else 0
+
+    if not name:
+        return jsonify({"error": "Name required"}), 400
+    if not source_trip_id:
+        return jsonify({"error": "Source trip required"}), 400
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if not _is_creator(cursor, user_id):
+            return jsonify({"error": "Forbidden"}), 403
+        if not is_trip_owner(cursor, source_trip_id, user_id):
+            # 404 (not 403) so a non-owner can't probe trip existence.
+            return jsonify({"error": "Not found"}), 404
+
+        snap = _build_template_snapshot(
+            cursor, source_trip_id, include_plans, include_places, include_checklist
+        )
+        if snap is None:
+            return jsonify({"error": "Not found"}), 404
+        if _snapshot_too_big(snap):
+            return jsonify({"error": "Template too large"}), 413
+
+        snapshot_json = json.dumps(snap)
+        tmpl_id = _new_id()
+        # Generate a unique code with collision retry.
+        new_code = None
+        for _attempt in range(6):
+            candidate = _generate_code()
+            cursor.execute(
+                "SELECT 1 FROM trip_templates WHERE code = ?", (candidate,)
+            )
+            if cursor.fetchone() is None:
+                new_code = candidate
+                break
+        if new_code is None:
+            return jsonify({"error": "Could not allocate code"}), 500
+
+        cursor.execute(
+            "INSERT INTO trip_templates "
+            "(id, code, owner_id, name, source_trip_id, include_plans, "
+            " include_places, include_checklist, snapshot_json, use_count) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
+            (
+                tmpl_id, new_code, user_id, name, source_trip_id,
+                include_plans, include_places, include_checklist, snapshot_json,
+            ),
+        )
+        conn.commit()
+        cursor.execute(
+            "SELECT id, code, name, source_trip_id, include_plans, "
+            "include_places, include_checklist, use_count, created_at, updated_at "
+            "FROM trip_templates WHERE id = ?",
+            (tmpl_id,),
+        )
+        created = cursor.fetchone()
+    return jsonify({"template": _template_summary(created)})
+
+
+@bp.route("/api/templates/<template_id>", methods=["PUT"])
+@require_auth
+@limiter.limit("30/minute")
+@retry_on_lock()
+def update_template(template_id):
+    """Rename and/or re-point to a new source trip + re-toggle → re-snapshot,
+    keeping the same code."""
+    user_id = current_user_id()
+    body = json_body()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if not _is_creator(cursor, user_id):
+            return jsonify({"error": "Forbidden"}), 403
+        cursor.execute(
+            "SELECT id, owner_id, source_trip_id, include_plans, "
+            "include_places, include_checklist, name "
+            "FROM trip_templates WHERE id = ?",
+            (template_id,),
+        )
+        existing = cursor.fetchone()
+        if not existing or existing["owner_id"] != user_id:
+            return jsonify({"error": "Not found"}), 404
+
+        name = (body.get("name") or existing["name"] or "").strip() or existing["name"]
+        source_trip_id = (body.get("sourceTripId") or existing["source_trip_id"] or "").strip()
+        include_plans = 1 if body.get("includePlans", bool(existing["include_plans"])) else 0
+        include_places = 1 if body.get("includePlaces", bool(existing["include_places"])) else 0
+        include_checklist = 1 if body.get("includeChecklist", bool(existing["include_checklist"])) else 0
+
+        if not source_trip_id:
+            return jsonify({"error": "Source trip required"}), 400
+        if not is_trip_owner(cursor, source_trip_id, user_id):
+            return jsonify({"error": "Not found"}), 404
+
+        snap = _build_template_snapshot(
+            cursor, source_trip_id, include_plans, include_places, include_checklist
+        )
+        if snap is None:
+            return jsonify({"error": "Not found"}), 404
+        if _snapshot_too_big(snap):
+            return jsonify({"error": "Template too large"}), 413
+
+        cursor.execute(
+            "UPDATE trip_templates SET name = ?, source_trip_id = ?, "
+            "include_plans = ?, include_places = ?, include_checklist = ?, "
+            "snapshot_json = ?, updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
+            "WHERE id = ? AND owner_id = ?",
+            (
+                name, source_trip_id, include_plans, include_places,
+                include_checklist, json.dumps(snap), template_id, user_id,
+            ),
+        )
+        conn.commit()
+        cursor.execute(
+            "SELECT id, code, name, source_trip_id, include_plans, "
+            "include_places, include_checklist, use_count, created_at, updated_at "
+            "FROM trip_templates WHERE id = ?",
+            (template_id,),
+        )
+        updated = cursor.fetchone()
+    return jsonify({"template": _template_summary(updated)})
+
+
+@bp.route("/api/templates/<template_id>", methods=["DELETE"])
+@require_auth
+@limiter.limit("30/minute")
+@retry_on_lock()
+def delete_template(template_id):
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if not _is_creator(cursor, user_id):
+            return jsonify({"error": "Forbidden"}), 403
+        cursor.execute(
+            "DELETE FROM trip_templates WHERE id = ? AND owner_id = ?",
+            (template_id, user_id),
+        )
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Not found"}), 404
+        conn.commit()
+    return jsonify({"status": "deleted"})
+
+
+# ── Public preview (no auth) ─────────────────────────────────────────
+def fetch_template_preview(code):
+    """Build the public, read-only preview payload for a template code, or
+    None for a bad/dead code. Contains ONLY pre-stripped snapshot content
+    (no sensitive data by construction). Shared by the JSON API endpoint
+    and the server-rendered /t/<code> HTML page in main.py."""
+    norm = _normalize_code(code)
+    if not norm:
+        return None
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT name, snapshot_json, include_plans, include_places, "
+            "include_checklist, use_count "
+            "FROM trip_templates WHERE code = ?",
+            (norm,),
+        )
+        row = cursor.fetchone()
+    if not row:
+        return None
+    snap = _loads(row["snapshot_json"]) or {}
+    days = snap.get("days") or []
+    places = snap.get("markedPlaces") or []
+    checklist = snap.get("checklist") or []
+    return {
+        "code": norm,
+        "name": row["name"],
+        "country": snap.get("country"),
+        "countryCode": snap.get("countryCode"),
+        "dayCount": len(days),
+        "placeCount": len(places),
+        "checklistCount": len(checklist),
+        "useCount": row["use_count"] or 0,
+        # Light read-only itinerary preview (safe — plan text is the
+        # creator's deliberately-published template content).
+        "days": [
+            {"dayNumber": d.get("dayNumber"), "name": d.get("name"), "plan": d.get("plan")}
+            for d in days if isinstance(d, dict)
+        ],
+        "places": [
+            {"name": (p or {}).get("name"), "icon": (p or {}).get("icon")}
+            for p in places if isinstance(p, dict)
+        ],
+    }
+
+
+@bp.route("/api/templates/preview/<code>", methods=["GET"])
+@limiter.limit("60 per minute")
+def preview_template(code):
+    """Public, read-only preview of a template by code. 404 on bad/dead
+    code — no existence leak."""
+    preview = fetch_template_preview(code)
+    if not preview:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify(preview)
+
+
+# ── Instantiate (auth) ───────────────────────────────────────────────
+@bp.route("/api/templates/<code>/create", methods=["POST"])
+@require_auth
+@limiter.limit("30 per hour")
+@retry_on_lock()
+def create_from_template(code):
+    """Build a new trip owned by the caller from a template code. Returns
+    { tripId }. Anyone signed in with a valid code can do this — the code
+    is the access grant (same model as /api/share/<token>/clone)."""
+    user_id = current_user_id()
+    norm = _normalize_code(code)
+    if not norm:
+        return jsonify({"error": "Not found"}), 404
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, snapshot_json, include_places, include_checklist "
+            "FROM trip_templates WHERE code = ?",
+            (norm,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Not found"}), 404
+        snap = _loads(row["snapshot_json"])
+        if not snap:
+            return jsonify({"error": "Not found"}), 404
+        includes = {
+            "places": bool(row["include_places"]),
+            "checklist": bool(row["include_checklist"]),
+        }
+        new_trip_id = _instantiate_template(cursor, snap, includes, user_id)
+        if not new_trip_id:
+            return jsonify({"error": "Could not create trip"}), 500
+        cursor.execute(
+            "UPDATE trip_templates SET use_count = use_count + 1 WHERE id = ?",
+            (row["id"],),
+        )
+        conn.commit()
+    return jsonify({"tripId": new_trip_id})

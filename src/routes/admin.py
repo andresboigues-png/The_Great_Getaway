@@ -30,6 +30,7 @@ from flask import Blueprint, jsonify
 from auth import require_auth, current_user_id
 from database import get_db
 from extensions import limiter
+from helpers import json_body
 
 
 logger = logging.getLogger(__name__)
@@ -197,6 +198,7 @@ def admin_stats():
                 u.name,
                 u.picture,
                 u.created_at,
+                u.is_creator,
                 (SELECT COUNT(*) FROM trips t WHERE t.user_id = u.id) AS trip_count,
                 -- 2026-05-26 (audit SY5): per-user expense count
                 -- excludes tombstoned rows so the admin dashboard
@@ -216,6 +218,7 @@ def admin_stats():
         users = []
         for row in user_rows:
             email = (row["email"] or "").strip().lower()
+            is_admin = email in ADMIN_EMAILS
             users.append({
                 "id": row["id"],
                 "email": row["email"],
@@ -224,7 +227,10 @@ def admin_stats():
                 "createdAt": row["created_at"],
                 "tripCount": row["trip_count"],
                 "expenseCount": row["expense_count"],
-                "isAdmin": email in ADMIN_EMAILS,
+                "isAdmin": is_admin,
+                # Trip Templates: the dev is always a creator; others need
+                # the granted flag. UI shows the toggle off the effective value.
+                "isCreator": bool(row["is_creator"]) or is_admin,
             })
 
     # ── Process metadata (for fun + diagnostics) ──────────────
@@ -248,6 +254,61 @@ def admin_stats():
         "users": users,
         "process": process_info,
     })
+
+
+@bp.route("/api/admin/creator", methods=["POST"])
+@limiter.limit("30/minute")
+@require_auth
+def set_creator():
+    """Dev-only: grant or revoke a user's "Creator" status (Trip
+    Templates feature). Body: { userId? , email?, isCreator: bool } —
+    one of userId/email identifies the target. The dev account itself is
+    always a creator regardless of the flag (ADMIN_EMAILS override in
+    user_status / templates gate), so toggling it is a harmless no-op.
+
+    403 for non-dev callers (same gate + audit-log shape as admin_stats).
+    Revoking a creator leaves their existing templates live by design —
+    this only flips the can-create-new-templates bit."""
+    caller = current_user_id()
+    if not _is_admin(caller):
+        logger.warning(
+            "set_creator forbidden",
+            extra={"user_id": caller, "endpoint": "set_creator"},
+        )
+        return jsonify({"error": "Forbidden"}), 403
+
+    body = json_body()
+    target_id = (body.get("userId") or "").strip()
+    target_email = (body.get("email") or "").strip().lower()
+    new_flag = 1 if body.get("isCreator") else 0
+    if not target_id and not target_email:
+        return jsonify({"error": "userId or email required"}), 400
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if target_id:
+            cursor.execute(
+                "UPDATE users SET is_creator = ? WHERE id = ?",
+                (new_flag, target_id),
+            )
+        else:
+            cursor.execute(
+                "UPDATE users SET is_creator = ? WHERE lower(email) = ?",
+                (new_flag, target_email),
+            )
+        if cursor.rowcount == 0:
+            return jsonify({"error": "User not found"}), 404
+        conn.commit()
+
+    logger.info(
+        "set_creator",
+        extra={
+            "by": caller,
+            "target": target_id or target_email,
+            "isCreator": bool(new_flag),
+        },
+    )
+    return jsonify({"status": "ok", "isCreator": bool(new_flag)})
 
 
 def _gemini_pool_snapshot() -> dict:

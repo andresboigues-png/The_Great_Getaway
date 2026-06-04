@@ -874,3 +874,69 @@
     margin-top: 0;
 }
 
+/* ── Creator → Trip Templates rows ────────────────────────────────── */
+.tmpl-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 12px 14px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.22));
+    border-radius: var(--radius-md, 12px);
+}
+.tmpl-row__main {
+    flex: 1 1 200px;
+    min-width: 0;
+}
+.tmpl-row__name {
+    font-weight: 700;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tmpl-row__meta {
+    font-size: 0.74rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+/* The code is the headline affordance — a tappable monospace chip that
+   copies to clipboard. */
+.tmpl-row__code {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    padding: 6px 12px;
+    border: 1px dashed rgba(0, 113, 227, 0.45);
+    border-radius: 10px;
+    background: rgba(0, 113, 227, 0.06);
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease;
+}
+.tmpl-row__code:hover,
+.tmpl-row__code:focus-visible {
+    background: rgba(0, 113, 227, 0.12);
+    border-color: rgba(0, 113, 227, 0.7);
+    outline: none;
+}
+.tmpl-row__code-text {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-weight: 800;
+    font-size: 0.95rem;
+    letter-spacing: 0.08em;
+    color: var(--accent-blue, #0071e3);
+}
+.tmpl-row__code-hint {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+}
+.tmpl-row__actions {
+    display: flex;
+    gap: 6px;
+    flex: 0 0 auto;
+}
+

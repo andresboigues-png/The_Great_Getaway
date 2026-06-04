@@ -21,6 +21,8 @@ frontend/templates/index.html
 # block comments and {% %} control statements are non-standard.
 # Server-rendered share page; doesn't ship to the client bundle.
 frontend/templates/share.html
+# Server-rendered Trip Templates public preview page (same Jinja reason).
+frontend/templates/template.html
 
 # Hand-written narrative docs — maintained by hand, not worth enforcing
 # Prettier on (and its markdown reformatting is non-idempotent on

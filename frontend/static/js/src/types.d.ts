@@ -36,6 +36,10 @@ export interface User {
      *  /api/profile/update from setLocale; read on /api/user-status
      *  and hydrated into STATE.preferences.locale on app boot. */
     language?: 'en' | 'pt' | 'es' | 'fr' | null;
+    /** Trip Templates: true for "Creator" accounts (may publish trip
+     *  templates). The dev account is always a creator; others are granted
+     *  via the Developer dashboard. Server-resolved on /api/user-status. */
+    isCreator?: boolean;
 }
 
 export interface Category {

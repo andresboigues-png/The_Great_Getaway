@@ -11,6 +11,7 @@ import { showLiquidAlert } from '../utils.js';
 import { t } from '../i18n.js';
 import { updateUserUI } from '../pages/profile.js';
 import { attemptPendingClone, hasPendingCloneIntent } from './clone-intent.js';
+import { attemptPendingTemplate, hasPendingTemplateIntent } from './template-intent.js';
 
 async function handleGoogleLogin(response: { credential?: string; [key: string]: unknown }) {
     try {
@@ -79,6 +80,12 @@ async function handleGoogleLogin(response: { credential?: string; [key: string]:
         // normal post-login routing below.
         if (hasPendingCloneIntent()) {
             await attemptPendingClone();
+            return;
+        }
+        // Trip Templates — same pattern for /?fromTemplate=<code>. The helper
+        // navigates to home on success, so short-circuit normal routing.
+        if (hasPendingTemplateIntent()) {
+            await attemptPendingTemplate();
             return;
         }
         // Prefer the route the user originally tried to reach. Logged-out

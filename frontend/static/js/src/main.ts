@@ -39,6 +39,7 @@ import { updateTripSelector } from './bootstrap/trip-controls.js';
 import { paintI18nBindings } from './bootstrap/i18n-bindings.js';
 import { initGoogleLogin, restoreSession } from './bootstrap/auth.js';
 import { captureCloneIntent, attemptPendingClone, hasPendingCloneIntent } from './bootstrap/clone-intent.js';
+import { captureTemplateIntent, attemptPendingTemplate, hasPendingTemplateIntent } from './bootstrap/template-intent.js';
 import { wireNavChrome, resolvePage } from './bootstrap/nav-chrome.js';
 import { setupInstallPrompt } from './bootstrap/install-prompt.js';
 import { initPullToRefresh } from './pullToRefresh.js';
@@ -59,6 +60,9 @@ async function init() {
     // §4.6 — capture ?cloneFromShare=<token> BEFORE any other routing
     // happens so the intent survives even if the user hits the login wall.
     captureCloneIntent();
+    // Trip Templates — capture ?fromTemplate=<code> the same way, so the
+    // public /t/<code> preview's "Use this template" CTA survives the wall.
+    captureTemplateIntent();
 
     // Phase D2 — apply theme BEFORE any render so there's no flash-
     // of-light-content when the user has dark or system-dark active.
@@ -131,6 +135,11 @@ async function init() {
         // navigates to home on success.
         if (hasPendingCloneIntent()) {
             await attemptPendingClone();
+        }
+        // Trip Templates — instantiate a pending ?fromTemplate=<code> now
+        // that we're authenticated. Navigates to home on success.
+        if (hasPendingTemplateIntent()) {
+            await attemptPendingTemplate();
         }
     }
 

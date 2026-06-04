@@ -17,7 +17,7 @@
 // fresh numbers, they tap the Refresh button.
 
 import { useEffect, useState } from 'react';
-import { apiFetch } from '../../api.js';
+import { apiFetch, setUserCreator } from '../../api.js';
 import { t } from '../../i18n.js';
 
 interface AdminUser {
@@ -29,6 +29,7 @@ interface AdminUser {
     tripCount: number;
     expenseCount: number;
     isAdmin: boolean;
+    isCreator: boolean;
 }
 
 interface AdminStats {
@@ -80,6 +81,13 @@ export function Developer() {
         }
     };
 
+    const toggleCreator = async (u: AdminUser) => {
+        // The dev account is always a creator (server override) — no-op.
+        if (u.isAdmin) return;
+        const ok = await setUserCreator(u.id, !u.isCreator);
+        if (ok) await fetchStats();
+    };
+
     useEffect(() => {
         void fetchStats();
     }, []);
@@ -118,7 +126,7 @@ export function Developer() {
                 <>
                     <StatsGrid stats={stats} />
                     <ProcessInfo stats={stats} />
-                    <UsersTable users={stats.users} />
+                    <UsersTable users={stats.users} onToggleCreator={(u) => void toggleCreator(u)} />
                 </>
             )}
         </div>
@@ -190,7 +198,7 @@ function ProcessInfo({ stats }: { stats: AdminStats }) {
 }
 
 
-function UsersTable({ users }: { users: AdminUser[] }) {
+function UsersTable({ users, onToggleCreator }: { users: AdminUser[]; onToggleCreator: (u: AdminUser) => void }) {
     return (
         <div>
             <h3
@@ -213,6 +221,7 @@ function UsersTable({ users }: { users: AdminUser[] }) {
                             <Th>{t('settings.devJoined')}</Th>
                             <Th align="right">{t('settings.devTrips')}</Th>
                             <Th align="right">{t('settings.devExpenses')}</Th>
+                            <Th align="right">{t('settings.devCreatorCol')}</Th>
                         </tr>
                     </thead>
                     <tbody>
@@ -263,6 +272,21 @@ function UsersTable({ users }: { users: AdminUser[] }) {
                                 <Td>{formatDate(u.createdAt)}</Td>
                                 <Td align="right">{u.tripCount}</Td>
                                 <Td align="right">{u.expenseCount}</Td>
+                                <Td align="right">
+                                    {u.isAdmin ? (
+                                        <span className="text-[0.7rem] font-extrabold text-accent-purple uppercase tracking-[0.04em]">
+                                            {t('settings.devCreatorYes')}
+                                        </span>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            className={`btn-small py-1 px-2.5 rounded-md text-[0.75rem] ${u.isCreator ? 'btn-primary' : 'btn-liquid-glass'}`}
+                                            onClick={() => onToggleCreator(u)}
+                                        >
+                                            {u.isCreator ? t('settings.devRevokeCreator') : t('settings.devMakeCreator')}
+                                        </button>
+                                    )}
+                                </Td>
                             </tr>
                         ))}
                     </tbody>

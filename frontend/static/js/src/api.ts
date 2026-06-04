@@ -637,6 +637,7 @@ export * from './api/core.js';
 export * from './api/media.js';
 export * from './api/feed.js';
 export * from './api/misc.js';
+export * from './api/templates.js';
 
 // ── MOVED TO api/misc.ts ──────────────────────────────────────────────────────
 // fetchNotifications, markNotificationsRead, markNotificationRead,

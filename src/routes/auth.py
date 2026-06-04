@@ -30,6 +30,11 @@ from auth import (
 )
 from database import get_db, retry_on_lock
 from extensions import limiter
+# Single source of truth for the dev/admin allowlist. The dev account is
+# always treated as a Creator (Trip Templates feature) regardless of the
+# users.is_creator flag. Importing from the leaf admin route module is
+# cycle-free (admin.py imports the lower-level `auth` module, not this one).
+from routes.admin import ADMIN_EMAILS
 
 
 logger = logging.getLogger(__name__)
@@ -49,13 +54,16 @@ def user_status():
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, email, name, picture, bio, status, home_currency, home_country, language FROM users WHERE id = ?",
+            "SELECT id, email, name, picture, bio, status, home_currency, home_country, language, is_creator FROM users WHERE id = ?",
             (user_id,),
         )
         row = cursor.fetchone()
     if not row:
         # Token is valid but user was deleted — treat as logged out.
         return jsonify({"logged_in": False})
+    # Trip Templates: the dev account is always a Creator; everyone else
+    # needs the granted users.is_creator flag.
+    is_creator = bool(row["is_creator"]) or (row["email"] or "").strip().lower() in ADMIN_EMAILS
     return jsonify({
         "logged_in": True,
         "user": {
@@ -71,6 +79,7 @@ def user_status():
             # the frontend then derives from navigator.language via
             # detectBrowserLocale (i18n.ts).
             "language": row["language"],
+            "isCreator": is_creator,
         },
     })
 
