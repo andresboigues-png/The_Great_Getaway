@@ -259,14 +259,16 @@ export function addOrUpdatePlaceFromVerified(
         existing.dayId = dayId ?? existing.dayId ?? null;
         existing.timeOfDay = timeOfDay ?? existing.timeOfDay ?? null;
         existing.verified = true;
-        // Provenance — once an AI plan touches a place, we mark it
-        // as AI-sourced so a future Accept Plan can cleanly replace
-        // it. If the user had originally added it manually, the
-        // smart-replace flow's "keep manuals" check (see
-        // dropAITaggedPlaces) actually looks at source — so flipping
-        // this is OK: a place ALSO promoted to an AI run is treated
-        // as part of the AI generation set going forward.
-        existing.source = 'ai';
+        // Provenance — DO NOT promote an already-tracked place to 'ai'.
+        // It existed before this AI run: the user either added it by hand
+        // (source 'manual' / legacy undefined) or a prior run did. Because
+        // dropAITaggedPlaces() deletes EVERY 'ai' place before the next
+        // Accept Plan, flipping a user's manual to-do to 'ai' here meant the
+        // NEXT Accept Plan silently DELETED it — real data loss (a
+        // hand-built to-do list vanished after running the planner a second
+        // time). Keep the original source untouched so manual picks survive
+        // every AI run; only brand-new, AI-only places (the fresh-insert
+        // branch below) are ever stamped 'ai' and thus replaceable.
         if (item.verifiedName) existing.verifiedName = item.verifiedName;
         if (item.photoUrl) existing.photoUrl = item.photoUrl;
         if (typeof item.rating === 'number') existing.rating = item.rating;
