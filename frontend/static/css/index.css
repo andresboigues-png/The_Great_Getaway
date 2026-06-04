@@ -3649,9 +3649,40 @@ body.is-signed-out #sidebarOverlay {
 }
 .login-wall__btn-container {
     display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
+    gap: var(--space-3);
     min-height: 44px;
     margin-bottom: var(--space-4);
+}
+/* Spinner + "Loading Google Sign-In…" shown until Google's button renders,
+   so a cold load shows progress rather than empty space the user clicks. */
+.login-wall__btn-loading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+.login-wall__spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--accent-blue);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex: none;
+}
+/* Shown only if GSI never loads (blocked/offline): the manual refresh
+   workaround, surfaced as a real control. */
+.login-wall__btn-stalled {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
 }
 .login-wall__fineprint {
     margin: 0;

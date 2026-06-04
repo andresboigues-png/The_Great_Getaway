@@ -685,6 +685,11 @@ declare global {
         __GG_API_BASE__?: string;
         /** Google Identity SDK on window once gsi/client loads. */
         google?: any;
+        /** GIS calls this once when the gsi/client script finishes loading
+         *  (event-driven readiness hook). The login wall sets it so the
+         *  Google button renders the instant the SDK is in, instead of
+         *  waiting on a poll tick. */
+        onGoogleLibraryLoad?: () => void;
         /** Google Identity callback registered by profile.js — referenced
          *  from the GIS button's `data-callback` attribute. */
         handleGoogleLogin?: (response: unknown) => void;
