@@ -120,19 +120,24 @@ export function setupSlideshow(activeTrip: Trip | null): SlideshowController {
     // day pinned in Morocco gets quotes + facts from BOTH
     // countries on the slideshow.
     const discoveredCodes = new Set<string>();
-    if (activeTrip.countryCode) discoveredCodes.add(activeTrip.countryCode);
-    // STATE.tripDays read out of sessionStorage cache. We
-    // don't import STATE here on purpose — keeping the
-    // controller pure makes it testable without faking a
-    // global. Caller could feed in a tripDays list, but for
-    // now we still need sessionStorage for the cache.
-    try {
-        for (const key in sessionStorage) {
-            if (!key.startsWith('tggDayCountry:')) continue;
-            const cached = sessionStorage.getItem(key);
-            if (cached) discoveredCodes.add(cached);
-        }
-    } catch (_) { /* sessionStorage unavailable */ }
+    const addCode = (c: string | null | undefined) => {
+        const up = (c || '').toUpperCase();
+        if (up) discoveredCodes.add(up);
+    };
+    addCode(activeTrip.countryCode);
+    // §4.3 multi-country: seed the roster from THIS trip's own persisted
+    // country set (trip_countries_json), NOT from a session-wide cache.
+    //
+    // BUGFIX: the old code scanned EVERY `tggDayCountry:<lat>,<lng>` key in
+    // sessionStorage and added all of them. That cache is keyed by
+    // coordinate (written by HeroMap's geocoder), not by trip — so a country
+    // discovered for a *different* trip's day-pin (e.g. a Belgium pin from a
+    // previously-viewed trip) leaked into an unrelated trip's roster. Users
+    // saw the wrong country's "population" fact (a Portugal trip showing
+    // Belgium). Using `activeTrip.countries` keeps the roster strictly
+    // per-trip; the live geocoder still widens it for the current trip via
+    // addDiscoveredCountry() as day-pins resolve this session.
+    for (const c of (activeTrip.countries || [])) addCode(c);
 
     /** Build the roster — one (image, fact) pair per country in
      *  the discovered set. The on-screen text used to alternate
