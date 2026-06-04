@@ -21,18 +21,20 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../../react/store.js';
+import { STATE } from '../../state.js';
 import { CURRENCY_SYMBOLS } from '../../constants.js';
 import { getHomeCurrency } from '../../utils.js';
 import { getSupportedCurrencies, convertCurrency } from '../../utils/currency.js';
 import {
     getManualRatesForCurrency,
     setManualRate,
+    computeAutoRate,
     type ManualYearRate,
 } from '../../utils/manualRates.js';
 import { makeInflationFactor } from '../../utils/presentValue.js';
 import { fetchCpiSeries } from '../../api.js';
 import type { Expense } from '../../types';
-import { t } from '../../i18n.js';
+import { t, tn } from '../../i18n.js';
 
 export type RatesMode = 'fx' | 'infl';
 
@@ -53,22 +55,56 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
 
     const home = (getHomeCurrency() || 'EUR').toUpperCase();
 
-    // Currency picker options. FX excludes the home currency (its rate is always
-    // 1); inflation includes it (home prices inflate too). Home first, then A→Z.
-    const currencyOptions = useMemo(() => {
-        const spent = (expenses || []).map((e: Expense) => (e.currency || 'EUR').toUpperCase());
+    // Currencies the user has actually spent in (distinct, uppercased).
+    const spentCurrencies = useMemo(() => {
+        const set = new Set<string>();
+        for (const e of expenses || []) set.add(((e as Expense).currency || 'EUR').toUpperCase());
+        return set;
+    }, [expenses]);
+
+    // The span of years the user has dated expenses in (for the summary line).
+    const yearSpan = useMemo(() => {
+        let min = Infinity;
+        let max = -Infinity;
+        for (const e of expenses || []) {
+            const y = Number(((e as Expense).date || '').slice(0, 4));
+            if (Number.isFinite(y) && y >= 1900) {
+                if (y < min) min = y;
+                if (y > max) max = y;
+            }
+        }
+        return Number.isFinite(min) ? { min, max } : null;
+    }, [expenses]);
+
+    // Chips show only the USER'S currencies: home + the ones they have expenses
+    // in + any they've already pinned (NOT all ~40 known codes). FX excludes the
+    // home currency (its rate is always 1); inflation includes it (home prices
+    // inflate too). Home first, then A→Z. `extra` holds codes the user added via
+    // the "+ other currency" affordance this session.
+    const [extra, setExtra] = useState<string[]>([]);
+    const chipCurrencies = useMemo(() => {
         const pinned = Object.keys(manualRates || {});
-        const known = [...getSupportedCurrencies(), ...Object.keys(CURRENCY_SYMBOLS)].map((c) => c.toUpperCase());
-        const set = new Set<string>([home, ...spent, ...pinned, ...known]);
+        const set = new Set<string>([home, ...spentCurrencies, ...pinned, ...extra]);
         const all = Array.from(set).sort((a, b) => (a === home ? -1 : b === home ? 1 : a.localeCompare(b)));
         return isFx ? all.filter((c) => c !== home) : all;
-    }, [expenses, manualRates, home, isFx]);
+    }, [spentCurrencies, manualRates, home, isFx, extra]);
 
-    const [selectedCur, setSelectedCur] = useState(() => currencyOptions[0] || home);
+    // The remaining supported currencies the user could add (everything we can
+    // convert, minus what's already a chip). Feeds the "+ other currency" picker.
+    const otherCurrencies = useMemo(() => {
+        const shown = new Set(chipCurrencies);
+        const known = [...getSupportedCurrencies(), ...Object.keys(CURRENCY_SYMBOLS)].map((c) => c.toUpperCase());
+        const rest = Array.from(new Set(known)).filter((c) => !shown.has(c) && (!isFx || c !== home));
+        return rest.sort((a, b) => a.localeCompare(b));
+    }, [chipCurrencies, home, isFx]);
+
+    const [selectedCur, setSelectedCur] = useState(() => chipCurrencies[0] || home);
     const [rows, setRows] = useState<Row[]>([]);
     const [newYear, setNewYear] = useState('');
     const [dirty, setDirty] = useState(false);
     const [savedFlash, setSavedFlash] = useState(false);
+    const [autoBusy, setAutoBusy] = useState(false);
+    const [autoFilledCount, setAutoFilledCount] = useState<number | null>(null);
 
     // Read the persisted value for one field of a currency+year.
     const storedValue = (cur: string, year: string): number | undefined => {
@@ -94,12 +130,22 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
         });
     };
 
+    // Keep the selection valid: switching mode can drop the home chip (FX hides
+    // it), and an emptied chip set should never leave a stale selection.
+    useEffect(() => {
+        if (!chipCurrencies.includes(selectedCur)) {
+            setSelectedCur(chipCurrencies[0] || home);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chipCurrencies]);
+
     // Reload rows when the currency (or mode) changes; drop any unsaved edits.
     useEffect(() => {
         setRows(buildRows(selectedCur));
         setNewYear('');
         setDirty(false);
         setSavedFlash(false);
+        setAutoFilledCount(null);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedCur, mode]);
 
@@ -218,6 +264,69 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
         setSavedFlash(false);
     };
 
+    // "Set automatically from my trips" (this mode): fill BLANKS ONLY — never
+    // overwrite a value the user already pinned for this mode — across ALL their
+    // currencies × the years they have expenses in. Uses the SAME maths Insights
+    // reads back (computeAutoRate ↔ utils/presentValue.ts) and the same merge
+    // pattern as onSave (the OTHER mode's value per year is preserved). FX skips
+    // the home currency (rate fixed at 1). CPI fetches are async, so we await
+    // each currency's series first (fetchCpiSeries no-ops if already attempted).
+    const onAutoFill = async () => {
+        if (autoBusy) return;
+        setAutoBusy(true);
+        setSavedFlash(false);
+        setAutoFilledCount(null);
+        try {
+            // The user's currencies for THIS mode (FX excludes home).
+            const pinned = Object.keys(manualRates || {});
+            const curSet = new Set<string>([...spentCurrencies, ...pinned]);
+            if (!isFx) curSet.add(home);
+            const currencies = Array.from(curSet).filter((c) => isFx ? c !== home : true);
+
+            // Inflation needs each currency's World-Bank CPI series loaded.
+            if (!isFx) await Promise.all(currencies.map((c) => fetchCpiSeries(c)));
+
+            const expenseList = (expenses || []) as Expense[];
+            const cpi = STATE.cpiCache as Record<string, Record<number, number>>;
+            let filled = 0;
+            for (const cur of currencies) {
+                // Years this currency has dated expenses in.
+                const years = Array.from(new Set(
+                    expenseList
+                        .filter((e) => (e.currency || 'EUR').toUpperCase() === cur && /^\d{4}/.test(e.date || ''))
+                        .map((e) => (e.date || '').slice(0, 4)),
+                )).filter((y) => /^\d{4}$/.test(y));
+                if (years.length === 0) continue;
+                const existing = getManualRatesForCurrency(cur);
+                for (const year of years) {
+                    // BLANKS ONLY — leave a value the user already pinned alone.
+                    const current = isFx ? existing[year]?.fx : existing[year]?.inflationPct;
+                    if (Number.isFinite(current)) continue;
+                    const auto = computeAutoRate(mode, cur, year, expenseList, cpi[cur], home, convertCurrency);
+                    if (auto == null || !Number.isFinite(auto)) continue;
+                    // Merge: preserve the OTHER mode's value for this year.
+                    const other = isFx ? existing[year]?.inflationPct : existing[year]?.fx;
+                    const payload: ManualYearRate = {};
+                    if (isFx) {
+                        if (Number.isFinite(other)) payload.inflationPct = other as number;
+                        if (auto > 0) payload.fx = auto;
+                    } else {
+                        if (Number.isFinite(other)) payload.fx = other as number;
+                        payload.inflationPct = auto;
+                    }
+                    setManualRate(cur, year, payload);
+                    filled += 1;
+                }
+            }
+            // Reflect the freshly written values for the visible currency.
+            setRows(buildRows(selectedCur));
+            setDirty(false);
+            setAutoFilledCount(filled);
+        } finally {
+            setAutoBusy(false);
+        }
+    };
+
     // Whether this currency currently has ANY pinned value for this mode (gates
     // the Reset-to-automatic button — nothing to reset otherwise).
     const hasPinned = useMemo(() => {
@@ -227,6 +336,20 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
     }, [selectedCur, manualRates, isFx]);
 
     const colLabel = isFx ? t('settings.ratesFxHint', { cur: selectedCur, home }) : t('settings.ratesInflationCol');
+
+    // "€ EUR" / "$ USD" / "CAD" — symbol prefix when we have one, else the code.
+    const chipLabel = (c: string): string => (CURRENCY_SYMBOLS[c] ? CURRENCY_SYMBOLS[c] + ' ' : '') + c;
+
+    // Summary of what the user actually has, computed from their expenses:
+    // distinct currencies + the year span. Pluralised; gentle empty variant when
+    // there are no dated expenses.
+    const summaryLine = (() => {
+        const list = Array.from(spentCurrencies);
+        if (list.length === 0 || !yearSpan) return t('settings.ratesSummaryEmpty');
+        const sorted = list.sort((a, b) => a.localeCompare(b)).join(', ');
+        const span = yearSpan.min === yearSpan.max ? String(yearSpan.min) : `${yearSpan.min}–${yearSpan.max}`;
+        return tn('settings.ratesSummary', list.length, { currencies: sorted, span });
+    })();
 
     return (
         <div className="card glass settings-section card-glow-blue" id="customRates">
@@ -274,25 +397,35 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                 </div>
             </details>
 
-            {/* Currency picker + per-currency reset */}
+            {/* Summary of what the user actually has (distinct currencies + the
+                year span), computed from their expenses. */}
+            <p className="text-secondary text-[0.82rem] mt-0 mb-3">{summaryLine}</p>
+
+            {/* "Set automatically from my trips" — fills blanks only across all
+                the user's currencies × their expense years, for this mode. */}
             <div className="flex items-center gap-3 mb-4 flex-wrap">
-                <label className="font-bold text-[0.85rem]" htmlFor={`ratesCurSelect-${mode}`}>
-                    {t('settings.ratesCurrencyLabel')}
-                </label>
-                <select
-                    id={`ratesCurSelect-${mode}`}
-                    className="glass-input"
-                    style={{ minWidth: '140px', padding: '8px 10px', borderRadius: '10px' }}
-                    value={selectedCur}
-                    onChange={(e) => setSelectedCur(e.target.value)}
+                <button
+                    type="button"
+                    className="btn-neutral text-[0.82rem]"
+                    style={{ padding: '8px 16px', borderRadius: '999px', opacity: autoBusy ? 0.7 : 1 }}
+                    onClick={() => { void onAutoFill(); }}
+                    disabled={autoBusy}
                 >
-                    {currencyOptions.map((c) => (
-                        <option key={c} value={c}>
-                            {(CURRENCY_SYMBOLS[c] ? CURRENCY_SYMBOLS[c] + ' ' : '') + c}
-                            {c === home ? ` (${t('settings.ratesHomeTag')})` : ''}
-                        </option>
-                    ))}
-                </select>
+                    {autoBusy ? t('settings.ratesAutoFillBusy') : t('settings.ratesAutoFill')}
+                </button>
+                {autoFilledCount != null ? (
+                    <span className="text-[0.82rem] font-bold" style={{ color: '#34c759' }}>
+                        {tn('settings.ratesAutoFilled', autoFilledCount, { count: autoFilledCount })}
+                    </span>
+                ) : (
+                    <span className="text-secondary text-[0.78rem]">{t('settings.ratesAutoFillHint')}</span>
+                )}
+            </div>
+
+            {/* Currency chips — only the user's currencies (home + spent +
+                pinned). FX hides home (its rate is always 1). */}
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <span className="font-bold text-[0.85rem]">{t('settings.ratesCurrencyLabel')}</span>
                 {hasPinned ? (
                     <button
                         type="button"
@@ -302,6 +435,45 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                     >
                         {t('settings.ratesResetAuto')}
                     </button>
+                ) : null}
+            </div>
+            <div className="flex items-center gap-2 mb-4 flex-wrap" role="group" aria-label={t('settings.ratesCurrencyLabel')}>
+                <div className="glass inline-flex p-1 rounded-[14px] border border-[var(--glass-border)] shadow-[var(--shadow-sm)] flex-wrap gap-1">
+                    {chipCurrencies.map((c) => (
+                        <button
+                            key={c}
+                            type="button"
+                            aria-pressed={selectedCur === c}
+                            className={`toggle-btn ${selectedCur === c ? 'active' : ''}`}
+                            style={{ fontSize: '0.82rem' }}
+                            onClick={() => setSelectedCur(c)}
+                        >
+                            {chipLabel(c)}
+                            {c === home ? ` (${t('settings.ratesHomeTag')})` : ''}
+                        </button>
+                    ))}
+                </div>
+                {/* "+ other currency" — add one the user hasn't spent in yet. The
+                    select resets to its placeholder after each pick. */}
+                {otherCurrencies.length > 0 ? (
+                    <select
+                        id={`ratesCurOther-${mode}`}
+                        className="glass-input"
+                        style={{ padding: '8px 10px', borderRadius: '10px', fontSize: '0.82rem' }}
+                        value=""
+                        aria-label={t('settings.ratesAddCurrency')}
+                        onChange={(e) => {
+                            const c = e.target.value.toUpperCase();
+                            if (!c) return;
+                            setExtra((prev) => (prev.includes(c) ? prev : [...prev, c]));
+                            setSelectedCur(c);
+                        }}
+                    >
+                        <option value="">{t('settings.ratesAddCurrency')}</option>
+                        {otherCurrencies.map((c) => (
+                            <option key={c} value={c}>{chipLabel(c)}</option>
+                        ))}
+                    </select>
                 ) : null}
             </div>
 

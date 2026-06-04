@@ -16,6 +16,7 @@
 
 import { STATE, emit } from '../state.js';
 import { EVENTS } from '../constants.js';
+import { makeInflationFactor } from './presentValue.js';
 
 export interface ManualYearRate {
     /** 1 unit of the currency in HOME-currency units, that year. */
@@ -108,4 +109,85 @@ export function clearManualRatesForCurrency(currency: string): void {
     delete all[code];
     STATE.manualRates = all;
     emit(EVENTS.STATE_CHANGED);
+}
+
+// ── Auto-fill ("Set automatically from my trips") ────────────────────────────
+
+/** The minimum an expense needs for the auto-fill maths — a structural subset
+ *  of the app's `Expense`, so real rows pass straight through. */
+export interface AutoRateExpense {
+    value: number;
+    currency?: string;
+    date?: string;
+    euroValue?: number;
+}
+
+/** Median of a non-empty numeric list (robust to outliers vs the mean). */
+function median(values: number[]): number {
+    const xs = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(xs.length / 2);
+    return xs.length % 2 === 0 ? (xs[mid - 1]! + xs[mid]!) / 2 : xs[mid]!;
+}
+
+/** Compute the automatic value the editor would suggest for one
+ *  currency+year, in the SAME units the user types (and that Insights reads
+ *  via utils/presentValue.ts). PURE — no STATE, no fetch — so it's unit-tested
+ *  in isolation; the caller injects the CPI series + a convert fn.
+ *
+ *  • mode 'infl' → cumulative inflation % from `year` to TODAY. Mirrors the
+ *    editor's `autoHint` + presentValue's `inflationFactorFor`:
+ *      pct = round((factor(`${year}-06-15`) - 1) * 1000) / 10
+ *    where factor = makeInflationFactor(cpiSeries, currentYear). Null if no
+ *    usable series (so blanks stay blank rather than being pinned to +0%).
+ *  • mode 'fx', currency ≠ home → "1 unit of `currency` in HOME units" (the
+ *    same convention presentValue uses: spentHome = value * fx). Derived from
+ *    the user's OWN expenses that year — the rate they actually paid — as the
+ *    MEDIAN of implied = homeValue / value (homeValue from the frozen euroValue
+ *    so it matches the nominal "Spent" leg). Falls back to today's live rate
+ *    (convertFn(1, currency, home)) when there are no expenses that year.
+ *    Null if not finite/≤0, and always null for currency === home (its rate
+ *    is fixed at 1, so there is nothing to pin). */
+export function computeAutoRate(
+    mode: 'fx' | 'infl',
+    currency: string,
+    year: number | string,
+    expenses: AutoRateExpense[],
+    cpiSeriesForCurrency: Record<number, number> | undefined,
+    home: string,
+    convertFn: (amount: number, from: string, to: string) => number,
+): number | null {
+    const cur = (currency || '').toUpperCase();
+    const homeCur = (home || 'EUR').toUpperCase();
+    const yr = String(year);
+    if (!/^\d{4}$/.test(yr)) return null;
+    const currentYear = new Date().getFullYear();
+
+    if (mode === 'infl') {
+        // No series → no honest figure to suggest (leave the field blank).
+        if (!cpiSeriesForCurrency || Object.keys(cpiSeriesForCurrency).length === 0) return null;
+        const factor = makeInflationFactor(cpiSeriesForCurrency, currentYear)(`${yr}-06-15`);
+        if (!Number.isFinite(factor)) return null;
+        return Math.round((factor - 1) * 1000) / 10;
+    }
+
+    // FX. Home currency's rate is always 1 → nothing to pin.
+    if (cur === homeCur) return null;
+
+    // Prefer the rate the user actually PAID that year: median of the implied
+    // (homeValue / value) across their expenses in this currency+year.
+    const implied: number[] = [];
+    for (const e of expenses || []) {
+        if ((e.currency || 'EUR').toUpperCase() !== cur) continue;
+        if ((e.date || '').slice(0, 4) !== yr) continue;
+        const value = e.value;
+        const euro = e.euroValue;
+        if (!Number.isFinite(value) || (value as number) <= 0) continue;
+        if (!Number.isFinite(euro)) continue;
+        const homeValue = homeCur === 'EUR' ? (euro as number) : convertFn(euro as number, 'EUR', homeCur);
+        if (!Number.isFinite(homeValue)) continue;
+        const r = homeValue / (value as number);
+        if (Number.isFinite(r) && r > 0) implied.push(r);
+    }
+    const rate = implied.length > 0 ? median(implied) : convertFn(1, cur, homeCur);
+    return Number.isFinite(rate) && rate > 0 ? rate : null;
 }

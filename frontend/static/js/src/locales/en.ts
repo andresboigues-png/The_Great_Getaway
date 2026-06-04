@@ -428,6 +428,21 @@ export const en = {
         ratesResetAuto: 'Reset to automatic',
         ratesUnsavedHint: 'Unsaved changes',
         ratesAutoHint: 'auto ≈ {value}',
+        // Currency chips + summary + auto-fill (discoverability pass). The
+        // summary is plural-aware via tn('settings.ratesSummary', count).
+        ratesSummary: {
+            one: "You've logged expenses in {count} currency ({currencies}), {span}.",
+            other: "You've logged expenses in {count} currencies ({currencies}), {span}.",
+        },
+        ratesSummaryEmpty: 'No dated expenses yet — pin a rate for any currency below.',
+        ratesAddCurrency: '+ other currency',
+        ratesAutoFill: 'Set automatically from my trips',
+        ratesAutoFillBusy: 'Setting…',
+        ratesAutoFillHint: 'Fills in blank years from your own trips. Your own values are kept.',
+        ratesAutoFilled: {
+            one: 'Filled {count} value',
+            other: 'Filled {count} values',
+        },
         // "How does this work?" expand/collapse explainer (PV4-4). Accurate to
         // utils/presentValue.ts — these overrides ONLY change the Insights
         // "Worth today" estimate; settlements & budgets stay nominal.
