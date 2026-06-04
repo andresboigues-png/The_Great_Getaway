@@ -352,6 +352,17 @@ export const pt: Translations = {
             one: '{count} valor preenchido',
             other: '{count} valores preenchidos',
         },
+        // Matriz + importação/modelo de folha de cálculo.
+        ratesMatrixCurrencyCol: 'Moeda',
+        ratesResetAllAuto: 'Repor tudo para automático',
+        ratesImport: 'Importar folha de cálculo',
+        ratesImportHint: 'Importa um .csv ou .xlsx: a primeira coluna é a moeda e a linha de cima os anos. Ou descarrega um modelo para editar no Excel.',
+        ratesDownloadTemplate: 'Descarregar modelo',
+        ratesImportError: 'Não foi possível ler esse ficheiro: verifica se tem uma coluna Moeda e cabeçalhos de ano.',
+        ratesImportedN: {
+            one: '{count} valor importado: revê e guarda.',
+            other: '{count} valores importados: revê e guarda.',
+        },
         ratesHelpToggle: 'Como é que isto funciona?',
         ratesHelpWhatTitle: 'Para que serve',
         ratesHelpWhatFx: 'As Estatísticas estimam quanto cada viagem «valeria hoje». Para isso convertem as despesas em moeda estrangeira para a tua moeda local. Normalmente usam taxas de câmbio atuais e históricas de forma automática; aqui podes fixar a tua própria taxa para uma moeda num determinado ano. Isto só altera a vista «Valor hoje» das Estatísticas; as tuas contas e orçamentos ficam sempre com o que gastaste de facto.',

@@ -348,6 +348,17 @@ export const es: Translations = {
             one: '{count} valor rellenado',
             other: '{count} valores rellenados',
         },
+        // Matriz + importación/plantilla de hoja de cálculo.
+        ratesMatrixCurrencyCol: 'Moneda',
+        ratesResetAllAuto: 'Restablecer todo a automático',
+        ratesImport: 'Importar hoja de cálculo',
+        ratesImportHint: 'Importa un .csv o .xlsx: la primera columna es la moneda y la fila superior, los años. O descarga una plantilla para editar en Excel.',
+        ratesDownloadTemplate: 'Descargar plantilla',
+        ratesImportError: 'No se pudo leer ese archivo: comprueba que tenga una columna Moneda y encabezados de año.',
+        ratesImportedN: {
+            one: '{count} valor importado: revísalo y guarda.',
+            other: '{count} valores importados: revísalos y guarda.',
+        },
         ratesHelpToggle: '¿Cómo funciona esto?',
         ratesHelpWhatTitle: 'Para qué sirve',
         ratesHelpWhatFx: 'Estadísticas estima cuánto valdría cada viaje «hoy». Para ello convierte los gastos en moneda extranjera a tu moneda local. Normalmente usa tipos de cambio actuales e históricos de forma automática; aquí puedes fijar tu propio tipo para una moneda en un año concreto. Esto solo cambia la vista «Valor hoy» de Estadísticas; tus liquidaciones y presupuestos se quedan siempre con lo que gastaste de verdad.',

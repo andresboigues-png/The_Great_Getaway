@@ -7,19 +7,29 @@
 // edits the per-year inflation % (cumulative-to-today). Both write to
 // STATE.manualRates (via utils/manualRates), keyed by UPPERCASE currency → year.
 //
-// Differences from the old combined editor:
-//   - Split by concern (FX vs inflation) so each pill shows one column.
-//   - EXPLICIT Save (D3): edits live in local state until the user clicks Save,
-//     so a half-typed rate never lands in the calc. A dirty hint nudges them.
-//   - Reset to automatic (D4): clears THIS currency's manual values for THIS
-//     mode (the other mode is preserved), so the calc falls back to the live
-//     API sources — World-Bank CPI for inflation, Frankfurter/live FX for rates.
-//     The cleared inputs then show the automatic value as a placeholder hint.
+// LAYOUT (matrix rework): a single editable currency × year MATRIX.
+//   - ROWS = the user's currencies: home + the currencies they have expenses in
+//     + any pinned + any added this session. INFLATION includes home (home
+//     prices inflate); FX EXCLUDES home (its rate is always 1). A "+ add
+//     currency" picker adds a row from the remaining supported currencies.
+//   - COLUMNS = years: the union of (years across ALL the user's expenses) +
+//     pinned years + the current year, sorted DESCENDING so the current/recent
+//     years sit leftmost, right after the sticky currency column.
+//   - CELLS = a numeric <input> per (currency, year). Blank = automatic; the
+//     placeholder shows the auto hint where computable (computeAutoRate). The
+//     first column (currency label + symbol) and the header row are STICKY so
+//     they keep context while the year cells scroll horizontally on mobile.
+//
+// Edits live in local state (`draft`) until the user clicks Save (D3), so a
+// half-typed rate never lands in the calc. A dirty hint nudges them. "Reset all
+// to automatic" clears THIS mode's values for every currency (the other mode is
+// preserved). Import (.csv/.xlsx) folds a spreadsheet grid into the draft; a
+// downloadable template gives the exact shape to edit in Excel and re-upload.
 //
 // Precedence (unchanged): a per-trip override beats these globals, which beat
 // the automatic sources. Blank = automatic. Settlements/budgets never read this.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../../react/store.js';
 import { STATE } from '../../state.js';
 import { CURRENCY_SYMBOLS } from '../../constants.js';
@@ -29,6 +39,7 @@ import {
     getManualRatesForCurrency,
     setManualRate,
     computeAutoRate,
+    parseRatesGrid,
     type ManualYearRate,
 } from '../../utils/manualRates.js';
 import { makeInflationFactor } from '../../utils/presentValue.js';
@@ -38,11 +49,8 @@ import { t, tn } from '../../i18n.js';
 
 export type RatesMode = 'fx' | 'infl';
 
-interface Row {
-    year: string;
-    /** The edited value as a string (fx units, or inflation %), '' = automatic. */
-    value: string;
-}
+/** The in-memory edit buffer: draft[currency][year] = typed string ('' = auto). */
+type Draft = Record<string, Record<string, string>>;
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -76,122 +84,159 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
         return Number.isFinite(min) ? { min, max } : null;
     }, [expenses]);
 
-    // Chips show only the USER'S currencies: home + the ones they have expenses
-    // in + any they've already pinned (NOT all ~40 known codes). FX excludes the
-    // home currency (its rate is always 1); inflation includes it (home prices
-    // inflate too). Home first, then A→Z. `extra` holds codes the user added via
-    // the "+ other currency" affordance this session.
+    // Codes the user added via "+ add currency" this session, or via an import
+    // that referenced a currency they hadn't used yet.
     const [extra, setExtra] = useState<string[]>([]);
-    const chipCurrencies = useMemo(() => {
+
+    // ROWS — the user's currencies for THIS mode: home + spent + pinned + extra.
+    // FX excludes the home currency (its rate is always 1); inflation includes
+    // it (home prices inflate too). Home first, then A→Z.
+    const rowCurrencies = useMemo(() => {
         const pinned = Object.keys(manualRates || {});
         const set = new Set<string>([home, ...spentCurrencies, ...pinned, ...extra]);
         const all = Array.from(set).sort((a, b) => (a === home ? -1 : b === home ? 1 : a.localeCompare(b)));
         return isFx ? all.filter((c) => c !== home) : all;
     }, [spentCurrencies, manualRates, home, isFx, extra]);
 
-    // The remaining supported currencies the user could add (everything we can
-    // convert, minus what's already a chip). Feeds the "+ other currency" picker.
+    // COLUMNS — the union of every year across ALL the user's expenses + pinned
+    // years + the current year, DESCENDING (recent first, next to the sticky
+    // currency column). Added years (typed via "+ add year") live in `extraYears`.
+    const [extraYears, setExtraYears] = useState<string[]>([]);
+    const years = useMemo(() => {
+        const set = new Set<string>([String(CURRENT_YEAR), ...extraYears]);
+        for (const e of expenses || []) {
+            const y = ((e as Expense).date || '').slice(0, 4);
+            if (/^\d{4}$/.test(y)) set.add(y);
+        }
+        for (const cur of Object.keys(manualRates || {})) {
+            for (const y of Object.keys(manualRates[cur] || {})) {
+                if (/^\d{4}$/.test(y)) set.add(y);
+            }
+        }
+        return Array.from(set).sort((a, b) => Number(b) - Number(a));
+    }, [expenses, manualRates, extraYears]);
+
+    // The remaining supported currencies the user could add as a row.
     const otherCurrencies = useMemo(() => {
-        const shown = new Set(chipCurrencies);
+        const shown = new Set(rowCurrencies);
         const known = [...getSupportedCurrencies(), ...Object.keys(CURRENCY_SYMBOLS)].map((c) => c.toUpperCase());
         const rest = Array.from(new Set(known)).filter((c) => !shown.has(c) && (!isFx || c !== home));
         return rest.sort((a, b) => a.localeCompare(b));
-    }, [chipCurrencies, home, isFx]);
+    }, [rowCurrencies, home, isFx]);
 
-    const [selectedCur, setSelectedCur] = useState(() => chipCurrencies[0] || home);
-    const [rows, setRows] = useState<Row[]>([]);
+    const [draft, setDraft] = useState<Draft>({});
     const [newYear, setNewYear] = useState('');
     const [dirty, setDirty] = useState(false);
     const [savedFlash, setSavedFlash] = useState(false);
     const [autoBusy, setAutoBusy] = useState(false);
     const [autoFilledCount, setAutoFilledCount] = useState<number | null>(null);
+    const [importedCount, setImportedCount] = useState<number | null>(null);
+    const [importError, setImportError] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Read the persisted value for one field of a currency+year.
+    // Read the persisted value for one field of a currency+year (this mode).
     const storedValue = (cur: string, year: string): number | undefined => {
         const entry = getManualRatesForCurrency(cur)[year];
         if (!entry) return undefined;
         return isFx ? entry.fx : entry.inflationPct;
     };
 
-    // (Re)build editable rows for a currency from what's persisted + the years it
-    // has expenses in, newest first; always at least the current year.
-    const buildRows = (cur: string): Row[] => {
-        const pinned = getManualRatesForCurrency(cur);
-        const expenseYears = (expenses || [])
-            .filter((e: Expense) => (e.currency || 'EUR').toUpperCase() === cur && /^\d{4}/.test(e.date || ''))
-            .map((e: Expense) => (e.date || '').slice(0, 4));
-        const years = Array.from(new Set<string>([...Object.keys(pinned), ...expenseYears]))
-            .filter((y) => /^\d{4}$/.test(y))
-            .sort((a, b) => Number(b) - Number(a));
-        if (years.length === 0) years.push(String(CURRENT_YEAR));
-        return years.map((year) => {
-            const v = storedValue(cur, year);
-            return { year, value: v != null ? String(v) : '' };
-        });
+    // (Re)build the whole draft from what's persisted for this mode. Blank where
+    // nothing is pinned. Rebuilt whenever the mode flips (drops unsaved edits).
+    const buildDraft = (): Draft => {
+        const next: Draft = {};
+        for (const cur of rowCurrencies) {
+            const byYear: Record<string, string> = {};
+            for (const year of years) {
+                const v = storedValue(cur, year);
+                byYear[year] = v != null ? String(v) : '';
+            }
+            next[cur] = byYear;
+        }
+        return next;
     };
 
-    // Keep the selection valid: switching mode can drop the home chip (FX hides
-    // it), and an emptied chip set should never leave a stale selection.
+    // Rebuild the draft when the mode changes, or when the set of rows/cols
+    // grows (a new expense, a pin, an added currency/year) — but ONLY pull in the
+    // newly-appeared cells, so we never clobber values the user is mid-typing.
     useEffect(() => {
-        if (!chipCurrencies.includes(selectedCur)) {
-            setSelectedCur(chipCurrencies[0] || home);
-        }
+        setDraft((prev) => {
+            const next: Draft = {};
+            for (const cur of rowCurrencies) {
+                const prevRow = prev[cur] || {};
+                const byYear: Record<string, string> = {};
+                for (const year of years) {
+                    if (year in prevRow) byYear[year] = prevRow[year]!;
+                    else {
+                        const v = storedValue(cur, year);
+                        byYear[year] = v != null ? String(v) : '';
+                    }
+                }
+                next[cur] = byYear;
+            }
+            return next;
+        });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [chipCurrencies]);
+    }, [rowCurrencies, years]);
 
-    // Reload rows when the currency (or mode) changes; drop any unsaved edits.
+    // Mode flip: hard-reset the draft from storage (drop any unsaved edits) and
+    // clear the transient hints.
     useEffect(() => {
-        setRows(buildRows(selectedCur));
+        setDraft(buildDraft());
         setNewYear('');
         setDirty(false);
         setSavedFlash(false);
         setAutoFilledCount(null);
+        setImportedCount(null);
+        setImportError(false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedCur, mode]);
+    }, [mode]);
 
-    // Inflation mode: lazily pull the World-Bank CPI series for the selected
-    // currency so the "auto ≈ N%" hint can render. FX auto is synchronous
-    // (convertCurrency), so it needs no fetch. cpiCache is a useStore dep → the
-    // hints refine once the series lands.
+    // Inflation mode: lazily pull each row currency's World-Bank CPI series so
+    // the "auto ≈ N%" placeholder can render. FX auto is synchronous
+    // (convertCurrency). cpiCache is a useStore dep → hints refine once loaded.
     useEffect(() => {
-        if (!isFx && selectedCur) void fetchCpiSeries(selectedCur);
-    }, [isFx, selectedCur]);
+        if (!isFx) for (const cur of rowCurrencies) void fetchCpiSeries(cur);
+    }, [isFx, rowCurrencies]);
 
-    // The automatic value for a year, formatted for the placeholder hint.
+    // The automatic value for a (currency, year), formatted for the placeholder.
     // PV4-2: `convertCurrency` only knows TODAY's rate — it has no historical
-    // table — so it must NOT be shown as the "auto" baseline for a PAST year
-    // (it would mis-teach the user that blank == today's rate on a 2015 row,
-    // re-introducing the era-mix the at-trip historical FX avoids). For FX we
-    // therefore only surface the live rate on the CURRENT-year row (labelled as
-    // "current rate", not a generic "auto ≈"); past FX rows fall back to the
-    // neutral "auto" placeholder. The inflation hint is per-year-correct (it
-    // uses the CPI factor for that year), so it stays as-is.
-    const autoHint = (year: string): string | null => {
+    // table — so it must NOT be shown as the "auto" baseline for a PAST year (it
+    // would mis-teach the user that blank == today's rate on a 2015 row). For FX
+    // we therefore only surface the live rate on the CURRENT-year cell; past FX
+    // cells fall back to the neutral "auto" placeholder. The inflation hint is
+    // per-year-correct (it uses the CPI factor for that year), so it stays as-is.
+    const autoHint = (cur: string, year: string): string | null => {
         if (isFx) {
-            // Only the CURRENT-year row gets a live-rate hint; past years show
-            // the neutral "auto" placeholder rather than a wrong baseline.
             if (Number(year) !== CURRENT_YEAR) return null;
-            const r = convertCurrency(1, selectedCur, home);
+            const r = convertCurrency(1, cur, home);
             if (!Number.isFinite(r) || r <= 0) return null;
             return t('settings.ratesAutoHint', { value: String(Number(r.toPrecision(6))) + ' ' + home });
         }
-        const series = cpiCache[selectedCur];
+        const series = cpiCache[cur];
         if (!series || Object.keys(series).length === 0) return null;
         const factor = makeInflationFactor(series, CURRENT_YEAR)(`${year}-06-15`);
         const pct = Math.round((factor - 1) * 1000) / 10;
         return t('settings.ratesAutoHint', { value: String(pct) + '%' });
     };
 
-    const updateRow = (idx: number, value: string) => {
-        setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, value } : r)));
+    const markEdited = () => {
         setDirty(true);
         setSavedFlash(false);
+        setAutoFilledCount(null);
+        setImportedCount(null);
+        setImportError(false);
     };
 
-    const removeRow = (idx: number) => {
-        setRows((prev) => prev.filter((_, i) => i !== idx));
-        setDirty(true);
-        setSavedFlash(false);
+    const updateCell = (cur: string, year: string, value: string) => {
+        setDraft((prev) => ({ ...prev, [cur]: { ...(prev[cur] || {}), [year]: value } }));
+        markEdited();
+    };
+
+    const addCurrency = (raw: string) => {
+        const c = raw.toUpperCase();
+        if (!c) return;
+        setExtra((prev) => (prev.includes(c) ? prev : [...prev, c]));
     };
 
     const addYear = () => {
@@ -199,150 +244,252 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
         if (!/^\d{4}$/.test(y)) return;
         const yr = Number(y);
         if (yr < 1900 || yr > CURRENT_YEAR + 1) return;
-        if (rows.some((r) => r.year === y)) {
-            setNewYear('');
-            return;
-        }
-        setRows((prev) => [{ year: y, value: '' }, ...prev].sort((a, b) => Number(b.year) - Number(a.year)));
+        setExtraYears((prev) => (prev.includes(y) || years.includes(y) ? prev : [...prev, y]));
         setNewYear('');
-        setDirty(true);
     };
 
-    // Persist the current rows for this mode, MERGING with the other mode's
-    // stored value per year (so editing FX never wipes a saved inflation % and
-    // vice-versa). Years removed from the list get this mode's field cleared.
-    const onSave = () => {
-        const existing = getManualRatesForCurrency(selectedCur);
-        const rowYears = new Set(rows.map((r) => r.year));
-        const writeMerged = (year: string, raw: string) => {
-            const other = isFx ? existing[year]?.inflationPct : existing[year]?.fx;
-            const payload: ManualYearRate = {};
-            // Preserve the other mode's value.
+    // Persist one currency+year for this mode, MERGING with the OTHER mode's
+    // stored value (so editing FX never wipes a saved inflation % and vice-versa).
+    const writeMerged = (cur: string, year: string, raw: string) => {
+        const existing = getManualRatesForCurrency(cur);
+        const other = isFx ? existing[year]?.inflationPct : existing[year]?.fx;
+        const payload: ManualYearRate = {};
+        if (isFx) {
+            if (Number.isFinite(other)) payload.inflationPct = other as number;
+        } else if (Number.isFinite(other)) {
+            payload.fx = other as number;
+        }
+        const n = Number(raw);
+        if (raw.trim() !== '' && Number.isFinite(n)) {
             if (isFx) {
-                if (Number.isFinite(other)) payload.inflationPct = other as number;
-            } else if (Number.isFinite(other)) {
-                payload.fx = other as number;
+                if (n > 0) payload.fx = n;
+            } else {
+                payload.inflationPct = n;
             }
-            // Apply this mode's edited value (blank clears it).
-            const n = Number(raw);
-            if (raw.trim() !== '' && Number.isFinite(n)) {
-                if (isFx) {
-                    if (n > 0) payload.fx = n;
-                } else {
-                    payload.inflationPct = n;
-                }
+        }
+        setManualRate(cur, year, payload);
+    };
+
+    // Save the whole draft for this mode. Every cell is written (blank clears
+    // this mode's field, preserving the other mode). Covers all rows × all years.
+    const onSave = () => {
+        for (const cur of rowCurrencies) {
+            const row = draft[cur] || {};
+            for (const year of years) {
+                writeMerged(cur, year, row[year] ?? '');
             }
-            setManualRate(selectedCur, year, payload);
-        };
-        // Clear this mode's field for years the user removed.
-        Object.keys(existing).forEach((year) => {
-            if (!rowYears.has(year)) writeMerged(year, '');
-        });
-        rows.forEach((r) => writeMerged(r.year, r.value));
+        }
         setDirty(false);
         setSavedFlash(true);
+        setImportedCount(null);
         setTimeout(() => setSavedFlash(false), 2000);
     };
 
-    // Reset to automatic: clear THIS mode's field for every stored year of the
-    // currency (the other mode is preserved), so the calc uses the live API
-    // value. Inputs blank out and show the automatic figure as a placeholder.
+    // "Reset all to automatic" (this mode): clear THIS mode's field for EVERY
+    // stored year of EVERY currency (the other mode is preserved), then blank the
+    // whole draft so the inputs show the automatic figure as a placeholder.
     const onResetAuto = () => {
-        const existing = getManualRatesForCurrency(selectedCur);
-        Object.keys(existing).forEach((year) => {
-            const other = isFx ? existing[year]?.inflationPct : existing[year]?.fx;
-            const payload: ManualYearRate = {};
-            if (isFx) {
-                if (Number.isFinite(other)) payload.inflationPct = other as number;
-            } else if (Number.isFinite(other)) {
-                payload.fx = other as number;
+        const all = STATE.manualRates || {};
+        for (const cur of Object.keys(all)) {
+            for (const year of Object.keys(all[cur] || {})) {
+                const other = isFx ? all[cur]![year]?.inflationPct : all[cur]![year]?.fx;
+                const payload: ManualYearRate = {};
+                if (isFx) {
+                    if (Number.isFinite(other)) payload.inflationPct = other as number;
+                } else if (Number.isFinite(other)) {
+                    payload.fx = other as number;
+                }
+                setManualRate(cur, year, payload);
             }
-            setManualRate(selectedCur, year, payload);
+        }
+        setDraft((prev) => {
+            const next: Draft = {};
+            for (const cur of Object.keys(prev)) {
+                next[cur] = {};
+                for (const year of Object.keys(prev[cur] || {})) next[cur]![year] = '';
+            }
+            return next;
         });
-        setRows((prev) => prev.map((r) => ({ ...r, value: '' })));
         setDirty(false);
         setSavedFlash(false);
+        setImportedCount(null);
     };
 
-    // "Set automatically from my trips" (this mode): fill BLANKS ONLY — never
-    // overwrite a value the user already pinned for this mode — across ALL their
-    // currencies × the years they have expenses in. Uses the SAME maths Insights
-    // reads back (computeAutoRate ↔ utils/presentValue.ts) and the same merge
-    // pattern as onSave (the OTHER mode's value per year is preserved). FX skips
-    // the home currency (rate fixed at 1). CPI fetches are async, so we await
-    // each currency's series first (fetchCpiSeries no-ops if already attempted).
+    // "Set automatically from my trips" (this mode): fill BLANKS ONLY in the
+    // draft — never overwrite a value already typed/pinned — across ALL the
+    // user's currencies × the years they have expenses in. Uses the SAME maths
+    // Insights reads back (computeAutoRate ↔ utils/presentValue.ts). FX skips
+    // home (rate fixed at 1). CPI fetches are async, so we await each series.
     const onAutoFill = async () => {
         if (autoBusy) return;
         setAutoBusy(true);
         setSavedFlash(false);
         setAutoFilledCount(null);
+        setImportedCount(null);
         try {
-            // The user's currencies for THIS mode (FX excludes home).
-            const pinned = Object.keys(manualRates || {});
-            const curSet = new Set<string>([...spentCurrencies, ...pinned]);
-            if (!isFx) curSet.add(home);
-            const currencies = Array.from(curSet).filter((c) => isFx ? c !== home : true);
-
-            // Inflation needs each currency's World-Bank CPI series loaded.
+            const currencies = rowCurrencies; // already excludes home for FX
             if (!isFx) await Promise.all(currencies.map((c) => fetchCpiSeries(c)));
 
             const expenseList = (expenses || []) as Expense[];
             const cpi = STATE.cpiCache as Record<string, Record<number, number>>;
             let filled = 0;
-            for (const cur of currencies) {
-                // Years this currency has dated expenses in.
-                const years = Array.from(new Set(
-                    expenseList
-                        .filter((e) => (e.currency || 'EUR').toUpperCase() === cur && /^\d{4}/.test(e.date || ''))
-                        .map((e) => (e.date || '').slice(0, 4)),
-                )).filter((y) => /^\d{4}$/.test(y));
-                if (years.length === 0) continue;
-                const existing = getManualRatesForCurrency(cur);
-                for (const year of years) {
-                    // BLANKS ONLY — leave a value the user already pinned alone.
-                    const current = isFx ? existing[year]?.fx : existing[year]?.inflationPct;
-                    if (Number.isFinite(current)) continue;
-                    const auto = computeAutoRate(mode, cur, year, expenseList, cpi[cur], home, convertCurrency);
-                    if (auto == null || !Number.isFinite(auto)) continue;
-                    // Merge: preserve the OTHER mode's value for this year.
-                    const other = isFx ? existing[year]?.inflationPct : existing[year]?.fx;
-                    const payload: ManualYearRate = {};
-                    if (isFx) {
-                        if (Number.isFinite(other)) payload.inflationPct = other as number;
-                        if (auto > 0) payload.fx = auto;
-                    } else {
-                        if (Number.isFinite(other)) payload.fx = other as number;
-                        payload.inflationPct = auto;
+            setDraft((prev) => {
+                const next: Draft = { ...prev };
+                for (const cur of currencies) {
+                    const curYears = Array.from(new Set(
+                        expenseList
+                            .filter((e) => (e.currency || 'EUR').toUpperCase() === cur && /^\d{4}/.test(e.date || ''))
+                            .map((e) => (e.date || '').slice(0, 4)),
+                    )).filter((y) => /^\d{4}$/.test(y));
+                    if (curYears.length === 0) continue;
+                    const row = { ...(next[cur] || {}) };
+                    for (const year of curYears) {
+                        // BLANKS ONLY — leave a value the user already typed alone.
+                        if ((row[year] ?? '').trim() !== '') continue;
+                        const auto = computeAutoRate(mode, cur, year, expenseList, cpi[cur], home, convertCurrency);
+                        if (auto == null || !Number.isFinite(auto)) continue;
+                        row[year] = String(auto);
+                        filled += 1;
                     }
-                    setManualRate(cur, year, payload);
-                    filled += 1;
+                    next[cur] = row;
                 }
-            }
-            // Reflect the freshly written values for the visible currency.
-            setRows(buildRows(selectedCur));
-            setDirty(false);
+                return next;
+            });
+            if (filled > 0) setDirty(true);
             setAutoFilledCount(filled);
         } finally {
             setAutoBusy(false);
         }
     };
 
-    // Whether this currency currently has ANY pinned value for this mode (gates
-    // the Reset-to-automatic button — nothing to reset otherwise).
-    const hasPinned = useMemo(() => {
-        const byYear = getManualRatesForCurrency(selectedCur);
-        return Object.values(byYear).some((r) => Number.isFinite(isFx ? r.fx : r.inflationPct));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedCur, manualRates, isFx]);
+    // ── Spreadsheet import + template ────────────────────────────────────────
 
-    const colLabel = isFx ? t('settings.ratesFxHint', { cur: selectedCur, home }) : t('settings.ratesInflationCol');
+    // Build the array-of-arrays for the current matrix (used by the template):
+    // ['Currency', ...yearsDesc] header, then one row per currency with the
+    // current value (typed draft → manual stored → auto where readily available).
+    const currentValueForTemplate = (cur: string, year: string): string => {
+        const typed = draft[cur]?.[year];
+        if (typed != null && typed.trim() !== '') return typed;
+        const stored = storedValue(cur, year);
+        if (stored != null) return String(stored);
+        const cpi = STATE.cpiCache as Record<string, Record<number, number>>;
+        const auto = computeAutoRate(mode, cur, year, (expenses || []) as Expense[], cpi[cur], home, convertCurrency);
+        return auto != null && Number.isFinite(auto) ? String(auto) : '';
+    };
+
+    const onDownloadTemplate = () => {
+        const headerCells = [t('settings.ratesMatrixCurrencyCol'), ...years];
+        const lines = [headerCells.join(',')];
+        for (const cur of rowCurrencies) {
+            const cells = [cur, ...years.map((y) => currentValueForTemplate(cur, y))];
+            lines.push(cells.join(','));
+        }
+        const csv = lines.join('\r\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `rates-${mode}-template.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    // Minimal, permissive CSV → array-of-arrays. We don't need full RFC-4180
+    // quoting for a rates grid (codes + numbers), so a split is enough; quotes
+    // are stripped so '"USD"' still reads as USD.
+    const parseCsv = (text: string): string[][] =>
+        text
+            .replace(/\r\n/g, '\n')
+            .split('\n')
+            .filter((line) => line.trim() !== '')
+            .map((line) => line.split(/[,;\t]/).map((c) => c.trim().replace(/^"(.*)"$/, '$1')));
+
+    // Fold parsed cells into the draft: overwrite the cells the file specifies,
+    // leave the rest untouched. A currency/year not yet a row/col is added so the
+    // value is visible (and saved). Returns how many cells were applied.
+    const applyParsedCells = (cells: { currency: string; year: string; value: number }[]): number => {
+        if (cells.length === 0) return 0;
+        const newCurs = new Set<string>();
+        const newYears = new Set<string>();
+        for (const { currency, year } of cells) {
+            if (isFx && currency === home) continue; // FX has no home row
+            if (!rowCurrencies.includes(currency)) newCurs.add(currency);
+            if (!years.includes(year)) newYears.add(year);
+        }
+        if (newCurs.size) setExtra((prev) => Array.from(new Set([...prev, ...newCurs])));
+        if (newYears.size) setExtraYears((prev) => Array.from(new Set([...prev, ...newYears])));
+        let applied = 0;
+        setDraft((prev) => {
+            const next: Draft = { ...prev };
+            for (const { currency, year, value } of cells) {
+                if (isFx && currency === home) continue;
+                const row = { ...(next[currency] || {}) };
+                row[year] = String(value);
+                next[currency] = row;
+                applied += 1;
+            }
+            return next;
+        });
+        return applied;
+    };
+
+    const onImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        // Allow re-picking the same file later.
+        e.target.value = '';
+        if (!file) return;
+        setImportError(false);
+        setImportedCount(null);
+        setSavedFlash(false);
+        const reader = new FileReader();
+        const isCsv = /\.csv$/i.test(file.name) || file.type === 'text/csv';
+        reader.onload = (evt) => {
+            try {
+                let aoa: unknown[][];
+                if (isCsv) {
+                    aoa = parseCsv(String(evt.target?.result ?? ''));
+                } else {
+                    const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    aoa = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
+                }
+                const cells = parseRatesGrid(aoa, mode);
+                const applied = applyParsedCells(cells);
+                if (applied === 0) {
+                    setImportError(true);
+                    return;
+                }
+                setImportedCount(applied);
+                setDirty(true);
+            } catch (err) {
+                console.error('Rates import error', err);
+                setImportError(true);
+            }
+        };
+        reader.onerror = () => setImportError(true);
+        if (isCsv) reader.readAsText(file);
+        else reader.readAsArrayBuffer(file);
+    };
+
+    // Whether ANY currency currently has a pinned value for this mode (gates the
+    // "reset all to automatic" button — nothing to reset otherwise).
+    const hasAnyPinned = useMemo(() => {
+        const all = manualRates || {};
+        for (const cur of Object.keys(all)) {
+            for (const r of Object.values(all[cur] || {})) {
+                if (Number.isFinite(isFx ? r.fx : r.inflationPct)) return true;
+            }
+        }
+        return false;
+    }, [manualRates, isFx]);
 
     // "€ EUR" / "$ USD" / "CAD" — symbol prefix when we have one, else the code.
-    const chipLabel = (c: string): string => (CURRENCY_SYMBOLS[c] ? CURRENCY_SYMBOLS[c] + ' ' : '') + c;
+    const curLabel = (c: string): string => (CURRENCY_SYMBOLS[c] ? CURRENCY_SYMBOLS[c] + ' ' : '') + c;
 
-    // Summary of what the user actually has, computed from their expenses:
-    // distinct currencies + the year span. Pluralised; gentle empty variant when
-    // there are no dated expenses.
+    // Summary of what the user actually has, computed from their expenses.
     const summaryLine = (() => {
         const list = Array.from(spentCurrencies);
         if (list.length === 0 || !yearSpan) return t('settings.ratesSummaryEmpty');
@@ -351,24 +498,18 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
         return tn('settings.ratesSummary', list.length, { currencies: sorted, span });
     })();
 
+    const cellAria = (cur: string, year: string): string =>
+        isFx ? t('settings.ratesFxHint', { cur, home }) + ' ' + year : t('settings.ratesInflationCol') + ' ' + cur + ' ' + year;
+
     return (
         <div className="card glass settings-section card-glow-blue" id="customRates">
             <h2 className="card-title m-0 mb-1">{isFx ? t('settings.ratesTabFx') : t('settings.ratesTabInflation')}</h2>
             <p className="text-secondary text-[0.85rem] mt-1 mb-2">{isFx ? t('settings.ratesFxIntro') : t('settings.ratesInflationIntro')}</p>
-            {/* PV4-3: spell out the two-field model. In "Worth today", a manual
-                current-year FX is paired with the inflation accumulated SINCE the
-                expense's year — the two manual fields answer different questions,
-                so name each one explicitly to remove the muddiness D-2/D-3 flagged. */}
             <p className="text-secondary text-[0.78rem] mt-0 mb-2">{isFx ? t('settings.ratesFxFieldNote') : t('settings.ratesInflationFieldNote')}</p>
             <p className="text-secondary text-[0.75rem] mt-0 mb-2 italic">{t('settings.ratesPrecedenceNote')}</p>
 
-            {/* PV4-4: a thorough, accurate "How does this work?" explainer in a
-                native <details> disclosure — complete without cluttering the
-                editor. Content is mode-aware (FX vs inflation) and mirrors
-                utils/presentValue.ts exactly: these overrides ONLY move the
-                Insights "Worth today" estimate; current-year FX converts to
-                today's money while past years set the at-the-time rate; the
-                inflation % is cumulative-to-today; blank = automatic. */}
+            {/* "How does this work?" explainer — mode-aware, mirrors
+                utils/presentValue.ts exactly. */}
             <details className="rates-help mb-4">
                 <summary className="text-[0.82rem] font-bold cursor-pointer select-none" style={{ color: 'var(--accent, #0a84ff)' }}>
                     {t('settings.ratesHelpToggle')}
@@ -397,13 +538,11 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                 </div>
             </details>
 
-            {/* Summary of what the user actually has (distinct currencies + the
-                year span), computed from their expenses. */}
+            {/* Summary of what the user actually has. */}
             <p className="text-secondary text-[0.82rem] mt-0 mb-3">{summaryLine}</p>
 
-            {/* "Set automatically from my trips" — fills blanks only across all
-                the user's currencies × their expense years, for this mode. */}
-            <div className="flex items-center gap-3 mb-4 flex-wrap">
+            {/* Action row: Set-automatically + Import + Download template. */}
+            <div className="flex items-center gap-3 mb-2 flex-wrap">
                 <button
                     type="button"
                     className="btn-neutral text-[0.82rem]"
@@ -413,119 +552,117 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                 >
                     {autoBusy ? t('settings.ratesAutoFillBusy') : t('settings.ratesAutoFill')}
                 </button>
+                <button
+                    type="button"
+                    className="btn-neutral text-[0.82rem]"
+                    style={{ padding: '8px 16px', borderRadius: '999px' }}
+                    onClick={() => fileInputRef.current?.click()}
+                >
+                    {t('settings.ratesImport')}
+                </button>
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    className="hidden"
+                    style={{ display: 'none' }}
+                    onChange={onImportFile}
+                    aria-hidden="true"
+                />
+                <button
+                    type="button"
+                    className="text-[0.82rem] font-bold"
+                    style={{ color: 'var(--accent, #0a84ff)', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 4px' }}
+                    onClick={onDownloadTemplate}
+                >
+                    {t('settings.ratesDownloadTemplate')}
+                </button>
+            </div>
+
+            {/* Status line for the action row (auto-fill / import results). */}
+            <div className="mb-3 min-h-[1.1rem]">
                 {autoFilledCount != null ? (
                     <span className="text-[0.82rem] font-bold" style={{ color: '#34c759' }}>
                         {tn('settings.ratesAutoFilled', autoFilledCount, { count: autoFilledCount })}
                     </span>
+                ) : importedCount != null ? (
+                    <span className="text-[0.82rem] font-bold" style={{ color: '#34c759' }}>
+                        {tn('settings.ratesImportedN', importedCount, { count: importedCount })}
+                    </span>
+                ) : importError ? (
+                    <span className="text-[0.82rem] font-bold" style={{ color: '#ff3b30' }}>
+                        {t('settings.ratesImportError')}
+                    </span>
                 ) : (
-                    <span className="text-secondary text-[0.78rem]">{t('settings.ratesAutoFillHint')}</span>
+                    <span className="text-secondary text-[0.78rem]">{t('settings.ratesImportHint')}</span>
                 )}
             </div>
 
-            {/* Currency chips — only the user's currencies (home + spent +
-                pinned). FX hides home (its rate is always 1). */}
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <span className="font-bold text-[0.85rem]">{t('settings.ratesCurrencyLabel')}</span>
-                {hasPinned ? (
-                    <button
-                        type="button"
-                        className="btn-neutral text-[0.8rem]"
-                        style={{ padding: '7px 14px', borderRadius: '999px', marginLeft: 'auto' }}
-                        onClick={onResetAuto}
-                    >
-                        {t('settings.ratesResetAuto')}
-                    </button>
-                ) : null}
+            {/* The matrix: currencies × years. Sticky first column + header row. */}
+            <div className="rates-matrix-wrap">
+                <table className="rates-matrix">
+                    <thead>
+                        <tr>
+                            <th scope="col" className="rates-matrix__corner">{t('settings.ratesMatrixCurrencyCol')}</th>
+                            {years.map((y) => (
+                                <th key={y} scope="col" className="rates-matrix__yearhead tabular-nums">{y}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rowCurrencies.length === 0 ? (
+                            <tr>
+                                <td className="rates-matrix__rowhead">—</td>
+                                <td colSpan={years.length} className="text-secondary text-[0.85rem]" style={{ padding: '10px 12px' }}>
+                                    {t('settings.ratesEmpty')}
+                                </td>
+                            </tr>
+                        ) : (
+                            rowCurrencies.map((cur) => (
+                                <tr key={cur}>
+                                    <th scope="row" className="rates-matrix__rowhead">
+                                        <span className="rates-matrix__cur">{curLabel(cur)}</span>
+                                        {cur === home ? <span className="rates-matrix__hometag">{t('settings.ratesHomeTag')}</span> : null}
+                                    </th>
+                                    {years.map((year) => (
+                                        <td key={year} className="rates-matrix__cell">
+                                            <input
+                                                type="number"
+                                                step={isFx ? 'any' : '0.1'}
+                                                min={isFx ? '0' : '-100'}
+                                                inputMode="decimal"
+                                                className="glass-input rates-matrix__input"
+                                                placeholder={autoHint(cur, year) || t('settings.ratesAutoPlaceholder')}
+                                                value={draft[cur]?.[year] ?? ''}
+                                                onChange={(e) => updateCell(cur, year, e.target.value)}
+                                                aria-label={cellAria(cur, year)}
+                                            />
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
             </div>
-            <div className="flex items-center gap-2 mb-4 flex-wrap" role="group" aria-label={t('settings.ratesCurrencyLabel')}>
-                <div className="glass inline-flex p-1 rounded-[14px] border border-[var(--glass-border)] shadow-[var(--shadow-sm)] flex-wrap gap-1">
-                    {chipCurrencies.map((c) => (
-                        <button
-                            key={c}
-                            type="button"
-                            aria-pressed={selectedCur === c}
-                            className={`toggle-btn ${selectedCur === c ? 'active' : ''}`}
-                            style={{ fontSize: '0.82rem' }}
-                            onClick={() => setSelectedCur(c)}
-                        >
-                            {chipLabel(c)}
-                            {c === home ? ` (${t('settings.ratesHomeTag')})` : ''}
-                        </button>
-                    ))}
-                </div>
-                {/* "+ other currency" — add one the user hasn't spent in yet. The
-                    select resets to its placeholder after each pick. */}
+
+            {/* Add-currency + add-year controls below the matrix. */}
+            <div className="flex items-center gap-3 mt-3 flex-wrap">
                 {otherCurrencies.length > 0 ? (
                     <select
-                        id={`ratesCurOther-${mode}`}
+                        id={`ratesCurAdd-${mode}`}
                         className="glass-input"
                         style={{ padding: '8px 10px', borderRadius: '10px', fontSize: '0.82rem' }}
                         value=""
                         aria-label={t('settings.ratesAddCurrency')}
-                        onChange={(e) => {
-                            const c = e.target.value.toUpperCase();
-                            if (!c) return;
-                            setExtra((prev) => (prev.includes(c) ? prev : [...prev, c]));
-                            setSelectedCur(c);
-                        }}
+                        onChange={(e) => addCurrency(e.target.value)}
                     >
                         <option value="">{t('settings.ratesAddCurrency')}</option>
                         {otherCurrencies.map((c) => (
-                            <option key={c} value={c}>{chipLabel(c)}</option>
+                            <option key={c} value={c}>{curLabel(c)}</option>
                         ))}
                     </select>
                 ) : null}
-            </div>
-
-            {/* Column headers */}
-            <div className="flex items-center gap-3 px-1 mb-1 text-secondary text-[0.72rem] font-bold uppercase tracking-wide">
-                <span style={{ width: '64px' }}>{t('settings.ratesYearCol')}</span>
-                <span style={{ flex: 1, minWidth: '140px' }}>{colLabel}</span>
-                <span style={{ width: '28px' }} aria-hidden="true"></span>
-            </div>
-
-            {/* Rows */}
-            <div className="flex flex-col gap-2">
-                {rows.length === 0 ? (
-                    <div className="text-secondary text-[0.85rem] py-2">{t('settings.ratesEmpty')}</div>
-                ) : (
-                    rows.map((row, idx) => (
-                        <div key={row.year} className="flex items-center gap-3 flex-wrap">
-                            <span className="font-extrabold tabular-nums" style={{ width: '64px' }}>
-                                {row.year}
-                            </span>
-                            <input
-                                type="number"
-                                step={isFx ? 'any' : '0.1'}
-                                min={isFx ? '0' : '-100'}
-                                inputMode="decimal"
-                                className="glass-input"
-                                style={{ flex: 1, minWidth: '140px', padding: '7px 10px', borderRadius: '10px' }}
-                                placeholder={autoHint(row.year) || t('settings.ratesAutoPlaceholder')}
-                                value={row.value}
-                                onChange={(e) => updateRow(idx, e.target.value)}
-                                aria-label={colLabel}
-                            />
-                            <button
-                                type="button"
-                                className="cat-row__btn cat-row__btn--delete"
-                                style={{ width: '28px', height: '28px' }}
-                                title={t('settings.ratesRemoveYear', { year: row.year })}
-                                aria-label={t('settings.ratesRemoveYear', { year: row.year })}
-                                onClick={() => removeRow(idx)}
-                            >
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                                </svg>
-                            </button>
-                        </div>
-                    ))
-                )}
-            </div>
-
-            {/* Add-year control */}
-            <div className="flex items-center gap-3 mt-4 flex-wrap">
                 <input
                     type="number"
                     step="1"
@@ -533,7 +670,7 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                     max={CURRENT_YEAR + 1}
                     inputMode="numeric"
                     className="glass-input"
-                    style={{ width: '110px', padding: '7px 10px', borderRadius: '10px' }}
+                    style={{ width: '110px', padding: '8px 10px', borderRadius: '10px' }}
                     placeholder={t('settings.ratesNewYearPlaceholder')}
                     value={newYear}
                     onChange={(e) => setNewYear(e.target.value)}
@@ -549,7 +686,7 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                 </button>
             </div>
 
-            {/* Save bar */}
+            {/* Save bar + reset-all-to-automatic. */}
             <div className="flex items-center gap-3 mt-4 flex-wrap section-divider pt-4">
                 <button
                     type="button"
@@ -560,6 +697,16 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                 >
                     {t('settings.ratesSave')}
                 </button>
+                {hasAnyPinned ? (
+                    <button
+                        type="button"
+                        className="btn-neutral text-[0.82rem]"
+                        style={{ padding: '8px 16px', borderRadius: '999px' }}
+                        onClick={onResetAuto}
+                    >
+                        {t('settings.ratesResetAllAuto')}
+                    </button>
+                ) : null}
                 {savedFlash ? (
                     <span className="text-[0.82rem] font-bold" style={{ color: '#34c759' }}>
                         {t('settings.ratesSavedFlash')}

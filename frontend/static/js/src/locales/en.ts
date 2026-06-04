@@ -443,6 +443,17 @@ export const en = {
             one: 'Filled {count} value',
             other: 'Filled {count} values',
         },
+        // Matrix layout + spreadsheet import/template (matrix rework).
+        ratesMatrixCurrencyCol: 'Currency',
+        ratesResetAllAuto: 'Reset all to automatic',
+        ratesImport: 'Import spreadsheet',
+        ratesImportHint: 'Import a .csv or .xlsx — first column the currency, top row the years. Or download a template to edit in Excel.',
+        ratesDownloadTemplate: 'Download template',
+        ratesImportError: "Couldn't read that file — check it has a Currency column and year headers.",
+        ratesImportedN: {
+            one: 'Imported {count} value — review, then Save.',
+            other: 'Imported {count} values — review, then Save.',
+        },
         // "How does this work?" expand/collapse explainer (PV4-4). Accurate to
         // utils/presentValue.ts — these overrides ONLY change the Insights
         // "Worth today" estimate; settlements & budgets stay nominal.

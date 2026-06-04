@@ -353,6 +353,17 @@ export const fr: Translations = {
             one: '{count} valeur remplie',
             other: '{count} valeurs remplies',
         },
+        // Matrice + import/modèle de feuille de calcul.
+        ratesMatrixCurrencyCol: 'Devise',
+        ratesResetAllAuto: 'Tout réinitialiser en automatique',
+        ratesImport: 'Importer un fichier',
+        ratesImportHint: 'Importez un .csv ou .xlsx : la première colonne est la devise, la première ligne les années. Ou téléchargez un modèle à modifier dans Excel.',
+        ratesDownloadTemplate: 'Télécharger le modèle',
+        ratesImportError: 'Impossible de lire ce fichier : vérifiez qu’il a une colonne Devise et des en-têtes d’année.',
+        ratesImportedN: {
+            one: '{count} valeur importée : vérifiez, puis Enregistrez.',
+            other: '{count} valeurs importées : vérifiez, puis Enregistrez.',
+        },
         ratesHelpToggle: 'Comment ça marche ?',
         ratesHelpWhatTitle: 'À quoi ça sert',
         ratesHelpWhatFx: 'Statistiques estime ce que chaque voyage « vaudrait aujourd’hui ». Pour cela, il convertit les dépenses en devise étrangère dans ta monnaie locale. Normalement il utilise des taux de change actuels et historiques de façon automatique ; ici tu peux fixer ton propre taux pour une devise et une année donnée. Cela ne change que la vue « Valeur aujourd’hui » des Statistiques ; tes remboursements et budgets gardent toujours ce que tu as réellement dépensé.',

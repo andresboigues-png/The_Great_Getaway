@@ -8,7 +8,7 @@
 // stub convertFn), so every assertion below is exact, not "roughly today".
 
 import { describe, it, expect } from 'vitest';
-import { computeAutoRate, type AutoRateExpense } from './manualRates.js';
+import { computeAutoRate, parseRatesGrid, type AutoRateExpense } from './manualRates.js';
 
 // Stub FX: "1 unit of CODE = N EUR" (same convention as the app's tables).
 const RATES: Record<string, number> = { EUR: 1, USD: 0.9, CAD: 0.7, GBP: 1.15 };
@@ -119,5 +119,109 @@ describe('computeAutoRate — inflation', () => {
     it('returns null for a malformed year', () => {
         const series = { 2020: 100, [CURRENT_YEAR]: 120 };
         expect(computeAutoRate('infl', 'USD', 'nope', [], series, 'EUR', convertFn)).toBeNull();
+    });
+});
+
+describe('parseRatesGrid', () => {
+    it('parses a realistic 2-currency × 3-year FX grid', () => {
+        const aoa = [
+            ['Currency', '2021', '2020', '2019'],
+            ['USD', '0.88', '0.90', '0.89'],
+            ['GBP', '1.17', '1.13', '1.14'],
+        ];
+        const cells = parseRatesGrid(aoa, 'fx');
+        expect(cells).toHaveLength(6);
+        expect(cells).toContainEqual({ currency: 'USD', year: '2021', value: 0.88 });
+        expect(cells).toContainEqual({ currency: 'GBP', year: '2019', value: 1.14 });
+    });
+
+    it('detects the header row even with junk rows above it', () => {
+        const aoa = [
+            ['My rates export', '', ''],
+            [],
+            ['Currency', '2020', '2019'],
+            ['USD', '0.9', '0.89'],
+        ];
+        const cells = parseRatesGrid(aoa, 'fx');
+        expect(cells).toEqual([
+            { currency: 'USD', year: '2020', value: 0.9 },
+            { currency: 'USD', year: '2019', value: 0.89 },
+        ]);
+    });
+
+    it('parses decimal-comma cells (EU locale)', () => {
+        const aoa = [
+            ['Currency', '2020'],
+            ['USD', '0,71'],
+            ['CAD', '1.234,5'],
+        ];
+        const cells = parseRatesGrid(aoa, 'fx');
+        expect(cells).toContainEqual({ currency: 'USD', year: '2020', value: 0.71 });
+        expect(cells).toContainEqual({ currency: 'CAD', year: '2020', value: 1234.5 });
+    });
+
+    it('accepts real numeric cells from typed .xlsx (no string surgery)', () => {
+        const aoa = [
+            ['Currency', 2020, 2019],
+            ['USD', 0.9, 0.89],
+        ];
+        const cells = parseRatesGrid(aoa, 'fx');
+        expect(cells).toContainEqual({ currency: 'USD', year: '2020', value: 0.9 });
+        expect(cells).toContainEqual({ currency: 'USD', year: '2019', value: 0.89 });
+    });
+
+    it('skips blank cells and non-numeric cells', () => {
+        const aoa = [
+            ['Currency', '2020', '2019'],
+            ['USD', '', 'n/a'],
+            ['GBP', '1.1', ''],
+        ];
+        const cells = parseRatesGrid(aoa, 'fx');
+        expect(cells).toEqual([{ currency: 'GBP', year: '2020', value: 1.1 }]);
+    });
+
+    it('skips rows whose first cell is not a 3-letter currency code', () => {
+        const aoa = [
+            ['Currency', '2020'],
+            ['USD', '0.9'],
+            ['Total', '99'],
+            ['', '5'],
+            ['US', '0.8'],
+        ];
+        const cells = parseRatesGrid(aoa, 'fx');
+        expect(cells).toEqual([{ currency: 'USD', year: '2020', value: 0.9 }]);
+    });
+
+    it('ignores header columns that are not 4-digit years', () => {
+        const aoa = [
+            ['Currency', 'Notes', '2020'],
+            ['USD', 'best guess', '0.9'],
+        ];
+        const cells = parseRatesGrid(aoa, 'fx');
+        expect(cells).toEqual([{ currency: 'USD', year: '2020', value: 0.9 }]);
+    });
+
+    it('drops non-positive FX rates but keeps negative inflation %', () => {
+        const aoa = [
+            ['Currency', '2020'],
+            ['USD', '-2'],
+        ];
+        expect(parseRatesGrid(aoa, 'fx')).toEqual([]);
+        expect(parseRatesGrid(aoa, 'infl')).toEqual([{ currency: 'USD', year: '2020', value: -2 }]);
+    });
+
+    it('lowercases currency codes are normalized to uppercase', () => {
+        const aoa = [
+            ['currency', '2020'],
+            ['usd', '0.9'],
+        ];
+        expect(parseRatesGrid(aoa, 'fx')).toEqual([{ currency: 'USD', year: '2020', value: 0.9 }]);
+    });
+
+    it('returns [] for an empty / header-less / non-array grid', () => {
+        expect(parseRatesGrid([], 'fx')).toEqual([]);
+        expect(parseRatesGrid([['Currency', 'foo'], ['USD', '0.9']], 'fx')).toEqual([]);
+        // @ts-expect-error — guarding the runtime path for a garbage file.
+        expect(parseRatesGrid(null, 'fx')).toEqual([]);
     });
 });

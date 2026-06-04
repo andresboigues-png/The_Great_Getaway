@@ -5969,3 +5969,114 @@ main#app-container.nav-anim-backward {
     letter-spacing: 1px;
 }
 
+/* ── Settings → Personalization: FX & Inflation rates MATRIX ──────────────────
+   A currency (rows) × year (cols) editable table. The wrapper scrolls
+   horizontally on narrow viewports; the first column (currency) and the header
+   row stay STICKY so they keep context as the year cells scroll under them. All
+   solid backgrounds use --card-bg so cells don't bleed through (dark-mode-aware
+   via the existing CSS vars). Touch targets are ~44px tall on mobile. */
+.rates-matrix-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Contain the scroll so a wide matrix never blows out the card / page. */
+    max-width: 100%;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md, 12px);
+}
+.rates-matrix {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: max-content;
+    min-width: 100%;
+    font-size: 0.82rem;
+}
+.rates-matrix th,
+.rates-matrix td {
+    padding: 0;
+    border-bottom: 1px solid var(--glass-border);
+    border-right: 1px solid var(--glass-border);
+}
+.rates-matrix tr:last-child th,
+.rates-matrix tr:last-child td {
+    border-bottom: none;
+}
+.rates-matrix th:last-child,
+.rates-matrix td:last-child {
+    border-right: none;
+}
+/* Header row — sticky to the top of the scroll container. */
+.rates-matrix thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--card-bg);
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 8px 12px;
+    text-align: center;
+    white-space: nowrap;
+}
+.rates-matrix__yearhead {
+    min-width: 116px;
+}
+/* Sticky first column — both the corner and each row's currency label. */
+.rates-matrix__corner {
+    left: 0;
+    z-index: 3; /* above both the header row and the body sticky column */
+    text-align: left;
+}
+.rates-matrix thead th.rates-matrix__corner {
+    position: sticky;
+}
+.rates-matrix__rowhead {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--card-bg);
+    padding: 8px 12px;
+    text-align: left;
+    white-space: nowrap;
+    font-weight: 700;
+    min-width: 96px;
+    color: var(--text-primary);
+}
+.rates-matrix__cur {
+    font-weight: 800;
+}
+.rates-matrix__hometag {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+}
+.rates-matrix__cell {
+    padding: 5px 6px;
+    background: transparent;
+}
+.rates-matrix__input {
+    width: 104px;
+    min-height: 40px;
+    padding: 7px 9px;
+    border-radius: 9px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+@media (max-width: 640px) {
+    .rates-matrix__input {
+        width: 92px;
+        min-height: 44px; /* comfortable touch target on mobile */
+    }
+    .rates-matrix__yearhead {
+        min-width: 104px;
+    }
+}
+

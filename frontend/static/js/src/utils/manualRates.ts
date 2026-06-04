@@ -191,3 +191,121 @@ export function computeAutoRate(
     const rate = implied.length > 0 ? median(implied) : convertFn(1, cur, homeCur);
     return Number.isFinite(rate) && rate > 0 ? rate : null;
 }
+
+// ── Spreadsheet import (CSV/XLSX) ────────────────────────────────────────────
+
+/** One parsed import cell: a currency + year + the value the user typed. */
+export interface ParsedRateCell {
+    /** UPPERCASE currency code (e.g. 'USD'). */
+    currency: string;
+    /** 4-digit year as a string (e.g. '2019'). */
+    year: string;
+    /** The numeric value: an FX rate (mode 'fx') or an inflation % (mode 'infl'). */
+    value: number;
+}
+
+/**
+ * Locale-aware amount parse for spreadsheet cells, mirroring
+ * pages/upload.ts `parseAmount` exactly so the rates importer reads the same
+ * EU-locale exports (Tricount/Splitwise/Excel) the expense importer does.
+ *
+ * `parseFloat` is anglocentric: `parseFloat('45,50')` → 45 (drops the cents)
+ * and `parseFloat('1.234,56')` → 1.234 (a 1000× understatement). Real numbers
+ * (SheetJS returns these for typed .xlsx cells) pass through untouched. For
+ * strings the decimal separator is decided from the LAST separator present.
+ * Returns NaN for unparseable input so the caller's finite guard skips the cell.
+ */
+function parseRateAmount(raw: unknown): number {
+    if (typeof raw === 'number') return raw;
+    if (raw === null || raw === undefined) return NaN;
+    let s = String(raw).trim();
+    if (!s) return NaN;
+    // Drop currency symbols / spaces / NBSP / a trailing % so "€1.234,56",
+    // "1 234,56" or "12,3 %" still parse; keep digits, separators, leading sign.
+    s = s.replace(/[^\d.,-]/g, '');
+    if (!s) return NaN;
+    const lastComma = s.lastIndexOf(',');
+    const lastDot = s.lastIndexOf('.');
+    if (lastComma > lastDot) {
+        // Comma is the decimal separator (e.g. "1.234,56" or "45,50").
+        s = s.replace(/\./g, '').replace(',', '.');
+    } else if (lastDot > lastComma) {
+        // Dot is the decimal separator (e.g. "1,234.56"); commas group.
+        s = s.replace(/,/g, '');
+    }
+    // else: at most one kind of separator — leave it for parseFloat.
+    return parseFloat(s);
+}
+
+/**
+ * Parse an array-of-arrays spreadsheet grid (column A = currency code, row 1 =
+ * year headers, cells = rate / inflation %) into a flat list of
+ * { currency, year, value } cells, ready to fold into the editor's in-memory
+ * matrix. PURE — no STATE, no DOM — so it's unit-tested in isolation.
+ *
+ * Robustness (never throws on a bad file — returns [] instead):
+ *   - Header-row detection: the first row whose later columns contain ≥1 4-digit
+ *     year (so a "Currency | 2019 | 2020" header is found even with junk rows
+ *     above it). Columns that aren't a 4-digit year are ignored.
+ *   - Currency-column detection: column A of every body row; trimmed +
+ *     uppercased; rows whose first cell isn't a plausible 3-letter code (or is
+ *     blank) are skipped (handles a trailing notes row, totals, etc.).
+ *   - Each value cell goes through `parseRateAmount` (decimal-comma aware). Blank
+ *     cells are skipped; non-numeric cells are skipped. For FX a non-positive
+ *     value is dropped (a rate must be > 0); inflation % may be negative.
+ *
+ * @param aoa  rows of cells (strings | numbers | Dates | null), e.g. from
+ *             XLSX.utils.sheet_to_json(ws, { header: 1 }) or a split CSV.
+ * @param mode 'fx' (rate, must be > 0) or 'infl' (inflation %, any sign).
+ */
+export function parseRatesGrid(aoa: unknown[][], mode: 'fx' | 'infl'): ParsedRateCell[] {
+    if (!Array.isArray(aoa) || aoa.length === 0) return [];
+    const isFx = mode === 'fx';
+    const yearOf = (cell: unknown): string | null => {
+        // Accept 2019 / "2019" / "2019.0" (Excel may type a header as a number).
+        const s = String(cell ?? '').trim();
+        const m = s.match(/^(\d{4})(?:\.0+)?$/);
+        if (!m) return null;
+        const y = Number(m[1]);
+        return y >= 1900 && y <= 2100 ? m[1]! : null;
+    };
+
+    // 1. Find the header row: the first row with ≥1 year in columns B onward.
+    let headerIdx = -1;
+    for (let r = 0; r < aoa.length; r++) {
+        const row = aoa[r];
+        if (!Array.isArray(row)) continue;
+        if (row.slice(1).some((c) => yearOf(c) !== null)) { headerIdx = r; break; }
+    }
+    if (headerIdx === -1) return [];
+
+    // 2. Map each year-bearing header column → its year string.
+    const header = aoa[headerIdx]!;
+    const yearByCol: Record<number, string> = {};
+    for (let c = 1; c < header.length; c++) {
+        const y = yearOf(header[c]);
+        if (y) yearByCol[c] = y;
+    }
+    if (Object.keys(yearByCol).length === 0) return [];
+
+    // 3. Body rows: column A = currency, year columns = values.
+    const out: ParsedRateCell[] = [];
+    for (let r = headerIdx + 1; r < aoa.length; r++) {
+        const row = aoa[r];
+        if (!Array.isArray(row) || row.length === 0) continue;
+        const code = String(row[0] ?? '').trim().toUpperCase();
+        // A plausible currency code is 3 ASCII letters (USD, EUR…). Skip totals
+        // rows, blank cells, stray notes — never throw on them.
+        if (!/^[A-Z]{3}$/.test(code)) continue;
+        for (const colStr of Object.keys(yearByCol)) {
+            const col = Number(colStr);
+            const cell = row[col];
+            if (cell === null || cell === undefined || String(cell).trim() === '') continue;
+            const value = parseRateAmount(cell);
+            if (!Number.isFinite(value)) continue;
+            if (isFx && value <= 0) continue; // a rate must be positive
+            out.push({ currency: code, year: yearByCol[col]!, value });
+        }
+    }
+    return out;
+}
