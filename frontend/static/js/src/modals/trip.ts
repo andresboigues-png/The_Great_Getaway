@@ -16,6 +16,7 @@ import { ROLE_PLANNER } from '../permissions.js';
 import { showModal } from '../components/Modal.js';
 import { t } from '../i18n.js';
 import { iconSvg } from '../icons.js';
+import { normalizeDayNumbers } from '../utils/tripDays.js';
 import { showConfirmModal } from '../utils.js';
 import { mountDateRangePicker } from '../utils/dateRangePicker.js';
 import type { Trip } from '../types';
@@ -599,6 +600,13 @@ export const openEditTripModal = (trip: Trip) => {
             // dates without re-deriving from tripDays.
             if (startInput.value) trip.dateFrom = startInput.value;
             if (endInput.value) trip.dateTo = endInput.value;
+            // Final guarantee: unique, contiguous 1..N day numbers no matter
+            // how the rebase / lengthen / shorten / delete landed above. The
+            // old `existingCount + 1` numbering could collide on a gapped set
+            // and produce "two Day 2, no Day 1"; this collapses any drift.
+            // Runs AFTER a shorten-delete (onConfirm filters STATE, then calls
+            // this). Persist exactly the days that changed.
+            const renumbered = normalizeDayNumbers(STATE.tripDays, trip.id);
             emit('state:changed');
             close();
             // FE-1 (MK4): await writes before navigate() — see the create
@@ -606,7 +614,11 @@ export const openEditTripModal = (trip: Trip) => {
             // edit mid-flight and lose it until reload.
             try {
                 await upsertTrip(trip);
-                await Promise.all([...scaffolded, ...rebased].map(d => upsertDay(d)));
+                // Dedupe by id — a day can land in more than one bucket
+                // (e.g. rebased AND renumbered).
+                const toPersist = new Map<string, import('../types').TripDay>();
+                for (const d of [...scaffolded, ...rebased, ...renumbered]) toPersist.set(d.id, d);
+                await Promise.all([...toPersist.values()].map(d => upsertDay(d)));
             } catch { /* the offline outbox retries a failed write */ }
             navigate('home', null, true);
         };

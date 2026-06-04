@@ -30,6 +30,7 @@ import { loadLocale, getLocale, t } from './i18n.js';
 import { drainOutbox } from './outbox.js';
 import { showConfirmModal } from './components/ConfirmModal.js';
 import { syncWithServer, pullFromServer, fetchNotifications, refreshFxRates } from './api.js';
+import { normalizeDayNumbers } from './utils/tripDays.js';
 import { navigate } from './router.js';
 import { PAGES, EVENTS } from './constants.js';
 
@@ -157,6 +158,12 @@ async function init() {
             days.forEach((d, idx) => {
                 if (d.dayNumber == null) d.dayNumber = idx + 1;
             });
+            // Self-heal duplicate / gapped day numbers (the "two Day 2, no
+            // Day 1" drift from a buggy date edit) back to a clean 1..N. The
+            // server already enforces UNIQUE(trip_id, day_number) so this is a
+            // local-display repair — no write needed; a stale localStorage
+            // snapshot stops showing the phantom on next load.
+            normalizeDayNumbers(STATE.tripDays, tId);
         });
     }
 
