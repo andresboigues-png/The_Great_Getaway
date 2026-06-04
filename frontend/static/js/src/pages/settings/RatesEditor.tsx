@@ -336,16 +336,26 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
             setDraft((prev) => {
                 const next: Draft = { ...prev };
                 for (const cur of currencies) {
-                    const curYears = Array.from(new Set(
-                        expenseList
-                            .filter((e) => (e.currency || 'EUR').toUpperCase() === cur && /^\d{4}/.test(e.date || ''))
-                            .map((e) => (e.date || '').slice(0, 4)),
-                    )).filter((y) => /^\d{4}$/.test(y));
-                    if (curYears.length === 0) continue;
                     const row = { ...(next[cur] || {}) };
-                    for (const year of curYears) {
+                    // Fill every VISIBLE blank cell (the matrix's year columns),
+                    // not just years that already have expenses — otherwise a
+                    // currency the user added but hasn't spent in stays empty
+                    // ("Filled 0 values").
+                    for (const year of years) {
                         // BLANKS ONLY — leave a value the user already typed alone.
                         if ((row[year] ?? '').trim() !== '') continue;
+                        // FX: never auto-fill a PAST year that has no expenses —
+                        // the only fallback there is today's live rate, a
+                        // misleading baseline for an old year (PV4-2). The
+                        // current year (live rate) and any year with expenses
+                        // (the rate actually paid) are fine.
+                        if (isFx && Number(year) !== CURRENT_YEAR) {
+                            const hasExpense = expenseList.some(
+                                (e) => (e.currency || 'EUR').toUpperCase() === cur
+                                    && (e.date || '').slice(0, 4) === year,
+                            );
+                            if (!hasExpense) continue;
+                        }
                         const auto = computeAutoRate(mode, cur, year, expenseList, cpi[cur], home, convertCurrency);
                         if (auto == null || !Number.isFinite(auto)) continue;
                         row[year] = String(auto);
@@ -621,7 +631,7 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                             rowCurrencies.map((cur) => (
                                 <tr key={cur}>
                                     <th scope="row" className="rates-matrix__rowhead">
-                                        <span className="rates-matrix__cur">{curLabel(cur)}</span>
+                                        <span className="rates-matrix__cur">{cur}</span>
                                         {cur === home ? <span className="rates-matrix__hometag">{t('settings.ratesHomeTag')}</span> : null}
                                     </th>
                                     {years.map((year) => (

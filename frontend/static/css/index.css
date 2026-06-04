@@ -5980,21 +5980,25 @@ main#app-container.nav-anim-backward {
     -webkit-overflow-scrolling: touch;
     /* Contain the scroll so a wide matrix never blows out the card / page. */
     max-width: 100%;
-    border: 1px solid var(--glass-border);
+    border: 1px solid rgba(128, 128, 128, 0.3);
     border-radius: var(--radius-md, 12px);
 }
 .rates-matrix {
     border-collapse: separate;
     border-spacing: 0;
+    /* Natural width so a 1–2 column matrix sits compact + left-aligned
+       instead of stretching the lone year column across the whole card.
+       A wide (many-year) matrix grows past the wrap, which scrolls. */
     width: max-content;
-    min-width: 100%;
     font-size: 0.82rem;
 }
 .rates-matrix th,
 .rates-matrix td {
     padding: 0;
-    border-bottom: 1px solid var(--glass-border);
-    border-right: 1px solid var(--glass-border);
+    /* Visible gridlines — the glass border var is nearly invisible on the
+       white settings card, which made the cells unreadable. */
+    border-bottom: 1px solid rgba(128, 128, 128, 0.28);
+    border-right: 1px solid rgba(128, 128, 128, 0.28);
 }
 .rates-matrix tr:last-child th,
 .rates-matrix tr:last-child td {
@@ -6018,6 +6022,7 @@ main#app-container.nav-anim-backward {
     padding: 8px 12px;
     text-align: center;
     white-space: nowrap;
+    border-bottom: 2px solid rgba(128, 128, 128, 0.35);
 }
 .rates-matrix__yearhead {
     min-width: 116px;
@@ -6067,6 +6072,10 @@ main#app-container.nav-anim-backward {
     min-height: 40px;
     padding: 7px 9px;
     border-radius: 9px;
+    /* A visible field border so each cell reads as an editable input rather
+       than floating placeholder text (the glass-input border was invisible
+       on the white card). */
+    border: 1px solid rgba(128, 128, 128, 0.4);
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
