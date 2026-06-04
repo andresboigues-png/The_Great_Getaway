@@ -181,6 +181,68 @@ def test_create_from_template_makes_owned_trip_without_expenses(
     assert len(mbody.get("documents") or []) == 0
 
 
+# ── update keeps the code + re-snapshots ─────────────────────────────
+def test_update_template_keeps_code_and_resnapshots(client, seed_user, auth_headers):
+    """Editing a template re-snapshots from the source trip but KEEPS the
+    same code — shared codes must keep working after the creator adds content.
+    Also covers the frozen-snapshot refresh: to-dos / checklist added to the
+    source trip AFTER the template was first created show up on re-snapshot,
+    and a to-do place's stale source-trip day binding is neutralized."""
+    _make_creator(seed_user)
+    _create_trip(client, auth_headers, trip_id="upd-src", name="Lisbon")
+
+    created = client.post("/api/templates", headers=auth_headers, json={
+        "name": "Lisbon", "sourceTripId": "upd-src",
+        "includePlans": True, "includePlaces": True, "includeChecklist": True,
+    }).get_json()["template"]
+    tmpl_id = created["id"]
+    code = created["code"]
+
+    # Freshly created from a bare trip → no to-dos yet.
+    snap = _read_snapshot(code)
+    assert snap["markedPlaces"] == []
+    assert snap["checklist"] == []
+
+    # The creator NOW adds a to-do place (pinned to a specific day + slot)
+    # and a checklist item to the SOURCE trip.
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trips SET marked_places_json = ?, checklist_json = ? WHERE id = ?",
+            (
+                json.dumps([{
+                    "id": "p9", "name": "Belém Tower", "forManual": True,
+                    "dayId": "old-day-7", "timeOfDay": "morning",
+                }]),
+                json.dumps([{"id": "k9", "body": "Buy Lisboa card", "done": True}]),
+                "upd-src",
+            ),
+        )
+        conn.commit()
+
+    # Edit the template (same toggles) → re-snapshot.
+    res = client.put(f"/api/templates/{tmpl_id}", headers=auth_headers, json={
+        "name": "Lisbon", "sourceTripId": "upd-src",
+        "includePlans": True, "includePlaces": True, "includeChecklist": True,
+    })
+    assert res.status_code == 200
+    # THE GUARANTEE: code is unchanged so a friend's shared code keeps working.
+    assert res.get_json()["template"]["code"] == code
+
+    # Re-snapshot picked up the newly-added to-dos + checklist.
+    snap2 = _read_snapshot(code)
+    assert len(snap2["markedPlaces"]) == 1
+    assert snap2["markedPlaces"][0]["name"] == "Belém Tower"
+    # Stale source-trip day binding neutralized — the imported to-do starts
+    # unassigned (the new trip has different day ids / blanked dates).
+    assert "dayId" not in snap2["markedPlaces"][0]
+    assert "timeOfDay" not in snap2["markedPlaces"][0]
+    assert len(snap2["checklist"]) == 1
+    assert snap2["checklist"][0]["body"] == "Buy Lisboa card"
+    # Completion reset for the new owner.
+    assert snap2["checklist"][0]["done"] is False
+
+
 # ── public preview ───────────────────────────────────────────────────
 def test_preview_public_no_auth_safe_and_404(client, seed_user, auth_headers):
     _make_creator(seed_user)

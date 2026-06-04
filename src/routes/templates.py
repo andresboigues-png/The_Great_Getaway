@@ -82,6 +82,33 @@ def _loads(raw):
         return None
 
 
+def _clean_marked_places(places):
+    """Strip trip-structure-relative fields from marked ("to-do") places.
+
+    A marked place (the app's "To-do list") may be pinned to a specific day
+    (`dayId`) and time slot (`timeOfDay`) of the SOURCE trip. A trip created
+    from a template has brand-new day ids and blanked dates, so those
+    references are dangling — an imported to-do would point at a day that
+    doesn't exist (and the home-map day filter would hide it under a specific
+    day). Drop them so imported to-dos start UNASSIGNED; the new owner re-slots
+    them onto their own days. Same spirit as blanking day dates on clone.
+
+    Everything else (name, place identity, ratings, why/fact, icon/color) is
+    shareable template content and kept verbatim. Non-dict junk is filtered
+    out for safety. Applied both at snapshot build (so the stored snapshot +
+    public preview are clean going forward) AND at instantiation (so templates
+    snapshotted before this fix still import clean)."""
+    out = []
+    for p in (places or []):
+        if not isinstance(p, dict):
+            continue
+        q = dict(p)
+        q.pop("dayId", None)
+        q.pop("timeOfDay", None)
+        out.append(q)
+    return out
+
+
 # ── Creator gate ─────────────────────────────────────────────────────
 def _is_creator(cursor, user_id) -> bool:
     """True if the user is the dev account (always a creator) or has the
@@ -155,7 +182,7 @@ def _build_template_snapshot(cursor, trip_id, include_plans, include_places, inc
     if include_places:
         places = _loads(t["marked_places_json"]) or []
         if isinstance(places, list):
-            snap["markedPlaces"] = places
+            snap["markedPlaces"] = _clean_marked_places(places)
 
     if include_checklist:
         items = _loads(t["checklist_json"]) or []
@@ -190,7 +217,7 @@ def _instantiate_template(cursor, snap, includes, new_owner_id):
     include_places = includes.get("places", True)
     include_checklist = includes.get("checklist", True)
 
-    marked = snap.get("markedPlaces") if include_places else None
+    marked = _clean_marked_places(snap.get("markedPlaces")) if include_places else None
     checklist = snap.get("checklist") if include_checklist else None
 
     new_trip_id = None
