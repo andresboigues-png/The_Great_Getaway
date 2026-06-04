@@ -84,6 +84,16 @@ def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        # PythonAnywhere's networked filesystem can't run SQLite in WAL mode,
+        # so the live web worker takes a brief EXCLUSIVE lock on every write
+        # (e.g. the per-poll achievement-check commit). alembic's default 5s
+        # busy-wait wasn't long enough → "database is locked" mid-migration.
+        # Wait up to 60s so the migration rides over the worker's intermittent
+        # writes (each <1s, ~15s apart) instead of failing instantly. No
+        # effect on a quiet DB (acquires immediately). The runtime workers
+        # already tolerate contention via retry_on_lock; this gives alembic
+        # the same resilience.
+        connect_args={"timeout": 60},
     )
 
     with connectable.connect() as connection:
