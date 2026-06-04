@@ -6197,3 +6197,31 @@ main#app-container.nav-anim-backward {
     }
 }
 
+/* "Have a template code?" affordance in the New Trip modal. A white pill so
+   it reads as a tappable chip and pops off the dark glass backdrop (it was
+   previously low-contrast blue text that looked like a subtitle). The border
+   + shadow keep it defined on light backgrounds too. */
+.tmpl-code-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #fff;
+    color: var(--accent-blue, #0071e3);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-weight: 700;
+    font-size: 0.82rem;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+.tmpl-code-pill:hover,
+.tmpl-code-pill:focus-visible {
+    background: #f5f9ff;
+    box-shadow: 0 4px 14px rgba(0, 113, 227, 0.25);
+    transform: translateY(-1px);
+    outline: none;
+}
+

@@ -15,6 +15,7 @@ import { createFromTemplateAndOpen } from '../bootstrap/template-intent.js';
 import { ROLE_PLANNER } from '../permissions.js';
 import { showModal } from '../components/Modal.js';
 import { t } from '../i18n.js';
+import { iconSvg } from '../icons.js';
 import { showConfirmModal } from '../utils.js';
 import { mountDateRangePicker } from '../utils/dateRangePicker.js';
 import type { Trip } from '../types';
@@ -32,7 +33,7 @@ export const openNewTripModal = () => {
         innerHTML: `
             <h2 class="card-title mdl-title-hero">${esc(t('modals.newTripTitle'))}</h2>
             <div class="w-full mb-3" style="text-align:center;">
-                <button type="button" id="fromTemplateToggle" style="background:none;border:none;color:var(--accent-blue,#0071e3);cursor:pointer;font-weight:600;font-size:0.85rem;padding:4px;">${esc(t('modals.tmplToggle'))}</button>
+                <button type="button" id="fromTemplateToggle" class="tmpl-code-pill">${iconSvg('tag', { size: 14 })}<span>${esc(t('modals.tmplToggle'))}</span></button>
                 <div id="fromTemplateBlock" hidden style="margin-top:8px;">
                     <p class="form-hint" style="margin-bottom:8px;">${esc(t('modals.tmplPrompt'))}</p>
                     <div style="display:flex;gap:8px;">
