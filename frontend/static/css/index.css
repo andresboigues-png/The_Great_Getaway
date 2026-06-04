@@ -1318,6 +1318,91 @@ body.is-signed-out .trip-controls-popover {
     }
 }
 
+/* ── Mobile pull-to-refresh indicator ──────────────────────────────────
+   Custom pull-to-refresh (the browser's native one is disabled by
+   `overscroll-behavior-y: contain` on html/body above). pullToRefresh.ts
+   creates a single `.ptr-indicator` host on first pull and drives its
+   transform/opacity inline as the finger moves. The element is fixed near
+   the top-centre of the viewport.
+
+   Layering: z-index 1500 sits ABOVE page content + the bottom nav (z 1000)
+   but BELOW the sidebar drawer and modal-overlay (z 2000+/10000) — the
+   gesture is gated off while those are open anyway, so it never needs to
+   paint over them.
+
+   Transform note: the host owns the translate (set inline by JS); the inner
+   `.ptr-spinner` owns the rotate. Keeping them on separate elements lets the
+   manual drag-rotation and the CSS `spin` animation coexist without one
+   clobbering the other's transform. */
+.ptr-indicator {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    /* Start just above the top edge; JS translates it down on pull. The
+       initial -50%/0 keeps it centred and hidden until the first move. */
+    transform: translate(-50%, 0);
+    /* Park it a little below the very top so a fully-armed pull clears the
+       notch / status bar area on phones. */
+    margin-top: 12px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    opacity: 0;
+    z-index: 1500;
+    /* No transition by default so the indicator tracks the finger 1:1 while
+       dragging. The .is-snapping class (added on release / arm / refresh)
+       layers a transition on for the animated snap-back or settle. */
+    pointer-events: none;
+    will-change: transform, opacity;
+}
+
+.ptr-indicator.is-snapping {
+    transition:
+        transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.3s ease;
+}
+
+/* A subtle accent ring once the pull passes the trigger threshold, so the
+   user gets a "release now" cue before they let go. */
+.ptr-indicator.is-armed {
+    border-color: var(--accent-blue);
+}
+
+.ptr-spinner {
+    width: 22px;
+    height: 22px;
+    border: 2px solid var(--glass-border);
+    border-top-color: var(--accent-blue);
+    border-radius: 50%;
+    /* Idle: rotation is driven inline by JS as the user pulls. */
+}
+
+/* Active refresh: hand rotation over to the shared `spin` keyframe (defined
+   above for .spinner-ring) so the ring spins continuously while
+   pullFromServer is in flight. */
+.ptr-indicator.is-refreshing .ptr-spinner {
+    animation: spin 0.8s linear infinite;
+}
+
+/* Respect reduced-motion: drop the continuous spin (the indicator still
+   appears + the refresh still runs; we just don't animate the ring). */
+@media (prefers-reduced-motion: reduce) {
+    .ptr-indicator.is-refreshing .ptr-spinner {
+        animation: none;
+    }
+    .ptr-indicator.is-snapping {
+        transition: opacity 0.2s ease;
+    }
+}
+
 /* (.api-key-input-group + nested label removed 2026-05-16 — zero refs in
    src/ + templates/, dead code from a pre-Phase-G AI-key form that's
    been replaced by the inline AIUsageCard in AI.tsx.) */

@@ -41,6 +41,7 @@ import { initGoogleLogin, restoreSession } from './bootstrap/auth.js';
 import { captureCloneIntent, attemptPendingClone, hasPendingCloneIntent } from './bootstrap/clone-intent.js';
 import { wireNavChrome, resolvePage } from './bootstrap/nav-chrome.js';
 import { setupInstallPrompt } from './bootstrap/install-prompt.js';
+import { initPullToRefresh } from './pullToRefresh.js';
 
 // ── UI subscribers ──
 // Kept here (not in state.js) so the data layer doesn't reach into the UI.
@@ -170,6 +171,17 @@ async function init() {
     // delegated navigation clicks, outside-click handlers) lives in one
     // place now — see bootstrap/nav-chrome.ts.
     wireNavChrome();
+
+    // Mobile pull-to-refresh. Custom gesture (the app sets
+    // overscroll-behavior-y: contain in index.css, which disables the
+    // browser's native one) — pull down at the top of the page to
+    // re-fetch /api/data via pullFromServer. Idempotent (a `_wired`
+    // guard makes repeat calls no-ops) and inert on desktop, so calling
+    // it unconditionally at boot is safe. Listeners live on `document`
+    // for the page lifetime — same long-lived convention as the sibling
+    // mobileSwipe gesture wired inside wireNavChrome above; no teardown
+    // needed (the page reload that ends the session drops them).
+    initPullToRefresh();
 
     // §4.10 v2 — PWA install banner. Internally gated on second visit
     // + not-yet-dismissed + not-yet-installed, so first-time visitors

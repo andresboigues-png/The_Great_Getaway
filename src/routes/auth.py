@@ -75,6 +75,37 @@ def user_status():
     })
 
 
+def _seed_default_categories(cursor, user_id):
+    """MK4: give a brand-new user the 3 starter expense categories so the
+    expense form, budgets, and Personalization aren't empty on first run.
+
+    Mirrors the frontend STATE defaults (state.ts) + the Settings
+    'Reset categories' set, using the SAME ids — categories' PK is
+    (id, user_id), so c1/c2/c3 don't collide across users — so the first
+    /api/data pull is a clean match.
+
+    Seeds ONLY when the user has zero categories AND no deletion history,
+    i.e. genuinely new: this is idempotent for existing users and never
+    resurrects categories a user has deliberately deleted.
+    """
+    cursor.execute("SELECT 1 FROM categories WHERE user_id = ? LIMIT 1", (user_id,))
+    if cursor.fetchone():
+        return  # already has categories
+    cursor.execute("SELECT 1 FROM category_deletes WHERE user_id = ? LIMIT 1", (user_id,))
+    if cursor.fetchone():
+        return  # user cleared their categories on purpose — don't resurrect
+    for cid, cname, icon, color in (
+        ("c1", "Food", "🍔", "#ff3b30"),
+        ("c2", "Transport", "✈️", "#007aff"),
+        ("c3", "Accommodation", "🏨", "#5856d6"),
+    ):
+        cursor.execute(
+            "INSERT OR IGNORE INTO categories (id, user_id, name, icon, color) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (cid, user_id, cname, icon, color),
+        )
+
+
 @bp.route("/api/auth/google", methods=["POST"])
 @limiter.limit("10 per minute")
 @retry_on_lock()
@@ -130,6 +161,7 @@ def google_auth():
                 """,
                 (user_id, email, name, picture),
             )
+            _seed_default_categories(cursor, user_id)
             conn.commit()
         # §0.4 v2: also drop the JWT into the HttpOnly session cookie
         # so test-mode login mirrors the production cookie behaviour.
@@ -201,6 +233,9 @@ def google_auth():
             db_home_country = user_row['home_country'] if user_row else None
             db_language = user_row['language'] if user_row else None
 
+            # MK4: give brand-new users the 3 starter categories (no-op if
+            # they already have any, or deliberately deleted them all).
+            _seed_default_categories(cursor, user_id)
             conn.commit()
 
         # §0.4 v2: drop the JWT into an HttpOnly session cookie

@@ -683,8 +683,21 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
         }
 
         // ── Persist map view on idle ──────────────────────────
+        // `allowViewSave` gates this so the PROGRAMMATIC initial render +
+        // auto-fit idles (which fire at the world-zoom default BEFORE
+        // fitBounds runs) never persist a view. Otherwise that stale
+        // zoom-2 view got read by the next re-render and the fit was
+        // skipped (`if (!savedMapView)`), leaving a freshly-created trip
+        // stuck at the world view instead of zooming to the destination.
+        // We also no longer emit('state:changed') here: persisting the map
+        // view must NOT trigger a full re-render — that emit both caused
+        // the fit-clobber race AND fired an app-wide re-render on every
+        // pan/zoom. STATE.mapViews still updates in-memory (so the current
+        // session respects it) and flushes to localStorage on the next
+        // legitimate emit.
+        let allowViewSave = !!savedMapView;
         map.addListener('idle', () => {
-            if (!tripMapKey) return;
+            if (!allowViewSave || !tripMapKey) return;
             if (!STATE.mapViews) STATE.mapViews = {};
             const center = map.getCenter();
             STATE.mapViews[tripMapKey] = {
@@ -692,7 +705,6 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 lng: center.lng(),
                 zoom: map.getZoom(),
             };
-            emit('state:changed');
         });
 
         // ── Border & zoom ─────────────────────────────────────
@@ -706,6 +718,10 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 );
                 google.maps.event.addListenerOnce(map, 'tilesloaded', () => {
                     map.fitBounds(bounds);
+                    // Start persisting only AFTER the auto-fit settles, so a
+                    // later user pan/zoom is saved but the programmatic fit
+                    // itself isn't (and can't be clobbered by a re-render).
+                    google.maps.event.addListenerOnce(map, 'idle', () => { allowViewSave = true; });
                 });
             } else {
                 const geocoder = new google.maps.Geocoder();
@@ -716,6 +732,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                         const bounds = results[0].geometry.viewport;
                         google.maps.event.addListenerOnce(map, 'tilesloaded', () => {
                             map.fitBounds(bounds);
+                            google.maps.event.addListenerOnce(map, 'idle', () => { allowViewSave = true; });
                         });
                         const sw = bounds.getSouthWest();
                         const ne = bounds.getNorthEast();

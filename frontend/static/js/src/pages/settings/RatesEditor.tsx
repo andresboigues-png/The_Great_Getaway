@@ -237,7 +237,42 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                 expense's year — the two manual fields answer different questions,
                 so name each one explicitly to remove the muddiness D-2/D-3 flagged. */}
             <p className="text-secondary text-[0.78rem] mt-0 mb-2">{isFx ? t('settings.ratesFxFieldNote') : t('settings.ratesInflationFieldNote')}</p>
-            <p className="text-secondary text-[0.75rem] mt-0 mb-4 italic">{t('settings.ratesPrecedenceNote')}</p>
+            <p className="text-secondary text-[0.75rem] mt-0 mb-2 italic">{t('settings.ratesPrecedenceNote')}</p>
+
+            {/* PV4-4: a thorough, accurate "How does this work?" explainer in a
+                native <details> disclosure — complete without cluttering the
+                editor. Content is mode-aware (FX vs inflation) and mirrors
+                utils/presentValue.ts exactly: these overrides ONLY move the
+                Insights "Worth today" estimate; current-year FX converts to
+                today's money while past years set the at-the-time rate; the
+                inflation % is cumulative-to-today; blank = automatic. */}
+            <details className="rates-help mb-4">
+                <summary className="text-[0.82rem] font-bold cursor-pointer select-none" style={{ color: 'var(--accent, #0a84ff)' }}>
+                    {t('settings.ratesHelpToggle')}
+                </summary>
+                <div className="text-secondary text-[0.8rem] mt-2 flex flex-col gap-3" style={{ lineHeight: 1.5 }}>
+                    <div>
+                        <p className="font-bold text-[0.8rem] m-0 mb-1">{t('settings.ratesHelpWhatTitle')}</p>
+                        <p className="m-0">{isFx ? t('settings.ratesHelpWhatFx') : t('settings.ratesHelpWhatInflation')}</p>
+                    </div>
+                    <div>
+                        <p className="font-bold text-[0.8rem] m-0 mb-1">{t('settings.ratesHelpHowTitle')}</p>
+                        <ul className="m-0 pl-4 flex flex-col gap-1" style={{ listStyle: 'disc' }}>
+                            <li>{t('settings.ratesHelpHowYear')}</li>
+                            <li>{isFx ? t('settings.ratesHelpHowFx', { year: String(CURRENT_YEAR) }) : t('settings.ratesHelpHowInflation')}</li>
+                            <li>{t('settings.ratesHelpHowAuto')}</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <p className="font-bold text-[0.8rem] m-0 mb-1">{isFx ? t('settings.ratesHelpFxFieldTitle') : t('settings.ratesHelpInflationFieldTitle')}</p>
+                        <p className="m-0">{isFx ? t('settings.ratesHelpFxField', { home }) : t('settings.ratesHelpInflationField')}</p>
+                    </div>
+                    <div>
+                        <p className="font-bold text-[0.8rem] m-0 mb-1">{t('settings.ratesHelpExampleTitle')}</p>
+                        <p className="m-0 italic">{isFx ? t('settings.ratesHelpExampleFx') : t('settings.ratesHelpExampleInflation')}</p>
+                    </div>
+                </div>
+            </details>
 
             {/* Currency picker + per-currency reset */}
             <div className="flex items-center gap-3 mb-4 flex-wrap">
