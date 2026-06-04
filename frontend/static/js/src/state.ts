@@ -237,6 +237,13 @@ export function loadState() {
         // their AI-tick already on — preserving both surfaces' worth of work.
         for (const p of trip.markedPlaces) {
             if (p && p.forAI && !p.forManual) p.forManual = true;
+            // Sights-icon heal: the Sights POI category used to carry a beach
+            // emoji (🏖️) — wrong for monuments / museums / landmarks. It's now
+            // 🏛️. Rewrite any place still stamped with the old icon so existing
+            // to-dos / map markers show the right glyph (🏖️ was ONLY ever the
+            // Sights icon; real beaches live under Parks 🌳). In-memory only;
+            // the new icon persists on the next media write for that trip.
+            if (p && p.icon === '🏖️') p.icon = '🏛️';
         }
         // Trip-level Documents and Photos. Each entry has an optional
         // dayId; "trip-wide" means dayId === Trip Anchor (Day 0).
@@ -268,6 +275,7 @@ export function loadState() {
         // Same to-do/AI consolidation migration as live trips above.
         for (const p of trip.markedPlaces) {
             if (p && p.forAI && !p.forManual) p.forManual = true;
+            if (p && p.icon === '🏖️') p.icon = '🏛️'; // Sights-icon heal (see live loop)
         }
         if (!Array.isArray(trip.documents)) trip.documents = [];
         if (!Array.isArray(trip.photos)) trip.photos = [];

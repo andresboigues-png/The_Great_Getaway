@@ -42,7 +42,11 @@ export function MapSearchBar() {
                 </svg>
                 <input
                     id="homeMapSearchInput"
-                    type="search"
+                    // type="text" (NOT "search"): a search input renders the
+                    // browser's own clear (✕) control, which doubled up with our
+                    // custom #homeMapSearchClear button — the "weird double X".
+                    // We own the clear affordance, so opt out of the native one.
+                    type="text"
                     autoComplete="off"
                     placeholder={t('home.searchMapPlaceholder')}
                     className="flex-1 min-w-0 border-0 outline-0 bg-transparent py-1.5 px-0 text-[0.95rem] text-brand-navy font-semibold"

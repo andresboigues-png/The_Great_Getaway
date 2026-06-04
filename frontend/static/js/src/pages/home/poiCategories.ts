@@ -124,7 +124,7 @@ export const POI_CATEGORIES: PoiCategory[] = [
         'planetarium', 'opera_house', 'concert_hall', 'philharmonic_hall',
         'performing_arts_theater', 'sculpture',
         'aquarium', 'zoo', 'amusement_park', 'theme_park', 'water_park',
-    ], searchStrategy: 'wide',     icon: '🏖️', label: 'Sights',          color: '#a460ed', defaultMinRating: 0 },
+    ], searchStrategy: 'wide',     icon: '🏛️', label: 'Sights',          color: '#a460ed', defaultMinRating: 0 },
     { key: 'parks',       placesType: 'park', guessTypes: [
         'national_park', 'state_park', 'garden', 'botanical_garden',
         'wildlife_park', 'wildlife_refuge', 'beach', 'natural_feature',

@@ -165,7 +165,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // automatically.
     const ICON_TO_LABEL: Record<string, string> = {
         '🍽️': t('poi.restaurants'), '🛒': t('poi.supermarkets'), '🛏️': t('poi.hotels'),
-        '🏖️': t('poi.sights'), '🌳': t('poi.parks'), '⛪': t('poi.worship'),
+        '🏛️': t('poi.sights'), '🏖️': t('poi.sights'), '🌳': t('poi.parks'), '⛪': t('poi.worship'),
         '🏥': t('poi.medical'), '💊': t('poi.pharmacies'), '🩺': t('poi.doctors'), '🦷': t('poi.dentists'),
         '🐾': t('poi.pets'), '🐶': t('poi.petStores'), '🎓': t('poi.schools'), '🏟️': t('poi.sports'),
         '🚉': t('poi.transit'), '🛣️': t('poi.roadsTraffic'),

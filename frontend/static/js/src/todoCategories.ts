@@ -46,6 +46,11 @@ export function iconToLabel(icon: string): string {
         case '🍽️': return t('poi.restaurants');
         case '🛒': return t('poi.supermarkets');
         case '🛏️': return t('poi.hotels');
+        // 🏛️ is the Sights category icon (monuments / museums / landmarks).
+        // 🏖️ is the LEGACY Sights icon (a beach — wrong for sights); kept
+        // here so any place still carrying the old emoji still labels as
+        // Sights. state.ts heals stored 🏖️ → 🏛️ on load.
+        case '🏛️':
         case '🏖️': return t('poi.sights');
         case '🌳': return t('poi.parks');
         case '⛪': return t('poi.worship');
@@ -74,7 +79,7 @@ export function iconToLabel(icon: string): string {
  *  the page. Anything not in this list lands at the end (preserving
  *  insertion order via the fallback). */
 export const CATEGORY_ORDER: string[] = [
-    '🍽️', '🛒', '🛏️', '🏖️', '🌳', '⛪',
+    '🍽️', '🛒', '🛏️', '🏛️', '🌳', '⛪',
     '🏥', '💊', '🩺', '🦷',
     '🐾', '🐶', '🎓', '🏟️', '🚉', '🛣️',
     '📍',
