@@ -52,7 +52,18 @@
 // a fresh sw.js fetch since the activate handler now sees a stranger
 // (v2 → v3 → wipe everything not in CURRENT_CACHES). Belt-and-braces
 // for the n-th cached-bundle regression.
-const SW_VERSION = 'v5';
+//
+// 2026-06-04: bumped to v6 for the rates-matrix CSS shape change.
+// The new currency×year matrix needed row-header / wrap CSS fixes in
+// index.css. The server proved it was serving the fresh file (mtime
+// `?v=` bumped, bytes contained the new rules) but the client kept
+// rendering the old layout across hard refreshes — the v5 shell cache
+// was handing back the previous index.css. Per the "critical CSS shape
+// change" rule above, bump so activate() prunes the stale gg-shell-v5
+// (with the old CSS) and the next network-first fetch repopulates from
+// the fresh file. sw.js is served `Cache-Control: no-cache`
+// (main.py:1223), so this new version is fetched on the next reload.
+const SW_VERSION = 'v6';
 const SHELL_CACHE = `gg-shell-${SW_VERSION}`;
 const API_CACHE = `gg-api-${SW_VERSION}`;
 const UPLOADS_CACHE = `gg-uploads-${SW_VERSION}`;

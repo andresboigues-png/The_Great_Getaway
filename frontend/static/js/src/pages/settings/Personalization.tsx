@@ -20,6 +20,7 @@ import { STATE, emit } from '../../state.js';
 import { syncCategories } from '../../api.js';
 import { generateId } from '../../utils.js';
 import { t } from '../../i18n.js';
+import { iconSvg } from '../../icons.js';
 import { openEditCategoryModal, deleteCategory } from '../settings.js';
 import { RatesEditor } from './RatesEditor.js';
 import { takePendingPersonalizationTab, type PersTab } from '../../utils/persTab.js';
@@ -60,28 +61,37 @@ export function Personalization() {
         setAdding(false);
     };
 
-    const pills: [PersTab, string][] = [
-        ['categories', t('settings.categoriesTitle')],
-        ['fx', t('settings.ratesTabFx')],
-        ['infl', t('settings.ratesTabInflation')],
+    // [tab key, label, icon name]. Same pill format as the General-settings
+    // SubTabStrip (icon + label, .general-subtab) so the two strips look
+    // identical and share the mobile "icons-only" rule in settings.css.
+    const pills: [PersTab, string, string][] = [
+        ['categories', t('settings.categoriesTitle'), 'tag'],
+        ['fx', t('settings.ratesTabFx'), 'exchange'],
+        ['infl', t('settings.ratesTabInflation'), 'trendingUp'],
     ];
 
     return (
         <div>
-            {/* Pill nav */}
-            <div
-                className="glass inline-flex p-1 rounded-[14px] border border-[var(--glass-border)] shadow-[var(--shadow-sm)] mb-6 flex-wrap"
-                role="tablist"
-            >
-                {pills.map(([key, label]) => (
+            {/* Pill nav — mirrors the General-settings sub-tab strip. On mobile
+                the label span is hidden (settings.css media query) so only the
+                icon shows; the per-button aria-label/title keep it accessible. */}
+            <div className="general-subtabs" role="tablist" aria-label="Personalization sections">
+                {pills.map(([key, label, icon]) => (
                     <button
                         key={key}
+                        type="button"
                         role="tab"
                         aria-selected={tab === key}
-                        className={`toggle-btn ${tab === key ? 'active' : ''}`}
+                        aria-label={label}
+                        title={label}
+                        className={`general-subtab${tab === key ? ' is-active' : ''}`}
                         onClick={() => setTab(key)}
                     >
-                        {label}
+                        <span
+                            className="general-subtab__icon inline-flex"
+                            dangerouslySetInnerHTML={{ __html: iconSvg(icon, { size: 18 }) }}
+                        />
+                        <span className="general-subtab__label">{label}</span>
                     </button>
                 ))}
             </div>

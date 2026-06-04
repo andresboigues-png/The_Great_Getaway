@@ -425,6 +425,8 @@ function SubTabStrip({ current }: { current: GeneralSubTab }) {
                 className={`general-subtab${tab('pills')}`}
                 role="tab"
                 aria-selected={current === 'pills'}
+                aria-label={t('settings.subtabPills')}
+                title={t('settings.subtabPills')}
                 onClick={() => setGeneralSubTab('pills')}
             >
                 <span className="general-subtab__icon inline-flex" dangerouslySetInnerHTML={{ __html: iconSvg('map', { size: 18 }) }} />
@@ -435,6 +437,8 @@ function SubTabStrip({ current }: { current: GeneralSubTab }) {
                 className={`general-subtab${tab('appearance')}`}
                 role="tab"
                 aria-selected={current === 'appearance'}
+                aria-label={t('settings.appearance')}
+                title={t('settings.appearance')}
                 onClick={() => setGeneralSubTab('appearance')}
             >
                 <span className="general-subtab__icon inline-flex" dangerouslySetInnerHTML={{ __html: iconSvg('palette', { size: 18 }) }} />
@@ -445,6 +449,8 @@ function SubTabStrip({ current }: { current: GeneralSubTab }) {
                 className={`general-subtab${tab('language')}`}
                 role="tab"
                 aria-selected={current === 'language'}
+                aria-label={t('settings.language')}
+                title={t('settings.language')}
                 onClick={() => setGeneralSubTab('language')}
             >
                 <span className="general-subtab__icon inline-flex" dangerouslySetInnerHTML={{ __html: iconSvg('globe', { size: 18 }) }} />

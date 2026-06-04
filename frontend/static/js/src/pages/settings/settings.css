@@ -314,6 +314,26 @@
     font-size: 0.95rem;
     line-height: 1;
 }
+/* Mobile: icon-only pills. The text label would push the strip past a narrow
+   phone's width, so we hide it and keep just the symbol — the per-button
+   aria-label + title (set in Settings.tsx SubTabStrip and Personalization.tsx)
+   preserve the accessible name and a tap-and-hold tooltip. Applies to BOTH
+   strips because they share the .general-subtab class. The padding tightens to
+   a compact square-ish tap target now that there's no label to balance. */
+@media (max-width: 640px) {
+    .general-subtab__label {
+        display: none;
+    }
+    /* Drop the drill-in chevron too — "just the symbol" means the icon alone,
+       not icon + chevron. */
+    .general-subtab::after {
+        display: none;
+    }
+    .general-subtab {
+        padding: 10px 15px;
+        gap: 0;
+    }
+}
 
 /* ── Settings → General → POI filter rows ─────────────────────────
    Slice 9: one row per Places-API pill with icon, label/hint, anchor

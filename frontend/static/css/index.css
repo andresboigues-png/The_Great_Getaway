@@ -5978,7 +5978,11 @@ main#app-container.nav-anim-backward {
 .rates-matrix-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    /* Contain the scroll so a wide matrix never blows out the card / page. */
+    /* Hug the table: a 1–2 column matrix shrinks the bordered box to the
+       table's width instead of leaving a wide empty box with content only in
+       the top-left. max-width:100% still caps a many-year matrix to the card
+       and lets it scroll horizontally. */
+    width: max-content;
     max-width: 100%;
     border: 1px solid rgba(128, 128, 128, 0.3);
     border-radius: var(--radius-md, 12px);
@@ -5994,7 +5998,13 @@ main#app-container.nav-anim-backward {
 }
 .rates-matrix th,
 .rates-matrix td {
-    padding: 0;
+    /* NO blanket padding here. `.rates-matrix th` (specificity 0-1-1) would
+       out-rank a lone-class per-cell rule like `.rates-matrix__rowhead`
+       (0-1-0) and silently zero its padding — which is exactly why the
+       currency label sat jammed against the left cell wall. Each cell type
+       owns its own padding instead: value cells 0 (input fills edge-to-edge,
+       see .rates-matrix__cell), row headers 0 12px (label inset, see
+       .rates-matrix__rowhead), header row 8px 12px (.rates-matrix thead th). */
     /* Center cell content vertically so the currency row-header lines up with
        the (taller) input cell instead of floating at the top of the row. */
     vertical-align: middle;
@@ -6053,7 +6063,11 @@ main#app-container.nav-anim-backward {
     left: 0;
     z-index: 1;
     background: var(--card-bg);
-    padding: 8px 12px;
+    /* No vertical padding — the inner flex box owns the row height (min-height
+       below) so the currency label cell is EXACTLY as tall as the value-input
+       cell next to it. Mismatched heights here were what made "EUR / HOME"
+       float above the input text. */
+    padding: 0 12px;
     text-align: left;
     white-space: nowrap;
     font-weight: 700;
@@ -6061,11 +6075,14 @@ main#app-container.nav-anim-backward {
     color: var(--text-primary);
 }
 /* Row header is a flex row: currency label (+ home tag) on the left, the
-   delete × pushed to the right edge so it never crowds the label. */
+   delete × pushed to the right edge so it never crowds the label. The
+   min-height matches .rates-matrix__input so this cell and the value cell are
+   the same height and their content lines up on one centered baseline. */
 .rates-matrix__rowhead-inner {
     display: flex;
     align-items: center;
     gap: 6px;
+    min-height: 40px;
 }
 .rates-matrix__rowhead-label {
     display: inline-flex;
@@ -6171,6 +6188,9 @@ main#app-container.nav-anim-backward {
 @media (max-width: 640px) {
     .rates-matrix__input {
         min-height: 44px; /* comfortable touch target on mobile */
+    }
+    .rates-matrix__rowhead-inner {
+        min-height: 44px; /* stay matched to the taller mobile input cell */
     }
     .rates-matrix__yearhead {
         min-width: 132px;

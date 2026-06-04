@@ -140,6 +140,12 @@ export const ICON_PATHS: Record<string, string> = {
     // globe — language / region (🌐)
     globe:
         '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+    // arrow-left-right — exchange rates / FX (💱)
+    exchange:
+        '<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>',
+    // trending-up — inflation (📈)
+    trendingUp:
+        '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
 };
 
 /** Leading-emoji stripper — removes a run of pictographic glyphs (+
