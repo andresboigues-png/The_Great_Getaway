@@ -414,8 +414,12 @@ export const en = {
         ratesAutoPlaceholder: 'auto',
         ratesEmpty: 'No years yet — add one below.',
         ratesRemoveYear: 'Remove {year}',
+        ratesRemoveCurrency: 'Remove {cur}',
+        // Group labels for the paired add-a-row / add-a-column controls.
+        ratesAddCurrencyLabel: 'Add currency',
+        ratesAddYearLabel: 'Add year',
         ratesNewYearPlaceholder: 'Year',
-        ratesAddYear: 'Add year',
+        ratesAddYear: 'Add',
         ratesSavedHint: 'Saved automatically on this device.',
         ratesTabFx: 'Exchange rates',
         ratesTabInflation: 'Inflation',

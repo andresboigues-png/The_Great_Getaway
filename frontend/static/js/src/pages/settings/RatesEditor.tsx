@@ -315,6 +315,66 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
         setImportedCount(null);
     };
 
+    // Clear THIS mode's field for one currency+year, MERGING so the OTHER
+    // mode's stored value survives (same pattern as onResetAuto/writeMerged).
+    // Used by the row/column deletes, which persist immediately.
+    const clearCellPersisted = (cur: string, year: string) => {
+        const existing = getManualRatesForCurrency(cur);
+        const other = isFx ? existing[year]?.inflationPct : existing[year]?.fx;
+        const payload: ManualYearRate = {};
+        if (isFx) {
+            if (Number.isFinite(other)) payload.inflationPct = other as number;
+        } else if (Number.isFinite(other)) {
+            payload.fx = other as number;
+        }
+        setManualRate(cur, year, payload);
+    };
+
+    // Remove a YEAR column. Clears THIS mode's value for that year across EVERY
+    // currency (the other mode is preserved), drops the year from the added set,
+    // and blanks that column in the draft. A purely user-added/pinned year then
+    // disappears; a year still backed by real expenses (or the current year)
+    // stays visible but its cells revert to blank/auto — you can only delete the
+    // overrides, not the underlying data. Persists immediately, like onResetAuto.
+    const removeYear = (year: string) => {
+        for (const cur of Object.keys(STATE.manualRates || {})) {
+            if ((STATE.manualRates?.[cur] || {})[year]) clearCellPersisted(cur, year);
+        }
+        setExtraYears((prev) => prev.filter((y) => y !== year));
+        setDraft((prev) => {
+            const next: Draft = {};
+            for (const cur of Object.keys(prev)) {
+                const row = { ...(prev[cur] || {}) };
+                if (year in row) row[year] = '';
+                next[cur] = row;
+            }
+            return next;
+        });
+        setDirty(false);
+        setSavedFlash(false);
+        setImportedCount(null);
+    };
+
+    // Remove a CURRENCY row. Clears THIS mode's value for that currency across
+    // ALL its stored years (the other mode is preserved), drops it from the
+    // added set, and blanks/removes its draft row. A purely-added currency
+    // disappears; a currency the user has spent in stays (it's derived from
+    // expenses) but its cells revert to blank/auto. Persists immediately.
+    const removeCurrency = (cur: string) => {
+        for (const year of Object.keys((STATE.manualRates || {})[cur] || {})) {
+            clearCellPersisted(cur, year);
+        }
+        setExtra((prev) => prev.filter((c) => c !== cur));
+        setDraft((prev) => {
+            const next: Draft = { ...prev };
+            if (cur in next) next[cur] = {};
+            return next;
+        });
+        setDirty(false);
+        setSavedFlash(false);
+        setImportedCount(null);
+    };
+
     // "Set automatically from my trips" (this mode): fill BLANKS ONLY in the
     // draft — never overwrite a value already typed/pinned — across ALL the
     // user's currencies × the years they have expenses in. Uses the SAME maths
@@ -615,7 +675,26 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                         <tr>
                             <th scope="col" className="rates-matrix__corner">{t('settings.ratesMatrixCurrencyCol')}</th>
                             {years.map((y) => (
-                                <th key={y} scope="col" className="rates-matrix__yearhead tabular-nums">{y}</th>
+                                <th key={y} scope="col" className="rates-matrix__yearhead tabular-nums">
+                                    <span className="rates-matrix__yearhead-inner">
+                                        <span>{y}</span>
+                                        {/* The current-year column is the always-present anchor, so it
+                                            has no delete. Other years can be removed (a purely added/
+                                            pinned year disappears; an expense-backed one keeps its
+                                            column but its cells revert to auto). */}
+                                        {Number(y) !== CURRENT_YEAR ? (
+                                            <button
+                                                type="button"
+                                                className="rates-matrix__del"
+                                                aria-label={t('settings.ratesRemoveYear', { year: y })}
+                                                title={t('settings.ratesRemoveYear', { year: y })}
+                                                onClick={() => removeYear(y)}
+                                            >
+                                                ×
+                                            </button>
+                                        ) : null}
+                                    </span>
+                                </th>
                             ))}
                         </tr>
                     </thead>
@@ -631,8 +710,26 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                             rowCurrencies.map((cur) => (
                                 <tr key={cur}>
                                     <th scope="row" className="rates-matrix__rowhead">
-                                        <span className="rates-matrix__cur">{cur}</span>
-                                        {cur === home ? <span className="rates-matrix__hometag">{t('settings.ratesHomeTag')}</span> : null}
+                                        <span className="rates-matrix__rowhead-inner">
+                                            <span className="rates-matrix__rowhead-label">
+                                                <span className="rates-matrix__cur">{cur}</span>
+                                                {cur === home ? <span className="rates-matrix__hometag">{t('settings.ratesHomeTag')}</span> : null}
+                                            </span>
+                                            {/* No delete on the home row in inflation mode (home prices
+                                                always inflate, so the row is always relevant). FX has no
+                                                home row at all, so every FX row is removable. */}
+                                            {cur !== home ? (
+                                                <button
+                                                    type="button"
+                                                    className="rates-matrix__del"
+                                                    aria-label={t('settings.ratesRemoveCurrency', { cur })}
+                                                    title={t('settings.ratesRemoveCurrency', { cur })}
+                                                    onClick={() => removeCurrency(cur)}
+                                                >
+                                                    ×
+                                                </button>
+                                            ) : null}
+                                        </span>
                                     </th>
                                     {years.map((year) => (
                                         <td key={year} className="rates-matrix__cell">
@@ -641,7 +738,7 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                                                 step={isFx ? 'any' : '0.1'}
                                                 min={isFx ? '0' : '-100'}
                                                 inputMode="decimal"
-                                                className="glass-input rates-matrix__input"
+                                                className="rates-matrix__input"
                                                 placeholder={autoHint(cur, year) || t('settings.ratesAutoPlaceholder')}
                                                 value={draft[cur]?.[year] ?? ''}
                                                 onChange={(e) => updateCell(cur, year, e.target.value)}
@@ -656,44 +753,58 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                 </table>
             </div>
 
-            {/* Add-currency + add-year controls below the matrix. */}
-            <div className="flex items-center gap-3 mt-3 flex-wrap">
+            {/* Two clearly-labelled add controls below the matrix: "Add currency"
+                (a row) and "Add year" (a column). A tidy pair, consistent pill
+                sizing. Both mirror automatically across modes (same component). */}
+            <div className="rates-add-controls mt-3">
                 {otherCurrencies.length > 0 ? (
-                    <select
-                        id={`ratesCurAdd-${mode}`}
-                        className="glass-input"
-                        style={{ padding: '8px 10px', borderRadius: '10px', fontSize: '0.82rem' }}
-                        value=""
-                        aria-label={t('settings.ratesAddCurrency')}
-                        onChange={(e) => addCurrency(e.target.value)}
-                    >
-                        <option value="">{t('settings.ratesAddCurrency')}</option>
-                        {otherCurrencies.map((c) => (
-                            <option key={c} value={c}>{curLabel(c)}</option>
-                        ))}
-                    </select>
+                    <div className="rates-add-group">
+                        <label className="rates-add-group__label" htmlFor={`ratesCurAdd-${mode}`}>
+                            {t('settings.ratesAddCurrencyLabel')}
+                        </label>
+                        <select
+                            id={`ratesCurAdd-${mode}`}
+                            className="glass-input"
+                            style={{ padding: '8px 14px', borderRadius: '999px', fontSize: '0.82rem' }}
+                            value=""
+                            aria-label={t('settings.ratesAddCurrencyLabel')}
+                            onChange={(e) => addCurrency(e.target.value)}
+                        >
+                            <option value="">{t('settings.ratesAddCurrency')}</option>
+                            {otherCurrencies.map((c) => (
+                                <option key={c} value={c}>{curLabel(c)}</option>
+                            ))}
+                        </select>
+                    </div>
                 ) : null}
-                <input
-                    type="number"
-                    step="1"
-                    min="1900"
-                    max={CURRENT_YEAR + 1}
-                    inputMode="numeric"
-                    className="glass-input"
-                    style={{ width: '110px', padding: '8px 10px', borderRadius: '10px' }}
-                    placeholder={t('settings.ratesNewYearPlaceholder')}
-                    value={newYear}
-                    onChange={(e) => setNewYear(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                            e.preventDefault();
-                            addYear();
-                        }
-                    }}
-                />
-                <button type="button" className="btn-neutral text-[0.85rem]" style={{ padding: '8px 16px', borderRadius: '999px' }} onClick={addYear}>
-                    {t('settings.ratesAddYear')}
-                </button>
+                <div className="rates-add-group">
+                    <label className="rates-add-group__label" htmlFor={`ratesYearAdd-${mode}`}>
+                        {t('settings.ratesAddYearLabel')}
+                    </label>
+                    <input
+                        id={`ratesYearAdd-${mode}`}
+                        type="number"
+                        step="1"
+                        min="1900"
+                        max={CURRENT_YEAR + 1}
+                        inputMode="numeric"
+                        className="glass-input"
+                        style={{ width: '92px', padding: '8px 14px', borderRadius: '999px' }}
+                        placeholder={t('settings.ratesNewYearPlaceholder')}
+                        aria-label={t('settings.ratesAddYearLabel')}
+                        value={newYear}
+                        onChange={(e) => setNewYear(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                addYear();
+                            }
+                        }}
+                    />
+                    <button type="button" className="btn-neutral text-[0.85rem]" style={{ padding: '8px 16px', borderRadius: '999px' }} onClick={addYear}>
+                        {t('settings.ratesAddYear')}
+                    </button>
+                </div>
             </div>
 
             {/* Save bar + reset-all-to-automatic. */}

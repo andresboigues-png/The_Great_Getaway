@@ -6025,7 +6025,16 @@ main#app-container.nav-anim-backward {
     border-bottom: 2px solid rgba(128, 128, 128, 0.35);
 }
 .rates-matrix__yearhead {
-    min-width: 116px;
+    /* Wide enough that the FX auto hint ("auto ≈ 1 EUR") never clips. */
+    min-width: 140px;
+}
+/* Year header is a flex row so the year label and its delete × sit together,
+   the label centred and the × pinned to the right without overlapping it. */
+.rates-matrix__yearhead-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
 }
 /* Sticky first column — both the corner and each row's currency label. */
 .rates-matrix__corner {
@@ -6045,8 +6054,20 @@ main#app-container.nav-anim-backward {
     text-align: left;
     white-space: nowrap;
     font-weight: 700;
-    min-width: 96px;
+    min-width: 112px;
     color: var(--text-primary);
+}
+/* Row header is a flex row: currency label (+ home tag) on the left, the
+   delete × pushed to the right edge so it never crowds the label. */
+.rates-matrix__rowhead-inner {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.rates-matrix__rowhead-label {
+    display: inline-flex;
+    align-items: center;
+    flex: 1 1 auto;
 }
 .rates-matrix__cur {
     font-weight: 800;
@@ -6063,29 +6084,93 @@ main#app-container.nav-anim-backward {
     background: var(--surface-subtle);
     color: var(--text-secondary);
 }
+/* The cell IS the box now — no inner padding, so the input can fill it edge to
+   edge and the td gridline becomes the only visible boundary (clean spreadsheet
+   look, no box-in-box). */
 .rates-matrix__cell {
-    padding: 5px 6px;
+    padding: 0;
     background: transparent;
 }
 .rates-matrix__input {
-    width: 104px;
+    /* Fill the cell — the gridline is the border, the field has none of its own.
+       (Deliberately NOT .glass-input: that adds its own border + focus
+       box-shadow which would re-introduce the box-in-box look.) */
+    width: 100%;
     min-height: 40px;
-    padding: 7px 9px;
-    border-radius: 9px;
-    /* A visible field border so each cell reads as an editable input rather
-       than floating placeholder text (the glass-input border was invisible
-       on the white card). */
-    border: 1px solid rgba(128, 128, 128, 0.4);
+    padding: 8px 12px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.85rem;
     text-align: right;
     font-variant-numeric: tabular-nums;
+    box-sizing: border-box;
+    transition: background 0.12s ease;
+}
+.rates-matrix__input:focus,
+.rates-matrix__input:focus-visible {
+    /* Clear, self-contained focus ring drawn inside the cell so it doesn't
+       shift the gridlines. */
+    outline: 2px solid var(--accent, #0a84ff);
+    outline-offset: -2px;
+    background: var(--surface-subtle, rgba(10, 132, 255, 0.06));
+}
+/* Subtle delete × shared by the year-column and currency-row headers. Muted by
+   default, accent on hover/focus. ~28px box keeps the touch target generous
+   while the glyph stays small. */
+.rates-matrix__del {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.55;
+    transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.rates-matrix__del:hover,
+.rates-matrix__del:focus-visible {
+    opacity: 1;
+    color: #ff3b30;
+    background: rgba(255, 59, 48, 0.12);
+    outline: none;
+}
+/* Paired add controls under the matrix — a tidy "add a row / add a column"
+   group with consistent pill sizing. */
+.rates-add-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.rates-add-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.rates-add-group__label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary);
 }
 @media (max-width: 640px) {
     .rates-matrix__input {
-        width: 92px;
         min-height: 44px; /* comfortable touch target on mobile */
     }
     .rates-matrix__yearhead {
-        min-width: 104px;
+        min-width: 132px;
     }
 }
 
