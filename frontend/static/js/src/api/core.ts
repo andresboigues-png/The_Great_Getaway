@@ -254,7 +254,16 @@ export async function apiFetch(path: string, options: RequestInit = {}, timeoutM
             // don't let the queue helper crash the user's tap.
             console.warn('[apiFetch] outbox enqueue failed:', oe);
         }
-        console.error('[apiFetch] network failure', { url, method: options.method || 'GET', err: String(e) });
+        // An AbortError is EXPECTED here: the router aborts the
+        // current-nav signal on every navigation, which cancels any
+        // in-flight request that inherited it (e.g. a trip-media GET still
+        // loading when the user navigates). That's normal lifecycle, not a
+        // failure — don't log it as one (it was console-error noise). Real
+        // network failures still log + rethrow; AbortError just rethrows so
+        // the caller's `errName(e) === 'AbortError'` guards still run.
+        if (!(e instanceof Error && e.name === 'AbortError')) {
+            console.error('[apiFetch] network failure', { url, method: options.method || 'GET', err: String(e) });
+        }
         throw e;
     }
     if (res.status === 401 && STATE.user) {

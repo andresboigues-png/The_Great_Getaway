@@ -516,6 +516,11 @@ def add_security_headers(response):
                 "https://api.frankfurter.dev "
                 "https://api.worldbank.org "
                 "https://raw.githubusercontent.com "
+                # cdn.jsdelivr.net is already trusted in script-src (it serves
+                # the Chart.js + XLSX bundles); allow connect-src too so the
+                # browser can fetch their `.js.map` source maps when devtools
+                # is open (CSP was blocking the .map fetch — dev-only noise).
+                "https://cdn.jsdelivr.net "
                 "https://*.sentry.io "
                 "https://*.ingest.sentry.io"
             ),
