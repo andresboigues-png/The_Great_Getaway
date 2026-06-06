@@ -1120,6 +1120,37 @@ def test_share_clone_copies_plans_when_shared(
         assert not mp or json.loads(mp) == [], "wishlist must never copy on a share clone"
 
 
+def test_member_clone_strips_marked_place_day_refs(client, seed_user, auth_headers):
+    """Audit MK5 P2: a member clone copies the wishlist, but must STRIP each
+    pin's source-trip dayId/timeOfDay — those day ids don't exist in the clone,
+    so the pins would be invisible under every per-day map filter."""
+    _create_trip(client, auth_headers, trip_id="clone-src", name="Lisbon")
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trips SET marked_places_json = ? WHERE id = ?",
+            (json.dumps([{
+                "id": "p1", "name": "Belém", "forManual": True,
+                "dayId": "src-day-1", "timeOfDay": "morning",
+            }]), "clone-src"),
+        )
+        conn.commit()
+
+    new_id = client.post(
+        "/api/trips/clone/clone-src", headers=auth_headers,
+    ).get_json()["tripId"]
+
+    from database import get_db as _db
+    with _db() as conn:
+        mp = conn.execute(
+            "SELECT marked_places_json FROM trips WHERE id = ?", (new_id,),
+        ).fetchone()["marked_places_json"]
+        places = json.loads(mp)
+        assert len(places) == 1
+        assert places[0]["name"] == "Belém"  # wishlist copied for a member clone
+        assert "dayId" not in places[0] and "timeOfDay" not in places[0]  # but day refs stripped
+
+
 def test_share_revoke_resets_plans_toggle(client, seed_user, auth_headers):
     """DELETE share clears BOTH the token AND the toggles, so a
     re-share starts privacy-clean. Prevents "I unshared, then someone

@@ -171,6 +171,13 @@ def google_auth():
                 (user_id, email, name, picture),
             )
             _seed_default_categories(cursor, user_id)
+            # Audit MK5 P2: surface isCreator in the test-login response too
+            # (mirrors the real-login + user-status paths) so the Creator tab
+            # appears immediately. A test user's email is never an admin email,
+            # so the granted flag is the only source.
+            cursor.execute("SELECT is_creator FROM users WHERE id = ?", (user_id,))
+            _cr = cursor.fetchone()
+            test_is_creator = bool(_cr["is_creator"]) if _cr else False
             conn.commit()
         # §0.4 v2: also drop the JWT into the HttpOnly session cookie
         # so test-mode login mirrors the production cookie behaviour.
@@ -193,6 +200,7 @@ def google_auth():
                 # Test users start with no locale preference — frontend
                 # falls back to navigator.language.
                 "language": None,
+                "isCreator": test_is_creator,
             },
         }))
         set_auth_cookie(response, token)
@@ -233,7 +241,7 @@ def google_auth():
                     picture=excluded.picture
             ''', (user_id, email, name, picture))
 
-            cursor.execute("SELECT bio, status, home_currency, home_country, language FROM users WHERE id = ?", (user_id,))
+            cursor.execute("SELECT bio, status, home_currency, home_country, language, is_creator FROM users WHERE id = ?", (user_id,))
             user_row = cursor.fetchone()
             db_bio = user_row['bio'] if user_row else ""
             db_status = user_row['status'] if user_row else ""
@@ -241,6 +249,13 @@ def google_auth():
             db_home_currency = user_row['home_currency'] if user_row else None
             db_home_country = user_row['home_country'] if user_row else None
             db_language = user_row['language'] if user_row else None
+            # Audit MK5 P2: include isCreator in the LOGIN response too (it was
+            # only in /api/user-status), so a granted non-admin Creator sees the
+            # Creator tab immediately instead of after a full page reload. The
+            # dev account is always a creator (mirrors /api/user-status).
+            db_is_creator = (
+                bool(user_row['is_creator']) if user_row else False
+            ) or (email or "").strip().lower() in ADMIN_EMAILS
 
             # MK4: give brand-new users the 3 starter categories (no-op if
             # they already have any, or deliberately deleted them all).
@@ -272,6 +287,7 @@ def google_auth():
                 # Settings. Frontend's detectBrowserLocale handles the
                 # default before that happens.
                 "language": db_language,
+                "isCreator": db_is_creator,
             },
         }))
         set_auth_cookie(response, token)

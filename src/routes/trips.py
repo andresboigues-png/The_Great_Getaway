@@ -1278,6 +1278,32 @@ def _generate_trip_id() -> str:
     return secrets.token_hex(5)[:9]
 
 
+def _clone_marked_places_json(raw):
+    """Strip trip-structure-relative fields (dayId / timeOfDay) from a copied
+    marked_places_json. Audit MK5 P2: a clone's wishlist pins kept the SOURCE
+    trip's day ids, which don't exist in the clone — so they were invisible
+    under every per-day map filter. Drop them so imported pins start unassigned
+    (the new owner re-slots them), mirroring the template path's
+    _clean_marked_places. Returns the re-serialized JSON, or the input unchanged
+    on empty / parse failure / non-list."""
+    if not raw:
+        return raw
+    try:
+        places = json.loads(raw)
+    except (ValueError, TypeError):
+        return raw
+    if not isinstance(places, list):
+        return raw
+    out = []
+    for p in places:
+        if isinstance(p, dict):
+            q = dict(p)
+            q.pop("dayId", None)
+            q.pop("timeOfDay", None)
+            out.append(q)
+    return json.dumps(out)
+
+
 def _clone_trip_attempt(cursor, src, new_owner_id, new_trip_id, include_marked_places=True):
     """One INSERT attempt for the clone's trip row, factored so the
     caller can retry on the rare PK collision from `_generate_trip_id`.
@@ -1312,8 +1338,10 @@ def _clone_trip_attempt(cursor, src, new_owner_id, new_trip_id, include_marked_p
         # member who can already see the wishlist). A share-link clone passes
         # include_marked_places=False: the share page + public-trip read strip
         # markedPlaces from non-members, so copying it would leak a wishlist the
-        # recipient was never shown (Audit MK5 P1).
-        src['marked_places_json'] if include_marked_places else None,
+        # recipient was never shown (Audit MK5 P1). When it IS copied, strip the
+        # source trip's day refs so the pins aren't invisible on the clone's
+        # per-day filters (Audit MK5 P2).
+        _clone_marked_places_json(src['marked_places_json']) if include_marked_places else None,
         # documents / photos / checklist — NEVER copied (personal
         # files / per-trip tasks belong to the original owner).
         None,

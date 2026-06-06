@@ -387,3 +387,23 @@ def test_instantiated_marked_places_normalized_to_manual(
     media = client.get(f"/api/trips/{new_id}/media", headers=other_auth_headers).get_json()
     assert len(media.get("markedPlaces") or []) == 2
     assert all(p.get("source") == "manual" for p in media["markedPlaces"])
+
+
+def test_login_response_includes_isCreator(client, monkeypatch):
+    """Audit MK5 P2: the /api/auth/google LOGIN response must carry isCreator
+    (it was only in /api/user-status), so a granted Creator sees the Creator tab
+    on first login instead of after a full page reload."""
+    monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
+    # Test-login requires a `test-` user_id (security guard in google_auth).
+    # First login creates the user; is_creator defaults 0.
+    res = client.post("/api/auth/google", json={"token": "test:test-creator-login"})
+    assert res.status_code == 200
+    assert res.get_json()["user"]["isCreator"] is False
+    # Grant creator, log in again → the LOGIN response reflects it immediately.
+    from database import get_db
+    with get_db() as conn:
+        conn.execute("UPDATE users SET is_creator = 1 WHERE id = ?", ("test-creator-login",))
+        conn.commit()
+    res2 = client.post("/api/auth/google", json={"token": "test:test-creator-login"})
+    assert res2.status_code == 200
+    assert res2.get_json()["user"]["isCreator"] is True
