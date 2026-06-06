@@ -238,6 +238,41 @@ function parseRateAmount(raw: unknown): number {
 }
 
 /**
+ * Pick the column delimiter for a CSV from its header row. EU-locale exports
+ * (Excel in a comma-decimal locale) use ';' as the COLUMN delimiter and ','
+ * as the DECIMAL separator — so splitting on ',' shatters every "1,18" cell
+ * into "1" and "18" (Audit MK5 P1). Count ; \t , in the first non-empty line
+ * and pick the most frequent; ';' wins ties (the EU case) and ',' is the
+ * default when nothing else is present. PURE — unit-tested.
+ */
+export function detectCsvDelimiter(text: string): string {
+    const firstLine =
+        text.replace(/\r\n/g, '\n').split('\n').find((l) => l.trim() !== '') || '';
+    const count = (ch: string): number => firstLine.split(ch).length - 1;
+    const semi = count(';');
+    const tab = count('\t');
+    const comma = count(',');
+    if (semi > 0 && semi >= comma && semi >= tab) return ';';
+    if (tab > 0 && tab >= comma) return '\t';
+    return ',';
+}
+
+/**
+ * Minimal CSV → array-of-arrays using a SINGLE per-file delimiter chosen by
+ * detectCsvDelimiter, so EU-locale ';'-delimited files with ',' decimals parse
+ * correctly (the values then go through parseRateAmount, which handles the
+ * decimal comma). Quotes are stripped. PURE — no DOM — so it's unit-tested.
+ */
+export function parseCsvGrid(text: string): string[][] {
+    const delim = detectCsvDelimiter(text);
+    return text
+        .replace(/\r\n/g, '\n')
+        .split('\n')
+        .filter((line) => line.trim() !== '')
+        .map((line) => line.split(delim).map((c) => c.trim().replace(/^"(.*)"$/, '$1')));
+}
+
+/**
  * Parse an array-of-arrays spreadsheet grid (column A = currency code, row 1 =
  * year headers, cells = rate / inflation %) into a flat list of
  * { currency, year, value } cells, ready to fold into the editor's in-memory

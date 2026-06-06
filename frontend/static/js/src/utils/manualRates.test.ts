@@ -8,7 +8,7 @@
 // stub convertFn), so every assertion below is exact, not "roughly today".
 
 import { describe, it, expect } from 'vitest';
-import { computeAutoRate, parseRatesGrid, type AutoRateExpense } from './manualRates.js';
+import { computeAutoRate, parseRatesGrid, detectCsvDelimiter, parseCsvGrid, type AutoRateExpense } from './manualRates.js';
 
 // Stub FX: "1 unit of CODE = N EUR" (same convention as the app's tables).
 const RATES: Record<string, number> = { EUR: 1, USD: 0.9, CAD: 0.7, GBP: 1.15 };
@@ -223,5 +223,34 @@ describe('parseRatesGrid', () => {
         expect(parseRatesGrid([['Currency', 'foo'], ['USD', '0.9']], 'fx')).toEqual([]);
         // @ts-expect-error — guarding the runtime path for a garbage file.
         expect(parseRatesGrid(null, 'fx')).toEqual([]);
+    });
+});
+
+describe('detectCsvDelimiter', () => {
+    it('picks ";" for EU-locale files (semicolon columns, comma decimals)', () => {
+        expect(detectCsvDelimiter('currency;2023;2024\nUSD;1,08;1,09')).toBe(';');
+    });
+    it('picks "," for US-locale files', () => {
+        expect(detectCsvDelimiter('currency,2023,2024\nUSD,1.08,1.09')).toBe(',');
+    });
+    it('picks tab for TSV', () => {
+        expect(detectCsvDelimiter('currency\t2023\nUSD\t1.08')).toBe('\t');
+    });
+});
+
+describe('parseCsvGrid — EU-locale CSV no longer shatters (Audit MK5 P1)', () => {
+    it('keeps ";"-delimited rows intact and parses "," decimals correctly', () => {
+        const text = 'currency;2023;2024\nUSD;1,08;1,09\nGBP;1,15;1,18';
+        const grid = parseCsvGrid(text);
+        expect(grid[1]).toEqual(['USD', '1,08', '1,09']); // 3 cols, not 5
+        const cells = parseRatesGrid(grid, 'fx');
+        const usd = cells.find((c) => c.currency === 'USD' && c.year === '2023');
+        expect(usd?.value).toBeCloseTo(1.08, 5); // 1,08 → 1.08, NOT 108
+    });
+    it('still parses a US-locale "," file', () => {
+        const grid = parseCsvGrid('currency,2023\nUSD,1.08');
+        expect(grid[1]).toEqual(['USD', '1.08']);
+        const cells = parseRatesGrid(grid, 'fx');
+        expect(cells.find((c) => c.currency === 'USD')?.value).toBeCloseTo(1.08, 5);
     });
 });

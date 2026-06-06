@@ -40,6 +40,7 @@ import {
     setManualRate,
     computeAutoRate,
     parseRatesGrid,
+    parseCsvGrid,
     type ManualYearRate,
 } from '../../utils/manualRates.js';
 import { makeInflationFactor } from '../../utils/presentValue.js';
@@ -467,15 +468,9 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
         URL.revokeObjectURL(url);
     };
 
-    // Minimal, permissive CSV → array-of-arrays. We don't need full RFC-4180
-    // quoting for a rates grid (codes + numbers), so a split is enough; quotes
-    // are stripped so '"USD"' still reads as USD.
-    const parseCsv = (text: string): string[][] =>
-        text
-            .replace(/\r\n/g, '\n')
-            .split('\n')
-            .filter((line) => line.trim() !== '')
-            .map((line) => line.split(/[,;\t]/).map((c) => c.trim().replace(/^"(.*)"$/, '$1')));
+    // CSV → array-of-arrays uses parseCsvGrid (manualRates.ts), which detects a
+    // single per-file delimiter so EU-locale ';'-delimited files with ','
+    // decimals no longer shatter (Audit MK5 P1).
 
     // Fold parsed cells into the draft: overwrite the cells the file specifies,
     // leave the rest untouched. A currency/year not yet a row/col is added so the
@@ -520,7 +515,7 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
             try {
                 let aoa: unknown[][];
                 if (isCsv) {
-                    aoa = parseCsv(String(evt.target?.result ?? ''));
+                    aoa = parseCsvGrid(String(evt.target?.result ?? ''));
                 } else {
                     const data = new Uint8Array(evt.target?.result as ArrayBuffer);
                     const workbook = XLSX.read(data, { type: 'array' });
