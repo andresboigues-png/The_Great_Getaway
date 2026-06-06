@@ -637,6 +637,9 @@ export const en = {
         // Settle button + toasts.
         recordingBtn: 'Recording…',
         toastSenderEqualsReceiver: 'Sender and receiver must be different.',
+        toastNoRateNeedEuro: 'No live rate for {currency} — use “Settle up manually” and enter the € value.',
+        manualEuroLabel: 'Value in € (no live rate for {currency})',
+        toastEuroRequired: 'Enter the € value for this {currency} payment.',
         toastAmountInvalid: 'Amount must be a positive number.',
         toastUnsettleConfirmTitle: 'Unsettle this payment?',
         toastUnsettleConfirmMessage: 'The settlement record is removed and balances revert.',

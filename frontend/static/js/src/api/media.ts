@@ -286,17 +286,26 @@ export function persistTripMedia(trip: Trip) {
         checklist: Array.isArray(trip.checklist) ? trip.checklist : [],
     };
     if (!_mediaLoadedTrips.has(trip.id)) {
-        // 4.8 audit TRIP-1: do NOT silently drop the write (pre-fix this
-        // returned here, and fetchTripMedia then overwrote the in-memory
-        // edit too → silent loss of a checklist item / marked place /
-        // photo added in the cold-load or trip-switch window). Park the
-        // attempted write and ensure hydration runs; fetchTripMedia
-        // merges it onto the server-true arrays (union by item key) and
-        // flushes — so the edit is neither lost nor allowed to clobber
-        // un-edited (cold-[]) fields.
-        _pendingMedia.set(trip.id, snapshot);
-        fetchTripMedia(trip.id).catch(() => { /* best-effort; retried on next hydration */ });
-        return;
+        // Audit MK5 P1: an unhydrated write used to ONLY park the snapshot,
+        // and the hydration union-merge (_mergeMediaField) is ADD-ONLY — it
+        // can re-add but never remove — so an offline / cold-window DELETE
+        // ('Clear all', remove a to-do place / photo / document) silently
+        // reverted on reconnect (the server item survived the union).
+        //
+        // Why a real write is safe here: a media EDIT can only happen on media
+        // the user can SEE, and loadState() restores each trip's media from
+        // localStorage into STATE on boot — so in the cold window the snapshot
+        // is the real last-known set, NOT the cold []-placeholder the original
+        // TRIP-1 guard feared (a trip never opened has no real media to edit).
+        // Mark the trip loaded and do a real versioned write (a first write
+        // has no _mediaVersion, so it force-writes) — removals now persist.
+        //
+        // Tradeoff (shared trips): this force-writes over a co-traveller's
+        // concurrent media change made while this tab was offline+unhydrated —
+        // rare, and preferable to silently losing the user's own delete.
+        _mediaLoadedTrips.add(trip.id);
+        _pendingMedia.delete(trip.id);
+        return _postTripMedia(trip.id, snapshot);
     }
     // 4.8 audit TRIP-4: versioned write — detects + union-merges a
     // concurrent peer media edit instead of silently last-write-wins.

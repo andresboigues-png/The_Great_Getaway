@@ -32,6 +32,7 @@ import {
     findAcceptedMemberUserId,
     findTripCompanionByLinkedUser,
 } from '../../companions.js';
+import { hasRate } from '../../utils/currency.js';
 import { createSettlement, deleteSettlementOnServer, upsertExpense } from '../../api.js';
 import { showModal } from '../../components/Modal.js';
 import {
@@ -89,7 +90,7 @@ export async function settleDebt(
     to: string,
     amount: number,
     currency: string,
-    options?: { method?: string; note?: string },
+    options?: { method?: string; note?: string; euroValue?: number },
 ): Promise<void> {
     if (from === to) {
         showLiquidAlert(t('settlement.toastSenderEqualsReceiver'));
@@ -112,7 +113,30 @@ export async function settleDebt(
         showLiquidAlert(t('errors.offline'));
         return;
     }
-    const euroValue = convertCurrency(amount, currency, 'EUR');
+    // Audit MK5 P1: NEVER fabricate a 1:1 euroValue for a no-rate currency.
+    // convertCurrency returns the amount unchanged when there's no live rate,
+    // so a 100,000 ARS settle was booked as €100,000 — poisoning the EUR /
+    // cross-trip Global / Insights totals. Mirror the expense form: EUR is
+    // itself; a rated currency converts; an exotic currency REQUIRES an
+    // explicit €value (entered in the manual settle modal and passed via
+    // options.euroValue). The one-click Settle has no €field, so it refuses and
+    // points the user to the manual modal rather than corrupting balances.
+    const cur = currency.toUpperCase();
+    let euroValue: number;
+    if (cur === 'EUR') {
+        euroValue = amount;
+    } else if (hasRate(cur)) {
+        euroValue = convertCurrency(amount, cur, 'EUR');
+    } else if (
+        typeof options?.euroValue === 'number'
+        && Number.isFinite(options.euroValue)
+        && options.euroValue > 0
+    ) {
+        euroValue = Math.round(options.euroValue * 10000) / 10000;
+    } else {
+        showLiquidAlert(t('settlement.toastNoRateNeedEuro', { currency: cur }));
+        return;
+    }
 
     const trip = STATE.trips.find((tr) => tr.id === tripId);
     // Integration audit INT-2: resolve each party to an ACCEPTED-member
@@ -327,6 +351,10 @@ export function openManualSettleModal(tripId: string): void {
                     <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input stl-card-minor" placeholder="0.00" required style="flex:2;">
                     <select id="manualSettleCurrency" class="glass-input stl-card-minor-bg" style="flex:1;" aria-label="${esc(t('settlement.labelAmount', { currency: '' }))}">${currencyOptions}</select>
                 </div>
+                <div id="manualSettleEuroRow" style="display:none; flex-direction:column; gap: var(--space-2); margin-top: var(--space-2);">
+                    <label class="form-label" id="manualSettleEuroLabel" for="manualSettleEuro"></label>
+                    <input type="number" step="0.01" min="0.01" id="manualSettleEuro" class="glass-input stl-card-minor" placeholder="0.00">
+                </div>
                 <label class="form-label stl-mt-6">${esc(t('settlement.labelMethod'))}</label>
                 <select id="manualSettleMethod" class="glass-input stl-card-minor-bg">${methodOptions}</select>
                 <label class="form-label stl-mt-6">${esc(t('settlement.labelNote'))} <span class="text-subtitle" style="font-weight:500;">${esc(t('settlement.labelNoteOptional'))}</span></label>
@@ -339,6 +367,20 @@ export function openManualSettleModal(tripId: string): void {
         `,
     });
     (q(modalRoot, '#cancelManualSettleBtn') as HTMLButtonElement).onclick = () => close();
+    // Audit MK5 P1: show the explicit €-value field only for a currency with no
+    // live rate, so an exotic-currency settle stores a real euroValue instead of
+    // a fabricated 1:1 one. Toggle it as the currency picker changes.
+    const _euroRow = q(modalRoot, '#manualSettleEuroRow') as HTMLDivElement;
+    const _curSel = q(modalRoot, '#manualSettleCurrency') as HTMLSelectElement | null;
+    const _syncEuroRow = (): void => {
+        const c = ((_curSel?.value) || home).toUpperCase();
+        const show = c !== 'EUR' && !hasRate(c);
+        if (_euroRow) _euroRow.style.display = show ? 'flex' : 'none';
+        const lbl = q(modalRoot, '#manualSettleEuroLabel') as HTMLLabelElement | null;
+        if (lbl) lbl.textContent = t('settlement.manualEuroLabel', { currency: c });
+    };
+    _curSel?.addEventListener('change', _syncEuroRow);
+    _syncEuroRow();
     (q(modalRoot, '#manualSettleForm') as HTMLFormElement).onsubmit = (evt) => {
         evt.preventDefault();
         const from = (q(modalRoot, '#manualSettleFrom') as HTMLSelectElement).value;
@@ -350,6 +392,18 @@ export function openManualSettleModal(tripId: string): void {
         if (from === to) {
             showLiquidAlert(t('settlement.toastSenderEqualsReceiver'));
             return;
+        }
+        // Audit MK5 P1: a no-rate currency must carry an explicit €value so the
+        // ledger isn't poisoned by a fabricated 1:1 conversion. Read + validate
+        // the field shown by _syncEuroRow.
+        let manualEuro: number | undefined;
+        if (cur !== 'EUR' && !hasRate(cur)) {
+            const parsed = parseFloat((q(modalRoot, '#manualSettleEuro') as HTMLInputElement)?.value ?? '');
+            if (!Number.isFinite(parsed) || parsed <= 0) {
+                showLiquidAlert(t('settlement.toastEuroRequired', { currency: cur }));
+                return;
+            }
+            manualEuro = parsed;
         }
         // 2026-05-26 (audit S5): warn when the entered amount exceeds
         // the actual outstanding debt from `from` → `to`. Without this
@@ -368,7 +422,10 @@ export function openManualSettleModal(tripId: string): void {
             // parties have linkedUserIds (see settleDebt step 2). They
             // get dropped silently for the legacy companion-by-name path
             // since there's no server-side record to attach them to.
-            void settleDebt(tripId, from, to, amount, cur, { method, note });
+            void settleDebt(tripId, from, to, amount, cur, {
+                method, note,
+                ...(manualEuro !== undefined ? { euroValue: manualEuro } : {}),
+            });
             close();
         };
         if (amount > owed + 0.005) {
