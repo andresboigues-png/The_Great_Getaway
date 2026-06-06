@@ -30,8 +30,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../react/store.js';
 import { STATE, emit } from '../../state.js';
-import { apiFetch, uploadMedia } from '../../api.js';
-import { showLiquidAlert, getHomeCurrency } from '../../utils.js';
+import { apiFetch, uploadMedia, blockUser } from '../../api.js';
+import { showLiquidAlert, getHomeCurrency, showConfirmModal } from '../../utils.js';
 import { CONVERSION_RATES, CURRENCY_SYMBOLS, COUNTRIES } from '../../constants.js';
 import { navigate } from '../../router.js';
 import { clearAllManualFx } from '../../utils/manualRates.js';
@@ -717,11 +717,43 @@ function ProfileInfoSection({
                         Log Out
                     </button>
                 ) : targetUserId ? (
-                    <FollowButton
-                        targetUserId={targetUserId}
-                        initialIsFollowing={followSnap.isFollowing}
-                        onFollowersChange={setFollowers}
-                    />
+                    <div className="flex items-center gap-2">
+                        <FollowButton
+                            targetUserId={targetUserId}
+                            initialIsFollowing={followSnap.isFollowing}
+                            onFollowersChange={setFollowers}
+                        />
+                        {/* Audit MK5 P1: the Block primitive is fully enforced
+                            server-side but had NO UI entry point. Overflow
+                            button next to Follow → confirm → blockUser. Unblock
+                            lives in Settings → Blocked. */}
+                        <button
+                            type="button"
+                            className="btn-small bg-[rgba(0,0,0,0.05)] text-primary border border-[var(--glass-border)] rounded-md w-8 h-8 flex items-center justify-center font-bold leading-none shrink-0"
+                            title={t('profile.blockBtnLabel')}
+                            aria-label={t('profile.blockBtnLabel')}
+                            onClick={() => {
+                                showConfirmModal({
+                                    title: t('profile.blockConfirmTitle'),
+                                    message: t('profile.blockConfirmBody', { name: user.name }),
+                                    confirmText: t('profile.blockConfirmBtn'),
+                                    onConfirm: () => {
+                                        void (async () => {
+                                            const ok = await blockUser(targetUserId);
+                                            if (ok) {
+                                                showLiquidAlert(t('profile.blockedToast', { name: user.name }));
+                                                navigate('friends');
+                                            } else {
+                                                showLiquidAlert(t('profile.blockFailed'));
+                                            }
+                                        })();
+                                    },
+                                });
+                            }}
+                        >
+                            ⋯
+                        </button>
+                    </div>
                 ) : null}
             </div>
 

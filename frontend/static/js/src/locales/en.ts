@@ -579,6 +579,12 @@ export const en = {
         },
         // Photo upload + sync flow (Round 5 polish).
         photoUploaded: 'Profile photo updated.',
+        blockBtnLabel: 'Block this user',
+        blockConfirmTitle: 'Block {name}?',
+        blockConfirmBody: '{name} won’t be able to see your content, follow you, or interact with you. You can undo this anytime in Settings → Blocked.',
+        blockConfirmBtn: 'Block',
+        blockedToast: '{name} has been blocked.',
+        blockFailed: 'Couldn’t block this user. Please try again.',
         photoUploadFailed: "Couldn't upload your photo — try again.",
         photoSaveFailed: "Couldn't save your photo (HTTP {status}).",
         photoSaveNetwork: "Network error — couldn't save your photo.",
