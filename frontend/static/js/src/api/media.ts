@@ -13,7 +13,7 @@
 import { STATE, emit } from '../state.js';
 import { EVENTS } from '../constants.js';
 import type { Trip } from '../types';
-import { apiFetch } from './core.js';
+import { apiFetch, onUserWipe } from './core.js';
 
 /** R12-B4 Phase 2: per-trip "media is hydrated" set. A trip is only
  *  marked loaded once GET /api/trips/<id>/media has populated its real
@@ -78,6 +78,20 @@ export function _mergeMediaField(serverItems: unknown[], pendingItems: unknown[]
  *  editing the same trip's media detect the conflict instead of silently
  *  last-write-wins. */
 export const _mediaVersion = new Map<string, string>();
+
+/** Clear the per-user media-hydration caches. Audit MK5 P1: these module-level
+ *  maps survived logout / 401, so on a shared device the next user could lose
+ *  media writes (a stale _mediaVersion → 409 loops, or _mediaLoadedTrips making
+ *  persistTripMedia park instead of write) or briefly see another account's
+ *  media. Registered with core's wipeUserState() so it fires on BOTH logout and
+ *  the involuntary 401 teardown — via the hook so core.ts doesn't import this
+ *  module (would be a cycle). */
+export function resetMediaTracking(): void {
+    _mediaLoadedTrips.clear();
+    _mediaVersion.clear();
+    _pendingMedia.clear();
+}
+onUserWipe(resetMediaTracking);
 
 interface MediaSnapshot { photos: unknown[]; documents: unknown[]; markedPlaces: unknown[]; checklist: unknown[]; }
 

@@ -8,7 +8,7 @@
 import { STATE, emit } from '../state.js';
 import { navigate, currentNavSignal } from '../router.js';
 import { API_BASE_URL, EVENTS, PAGES } from '../constants.js';
-import { enqueueMutation } from '../outbox.js';
+import { enqueueMutation, clearOutbox } from '../outbox.js';
 
 // All fetch URLs are built via apiUrl() so the API_BASE_URL constant is the
 // single point that needs to change when the backend isn't co-located with
@@ -156,6 +156,41 @@ export const clearAuthToken = (): void => {
     } catch { /* SW not registered yet — fine */ }
 };
 
+// Hooks run by wipeUserState() so modules with their own per-user caches
+// (e.g. api/media.ts's hydration maps) can clear them WITHOUT core.ts
+// importing them — those modules import core.ts, so a direct import here
+// would be a cycle. They register a cleanup fn at module-eval time instead.
+const _userWipeHooks: Array<() => void> = [];
+export function onUserWipe(fn: () => void): void { _userWipeHooks.push(fn); }
+
+/** Full wipe of user-scoped STATE + the offline outbox + registered per-user
+ *  caches. Audit MK5 P1: called from BOTH the deliberate logout AND the
+ *  involuntary 401-teardown so an expired/revoked session on a shared device
+ *  can't leave the previous user's trips/expenses/days/budgets in STATE — which
+ *  the very next `emit` would re-persist to localStorage via saveState. This is
+ *  deliberately NOT folded into clearAuthToken(), because clearAuthToken is also
+ *  called on a SUCCESSFUL login (defensive token cleanup) right before the
+ *  login-time syncWithServer() — wiping rows there would drop a user's
+ *  offline-created trips before they're pushed. */
+export function wipeUserState(): void {
+    STATE.user = null;
+    STATE.activeTripId = null;
+    STATE.trips = [];
+    STATE.archivedTrips = [];
+    STATE.expenses = [];
+    STATE.tripDays = [];
+    STATE.budgets = [];
+    STATE.activities = [];
+    STATE.photos = [];
+    STATE.notificationsTotalUnread = 0;
+    STATE.savedFormats = [];
+    STATE.categories = [];
+    try { clearOutbox(); } catch { /* best-effort */ }
+    for (const fn of _userWipeHooks) {
+        try { fn(); } catch { /* a broken hook must not block the wipe */ }
+    }
+}
+
 /** Tell the SW which user is currently logged in so its API cache
  *  keys responses per-user. Called after restoreSession() resolves
  *  STATE.user and after every successful pullFromServer. Idempotent
@@ -273,7 +308,12 @@ export async function apiFetch(path: string, options: RequestInit = {}, timeoutM
         // route that's permission-gated.
         console.warn('[apiFetch] 401 — clearing session', { url, method: options.method || 'GET' });
         clearAuthToken();
-        STATE.user = null;
+        // Audit MK5 P1: a full user-state wipe (not just STATE.user = null).
+        // Pre-fix, the previous user's trips/expenses/days/budgets stayed in
+        // STATE and the emit below re-persisted them to localStorage, so the
+        // next person on a shared device saw them. wipeUserState also clears
+        // the outbox + media-tracking maps.
+        wipeUserState();
         emit(EVENTS.STATE_CHANGED);
         // R2 audit fix: navigate to HOME so the router lands the
         // user on the login wall. Pre-fix the current page stayed

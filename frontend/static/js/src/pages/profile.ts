@@ -30,12 +30,11 @@
 //     elements aren't inside the React tree.
 
 import { STATE, emit } from '../state.js';
-import { syncWithServer, apiFetch, clearAuthToken } from '../api.js';
+import { syncWithServer, apiFetch, clearAuthToken, wipeUserState } from '../api.js';
 import { esc } from '../utils.js';
 import { navigate } from '../router.js';
 import { showModal } from '../components/Modal.js';
 import { t } from '../i18n.js';
-import { clearOutbox } from '../outbox.js';
 
 
 export interface ProfileFriend {
@@ -67,34 +66,11 @@ export const logout = async () => {
 
         // Clear everything tied to the logged-out user. Server still holds
         // the authoritative copy — re-login will pull it back via pullFromServer.
-        STATE.user = null;
-        STATE.activeTripId = null;
-        STATE.trips = [];
-        STATE.archivedTrips = [];
-        STATE.expenses = [];
-        STATE.tripDays = [];
-        STATE.budgets = [];
-        STATE.activities = [];
-        STATE.photos = [];
-        STATE.notifications = [];
-        STATE.notificationsTotalUnread = 0;
-        STATE.savedFormats = [];
-        // R8-B3: also wipe per-user categories on logout. Pre-fix
-        // STATE.categories was intentionally kept "shared by
-        // anonymous + logged-in" — but a user A who created a
-        // CUSTOM category while OFFLINE (in STATE, never synced to
-        // server) would leak that category into user B's session
-        // on a shared device. Safer to clear; the next sync pulls
-        // the server's authoritative set anyway.
-        STATE.categories = [];
-        // R7-F1 / R8-B3: wipe the offline-mutation outbox on logout.
-        // Pre-R8 this was a dynamic await import('../outbox.js')
-        // that resolved AFTER STATE.user=null — a race window where
-        // user B could log in mid-resolution and have their fresh
-        // outbox cleared. Now a synchronous static import (top of
-        // file) so the wipe happens in the same tick as the
-        // STATE clear.
-        try { clearOutbox(); } catch { /* best-effort */ }
+        // Audit MK5 P1: one shared wipe — also called by the involuntary 401
+        // teardown — so both paths clear user-scoped STATE + the offline outbox
+        // + the media-hydration caches identically. (clearAuthToken above
+        // already handled the token + notifications/draftExpense/preferences.)
+        wipeUserState();
         STATE.draftExpense = {
             who: '', categoryId: '', label: '', date: '',
             country: '', value: '', currency: 'EUR', euroValue: ''
