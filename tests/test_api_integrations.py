@@ -65,12 +65,12 @@ def test_generate_itinerary_happy_path(client, seed_user, auth_headers, monkeypa
     that drops or renames any of those fields would silently break.
 
     Phase G slice 1: explicitly delenv BOTH GOOGLE_MAPS_API_KEY and
-    GOOGLE_MAPS_SERVER_KEY so the Places verification path short-
-    circuits — this test pins the Gemini pass-through, the verification
-    path has its own dedicated tests below. The handler prefers the
-    `_SERVER_KEY` slot, so clearing only `_API_KEY` (the pre-split var
-    name) leaves the verification path live and flips items from
-    strings to objects, breaking the assertion below."""
+    GOOGLE_MAPS_SERVER_KEY so the Places LOOKUP short-circuits (no real
+    network call) — this test pins the Gemini pass-through; the verification
+    path has its own dedicated tests below. Audit MK5 P1: items are still
+    NORMALIZED to the { text, verified:false } card shape even without a key
+    (only the Places lookup is skipped), so the assertion checks the
+    normalized shape, not raw strings."""
     monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_MAPS_SERVER_KEY", raising=False)
     fake_itinerary = [
@@ -100,7 +100,13 @@ def test_generate_itinerary_happy_path(client, seed_user, auth_headers, monkeypa
     assert res.status_code == 200
     body = res.get_json()
     assert body["status"] == "success"
-    assert body["itinerary"] == fake_itinerary
+    # Gemini wire-shape unwrap survived: one day, correct title + structure.
+    assert len(body["itinerary"]) == 1
+    day = body["itinerary"][0]
+    assert day["title"] == "Arrival"
+    # Audit MK5 P1: with no Maps key, items are still NORMALIZED to the
+    # { text, verified:false } card shape (was: passed through as raw strings).
+    assert day["morning"]["items"][0] == {"text": "Blue Bottle", "verified": False}
 
 
 def test_generate_itinerary_strips_markdown_fences(
@@ -297,14 +303,14 @@ def test_generate_itinerary_places_verification_enriches_items(
 def test_generate_itinerary_places_verification_skipped_without_key(
     client, seed_user, auth_headers, monkeypatch,
 ):
-    """Phase G slice 1: BOTH Maps key slots missing → verification path
-    short-circuits, items pass through as strings unchanged. Critical
-    for dev / self-hosted deploys that don't have a Maps API key — we
-    don't want a 500 or a behavior change just because the key isn't
-    there. Post-2026-05-17 the handler checks `GOOGLE_MAPS_SERVER_KEY`
-    first then falls back to `GOOGLE_MAPS_API_KEY`, so we need to clear
-    both for the no-op path to be exercised. Pin the no-op so a
-    regression that hard-requires the key fails CI before it lands."""
+    """Phase G slice 1 + Audit MK5 P1: BOTH Maps key slots missing → the Places
+    LOOKUP is skipped (no quota burned, no network), but items are STILL
+    normalized to the { text, verified:false } card shape. Pre-fix they passed
+    through as raw strings, which the new food/sights renderer + Accept Plan
+    couldn't handle (empty cards / "[object Object]"). Critical for dev /
+    self-hosted deploys without a Maps key. Clear BOTH slots (the handler
+    prefers `_SERVER_KEY`, falls back to `_API_KEY`) so the no-lookup path
+    runs, and pin that we still don't call the Places API."""
     monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_MAPS_SERVER_KEY", raising=False)
     fake_itinerary = [{
@@ -332,11 +338,13 @@ def test_generate_itinerary_places_verification_skipped_without_key(
         "destination": "Tokyo", "numDays": 1, "gemini_key": "byo-key",
     })
     assert res.status_code == 200
-    # Wire shape: legacy string items pass through unchanged when the
-    # Places-verification path is skipped (no GOOGLE_MAPS_API_KEY).
-    # Pre-Phase-G itineraries cached on trip.aiPlan still have this
-    # shape so the back-compat is critical.
-    assert res.get_json()["itinerary"][0]["morning"]["items"] == ["Some Cafe", "Another Place"]
+    # Items are NORMALIZED to the card shape even without a key (only the
+    # Places lookup is skipped), so the renderer + Accept Plan always get
+    # `text`.
+    assert res.get_json()["itinerary"][0]["morning"]["items"] == [
+        {"text": "Some Cafe", "verified": False},
+        {"text": "Another Place", "verified": False},
+    ]
     # And we did NOT call Places API (no quota burned without a key).
     assert len(places_calls) == 0
 
@@ -505,3 +513,34 @@ def test_fx_rates_anonymous_allowed(client):
     load critical path benefits from cacheable responses)."""
     res = client.get("/api/fx-rates")  # no headers
     assert res.status_code == 200
+
+
+def test_enrich_itinerary_normalizes_without_maps_key(monkeypatch):
+    """Audit MK5 P1: with NO Maps key configured, _enrich_itinerary must STILL
+    normalize each food/sights item from its raw {name,...} dict to the
+    {text, verified:false} shape the frontend + Accept-Plan flatteners expect.
+    Pre-fix it early-returned the itinerary untouched, so the food/sights schema
+    rendered EMPTY cards and Accept Plan wrote '[object Object]'."""
+    monkeypatch.delenv("GOOGLE_MAPS_SERVER_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
+    from routes.integrations import _enrich_itinerary
+
+    itinerary = [{
+        "day": 1, "title": "Day 1",
+        "breakfast": {"name": "Cafe X", "why": "Cozy.", "fact": "Old."},
+        "sights": [{"name": "Museum Y", "why": "Art.", "fact": "Big."}],
+        # legacy slot too
+        "morning": {"items": [{"name": "Spot Z", "why": "Nice."}]},
+    }]
+    out = _enrich_itinerary(itinerary, "Lisbon")
+
+    bf = out[0]["breakfast"]
+    assert bf["text"] == "Cafe X" and bf["verified"] is False
+    assert bf["why"] == "Cozy." and bf["fact"] == "Old."
+    assert "placeId" not in bf  # unverified → no Places metadata
+
+    sight = out[0]["sights"][0]
+    assert sight["text"] == "Museum Y" and sight["verified"] is False
+
+    item = out[0]["morning"]["items"][0]
+    assert item["text"] == "Spot Z" and item["verified"] is False

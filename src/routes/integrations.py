@@ -285,10 +285,11 @@ def _enrich_itinerary(itinerary: list, destination: str) -> list:
     cache de-dupes lookups (the LLM often mentions the same landmark
     in multiple slots — we pay the API once).
 
-    No-op when no Maps key is configured — items stay as strings,
-    frontend's renderSlotBody falls through to the legacy text-bullet
-    rendering. Lets dev / self-hosted setups skip the Maps integration
-    without breaking anything; verification is value-add, not structural.
+    With no Maps key configured we STILL normalize every item into the
+    { text, verified: false } shape (just without the Places lookup), so the
+    frontend renders real unverified cards and Accept Plan flattens the text
+    correctly. Lets dev / self-hosted setups skip the Maps integration without
+    breaking the itinerary UI; verification is a value-add chip, not structural.
 
     Key resolution: prefer `GOOGLE_MAPS_SERVER_KEY` (a server-only key
     with no HTTP referrer restriction — the right shape for outbound
@@ -304,8 +305,14 @@ def _enrich_itinerary(itinerary: list, destination: str) -> list:
         or os.getenv("GOOGLE_MAPS_API_KEY")
         or ""
     )
-    if not api_key:
-        return itinerary
+    # Audit MK5 P1: even with NO Maps key we still NORMALIZE each LLM item from
+    # its raw {name, why, fact} dict into the {text, verified:false} shape the
+    # frontend (slots.ts) + the Accept-Plan flatteners expect. Pre-fix this
+    # early-returned the itinerary untouched, so the food/sights schema's raw
+    # dicts rendered as EMPTY cards and Accept Plan wrote "[object Object]" into
+    # the day plan. We simply skip the Places LOOKUP — verification is a
+    # value-add chip, not structural.
+    verify = bool(api_key)
 
     cache: dict[str, dict | None] = {}
 
@@ -335,7 +342,7 @@ def _enrich_itinerary(itinerary: list, destination: str) -> list:
             fact = ""
         if not text:
             return None
-        meta = resolve(text)
+        meta = resolve(text) if verify else None
         base: dict = {"text": text}
         if why:
             base["why"] = why
