@@ -196,6 +196,51 @@ def test_sync_writes_trips_and_expenses(client, seed_user, auth_headers):
     assert any(e["id"] == "exp-sync-1" for e in body["expenses"])
 
 
+def test_sync_trip_days_cannot_inject_into_foreign_trip(
+    client, seed_user, auth_headers, seed_other_user, other_auth_headers,
+):
+    """Audit MK5 P1 (IDOR): the /api/sync trip_days loop must authorize every
+    row. A non-member must not be able to inject/overwrite days in another
+    user's trip — pre-fix the loop wrote any (id, tripId) verbatim."""
+    _create_trip(client, auth_headers, trip_id="victim-trip", name="A's Paris")
+    # User B attempts to write a day into A's trip via the bulk sync path.
+    res = client.post("/api/sync", headers=other_auth_headers, json={
+        "trips": [],
+        "trip_days": [
+            {"id": "evil-day", "tripId": "victim-trip", "dayNumber": 1, "name": "HACKED"},
+        ],
+    })
+    assert res.status_code == 200  # batch sync silently skips, doesn't 403 the batch
+    from database import get_db
+    with get_db() as conn:
+        n = conn.execute(
+            "SELECT COUNT(*) AS n FROM trip_days WHERE id = ?", ("evil-day",),
+        ).fetchone()["n"]
+        assert n == 0, "cross-tenant day injection via /api/sync"
+
+
+def test_sync_trip_days_owner_can_write_own_including_same_batch_new_trip(
+    client, seed_user, auth_headers,
+):
+    """The gate must not break the happy path: the owner can write days to
+    their own trip via /api/sync, INCLUDING a trip created in the same batch
+    (covered by the direct-ownership fallback, since the precomputed editable
+    set predates the trips loop)."""
+    res = client.post("/api/sync", headers=auth_headers, json={
+        "trips": [{"id": "own-trip", "name": "Mine", "country": "France"}],
+        "trip_days": [
+            {"id": "own-day", "tripId": "own-trip", "dayNumber": 1, "name": "Day 1"},
+        ],
+    })
+    assert res.status_code == 200
+    from database import get_db
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT trip_id FROM trip_days WHERE id = ?", ("own-day",),
+        ).fetchone()
+        assert row is not None and row["trip_id"] == "own-trip"
+
+
 def test_sync_skips_uncomputable_no_rate_currency_expense(client, seed_user, auth_headers):
     """Integration audit MM-2: the bulk /api/sync path mirrors the per-row
     /api/expenses C1 gate. A non-EUR currency with NO live rate AND no positive

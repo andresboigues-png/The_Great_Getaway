@@ -15,6 +15,7 @@
 
 import { STATE } from '../../state.js';
 import { showLiquidAlert } from '../../utils.js';
+import { esc } from '../../utils/dom-helpers.js';
 import { shareTripToFeed } from '../../api.js';
 import { openShareChooserModal } from '../../modals.js';
 import { openShareToFeedModal } from '../home/shareModal.js';
@@ -193,8 +194,13 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                 <p
                     dangerouslySetInnerHTML={{
                         __html: t('home.tripStatsLine', {
+                            // SEC (Audit MK5 P1): this string is injected via
+                            // dangerouslySetInnerHTML, so the trip name MUST be
+                            // HTML-escaped — an unescaped name like
+                            // `<img src=x onerror=…>` was stored XSS. The count
+                            // is our own numeric markup, so it stays raw.
                             count: `<strong>${tripExpenses.length}</strong>`,
-                            trip: activeTrip.name || '',
+                            trip: esc(activeTrip.name || ''),
                         }),
                     }}
                 />

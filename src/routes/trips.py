@@ -1278,9 +1278,13 @@ def _generate_trip_id() -> str:
     return secrets.token_hex(5)[:9]
 
 
-def _clone_trip_attempt(cursor, src, new_owner_id, new_trip_id):
+def _clone_trip_attempt(cursor, src, new_owner_id, new_trip_id, include_marked_places=True):
     """One INSERT attempt for the clone's trip row, factored so the
-    caller can retry on the rare PK collision from `_generate_trip_id`."""
+    caller can retry on the rare PK collision from `_generate_trip_id`.
+
+    `include_marked_places` (Audit MK5 P1): full-access clones (a member
+    duplicating a trip they can see) copy the wishlist; share-link clones pass
+    False because the share page hides markedPlaces from the recipient."""
     new_name = f"{src['name'] or 'Trip'} (copy)"
     cursor.execute('''
         INSERT INTO trips (
@@ -1304,9 +1308,12 @@ def _clone_trip_attempt(cursor, src, new_owner_id, new_trip_id):
         src['place_types'],
         # Companions — explicitly NOT copied. Always start clean.
         None,
-        # markedPlaces — copied verbatim (the user's wishlist of
-        # places is half the value of cloning).
-        src['marked_places_json'],
+        # markedPlaces — copied ONLY for a full-access clone (the caller is a
+        # member who can already see the wishlist). A share-link clone passes
+        # include_marked_places=False: the share page + public-trip read strip
+        # markedPlaces from non-members, so copying it would leak a wishlist the
+        # recipient was never shown (Audit MK5 P1).
+        src['marked_places_json'] if include_marked_places else None,
         # documents / photos / checklist — NEVER copied (personal
         # files / per-trip tasks belong to the original owner).
         None,
@@ -1320,13 +1327,19 @@ def _clone_trip_attempt(cursor, src, new_owner_id, new_trip_id):
     ))
 
 
-def _clone_trip_record(cursor, source_trip_id, new_owner_id):
-    """Deep-copy a single trip + its trip_days + markedPlaces into a
-    new trip owned by `new_owner_id`. The caller is responsible for
-    visibility (must verify source_trip_id is readable to the user
-    BEFORE calling this — clones bypass the per-trip permission gate
-    on the source by design, because the WHOLE POINT is to give the
-    user their own copy).
+def _clone_trip_record(cursor, source_trip_id, new_owner_id, include_plans=True, include_marked_places=True):
+    """Deep-copy a single trip + its trip_days into a new trip owned by
+    `new_owner_id`. The caller is responsible for visibility (must verify
+    source_trip_id is readable to the user BEFORE calling this — clones
+    bypass the per-trip permission gate on the source by design, because the
+    WHOLE POINT is to give the user their own copy).
+
+    `include_plans` (Audit MK5 P1): when False, the cloned days copy ONLY
+    name + day_number + pin — the day-by-day plan text (morning/afternoon/
+    evening/tip) is NULLed. Share-link clones pass the source's
+    share_show_plans here so a clone never exposes plan text the share page
+    itself hid from the recipient. markedPlaces is never copied (see
+    _clone_trip_attempt) for the same privacy reason.
 
     Returns the new trip_id on success, or None if source not found.
 
@@ -1358,7 +1371,7 @@ def _clone_trip_record(cursor, source_trip_id, new_owner_id):
     for _attempt in range(5):
         candidate = _generate_trip_id()
         try:
-            _clone_trip_attempt(cursor, src, new_owner_id, candidate)
+            _clone_trip_attempt(cursor, src, new_owner_id, candidate, include_marked_places=include_marked_places)
             new_trip_id = candidate
             break
         except sqlite3.IntegrityError:
@@ -1416,10 +1429,14 @@ def _clone_trip_record(cursor, source_trip_id, new_owner_id):
                     d['day_number'],
                     None,
                     d['name'],
-                    d['morning'],
-                    d['afternoon'],
-                    d['evening'],
-                    d['tip'],
+                    # Plan text is copied only when the source authorized the
+                    # recipient to see it (share_show_plans). Otherwise NULL —
+                    # a share-link clone must not resurrect day-by-day plans
+                    # the share page hid (Audit MK5 P1).
+                    d['morning'] if include_plans else None,
+                    d['afternoon'] if include_plans else None,
+                    d['evening'] if include_plans else None,
+                    d['tip'] if include_plans else None,
                     d['lat'],
                     d['lng'],
                 ))
@@ -1538,7 +1555,8 @@ def clone_trip_from_share_token(token):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT t.id, COALESCE(tm.is_archived, t.is_archived, 0) AS is_archived "
+            "SELECT t.id, t.share_show_plans, "
+            "       COALESCE(tm.is_archived, t.is_archived, 0) AS is_archived "
             "FROM trips t LEFT JOIN trip_members tm "
             "  ON tm.trip_id = t.id AND tm.user_id = t.user_id "
             "WHERE t.share_token = ?",
@@ -1551,7 +1569,14 @@ def clone_trip_from_share_token(token):
             return jsonify({
                 "error": "This trip is no longer available for cloning",
             }), 410
-        new_trip_id = _clone_trip_record(cursor, row['id'], user_id)
+        # Audit MK5 P1: clone only what the share page exposed. When the owner
+        # kept day plans private (share_show_plans=0), the cloned days carry no
+        # plan text; markedPlaces are never copied (handled in _clone_trip_record).
+        new_trip_id = _clone_trip_record(
+            cursor, row['id'], user_id,
+            include_plans=bool(row['share_show_plans']),
+            include_marked_places=False,
+        )
         if not new_trip_id:
             return jsonify({"error": "Not found"}), 404
         conn.commit()

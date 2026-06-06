@@ -1041,6 +1041,85 @@ def test_share_public_payload_includes_plans_when_opted_in(
     assert day["tip"] == "Buy a Viva Viagem card at any metro"
 
 
+def _seed_share_source(trip_id):
+    """Give a trip a private wishlist + a day with plan text, directly in DB."""
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "UPDATE trips SET marked_places_json = ? WHERE id = ?",
+            (json.dumps([{"id": "w1", "name": "Secret Spot", "forManual": True}]), trip_id),
+        )
+        c.execute(
+            "INSERT INTO trip_days (id, trip_id, day_number, name, morning) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (f"{trip_id}-d1", trip_id, 1, "Day 1", "Secret plan text"),
+        )
+        conn.commit()
+
+
+def test_share_clone_respects_plan_and_wishlist_privacy(
+    client, seed_user, auth_headers, seed_other_user, other_auth_headers,
+):
+    """Audit MK5 P1: a share-link clone must NOT resurrect day-plan text the
+    owner kept private (share_show_plans=0), nor copy the markedPlaces wishlist
+    (the share + public-trip reads strip it from non-members)."""
+    _create_trip(client, auth_headers, trip_id="share-src", name="Lisbon")
+    _seed_share_source("share-src")
+    token = client.post(
+        "/api/trips/share-src/share", headers=auth_headers,
+        json={"showCost": False, "showPlans": False},
+    ).get_json()["token"]
+
+    new_id = client.post(
+        f"/api/share/{token}/clone", headers=other_auth_headers,
+    ).get_json()["tripId"]
+
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        day = c.execute(
+            "SELECT morning FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL",
+            (new_id,),
+        ).fetchone()
+        assert day is not None
+        assert (day["morning"] or "") == "", "clone leaked hidden day-plan text"
+        mp = c.execute(
+            "SELECT marked_places_json FROM trips WHERE id = ?", (new_id,),
+        ).fetchone()["marked_places_json"]
+        assert not mp or json.loads(mp) == [], "clone leaked the owner's private wishlist"
+
+
+def test_share_clone_copies_plans_when_shared(
+    client, seed_user, auth_headers, seed_other_user, other_auth_headers,
+):
+    """share_show_plans=1 → the clone copies plan text (it was visible), but the
+    private wishlist still never copies on a share clone."""
+    _create_trip(client, auth_headers, trip_id="share-src2", name="Rome")
+    _seed_share_source("share-src2")
+    token = client.post(
+        "/api/trips/share-src2/share", headers=auth_headers,
+        json={"showCost": False, "showPlans": True},
+    ).get_json()["token"]
+
+    new_id = client.post(
+        f"/api/share/{token}/clone", headers=other_auth_headers,
+    ).get_json()["tripId"]
+
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        day = c.execute(
+            "SELECT morning FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL",
+            (new_id,),
+        ).fetchone()
+        assert (day["morning"] or "") == "Secret plan text", "shared plan text should copy"
+        mp = c.execute(
+            "SELECT marked_places_json FROM trips WHERE id = ?", (new_id,),
+        ).fetchone()["marked_places_json"]
+        assert not mp or json.loads(mp) == [], "wishlist must never copy on a share clone"
+
+
 def test_share_revoke_resets_plans_toggle(client, seed_user, auth_headers):
     """DELETE share clears BOTH the token AND the toggles, so a
     re-share starts privacy-clean. Prevents "I unshared, then someone

@@ -793,6 +793,27 @@ def sync_data():
         # Sync Trip Days
         trip_days = data.get("trip_days", [])
         for d in trip_days:
+            # SEC (Audit MK5 P1 — IDOR): authorize EVERY day write. The trips
+            # loop above gates on editable_trip_ids, but pre-fix this loop wrote
+            # any (id, tripId) verbatim — a caller could inject or overwrite
+            # days in a stranger's trip via /api/sync. Resolve the effective
+            # trip (an existing day's STORED trip_id — the UPSERT can't re-home
+            # it anyway since trip_id isn't in the SET clause — else the body's
+            # tripId) and skip silently unless the caller may edit it: in the
+            # precomputed editable set (owner + invited planners), or a trip
+            # they OWN (covers one created earlier in this same sync batch).
+            cursor.execute("SELECT trip_id FROM trip_days WHERE id = ?", (d['id'],))
+            _day_row = cursor.fetchone()
+            _target_trip = _day_row['trip_id'] if _day_row else d.get('tripId')
+            if not _target_trip:
+                continue
+            if _target_trip not in editable_trip_ids:
+                cursor.execute(
+                    "SELECT 1 FROM trips WHERE id = ? AND user_id = ?",
+                    (_target_trip, user_id),
+                )
+                if cursor.fetchone() is None:
+                    continue
             # 2026-05-26 (audit SY5): WHERE guard skips tombstoned trip
             # days — see routes/days.py for the rationale and migration
             # b7c8d9e0f1a2_add_tombstone_columns.
