@@ -346,3 +346,44 @@ def test_create_template_rejects_non_owned_trip(
         "name": "Steal", "sourceTripId": "others-trip",
     })
     assert res.status_code == 404
+
+
+def test_instantiated_marked_places_normalized_to_manual(
+    client, seed_user, auth_headers, seed_other_user, other_auth_headers,
+):
+    """A creator's AI-sourced marked places must NOT keep source='ai' in a
+    template — otherwise the new owner's first Accept Plan (dropAITaggedPlaces)
+    would silently DELETE every imported to-do. _clean_marked_places normalizes
+    source to 'manual' at BOTH snapshot build and instantiation."""
+    _make_creator(seed_user)
+    _create_trip(client, auth_headers, trip_id="srcAI", name="Lisbon")
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trips SET marked_places_json = ? WHERE id = ?",
+            (json.dumps([
+                {"id": "a1", "name": "Belém Tower", "forManual": True,
+                 "source": "ai", "dayId": "old-d1", "timeOfDay": "morning"},
+                {"id": "a2", "name": "Time Out Market", "forManual": True, "source": "manual"},
+            ]), "srcAI"),
+        )
+        conn.commit()
+    code = client.post("/api/templates", headers=auth_headers, json={
+        "name": "Lisbon", "sourceTripId": "srcAI",
+        "includePlans": True, "includePlaces": True, "includeChecklist": True,
+    }).get_json()["template"]["code"]
+
+    # The frozen snapshot is already normalized (and dayId/timeOfDay stripped).
+    snap = _read_snapshot(code)
+    assert len(snap["markedPlaces"]) == 2
+    assert all(p.get("source") == "manual" for p in snap["markedPlaces"])
+    assert all("dayId" not in p and "timeOfDay" not in p for p in snap["markedPlaces"])
+
+    # The instantiated trip's media reads source='manual' too → survives the
+    # new owner's first Accept Plan.
+    new_id = client.post(
+        f"/api/templates/{code}/create", headers=other_auth_headers,
+    ).get_json()["tripId"]
+    media = client.get(f"/api/trips/{new_id}/media", headers=other_auth_headers).get_json()
+    assert len(media.get("markedPlaces") or []) == 2
+    assert all(p.get("source") == "manual" for p in media["markedPlaces"])

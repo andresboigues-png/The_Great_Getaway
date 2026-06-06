@@ -110,6 +110,46 @@ export function isReplayable(url: string, method: string): boolean {
     );
 }
 
+// Bare collection POST endpoints: the row id lives in the BODY, not the URL.
+// Dedup for these must key on the body's row id (below), NOT on the URL alone.
+const COLLECTION_POST_PATHS = new Set<string>([
+    '/api/expenses', '/api/trips', '/api/days', '/api/budgets', '/api/settlements',
+]);
+
+/** Per-row dedup identity for a queued mutation.
+ *
+ *  R8-B1's dedup keyed on (method, url) to coalesce repeated edits of the SAME
+ *  row. But every row-upsert POSTs to a CONSTANT collection URL with the id in
+ *  the BODY (POST /api/expenses {expense:{id}}, /api/days {day:{id}}, …), so
+ *  (method,url) alone treats TWO DIFFERENT rows as the same key — the second
+ *  offline create silently overwrote the first (Audit MK5 P0: a bulk import or
+ *  several offline expenses collapsed to one row). We derive a stable per-row
+ *  identity so distinct rows stay distinct while edits of one row still merge:
+ *   - For a bare collection POST: the wrapped row id (expense/trip/day/budget)
+ *     or a top-level id (none today, but defensive). Falls back to the FULL
+ *     body when there's no id (e.g. settlement create has no client id) so two
+ *     different creates don't collapse; an identical resubmit still does.
+ *   - For any other URL (e.g. /api/trips/<id>/media, /api/expenses/<id>): the
+ *     row id is already IN the url, so identity is '' and dedup stays URL-keyed
+ *     exactly as before — media keeps coalescing to its latest snapshot. */
+export function _rowIdentity(url: string, body: string): string {
+    const path: string = url.startsWith('http')
+        ? new URL(url).pathname
+        : (url.split('?')[0] ?? url);
+    if (!COLLECTION_POST_PATHS.has(path)) return '';
+    if (!body) return '';
+    try {
+        const p = JSON.parse(body) as Record<string, unknown>;
+        if (p && typeof p === 'object') {
+            const wrapped = (p.expense || p.trip || p.day || p.budget || p.settlement) as
+                | { id?: unknown } | undefined;
+            const id = (wrapped && wrapped.id) ?? (p as { id?: unknown }).id;
+            if (id) return String(id);
+        }
+    } catch { /* not JSON — fall through to body-as-identity */ }
+    return body;
+}
+
 function _readAll(): OutboxItem[] {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -202,8 +242,16 @@ export function enqueueMutation(
     // Preserves enqueuedAt so the 7-day TTL still measures from
     // the FIRST offline attempt (a long-stale edit should still
     // expire even if the user keeps refining it).
+    // Dedup on (method, url, ROW IDENTITY). Identity distinguishes two
+    // different rows that POST to the same collection URL (id in body), so a
+    // second offline create no longer overwrites the first; edits of the SAME
+    // row still coalesce to the latest body. URL-keyed endpoints (media) get
+    // identity '' and dedup exactly as before.
+    const identity = _rowIdentity(item.url, item.body);
     const existingIdx = items.findIndex(i =>
-        i.method === item.method && i.url === item.url,
+        i.method === item.method
+        && i.url === item.url
+        && _rowIdentity(i.url, i.body) === identity,
     );
     if (existingIdx >= 0) {
         const prev = items[existingIdx]!;

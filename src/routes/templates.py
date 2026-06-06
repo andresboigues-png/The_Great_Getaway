@@ -105,6 +105,16 @@ def _clean_marked_places(places):
         q = dict(p)
         q.pop("dayId", None)
         q.pop("timeOfDay", None)
+        # Normalize provenance to 'manual'. Creators build templates with the
+        # AI planner, so their places carry source='ai'. If that survived into
+        # the new owner's trip, the new owner's FIRST Accept Plan would run
+        # dropAITaggedPlaces() and silently DELETE every imported to-do (it
+        # drops source==='ai'). Imported places are the new owner's curated
+        # starting set — same rationale as blanking dates / stripping dayId —
+        # so they must read as 'manual' to survive. Applied at both snapshot
+        # build and instantiation, so already-stored templates are healed on
+        # import too.
+        q["source"] = "manual"
         out.append(q)
     return out
 

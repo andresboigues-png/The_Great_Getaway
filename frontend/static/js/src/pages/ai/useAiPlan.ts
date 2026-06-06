@@ -24,7 +24,6 @@ import { showLiquidAlert, q } from '../../utils.js';
 import {
     apiFetch,
     upsertDay,
-    deleteDayOnServer,
     upsertTrip,
     fetchGeminiHostKeyStatus,
     type GeminiHostKeyStatus,
@@ -446,16 +445,21 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
     // ── Accept plan: writes tripDays + auto-pushes verified places ─
     const onAcceptPlan = () => {
         if (!itinerary) return;
-        // Replace existing numbered days (dayNumber > 0).
-        const existingNumbered = STATE.tripDays.filter(
-            (d) => d.tripId === activeTrip.id && d.dayNumber > 0,
-        );
-        STATE.tripDays = STATE.tripDays.filter(
-            (d) => !(d.tripId === activeTrip.id && d.dayNumber > 0),
-        );
-        existingNumbered.forEach((d) => { void deleteDayOnServer(d.id); });
+        // "Accept Plan & Add to Trip" MERGES the AI itinerary into the trip's
+        // numbered days BY POSITION — it must never delete days the user has
+        // already journaled. Pre-fix (Audit MK5 P0) this blanket-deleted EVERY
+        // numbered day and the server delete-cascade permanently unlinked those
+        // days' photos/documents from disk — so accepting a plan silently wiped
+        // day notes + attached media. Now we reuse existing day rows in order,
+        // overwriting only the plan text / date / coords the AI provides and
+        // PRESERVING each day's id, notes, photos, documents and tickets.
+        // Existing days beyond the AI plan's length are left fully intact.
+        const existingNumbered = STATE.tripDays
+            .filter((d) => d.tripId === activeTrip.id && d.dayNumber > 0)
+            .sort((a, b) => a.dayNumber - b.dayNumber);
 
-        // Drop AI-tagged places from previous run.
+        // Drop the PREVIOUS AI run's to-do places. dropAITaggedPlaces only
+        // removes source==='ai' items, so the user's manual picks survive.
         dropAITaggedPlaces(activeTrip);
 
         itinerary.forEach((dayInfo: AiDayPlan, idx: number) => {
@@ -463,7 +467,6 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
             // split always yields index 0 — the `!` is sound and type-only
             // (satisfies noUncheckedIndexedAccess without a runtime branch).
             const dayDate: string = dayInfo.date || new Date().toISOString().split('T')[0]!;
-            const dayId = 'day_' + Date.now() + '_' + idx;
             // Schema fork: the new food/sights split stores each meal
             // (one restaurant) as the morning/afternoon/evening plan
             // text, and the sights list as the day's `tip` field so the
@@ -485,30 +488,54 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                 ? flattenMealForTextarea(dayInfo.dinner as AiPlanItem, '🍷 Dinner')
                 : flattenSlotForTextarea(dayInfo.evening);
             const tip = usesFoodSights ? flattenSightsForTip(dayInfo.sights as AiPlanItem[]) : '';
-            const newDay: TripDay = {
-                id: dayId,
-                tripId: activeTrip.id,
-                date: dayDate,
-                name: dayInfo.title || `Day ${idx + 1}`,
-                dayNumber: idx + 1,
-                // `?? null`: AiDayPlan.lat/lon are `number | undefined`, but
-                // TripDay.lat/lng are `number | null` (exactOptionalPropertyTypes
-                // forbids an explicit `undefined`). Coalescing to null preserves
-                // the "no coords yet" meaning — the geocoder fills real values.
-                lat: dayInfo.lat ?? null,
-                lng: dayInfo.lon ?? null,
-                photos: [],
-                tickets: [],
-                notes: '',
-                plan: {
-                    morning: planMorning,
-                    afternoon: planAfternoon,
-                    evening: planEvening,
-                },
-            };
-            if (tip) newDay.tip = tip;
-            STATE.tripDays.push(newDay);
-            void upsertDay(newDay);
+
+            // Reuse the existing day at this position if there is one (keeps its
+            // id + user-authored content); otherwise append a fresh day.
+            const prior = existingNumbered[idx];
+            let dayId: string;
+            if (prior) {
+                dayId = prior.id;
+                prior.date = dayDate;
+                prior.name = dayInfo.title || prior.name || `Day ${idx + 1}`;
+                prior.dayNumber = idx + 1;
+                // Overwrite each slot with the AI's text, but keep the user's
+                // own plan text where the AI left that slot empty.
+                prior.plan = {
+                    morning: planMorning || prior.plan?.morning || '',
+                    afternoon: planAfternoon || prior.plan?.afternoon || '',
+                    evening: planEvening || prior.plan?.evening || '',
+                };
+                if (tip) prior.tip = tip;
+                if (typeof dayInfo.lat === 'number') prior.lat = dayInfo.lat;
+                if (typeof dayInfo.lon === 'number') prior.lng = dayInfo.lon;
+                void upsertDay(prior);
+            } else {
+                dayId = 'day_' + Date.now() + '_' + idx;
+                const newDay: TripDay = {
+                    id: dayId,
+                    tripId: activeTrip.id,
+                    date: dayDate,
+                    name: dayInfo.title || `Day ${idx + 1}`,
+                    dayNumber: idx + 1,
+                    // `?? null`: AiDayPlan.lat/lon are `number | undefined`, but
+                    // TripDay.lat/lng are `number | null` (exactOptionalPropertyTypes
+                    // forbids an explicit `undefined`). Coalescing to null preserves
+                    // the "no coords yet" meaning — the geocoder fills real values.
+                    lat: dayInfo.lat ?? null,
+                    lng: dayInfo.lon ?? null,
+                    photos: [],
+                    tickets: [],
+                    notes: '',
+                    plan: {
+                        morning: planMorning,
+                        afternoon: planAfternoon,
+                        evening: planEvening,
+                    },
+                };
+                if (tip) newDay.tip = tip;
+                STATE.tripDays.push(newDay);
+                void upsertDay(newDay);
+            }
 
             // Auto-push verified places to the to-do list.
             if (usesFoodSights) {
