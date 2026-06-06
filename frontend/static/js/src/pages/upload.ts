@@ -8,7 +8,7 @@
 import { STATE, emit } from '../state.js';
 import { convertCurrency, hasRate } from '../utils/currency.js';
 import { generateId } from '../utils.js';
-import { syncWithServer, upsertExpense } from '../api.js';
+import { syncCategories, upsertTrip, upsertExpense } from '../api.js';
 import { addTripCompanion, getTripCompanionNames } from '../companions.js';
 import { t } from '../i18n.js';
 
@@ -371,7 +371,10 @@ export function runBatchImport(
 
         // Skip rows the server would reject anyway (audit P1): filter here
         // and report what we skipped instead of optimistically over-counting.
-        if (!Number.isFinite(value) || value <= 0 || !hasRate(currency)) {
+        // Audit MK5 P2: also pre-skip amounts over the server's _MAX_MONEY
+        // (1e9) cap — pre-fix those were counted as "imported" then silently
+        // dropped server-side (the per-row upsertExpense is fire-and-forget).
+        if (!Number.isFinite(value) || value <= 0 || value > 1e9 || !hasRate(currency)) {
             skipped.push(label || `#${rowIndex + 2}`);
             // EXP-1: distinguish the actionable case — a valid amount in a
             // currency we just can't convert — so the caller can tell the
@@ -458,8 +461,14 @@ export function runBatchImport(
     }
 
     emit('state:changed');
-    // Persists the categories the import created; the expenses themselves
-    // were persisted per-row via upsertExpense above.
-    void syncWithServer();
+    // Audit MK5 P2: persist everything the import created. Expenses were
+    // upserted per-row above. Categories now go via syncCategories() —
+    // syncWithServer() no longer carries them (it's an empty connectivity
+    // probe), so the old call persisted NOTHING and auto-created categories
+    // vanished on the next /api/data poll. The trip's auto-added companions
+    // (companions_json is trip metadata) are persisted via upsertTrip(); they
+    // were likewise lost on reload before.
+    void syncCategories();
+    if (activeTrip) void upsertTrip(activeTrip);
     return { added, skipped, noRateCurrencies };
 }

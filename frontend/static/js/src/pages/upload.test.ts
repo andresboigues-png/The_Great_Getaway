@@ -15,10 +15,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('../api.js', () => ({
     upsertExpense: vi.fn(),
-    syncWithServer: vi.fn(),
+    syncCategories: vi.fn(),
+    upsertTrip: vi.fn(),
 }));
 
 import { runBatchImport } from './upload.js';
+import { syncCategories, upsertTrip, upsertExpense } from '../api.js';
 import { STATE } from '../state.js';
 import type { Trip } from '../types';
 
@@ -267,5 +269,46 @@ describe('runBatchImport — custom format mappings', () => {
     it('throws when the named custom format is missing', () => {
         seedTrip([]);
         expect(() => runBatchImport([['x']], 'custom:does-not-exist')).toThrow();
+    });
+});
+
+describe('runBatchImport — persistence + over-cap skip (Audit MK5 P2)', () => {
+    beforeEach(() => {
+        vi.mocked(syncCategories).mockClear();
+        vi.mocked(upsertTrip).mockClear();
+        vi.mocked(upsertExpense).mockClear();
+    });
+
+    it('persists categories (syncCategories) + companions (upsertTrip), not just expenses', () => {
+        seedTrip([]); // payer 'Alex' is a NEW companion created during import
+        const res = runBatchImport(
+            [['Lunch', '12', 'EUR', '2026-05-30', 'Alex']],
+            'popular:tricount',
+        );
+        expect(res.added).toBe(1);
+        // The expense row, categories, AND the trip's new companion all persist
+        // — pre-fix only upsertExpense ran; the rest relied on the no-op
+        // syncWithServer and were lost on the next /api/data poll.
+        expect(vi.mocked(upsertExpense)).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(syncCategories)).toHaveBeenCalledTimes(1); // was syncWithServer (empty probe)
+        expect(vi.mocked(upsertTrip)).toHaveBeenCalledTimes(1);     // companions_json persisted
+        // The auto-added companion really landed on the trip, so upsertTrip has
+        // something to persist.
+        expect(STATE.trips?.[0]?.companions?.some((c) => c.name === 'Alex')).toBe(true);
+    });
+
+    it('skips an amount over the server _MAX_MONEY cap (1e9) instead of optimistically counting it', () => {
+        seedTrip(['Alex']);
+        const res = runBatchImport(
+            [
+                ['Sane', '50', 'EUR', '2026-05-30', 'Alex'],
+                ['Whale', '2000000000', 'EUR', '2026-05-30', 'Alex'], // 2e9 > 1e9 cap
+            ],
+            'popular:tricount',
+        );
+        expect(res.added).toBe(1);
+        expect(res.skipped).toContain('Whale');
+        expect(STATE.expenses).toHaveLength(1);
+        expect(vi.mocked(upsertExpense)).toHaveBeenCalledTimes(1); // the whale never reached the server
     });
 });
