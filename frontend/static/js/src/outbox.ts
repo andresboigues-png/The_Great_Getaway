@@ -319,9 +319,10 @@ export async function drainOutbox(): Promise<{
     drained: number;
     dropped: number;
     remaining: number;
+    clientErrorDropped: number;
 }> {
     if (_draining) {
-        return { drained: 0, dropped: 0, remaining: _readAll().length };
+        return { drained: 0, dropped: 0, remaining: _readAll().length, clientErrorDropped: 0 };
     }
     _draining = true;
     try {
@@ -335,6 +336,7 @@ async function _drainOutboxImpl(): Promise<{
     drained: number;
     dropped: number;
     remaining: number;
+    clientErrorDropped: number;
 }> {
     const now = Date.now();
     let items = _readAll();
@@ -352,6 +354,12 @@ async function _drainOutboxImpl(): Promise<{
 
     let drained = 0;
     let dropped = prunedSilently;
+    // Audit MK5 BUG-062: count 4xx (non-409) drops separately — these mean the
+    // server REJECTED a replayed write (401 session expired, 403 access changed,
+    // 422 validation) and the user's offline edit is gone. The caller surfaces a
+    // one-time toast + pull so the loss isn't silent. (Distinct from `dropped`,
+    // which also includes expired / over-attempt / 5xx-exhausted prunes.)
+    let clientErrorDropped = 0;
     // Walk a copy — _writeAll() inside the loop is the source of
     // truth and rewrites the localStorage entry each iteration so a
     // tab close mid-drain leaves a coherent state.
@@ -423,6 +431,7 @@ async function _drainOutboxImpl(): Promise<{
                     `[outbox] drop ${item.method} ${item.url} — ${res.status}`,
                 );
                 dropped += 1;
+                clientErrorDropped += 1;  // Audit MK5 BUG-062 — surfaced to the user
                 const live = _readAll().filter(i => i.id !== item.id);
                 _writeAll(live);
                 continue;
@@ -473,5 +482,5 @@ async function _drainOutboxImpl(): Promise<{
             break;
         }
     }
-    return { drained, dropped, remaining: _readAll().length };
+    return { drained, dropped, remaining: _readAll().length, clientErrorDropped };
 }

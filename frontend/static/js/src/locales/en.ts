@@ -192,6 +192,7 @@ export const en = {
         deleteTripFailed: 'Couldn\'t delete the trip — please try again.',
         tripCreateCapHit: 'You\'ve reached the daily limit for new trips. Try again tomorrow.',
         tripCreateFailed: 'Couldn\'t create the trip — please try again.',
+        outboxDropped: "Some offline changes couldn't be saved — your access may have changed. Refreshed to the latest.",
     },
     // R4-B4: PWA service-worker update prompt. Routed through t() so
     // non-EN users don't see English copy at the most-disruptive

@@ -143,6 +143,7 @@ export const es: Translations = {
         deleteTripFailed: 'No se pudo eliminar el viaje. Inténtalo de nuevo.',
         tripCreateCapHit: 'Has alcanzado el límite diario de viajes nuevos. Inténtalo mañana.',
         tripCreateFailed: 'No se pudo crear el viaje. Inténtalo de nuevo.',
+        outboxDropped: 'Algunos cambios sin conexión no se pudieron guardar — tu acceso pudo cambiar. Datos actualizados.',
     },
     install: {
         title: 'Instala The Great Getaway',

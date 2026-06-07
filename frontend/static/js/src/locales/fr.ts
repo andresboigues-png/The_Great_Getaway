@@ -148,6 +148,7 @@ export const fr: Translations = {
         deleteTripFailed: 'Impossible de supprimer le voyage. Réessaie.',
         tripCreateCapHit: 'Tu as atteint la limite quotidienne de nouveaux voyages. Réessaie demain.',
         tripCreateFailed: 'Impossible de créer le voyage. Réessaie.',
+        outboxDropped: "Certaines modifications hors ligne n'ont pas pu être enregistrées — ton accès a peut-être changé. Données actualisées.",
     },
     install: {
         title: 'Installer The Great Getaway',

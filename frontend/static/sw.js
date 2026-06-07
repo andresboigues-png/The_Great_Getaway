@@ -86,7 +86,13 @@ self.addEventListener('install', (event) => {
             // rest. addAll is all-or-nothing, hence the Promise.allSettled
             // wrapper around individual adds.
             await Promise.allSettled(PRECACHE_URLS.map((url) => cache.add(url)));
-            self.skipWaiting();
+            // Audit MK5 BUG-060: do NOT skipWaiting() here. Skipping the
+            // 'waiting' state defeated the page's "Update available — Reload?"
+            // prompt (main.ts gates it on registration.waiting) and made open
+            // tabs auto-reload mid-edit on every deploy, wiping unsaved input
+            // (and double-loading on first install). The new SW now sits in
+            // 'waiting' until the user accepts the prompt, which posts
+            // SKIP_WAITING (handled below) to activate it on their terms.
         })()
     );
 });
@@ -462,9 +468,11 @@ self.addEventListener('message', (event) => {
         return;
     }
     if (data.type === 'SKIP_WAITING') {
-        // Hook for a future "new version ready, reload?" UI: the page
-        // posts SKIP_WAITING after the user accepts, the SW activates
-        // immediately. Not wired to UI yet — placeholder for §4.10 v2.
+        // The page posts SKIP_WAITING after the user accepts the "Update
+        // available — Reload?" prompt (main.ts), so the waiting SW activates on
+        // their terms. Audit MK5 BUG-060: with the install handler no longer
+        // calling skipWaiting(), this is now the ONLY path to activation — which
+        // is exactly what makes the prompt appear instead of a surprise reload.
         self.skipWaiting();
         return;
     }

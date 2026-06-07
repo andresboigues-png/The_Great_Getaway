@@ -27,7 +27,8 @@ import './tailwind.css';
 import { STATE, loadState, subscribe } from './state.js';
 import { initThemeManager } from './theme.js';
 import { loadLocale, getLocale, t } from './i18n.js';
-import { drainOutbox } from './outbox.js';
+import { drainOutbox, pendingCount } from './outbox.js';
+import { showLiquidAlert } from './utils.js';
 import { showConfirmModal } from './components/ConfirmModal.js';
 import { syncWithServer, pullFromServer, fetchNotifications, refreshFxRates } from './api.js';
 import { normalizeDayNumbers } from './utils/tripDays.js';
@@ -255,6 +256,22 @@ async function init() {
     // (pageshow + persisted=true) can re-arm the interval after a
     // pagehide cleared it. Without this, a Safari/Chrome bfcache
     // restore left the document alive with no polling forever.
+    // BUG-061 + BUG-062: single drain entry point. Replays the offline outbox
+    // and, if the server REJECTED any replayed write with a 4xx (401 session
+    // expired / 403 access changed / 422 validation), surfaces a one-time toast
+    // + a pull so the loss isn't silent and the UI reflects the rejected state
+    // (a 401 then routes through apiFetch's session teardown on the pull).
+    const drainAndNotify = () => {
+        drainOutbox()
+            .then((res) => {
+                if (res.clientErrorDropped > 0) {
+                    showLiquidAlert(t('errors.outboxDropped'));
+                    void pullFromServer();
+                }
+            })
+            .catch(() => { /* best-effort — items stay queued for the next try */ });
+    };
+
     let syncTimerId: ReturnType<typeof setInterval> | null = null;
     const _startPoll = () => {
         if (syncTimerId !== null) return;
@@ -266,6 +283,12 @@ async function init() {
             if (!STATE.user || document.hidden) return;
             void syncWithServer();
             void fetchNotifications();
+            // BUG-061: also drain the outbox on the poll tick so an online-but-
+            // transient failure (e.g. the 20s timeout firing while still online)
+            // is retried without needing an offline→online edge or a reload.
+            // Guarded on pendingCount so an idle poll does no extra work;
+            // drainOutbox self-guards re-entrancy via its _draining mutex.
+            if (pendingCount() > 0) drainAndNotify();
         }, 15000);
     };
     const _stopPoll = () => {
@@ -284,6 +307,8 @@ async function init() {
         if (!document.hidden && STATE.user) {
             void syncWithServer();
             void fetchNotifications();
+            // BUG-061: drain any pending offline writes on tab re-focus too.
+            if (pendingCount() > 0) drainAndNotify();
         }
     });
 
@@ -316,7 +341,7 @@ async function init() {
     // → user sees the staleEdit toast on next inline interaction).
     window.addEventListener('online', () => {
         if (STATE.user) {
-            drainOutbox().catch(() => { /* best-effort */ });
+            drainAndNotify();
             void syncWithServer();
             void fetchNotifications();
         }
@@ -330,7 +355,7 @@ async function init() {
     if (typeof navigator !== 'undefined' && navigator.onLine !== false) {
         setTimeout(() => {
             if (STATE.user) {
-                drainOutbox().catch(() => { /* best-effort */ });
+                drainAndNotify();
             }
         }, 2000);
     }
@@ -439,9 +464,14 @@ if ('serviceWorker' in navigator) {
                 // Reload once the new SW takes control. Guarded so we
                 // only reload once per session (some browsers fire
                 // controllerchange twice during a single update).
+                // BUG-060: only reload on an UPDATE — i.e. a controller was
+                // already running. On FIRST install there's no prior controller
+                // (the SW just claimed the page), so reloading would be a
+                // pointless, startling double-load.
+                const hadControllerAtStart = !!navigator.serviceWorker.controller;
                 let _reloaded = false;
                 navigator.serviceWorker.addEventListener('controllerchange', () => {
-                    if (_reloaded) return;
+                    if (_reloaded || !hadControllerAtStart) return;
                     _reloaded = true;
                     window.location.reload();
                 });

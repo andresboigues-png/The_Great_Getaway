@@ -6,8 +6,8 @@
 // expense. Identity now distinguishes rows by their body id; edits of one row
 // still coalesce; URL-keyed endpoints (media) stay URL-deduped.
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { _rowIdentity, enqueueMutation, listPending, clearOutbox, isReplayable } from './outbox.js';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { _rowIdentity, enqueueMutation, listPending, clearOutbox, isReplayable, drainOutbox } from './outbox.js';
 
 function installLocalStorage(): void {
     const store = new Map<string, string>();
@@ -83,5 +83,39 @@ describe('enqueueMutation dedup', () => {
         expect(isReplayable('/api/expenses', 'POST')).toBe(true);
         expect(isReplayable('/api/expenses', 'GET')).toBe(false);
         expect(isReplayable('/api/trips/invite', 'POST')).toBe(false);
+    });
+});
+
+describe('drainOutbox — 4xx client-error feedback (Audit MK5 BUG-062)', () => {
+    beforeEach(() => { installLocalStorage(); clearOutbox(); });
+
+    it('drops a 403-rejected replay and reports it via clientErrorDropped', async () => {
+        const realFetch = globalThis.fetch;
+        globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 403 } as Response);
+        try {
+            enq('/api/expenses', expBody('e1'));
+            expect(listPending().length).toBe(1);
+            const res = await drainOutbox();
+            // The caller (main.ts) surfaces a toast + pull off this count.
+            expect(res.clientErrorDropped).toBe(1);
+            expect(res.dropped).toBe(1);
+            expect(listPending().length).toBe(0); // a 4xx is permanent → removed
+        } finally {
+            globalThis.fetch = realFetch;
+        }
+    });
+
+    it('does NOT flag a successful replay as a client-error drop', async () => {
+        const realFetch = globalThis.fetch;
+        globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200 } as Response);
+        try {
+            enq('/api/expenses', expBody('e2'));
+            const res = await drainOutbox();
+            expect(res.clientErrorDropped).toBe(0);
+            expect(res.drained).toBe(1);
+            expect(listPending().length).toBe(0);
+        } finally {
+            globalThis.fetch = realFetch;
+        }
     });
 });
