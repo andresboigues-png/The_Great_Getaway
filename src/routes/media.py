@@ -292,6 +292,12 @@ def upload_file():
             # JPEG output).
             if ext in ('.heic', '.heif') and img_format == 'JPEG':
                 save_kwargs['exif'] = b""
+            # BUG-042: JPEG can't encode RGBA / P / LA modes — convert to RGB
+            # first, else img.save(..., 'JPEG') raises OSError and the broad
+            # except below would persist the ORIGINAL (HEIC) bytes under the .jpg
+            # name out_path was already rewritten to.
+            if img_format == 'JPEG' and img.mode not in ('RGB', 'L'):
+                img = img.convert('RGB')
             img.save(out_path, format=img_format, **save_kwargs)
         except Image.DecompressionBombError:
             # R2 audit fix: REFUSE the upload on a decompression
@@ -311,6 +317,21 @@ def upload_file():
                 "error": "Image dimensions too large to process",
             }), 413
         except Exception:
+            # BUG-042: for HEIC/HEIF, out_path was rewritten to .jpg BEFORE the
+            # encode (above), so saving the original bytes here would persist HEIC
+            # bytes under a .jpg name — serve_upload then infers image/jpeg and
+            # browsers / lightbox / the PDF builder show a broken image. Refuse
+            # instead; the user can re-upload a JPEG/PNG. Other formats keep the
+            # lenient save-the-original fallback (their extension matches).
+            if ext in ('.heic', '.heif'):
+                from observability import get_logger
+                get_logger(__name__).warning(
+                    "HEIC->JPEG encode failed for user=%s file=%r; refusing",
+                    user_id, getattr(file, 'filename', '?'),
+                )
+                return jsonify({
+                    "error": "Couldn't convert this HEIC photo — please upload a JPEG or PNG.",
+                }), 415
             file.stream.seek(0)
             file.save(out_path)
     elif ext == '.gif':

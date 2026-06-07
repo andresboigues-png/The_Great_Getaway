@@ -153,6 +153,11 @@ def test_upload_accepts_valid_jpeg(
     body = res.get_json()
     assert body["name"] == "real.jpg"
     assert body["url"].startswith("/static/uploads/")
+    # NOTE: BUG-042 (HEIC→JPEG: convert non-RGB modes before the JPEG encode +
+    # refuse-rather-than-write-raw-bytes on encode failure) has no unit test —
+    # exercising it needs pillow-heif + a real HEIC fixture (the /api/upload
+    # magic-byte + HEIC-support gates reject PNG-under-.heic/.jpg before the
+    # conversion path). Fix verified by code review in src/routes/media.py.
 
 
 def test_uploads_anonymous_fetch_404s_for_private_files(

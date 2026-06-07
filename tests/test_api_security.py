@@ -1266,3 +1266,27 @@ def test_revoke_session_other_users_session_is_noop(
     assert b_after.status_code == 200, (
         "cross-user session revoke must be a no-op for the victim"
     )
+
+
+def test_list_sessions_excludes_expired_jwt_rows(client, seed_user, auth_headers):
+    """Audit MK5 BUG-022: sessions whose 30-day JWT has expired must NOT appear
+    in the Sessions list — they can't authenticate, so listing them as 'active
+    devices' is misleading (and the table grew one row per login forever)."""
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO auth_sessions (user_id, jti, device_label, created_at) "
+            "VALUES (?, ?, ?, datetime('now'))",
+            (seed_user, "jti-fresh-022", "Fresh device"),
+        )
+        conn.execute(
+            "INSERT INTO auth_sessions (user_id, jti, device_label, created_at) "
+            "VALUES (?, ?, ?, datetime('now', '-40 days'))",
+            (seed_user, "jti-old-022", "Old device"),
+        )
+        conn.commit()
+    res = client.get("/api/auth/sessions", headers=auth_headers)
+    assert res.status_code == 200, res.get_data(as_text=True)
+    labels = {s.get("deviceLabel") for s in res.get_json()["sessions"]}
+    assert "Fresh device" in labels, "a recent session must be listed"
+    assert "Old device" not in labels, "an expired (>30d) session must be hidden (BUG-022)"

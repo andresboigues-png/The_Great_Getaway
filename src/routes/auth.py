@@ -373,6 +373,11 @@ def list_sessions():
         cursor.execute(
             "SELECT id, jti, device_label, created_at, last_seen_at "
             "FROM auth_sessions WHERE user_id = ? AND revoked_at IS NULL "
+            # BUG-022: hide sessions whose 30-day JWT has expired — they can no
+            # longer authenticate, so listing them as 'active devices' is
+            # misleading (a daily user would see dozens of dead phantoms). The
+            # background sweep (main.py) now also reaps these rows.
+            "AND created_at > datetime('now', '-30 days') "
             "ORDER BY COALESCE(last_seen_at, created_at) DESC",
             (user_id,),
         )

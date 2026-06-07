@@ -797,6 +797,15 @@ def _cleanup_feed_orphans():
                 "AND revoked_at < datetime('now', '-30 days')"
             )
             deleted_sessions = cursor.rowcount or 0
+            # BUG-022: also reap UNREVOKED sessions whose 30-day JWT has expired.
+            # Most logins are never explicitly revoked (the tab just closes), so
+            # the unrevoked-but-expired rows dominate and grew the table
+            # unbounded; the token can't authenticate past 30 days anyway.
+            cursor.execute(
+                "DELETE FROM auth_sessions WHERE revoked_at IS NULL "
+                "AND created_at < datetime('now', '-30 days')"
+            )
+            deleted_sessions += cursor.rowcount or 0
             conn.commit()
     except sqlite3.DatabaseError as e:
         # §2.15: narrow to DB errors so the daemon thread doesn't
