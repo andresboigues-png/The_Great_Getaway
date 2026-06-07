@@ -890,7 +890,23 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
     # (see _load_photo_png), then laid out in a paginating grid.
     photos_section_flowables: list[Any] = []
     if opt("includePhotos", default=False):
-        gallery: list[bytes] = _collect_photos(trip_photos, limit=_PHOTO_MAX_PER_TRIP)
+        # BUG-035: when the day cards are rendered (includeDays on), exclude
+        # photos already inlined there (tagged with a renderable day's id), else
+        # every EXIF-day-tagged photo appears twice — in its day card AND here.
+        # When day cards are NOT rendered, keep all photos so none are lost.
+        # Photos with no dayId / a non-rendered day (e.g. Day 0 anchor) always
+        # fall through to the gallery.
+        if opt("includeDays") and days_renderable:
+            _renderable_day_ids = {
+                d.get("id") for d in days_renderable if isinstance(d, dict)
+            }
+            _gallery_src = [
+                p for p in trip_photos
+                if not (isinstance(p, dict) and p.get("dayId") in _renderable_day_ids)
+            ]
+        else:
+            _gallery_src = trip_photos
+        gallery: list[bytes] = _collect_photos(_gallery_src, limit=_PHOTO_MAX_PER_TRIP)
         if gallery:
             grid = _photo_grid(rl, gallery, page_w - 2 * margin_lr, cols=3)
             if grid is not None:
@@ -1161,7 +1177,17 @@ def export_trip_pdf(trip_id: str):
         exp_rows = cursor.fetchall()
         if len(exp_rows) > 2000:
             exp_rows = exp_rows[:2000]
-        trip["expenses"] = [dict(r) for r in exp_rows]
+        # BUG-049: resolve each expense's category_id → human name (mirroring
+        # the budget label resolution above) so the PDF Expenses table shows
+        # "Food", not the opaque category UUID. Falls back to the raw value for a
+        # legacy slug / cross-user categoryId with no matching row.
+        _exp_list = []
+        for _r in exp_rows:
+            _d = dict(_r)
+            _cid = _d.get("category_id")
+            _d["category_name"] = _cat_name.get(_cid) or _cid
+            _exp_list.append(_d)
+        trip["expenses"] = _exp_list
 
         # PDF-3: server-side settlement rows (the post-§4.5 store, distinct
         # from legacy is_settlement expense rows above). Carry the

@@ -681,7 +681,9 @@ def _expenses_section(rl, styles, page_w, margin_lr, expenses: list, tr: "_T",
             val_f = 0.0
         per_currency[cur] = per_currency.get(cur, 0.0) + val_f
         label = e.get("label") or tr("exp_no_label")
-        cat = e.get("category_id") or e.get("category") or tr("exp_uncategorised")
+        # BUG-049: prefer the route-resolved human name (category_name) over the
+        # opaque category_id UUID. Falls back to the raw id / legacy slug.
+        cat = e.get("category_name") or e.get("category_id") or e.get("category") or tr("exp_uncategorised")
         table_rows.append([
             rl.Paragraph(_esc(tr.date(e.get("date"))), styles["muted"]),
             rl.Paragraph(_esc(label), styles["body"]),
@@ -732,6 +734,24 @@ def _expenses_section(rl, styles, page_w, margin_lr, expenses: list, tr: "_T",
     ]))
     flow.append(sub_table)
     return flow
+
+
+def _resolve_settle_party(nm, bal: dict) -> str:
+    """Match a settlement's snapshot name to an existing balance key (BUG-050).
+
+    Settlements snapshot `from_name`/`to_name` as users.name (the FULL display
+    name, e.g. "Alice Smith"), but the PDF roster keys on first-name tokens
+    (companions + each expense's `who`, e.g. "Alice"). Exact-match-only seeding
+    therefore created a PHANTOM full-name person and left the real first-name
+    debt outstanding — the PDF then overstated debt vs the in-app Settle-up
+    screen. Try the full name, then its first whitespace token, before falling
+    back to the full name (mirrors resolveSettlementParties in balances.ts)."""
+    nm = (nm or "").strip()
+    if not nm or nm in bal:
+        return nm
+    parts = nm.split()
+    first = parts[0] if parts else nm
+    return first if first in bal else nm
 
 
 def _settle_section(rl, styles, page_w, margin_lr, expenses: list,
@@ -847,9 +867,12 @@ def _settle_section(rl, styles, page_w, margin_lr, expenses: list,
             amt = 0.0
         if amt <= 0:
             continue
-        frm = (s.get("from_name") or "").strip()
-        to = (s.get("to_name") or "").strip()
         bal = _bal(cur)
+        # BUG-050: resolve the full-name snapshot to an existing first-name
+        # roster key before seeding, so an owner-involved settlement folds into
+        # the real balance instead of spawning a phantom full-name person.
+        frm = _resolve_settle_party(s.get("from_name"), bal)
+        to = _resolve_settle_party(s.get("to_name"), bal)
         if frm:
             if frm not in bal:
                 bal[frm] = 0.0

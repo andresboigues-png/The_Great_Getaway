@@ -332,3 +332,28 @@ def test_pdf6_t_money_helper():
     fr = pdfmod._T("fr")
     # fr uses comma decimal + dot grouping: 1.100,50
     assert fr.money("USD", 1100.5) == "USD 1.100,50"
+
+
+def test_pdf_bug049_expenses_show_category_name_not_uuid():
+    """Audit MK5 BUG-049: the Expenses table shows the human category name
+    (route resolves category_id → category_name), not the opaque UUID."""
+    exps = [
+        {"id": "e1", "who": "Alice", "label": "Dinner", "category_id": "k3f9a2x7",
+         "category_name": "Food", "date": "2026-04-01", "value": 20.0,
+         "currency": "EUR", "euro_value": 20.0, "splits": None, "is_settlement": 0},
+    ]
+    txt = _pdf_text(_build_trip_pdf(_base_trip(expenses=exps), {"includeExpenses": True}))
+    assert "Food" in txt, "category name must render"
+    assert "k3f9a2x7" not in txt, "raw category UUID must NOT render (BUG-049)"
+
+
+def test_pdf_bug050_settle_party_resolves_full_name_to_first_token():
+    """Audit MK5 BUG-050: a settlement's full-name snapshot resolves to the
+    existing first-name roster key instead of seeding a phantom person."""
+    from routes.pdf._render import _resolve_settle_party
+    bal = {"Alice": 0.0, "Bob": 0.0}
+    assert _resolve_settle_party("Alice Smith", bal) == "Alice"  # full → first token
+    assert _resolve_settle_party("Bob", bal) == "Bob"            # exact roster name
+    assert _resolve_settle_party("Carol Jones", bal) == "Carol Jones"  # unknown → self
+    assert _resolve_settle_party("", bal) == ""
+    assert _resolve_settle_party(None, bal) == ""
