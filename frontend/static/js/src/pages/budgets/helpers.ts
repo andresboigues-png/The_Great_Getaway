@@ -17,7 +17,7 @@ import {
     showLiquidAlert,
     showConfirmModal,
 } from '../../utils.js';
-import { upsertBudget, deleteBudgetOnServer } from '../../api.js';
+import { upsertBudget, deleteBudgetOnServer, isUnretryableRejection } from '../../api.js';
 import { getTripCompanionNames } from '../../companions.js';
 import { showModal } from '../../components/Modal.js';
 import { t } from '../../i18n.js';
@@ -405,15 +405,28 @@ export const openCreateBudgetModal = () => {
         emit(EVENTS.STATE_CHANGED);
         statusEl.textContent = t('budgets.createSavingStatus');
         statusEl.style.color = 'var(--text-secondary)';
-        try {
-            await upsertBudget(budget);
-            close();
-            showLiquidAlert(t('budgets.createSavedToast'));
-        } catch (err) {
+        // Audit MK5 BUG-023 (honest-save): upsertBudget → _upsertWithUpdatedAt
+        // RESOLVES {ok:false} on a 409 (duplicate scope) / 4xx / network error
+        // and never throws, so the old catch was dead code and the modal always
+        // flashed "Budget saved." for a write the server rejected — then the
+        // 409's pullFromServer wiped the optimistic row. Inspect the result: on
+        // a real rejection roll the row back, keep the modal open, and surface
+        // the actual reason. status:0 = network failure (already queued in the
+        // outbox) → treat as optimistic-ok so the retry can land.
+        const res = await upsertBudget(budget);
+        if (res && isUnretryableRejection(res)) {
             STATE.budgets = STATE.budgets.filter((b) => b.id !== budget.id);
             emit(EVENTS.STATE_CHANGED);
-            statusEl.textContent = t('budgets.createSaveFailed', { message: (err as Error).message });
+            if (res.status === 409) {
+                statusEl.textContent = t('budgets.createDuplicateScope');
+            } else {
+                const reason = (res.body?.error as string | undefined) || `HTTP ${res.status}`;
+                statusEl.textContent = t('budgets.createSaveFailed', { message: reason });
+            }
             statusEl.style.color = '#ff3b30';
+            return;
         }
+        close();
+        showLiquidAlert(t('budgets.createSavedToast'));
     };
 };

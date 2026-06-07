@@ -376,3 +376,37 @@ export const _postJson = async (url: string, body: unknown): Promise<ApiJsonResu
         return { ok: false, status: 0, body: null };
     }
 };
+
+/** Like `_delete` but returns `{ ok, status, body }` so callers can branch on
+ *  the result. Audit MK5 BUG-066 (honest-save): the fire-and-forget `_delete`
+ *  swallows a 4xx/5xx into a console.error, so a failed trip-delete left the
+ *  optimistic UI removal un-reconciled — the server row survived (the tombstone
+ *  is only written inside the committed txn) and the next /api/data pull
+ *  silently re-added the "deleted" trip. With the envelope, delete call sites
+ *  can keep the row visible + toast on a server rejection.
+ *
+ *  NOTE on `status === 0`: like `_postJson`, a network-level failure (offline,
+ *  timeout) is caught here and returned as `{status:0}` AFTER apiFetch has
+ *  already enqueued the DELETE in the offline outbox. Callers should treat
+ *  `status:0` as "queued for retry" (proceed optimistically) and only roll
+ *  back / warn on a real HTTP rejection (`status >= 400`). */
+export const _deleteJson = async (url: string, body: unknown): Promise<ApiJsonResult> => {
+    try {
+        const res = await apiFetch(url, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        let payload: Record<string, unknown> | null = null;
+        try { payload = await res.json() as Record<string, unknown> | null; } catch { /* not JSON, ignore */ }
+        return { ok: res.ok, status: res.status, body: payload };
+    } catch (e) {
+        console.error(`DELETE ${url} failed:`, e);
+        return { ok: false, status: 0, body: null };
+    }
+};
+
+// The honest-save predicate `isUnretryableRejection` lives in ./honestSave.ts
+// (a leaf module) rather than here: core.ts is in a runtime import cycle, so
+// keeping the pure predicate out of it makes it directly unit-testable without
+// tripping a const-TDZ. It's re-exported through the api.ts barrel.

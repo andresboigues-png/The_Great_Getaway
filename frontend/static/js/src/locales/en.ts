@@ -188,6 +188,9 @@ export const en = {
         ownerOnlyConfirmBtn: 'OK',
         restoreTripBody: 'This will move the trip back to your active list.',
         deleteTripBody: 'This trip and all its memories will be gone forever.',
+        deleteTripFailed: 'Couldn\'t delete the trip — please try again.',
+        tripCreateCapHit: 'You\'ve reached the daily limit for new trips. Try again tomorrow.',
+        tripCreateFailed: 'Couldn\'t create the trip — please try again.',
     },
     // R4-B4: PWA service-worker update prompt. Routed through t() so
     // non-EN users don't see English copy at the most-disruptive
@@ -798,6 +801,7 @@ export const en = {
         createSavingStatus: 'Saving…',
         createSavedToast: 'Budget saved.',
         createSaveFailed: 'Save failed ({message}). Try again.',
+        createDuplicateScope: 'A budget for this trip, category and person already exists.',
     },
     insights: {
         // Page header.
@@ -1635,6 +1639,9 @@ export const en = {
         pillUnlinkedText: 'Unlinked',
         doneBtn: 'Done',
         invitedToast: '{name} invited as {role}',
+        inviteRoleConflict: '{name} is already on this trip with a different role. Remove them first, then re-invite to change it.',
+        inviteUnavailable: "Couldn't invite {name} — they may have blocked you or no longer exist.",
+        inviteFailed: "Couldn't send the invite to {name}. Please try again.",
         // openTripMembersModal — read-only view for non-owners.
         membersTitle: 'Trip members',
         membersIntro: "You're on <strong>{trip}</strong> as a <strong>{role}</strong>. Roster is managed by the trip owner.",

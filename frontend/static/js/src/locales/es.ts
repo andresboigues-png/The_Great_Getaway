@@ -139,6 +139,9 @@ export const es: Translations = {
         ownerOnlyConfirmBtn: 'OK',
         restoreTripBody: 'Esto mueve el viaje de vuelta a tu lista activa.',
         deleteTripBody: 'Este viaje y todos sus recuerdos se perderán para siempre.',
+        deleteTripFailed: 'No se pudo eliminar el viaje. Inténtalo de nuevo.',
+        tripCreateCapHit: 'Has alcanzado el límite diario de viajes nuevos. Inténtalo mañana.',
+        tripCreateFailed: 'No se pudo crear el viaje. Inténtalo de nuevo.',
     },
     install: {
         title: 'Instala The Great Getaway',
@@ -639,6 +642,7 @@ export const es: Translations = {
         createSavingStatus: 'Guardando…',
         createSavedToast: 'Presupuesto guardado.',
         createSaveFailed: 'Error al guardar ({message}). Inténtalo de nuevo.',
+        createDuplicateScope: 'Ya existe un presupuesto para este viaje, categoría y persona.',
     },
     insights: {
         title: 'Análisis',
@@ -1284,6 +1288,9 @@ export const es: Translations = {
         pillUnlinkedText: 'No vinculado',
         doneBtn: 'Hecho',
         invitedToast: '{name} invitado como {role}',
+        inviteRoleConflict: '{name} ya está en este viaje con otro rol. Quítalo primero y vuelve a invitarlo para cambiarlo.',
+        inviteUnavailable: 'No se pudo invitar a {name}: puede haberte bloqueado o ya no existe.',
+        inviteFailed: 'No se pudo enviar la invitación a {name}. Inténtalo de nuevo.',
         membersTitle: 'Miembros del viaje',
         membersIntro: 'Estás en <strong>{trip}</strong> como <strong>{role}</strong>. La lista la gestiona el dueño del viaje.',
         membersOwnerBadge: '👑 Dueño',

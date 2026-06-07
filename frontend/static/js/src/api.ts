@@ -20,6 +20,7 @@ import {
     apiFetch,
     _post,
     _delete,
+    _deleteJson,
     _postJson,
     type ApiJsonResult,
     errName,
@@ -500,10 +501,14 @@ export function upsertTrip(trip: Trip) {
     return metaResult;
 }
 
-/** Permanently delete a trip and its expenses from the server. */
+/** Permanently delete a trip and its expenses from the server.
+ *  Audit MK5 BUG-066 (honest-save): returns the `{ok,status,body}` envelope
+ *  (via `_deleteJson`) so the delete call sites can keep the trip visible +
+ *  toast when the server REJECTS the delete (4xx/5xx) instead of optimistically
+ *  removing it and letting the next pull silently re-add it. */
 export function deleteTrip(tripId: string) {
     if (!STATE.user) return;
-    return _delete(`/api/trips/${tripId}`, {});
+    return _deleteJson(`/api/trips/${tripId}`, {});
 }
 
 /** Mark a trip as archived on the server. Phase 3: archive is PER-USER —
@@ -634,6 +639,7 @@ export function deleteDayOnServer(dayId: string) {
 // upsert* + delete* row mutators + the trip-media write entry points above)
 // stays declared+exported in this file.
 export * from './api/core.js';
+export * from './api/honestSave.js';
 export * from './api/media.js';
 export * from './api/feed.js';
 export * from './api/misc.js';

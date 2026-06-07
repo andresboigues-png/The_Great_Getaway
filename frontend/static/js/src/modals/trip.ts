@@ -9,6 +9,7 @@ import {
     deleteDayOnServer,
     uploadMedia,
     markTripMediaLoaded,
+    isUnretryableRejection,
 } from '../api.js';
 import { navigate } from '../router.js';
 import { createFromTemplateAndOpen } from '../bootstrap/template-intent.js';
@@ -225,9 +226,28 @@ export const openNewTripModal = () => {
         // local trip until a reload replayed the outbox. Awaiting first lets
         // the writes settle against the un-aborted signal.
         try {
-            await upsertTrip(newTrip);
+            const tripRes = await upsertTrip(newTrip);
+            // Audit MK5 BUG-067 (honest-save): a 429 daily-cap or 5xx returns
+            // {ok:false} WITHOUT throwing and is NOT queued in the outbox (only
+            // network failures are), so the optimistic trip + scaffolded days
+            // would silently vanish on the next /api/data pull with no error.
+            // Roll them back and tell the user. status:0 = network failure
+            // (already queued for retry) → keep them; 401 (session gone) and
+            // 409 (stale-edit) are already handled inside apiFetch /
+            // _upsertWithUpdatedAt, so exclude them here.
+            if (tripRes && isUnretryableRejection(tripRes) && tripRes.status !== 409) {
+                STATE.trips = STATE.trips.filter(tp => tp.id !== id);
+                STATE.tripDays = STATE.tripDays.filter(d => d.tripId !== id);
+                STATE.activeTripId = STATE.trips.length > 0 ? STATE.trips[0]!.id : null;
+                emit('state:changed');
+                const capHit = tripRes.status === 429
+                    || (!!tripRes.body && tripRes.body.userCapHit === true);
+                showLiquidAlert(capHit ? t('errors.tripCreateCapHit') : t('errors.tripCreateFailed'));
+                navigate('home');
+                return;
+            }
             await Promise.all(scaffolded.map(d => upsertDay(d)));
-        } catch { /* the offline outbox retries a failed write */ }
+        } catch { /* network failure → the offline outbox retries the write; keep the optimistic trip */ }
         navigate('home');
     };
 };

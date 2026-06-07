@@ -12,10 +12,10 @@
 // dependency back into collections.ts.
 
 import { STATE, emit } from '../../state.js';
-import { showConfirmModal } from '../../utils.js';
+import { showConfirmModal, showLiquidAlert } from '../../utils.js';
 import { t } from '../../i18n.js';
 import { navigate } from '../../router.js';
-import { deleteTrip, unarchiveTripOnServer, upsertTrip } from '../../api.js';
+import { deleteTrip, unarchiveTripOnServer, upsertTrip, isUnretryableRejection } from '../../api.js';
 
 /** Public-trip privacy levels (FIXING_ROADMAP — public granularity).
  *  Encoded as a 3-value string so the UI can be one select rather
@@ -119,24 +119,28 @@ export const deleteArchivedTrip = (id: string) => {
         message: t('errors.deleteTripBody'),
         confirmText: t('errors.deleteTripConfirmBtn'),
         onConfirm: () => { void (async () => {
-            STATE.archivedTrips = STATE.archivedTrips.filter((t) => t.id !== id);
-            emit('state:changed');
-            // 2026-05-26 (audit TR1): was calling the non-existent
-            // `/api/trips/delete` POST endpoint (the actual server route
-            // is DELETE /api/trips/<trip_id>). The fetch silently 404'd,
-            // local state was mutated optimistically, and the trip
-            // reappeared on the next /api/data pull — user thought the
-            // delete worked but the server row persisted. Now delegate
-            // to the api.ts `deleteTrip()` helper which targets the
-            // correct path-keyed route and uses apiFetch for cookie
-            // auth + AbortSignal hookup.
-            // BUG-7: await before navigating — navigate() aborts the request
-            // signal, which lost the delete (trip reappeared on next pull).
+            // Audit MK5 BUG-066 (honest-save): attempt the server delete FIRST
+            // and only drop the archived row once we know it wasn't rejected.
+            // deleteTrip targets DELETE /api/trips/<id> (audit TR1 fixed the old
+            // bogus `/api/trips/delete` POST that silently 404'd) and resolves
+            // {ok:false} WITHOUT throwing on an HTTP error; a swallowed 4xx/5xx
+            // left the row alive so the next /api/data pull re-added the
+            // "deleted" trip. status:0 = network failure (queued in the outbox)
+            // → proceed optimistically so the retry lands. BUG-7: await before
+            // navigate() — navigate aborts the request signal mid-flight.
+            let res;
             try {
-                await deleteTrip(id);
+                res = await deleteTrip(id);
             } catch (err) {
                 console.error('Delete archived trip failed:', err);
+                res = undefined;
             }
+            if (isUnretryableRejection(res)) {
+                showLiquidAlert(t('errors.deleteTripFailed'));
+                return; // keep the archived trip visible — nothing was removed
+            }
+            STATE.archivedTrips = STATE.archivedTrips.filter((t) => t.id !== id);
+            emit('state:changed');
             navigate('collections');
         })(); },
     });

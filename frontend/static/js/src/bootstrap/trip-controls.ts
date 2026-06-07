@@ -6,9 +6,9 @@
 // is easy to swap out per surface.
 
 import { STATE, emit } from '../state.js';
-import { archiveTripOnServer, deleteTrip, notifyTripPublic, fetchTripMedia } from '../api.js';
+import { archiveTripOnServer, deleteTrip, notifyTripPublic, fetchTripMedia, isUnretryableRejection } from '../api.js';
 import { navigate } from '../router.js';
-import { showConfirmModal, esc } from '../utils.js';
+import { showConfirmModal, esc, showLiquidAlert } from '../utils.js';
 import { t } from '../i18n.js';
 import { EVENTS, PAGES } from '../constants.js';
 import { canDelete } from '../permissions.js';
@@ -172,6 +172,28 @@ export function deleteActiveTrip(): void {
         message: t('errors.permaDeleteBody', { name: trip.name }),
         confirmText: t('errors.permaDeleteConfirmBtn'),
         onConfirm: () => { void (async () => {
+            // Audit MK5 BUG-066 (honest-save): attempt the server delete FIRST
+            // and only purge local state once we know it wasn't rejected. The
+            // server writes the trip_deletes tombstone + the DELETE only inside
+            // the committed txn, so a 4xx/5xx leaves the row alive and the next
+            // /api/data pull silently re-adds an "already deleted" trip with no
+            // user feedback. _deleteJson resolves {ok:false} WITHOUT throwing on
+            // an HTTP error; status:0 = network failure (already queued in the
+            // outbox) → proceed optimistically so the retry can land.
+            // (BUG-7 MK2: we already await before navigating — navigate() aborts
+            //  the request's nav signal — and awaiting first preserves that.)
+            let res;
+            try {
+                res = await deleteTrip(trip.id);
+            } catch (e) {
+                console.error('Delete trip failed:', e);
+                res = undefined;
+            }
+            if (isUnretryableRejection(res)) {
+                showLiquidAlert(t('errors.deleteTripFailed'));
+                return; // keep the trip visible — nothing was removed
+            }
+
             STATE.trips = STATE.trips.filter(t => t.id !== trip.id);
             STATE.expenses = STATE.expenses.filter(e => e.tripId !== trip.id);
             STATE.tripDays = STATE.tripDays.filter(d => d.tripId !== trip.id);
@@ -193,15 +215,6 @@ export function deleteActiveTrip(): void {
             STATE.activeTripId = STATE.trips.length > 0 ? STATE.trips[0]!.id : null;
 
             emit('state:changed');               // saveState + updateTripSelector via subscriber
-            // BUG-7 (MK2 audit): await the delete before navigating —
-            // navigate() synchronously aborts the request's nav signal, so a
-            // fire-and-forget delete could be killed before it left the
-            // browser and the trip reappeared on the next pull.
-            try {
-                await deleteTrip(trip.id);
-            } catch (e) {
-                console.error('Delete trip failed:', e);
-            }
             navigate('home');
         })(); }
     });

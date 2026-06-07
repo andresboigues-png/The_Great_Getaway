@@ -4,6 +4,7 @@
 
 import { STATE } from '../state.js';
 import { apiFetch, _post, _postJson, errMessage } from './core.js';
+import type { ApiJsonResult } from './core.js';
 
 /** Audit fix (2026-05-27 fix #36/#59): block primitive helpers.
  *  Powers the Settings → Blocked-users tab + the per-row block
@@ -263,10 +264,18 @@ export async function editFeedComment(commentId: string | number, body: string) 
 }
 
 /** Phase 3 — invite a friend (linked-companion's user_id) to a trip with a role.
- *  Server creates a pending member row + fires `trip_invite` notification. */
-export function inviteTripMember(tripId: string, targetUserId: string, role: string) {
-    if (!STATE.user) return;
-    return _post('/api/trips/invite', {
+ *  Server creates a pending member row + fires `trip_invite` notification.
+ *
+ *  Audit MK5 BUG-025 (honest-save): returns the `{ok,status,body}` envelope
+ *  (via `_postJson`) so the companion picker can branch on the result — a 409
+ *  (already a member with a different role) or 404 (blocked/unknown target)
+ *  used to be swallowed, leaving the companion falsely "invited" + linked. The
+ *  envelope also lets the picker invite BEFORE persisting the link (BUG-024):
+ *  the member row then exists before upsert_trip runs, so the server's
+ *  _cleaned_companions no longer strips the freshly-set linkedUserId. */
+export function inviteTripMember(tripId: string, targetUserId: string, role: string): Promise<ApiJsonResult> {
+    if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
+    return _postJson('/api/trips/invite', {
         trip_id: tripId,
         target_user_id: targetUserId,
         role,

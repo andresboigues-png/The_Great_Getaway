@@ -346,17 +346,38 @@ export const openCompanionPickerModal = (tripId: string) => {
             const select = (row.querySelector('.picker-friend-role-select') as HTMLSelectElement | null);
             const role = select?.value || ROLE_RELAXER;
 
-            // Check whether we're "promoting an existing unlinked row" or
-            // "adding a brand-new linked row". The presence of
-            // `friendSheet.dataset.linkTargetName` means promote.
+            // Audit MK5 BUG-024 + BUG-025 (honest-save): create the pending
+            // member row FIRST and only link + persist the companion if the
+            // invite actually succeeded. This fixes two bugs at once:
+            //  • BUG-025 — the invite result used to be ignored, so a 409
+            //    (already a member with a different role) / 404 (blocked or
+            //    unknown target) still showed a green "invited" toast and
+            //    persisted a bogus link the next poll then contradicted.
+            //  • BUG-024 — upsertTrip used to fire BEFORE the invite, so the
+            //    server's _cleaned_companions stripped the brand-new
+            //    linkedUserId (no member row existed yet) and the next poll
+            //    reverted the link + rendered a duplicate chip. Inviting first
+            //    means the member row exists before the upsert carries the link.
+            const inviteRes = await inviteTripMember(trip.id, friendId, role);
+            if (!inviteRes.ok) {
+                const msg = inviteRes.status === 409
+                    ? t('companions.inviteRoleConflict', { name: friendName })
+                    : inviteRes.status === 404
+                      ? t('companions.inviteUnavailable', { name: friendName })
+                      : t('companions.inviteFailed', { name: friendName });
+                showLiquidAlert(msg);
+                return; // leave the picker open; no optimistic link, no false toast
+            }
+
+            // Invite accepted by the server → now link the companion + persist.
+            // Promote the row named by `linkTargetName` when set, else promote a
+            // same-named unlinked row, else add a brand-new linked companion.
             const linkTarget = friendSheet.dataset.linkTargetName;
             if (linkTarget) {
                 const c = findTripCompanion(trip, linkTarget);
                 if (c) c.linkedUserId = friendId;
                 delete friendSheet.dataset.linkTargetName;
             } else {
-                // Brand-new add. If a row with the friend's name already
-                // exists (unlinked), promote it; otherwise insert a new one.
                 const existingByName = findTripCompanion(trip, friendName);
                 if (existingByName && !existingByName.linkedUserId) {
                     existingByName.linkedUserId = friendId;
@@ -366,7 +387,6 @@ export const openCompanionPickerModal = (tripId: string) => {
             }
             emit('state:changed');
             void upsertTrip(trip);
-            await inviteTripMember(trip.id, friendId, role);
             friendSheet.hidden = true;
             refreshList();
             showLiquidAlert(t('companions.invitedToast', { name: friendName, role: roleLabel(role) }));
