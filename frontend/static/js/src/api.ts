@@ -181,8 +181,24 @@ export async function pullFromServer() {
             if (tt.markedPlaces === undefined) tt.markedPlaces = existing?.markedPlaces ?? [];
             if (tt.checklist === undefined) tt.checklist = existing?.checklist ?? [];
         }
-        STATE.trips = allTrips.filter(t => !t.isArchived);
-        STATE.archivedTrips = allTrips.filter(t => t.isArchived);
+        // Audit MK5 BUG-069 (sync): if the Edit-Trip modal is open, KEEP the
+        // existing in-memory object for the trip being edited instead of
+        // swapping in a freshly-built one. openEditTripModal captured that
+        // object by reference and mutates it in place on save; a blind rebuild
+        // orphans it, so the user's in-flight edits flash away on submit and a
+        // single-editor save can hit a spurious stale-edit 409. Keyed off a
+        // data-attribute the modal sets on its overlay, so it auto-clears when
+        // the modal DOM is removed (no module flag to leak). The edited trip
+        // resumes normal sync on the next poll once the modal closes.
+        const _editingTripId = (document.querySelector('[data-editing-trip-id]') as HTMLElement | null)
+            ?.dataset.editingTripId || null;
+        const _keepEditedRef = (t: Trip): Trip => (
+            _editingTripId && t.id === _editingTripId && _existingById.has(t.id)
+                ? (_existingById.get(t.id) as unknown as Trip)
+                : t
+        );
+        STATE.trips = allTrips.filter(t => !t.isArchived).map(_keepEditedRef);
+        STATE.archivedTrips = allTrips.filter(t => t.isArchived).map(_keepEditedRef);
 
         // Re-validate STATE.activeTripId after replacing the trips
         // list. Without this:

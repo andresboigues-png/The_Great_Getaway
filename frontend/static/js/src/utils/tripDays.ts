@@ -1,6 +1,6 @@
 // utils/tripDays.ts — keep a trip's itinerary day numbers clean.
 
-import type { TripDay } from '../types';
+import type { Trip, TripDay } from '../types';
 
 const DEFAULT_DAY_NAME = /^Day \d+$/;
 
@@ -62,4 +62,32 @@ export function normalizeDayNumbers(
         }
     });
     return changed;
+}
+
+/**
+ * Mirror the server's delete_day media cascade on the client (Audit MK5
+ * BUG-033). When a day is deleted, the server prunes photos/documents tagged
+ * with that dayId and NULLs the dayId on its marked places, so a saved place
+ * survives — just detached from the now-gone day. The loss-free union media
+ * merge has NO deletion awareness, so unless the client mirrors this prune the
+ * next media write (or a warm-409 re-merge) resurrects the day-tagged
+ * photos/docs. Mutates `trip` in place so local STATE matches the server.
+ *
+ * Note the deliberate asymmetry — DON'T "simplify" it: photos and documents
+ * tied to the day are REMOVED, but marked places are KEPT with `dayId = null`
+ * (they move to the Unsorted bucket). This matches days.py's cascade, which
+ * deletes media rows but uses drop=False for places.
+ */
+export function pruneDayMediaInPlace(trip: Trip, dayId: string): void {
+    if (Array.isArray(trip.photos)) {
+        trip.photos = trip.photos.filter((p) => p.dayId !== dayId);
+    }
+    if (Array.isArray(trip.documents)) {
+        trip.documents = trip.documents.filter((doc) => doc.dayId !== dayId);
+    }
+    if (Array.isArray(trip.markedPlaces)) {
+        for (const mp of trip.markedPlaces) {
+            if (mp.dayId === dayId) mp.dayId = null;
+        }
+    }
 }

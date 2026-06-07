@@ -126,6 +126,7 @@ export const es: Translations = {
         deleteDayBody: 'Esto elimina el día y todo su diario, fotos y documentos. Esta acción no se puede deshacer.',
         deleteDayTitle: '¿Eliminar el Día {n}?',
         deleteDayConfirmBtn: 'Eliminar Día',
+        dayDeletedToast: 'Día eliminado',
         restoreTripTitle: '¿Restaurar este viaje?',
         restoreTripConfirmBtn: 'Restaurar',
         deleteTripTitle: '¿Eliminar este viaje?',

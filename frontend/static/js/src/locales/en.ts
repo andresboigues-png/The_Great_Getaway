@@ -174,6 +174,7 @@ export const en = {
         // Confirm-dialog titles + confirm-button copy.
         deleteDayTitle: 'Delete Day {n}?',
         deleteDayConfirmBtn: 'Delete Day',
+        dayDeletedToast: 'Day deleted',
         restoreTripTitle: 'Restore this trip?',
         restoreTripConfirmBtn: 'Restore',
         deleteTripTitle: 'Delete this trip?',

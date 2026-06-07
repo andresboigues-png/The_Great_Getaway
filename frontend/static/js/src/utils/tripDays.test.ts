@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeDayNumbers } from './tripDays.js';
-import type { TripDay } from '../types';
+import { normalizeDayNumbers, pruneDayMediaInPlace } from './tripDays.js';
+import type { Trip, TripDay } from '../types';
 
 function day(partial: Partial<TripDay> & { id: string; tripId: string; dayNumber: number }): TripDay {
     return {
@@ -90,5 +90,63 @@ describe('normalizeDayNumbers', () => {
         normalizeDayNumbers(days, 't');
         expect(days.find((d) => d.id === 'a')!.name).toBe('Beach day'); // custom kept
         expect(days.find((d) => d.id === 'b')!.name).toBe('Day 2');     // auto relabelled
+    });
+});
+
+describe('pruneDayMediaInPlace (Audit MK5 BUG-033 — mirror server delete_day cascade)', () => {
+    function trip(media: {
+        photos?: Array<{ id: string; dayId?: string | null }>;
+        documents?: Array<{ id: string; dayId?: string | null }>;
+        markedPlaces?: Array<{ id: string; dayId?: string | null }>;
+    }): Trip {
+        return {
+            id: 't1',
+            name: 'Trip',
+            photos: media.photos ?? [],
+            documents: media.documents ?? [],
+            markedPlaces: media.markedPlaces ?? [],
+        } as unknown as Trip;
+    }
+    const ids = (arr: ReadonlyArray<{ id?: string }> | undefined) => (arr ?? []).map((x) => x.id);
+
+    it('removes photos + documents tagged with the deleted dayId, keeps the rest', () => {
+        const t = trip({
+            photos: [{ id: 'p1', dayId: 'D1' }, { id: 'p2', dayId: 'D2' }, { id: 'p3', dayId: null }],
+            documents: [{ id: 'doc1', dayId: 'D1' }, { id: 'doc2', dayId: 'D2' }],
+        });
+        pruneDayMediaInPlace(t, 'D1');
+        expect(ids(t.photos)).toEqual(['p2', 'p3']);
+        expect(ids(t.documents)).toEqual(['doc2']);
+    });
+
+    it("NULLs the dayId on the deleted day's marked places but KEEPS them (Unsorted bucket)", () => {
+        const t = trip({
+            markedPlaces: [
+                { id: 'm1', dayId: 'D1' },
+                { id: 'm2', dayId: 'D2' },
+                { id: 'm3', dayId: null },
+            ],
+        });
+        pruneDayMediaInPlace(t, 'D1');
+        // None removed — a saved place survives a day delete.
+        expect(ids(t.markedPlaces)).toEqual(['m1', 'm2', 'm3']);
+        // m1 detached (dayId nulled); m2 untouched; m3 already null.
+        expect((t.markedPlaces ?? []).find((m) => m.id === 'm1')?.dayId).toBeNull();
+        expect((t.markedPlaces ?? []).find((m) => m.id === 'm2')?.dayId).toBe('D2');
+    });
+
+    it('is a no-op when nothing is tagged with the deleted day', () => {
+        const t = trip({
+            photos: [{ id: 'p1', dayId: 'D2' }],
+            markedPlaces: [{ id: 'm1', dayId: 'D2' }],
+        });
+        pruneDayMediaInPlace(t, 'D1');
+        expect(ids(t.photos)).toEqual(['p1']);
+        expect((t.markedPlaces ?? []).find((m) => m.id === 'm1')?.dayId).toBe('D2');
+    });
+
+    it('tolerates a trip whose media arrays are undefined', () => {
+        const t = { id: 't', name: 'x' } as unknown as Trip;
+        expect(() => pruneDayMediaInPlace(t, 'D1')).not.toThrow();
     });
 });

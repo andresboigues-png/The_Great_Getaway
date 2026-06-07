@@ -322,6 +322,12 @@ export const openEditTripModal = (trip: Trip) => {
         `,
     });
 
+    // Audit MK5 BUG-069 (sync): tag the modal overlay with the trip id so a
+    // background /api/data poll landing mid-edit keeps THIS trip's existing
+    // object reference in STATE instead of orphaning it (pullFromServer reads
+    // this attribute). Auto-clears when the modal DOM is removed on close.
+    root.dataset.editingTripId = trip.id;
+
     const nameInput = (q(root, '#editTripName') as HTMLInputElement);
     nameInput.value = trip.name || '';
 
@@ -638,7 +644,15 @@ export const openEditTripModal = (trip: Trip) => {
                 // (e.g. rebased AND renumbered).
                 const toPersist = new Map<string, import('../types').TripDay>();
                 for (const d of [...scaffolded, ...rebased, ...renumbered]) toPersist.set(d.id, d);
-                await Promise.all([...toPersist.values()].map(d => upsertDay(d)));
+                // Audit MK5 BUG-034 (concurrency): persist SEQUENTIALLY in
+                // ascending day-number order, not via parallel Promise.all.
+                // Parallel upserts race the partial UNIQUE(trip_id, day_number)
+                // index — a downward renumber can momentarily double-occupy a
+                // slot → IntegrityError 409 → numbering gap + spurious
+                // stale-edit toast. Ascending sequential frees each target slot
+                // before the next write claims it.
+                const ordered = [...toPersist.values()].sort((a, b) => a.dayNumber - b.dayNumber);
+                for (const d of ordered) await upsertDay(d);
             } catch { /* the offline outbox retries a failed write */ }
             navigate('home', null, true);
         };

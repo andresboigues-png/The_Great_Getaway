@@ -29,6 +29,7 @@ import { t } from '../../i18n.js';
 import { upsertDay, deleteDayOnServer } from '../../api.js';
 import { navigate } from '../../router.js';
 import { clearSelectedDay, getSelectedDayId } from '../home/pathSelection.js';
+import { pruneDayMediaInPlace } from '../../utils/tripDays.js';
 import type { HomeTab } from '../home/dayDetailModal.js';
 import type { Trip } from '../../types';
 
@@ -300,6 +301,14 @@ export const deleteDay = (dayId: string): void => {
                     d.dayNumber = i + 1;
                 });
 
+            // Audit MK5 BUG-033 (data-loss): mirror the server's delete_day
+            // media cascade locally so the loss-free union merge can't later
+            // resurrect this day's media. (Helper keeps the prune logic pure +
+            // unit-tested; see utils/tripDays.ts.)
+            const trip = (STATE.trips || []).find((t) => t.id === tripId)
+                || (STATE.archivedTrips || []).find((t) => t.id === tripId);
+            if (trip) pruneDayMediaInPlace(trip, dayId);
+
             // If the deleted day was someone's last selected day on
             // this trip, drop the cached selection so resolveSelectedDayId
             // re-derives a sensible default on next render.
@@ -314,11 +323,18 @@ export const deleteDay = (dayId: string): void => {
 
             emit('state:changed');
             await deleteDayOnServer(dayId);
-            // Persist the renumbered survivors so server stays in sync.
-            await Promise.all(
-                STATE.tripDays.filter((d) => d.tripId === tripId).map((d) => upsertDay(d)),
-            );
-            showLiquidAlert('Day deleted');
+            // Audit MK5 BUG-034 (concurrency): persist the renumbered survivors
+            // SEQUENTIALLY in ascending day-number order, not via parallel
+            // Promise.all. Parallel upserts race the partial UNIQUE(trip_id,
+            // day_number) index — a downward shift can momentarily double-occupy
+            // a slot → IntegrityError 409 → numbering gap + spurious stale-edit
+            // toast. Ascending sequential frees each target slot before the next
+            // write claims it.
+            const survivors = STATE.tripDays
+                .filter((d) => d.tripId === tripId)
+                .sort((a, b) => a.dayNumber - b.dayNumber);
+            for (const d of survivors) await upsertDay(d);
+            showLiquidAlert(t('errors.dayDeletedToast'));
             navigate('home', null, true);
         })(); },
     });
