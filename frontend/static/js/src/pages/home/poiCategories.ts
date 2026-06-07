@@ -165,6 +165,29 @@ export const POI_CATEGORIES: PoiCategory[] = [
 ];
 
 
+/**
+ * Resolve whether a POI pill anchors to the Trip Hub ('anchor', trip-wide) or
+ * follows the selected day ('epicenter'). Honors the documented fallback: an
+ * explicit per-pill override in `poiAnchoring` wins; otherwise fall back to the
+ * category's `useAnchorAlways` flag.
+ *
+ * Audit MK5 BUG-038: the home map (HeroMap.shouldForceAnchor) had dropped the
+ * useAnchorAlways fallback in the React migration while Settings kept it, so the
+ * six always-anchor pills (Medical/Pets/Schools/Sports/Transit/Traffic) jumped
+ * to the selected day on day-change and Settings' displayed setting contradicted
+ * the actual map behavior. Both surfaces now call this single source of truth so
+ * they can't drift apart again.
+ */
+export function resolveAnchorMode(
+    cat: Pick<PoiCategory, 'key' | 'useAnchorAlways'>,
+    anchoring: Record<string, 'anchor' | 'epicenter'> | undefined,
+): 'anchor' | 'epicenter' {
+    const pref = anchoring?.[cat.key];
+    if (pref === 'anchor' || pref === 'epicenter') return pref;
+    return cat.useAnchorAlways ? 'anchor' : 'epicenter';
+}
+
+
 /** Resolve the per-pill info tooltip for a POI category. Looks the
  *  string up via t() under the `poiTooltips.<key>` namespace, so the
  *  tooltip text follows the active locale instead of being pinned to

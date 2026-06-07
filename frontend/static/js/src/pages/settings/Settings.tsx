@@ -37,7 +37,7 @@ import { STATE, emit } from '../../state.js';
 import { generateId, showConfirmModal, showLiquidAlert, esc } from '../../utils.js';
 import { showModal } from '../../components/Modal.js';
 import { syncCategories, apiFetch } from '../../api.js';
-import { POI_CATEGORIES, getPoiTooltip } from '../home.js';
+import { POI_CATEGORIES, getPoiTooltip, resolveAnchorMode } from '../home.js';
 import { setTheme } from '../../theme.js';
 import { t, getLocale, setLocale, type Locale } from '../../i18n.js';
 import { iconSvg } from '../../icons.js';
@@ -593,12 +593,10 @@ function GeneralPillsSection() {
                             ? filters[c.key]!.minRating!
                             : c.defaultMinRating;
                     const userAnchor = anchoring[c.key];
-                    const effectiveAnchor =
-                        userAnchor === 'anchor' || userAnchor === 'epicenter'
-                            ? userAnchor
-                            : c.useAnchorAlways
-                              ? 'anchor'
-                              : 'epicenter';
+                    // Audit MK5 BUG-038: shared single source of truth with the
+                    // home map (HeroMap.shouldForceAnchor) so the displayed
+                    // setting can't drift from the actual map behavior again.
+                    const effectiveAnchor = resolveAnchorMode(c, anchoring);
                     const defaultAnchor: 'anchor' | 'epicenter' = c.useAnchorAlways ? 'anchor' : 'epicenter';
                     const isVisible = visibility[c.key] !== false;
                     const isRatingCustom = userMin !== c.defaultMinRating;

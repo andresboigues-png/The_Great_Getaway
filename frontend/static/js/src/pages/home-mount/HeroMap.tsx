@@ -47,6 +47,7 @@ import {
     POI_CATEGORIES,
     pickPlaceIcon,
     isPrimaryMatch,
+    resolveAnchorMode,
     type PoiCategory,
 } from '../home/poiCategories.js';
 import { setupSlideshow, stopHomeSlideshow } from '../home/slideshow.js';
@@ -328,6 +329,12 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 emit('state:changed');
                 void upsertTrip(activeTrip);
                 refresh();
+                // Audit MK5 BUG-039: repaint the to-do markers so the freshly
+                // added/removed pin reflects on the map immediately.
+                // emit('state:changed') re-renders React but does NOT re-run the
+                // map-setup effect (deps: [mapRetryTick]), so without this the
+                // map diverged from saved state until the next remount.
+                repaintTodoMarkers();
             };
         };
 
@@ -407,10 +414,12 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
             return { center: null, anchorId: '' };
         };
 
-        const shouldForceAnchor = (cat: PoiCategory) => {
-            const userPref = STATE.preferences?.poiAnchoring?.[cat.key];
-            return userPref === 'anchor';
-        };
+        const shouldForceAnchor = (cat: PoiCategory) =>
+            // Audit MK5 BUG-038: was `userPref === 'anchor'` only, dropping the
+            // useAnchorAlways fallback — so the six always-anchor pills jumped to
+            // the selected day and Settings (which kept the fallback) lied. The
+            // shared resolveAnchorMode is now the single source of truth.
+            resolveAnchorMode(cat, STATE.preferences?.poiAnchoring) === 'anchor';
 
         const fetchPlacesForTrip = (cat: PoiCategory): Promise<google.maps.places.PlaceResult[]> => {
             const tripId = activeTrip?.id || '';
