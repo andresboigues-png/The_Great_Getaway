@@ -244,6 +244,32 @@ def test_update_template_keeps_code_and_resnapshots(client, seed_user, auth_head
 
 
 # ── public preview ───────────────────────────────────────────────────
+def test_revoked_creator_can_delete_own_template(client, seed_user, auth_headers):
+    """Audit MK5 BUG-055: deleting your OWN template needs OWNERSHIP, not the
+    (revocable) can-create privilege. After an admin revokes creator status the
+    user's templates intentionally stay live — but they must still be able to
+    remove them. The old _is_creator gate on DELETE locked them out forever."""
+    from database import get_db
+    _make_creator(seed_user)
+    _create_trip(client, auth_headers, trip_id="del-src", name="Porto")
+    tmpl_id = client.post("/api/templates", headers=auth_headers, json={
+        "name": "Porto", "sourceTripId": "del-src",
+        "includePlans": True, "includePlaces": True, "includeChecklist": True,
+    }).get_json()["template"]["id"]
+    # Admin revokes the user's creator status (templates intentionally stay live).
+    with get_db() as conn:
+        conn.execute("UPDATE users SET is_creator = 0 WHERE id = ?", (seed_user,))
+        conn.commit()
+    # The owner can STILL delete their own template.
+    res = client.delete(f"/api/templates/{tmpl_id}", headers=auth_headers)
+    assert res.status_code == 200, res.get_data(as_text=True)
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT id FROM trip_templates WHERE id = ?", (tmpl_id,),
+        ).fetchone()
+    assert row is None, "template should be removed from the DB"
+
+
 def test_preview_public_no_auth_safe_and_404(client, seed_user, auth_headers):
     _make_creator(seed_user)
     _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src4")

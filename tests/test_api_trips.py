@@ -1211,6 +1211,36 @@ def test_clone_trip_deep_copies_days_and_metadata(
     assert cloned_days[0]["id"] != "d-src-1"
 
 
+def test_clone_drops_uploaded_cover_keeps_shared(client, seed_user, auth_headers):
+    """Audit MK5 BUG-037/057: a clone must not point at the SOURCE owner's
+    uploaded cover file — it 404s when the owner deletes/unshares, and the cloner
+    can't serve a file outside their own namespace. An uploaded cover is DROPPED
+    (the clone falls back to its country default); a country-default / external
+    cover URL is a stable shared asset and is KEPT."""
+    from database import get_db
+
+    def _clone_with_cover(src_id, cover):
+        _create_trip(client, auth_headers, trip_id=src_id, name="Cover Trip")
+        with get_db() as conn:
+            conn.execute("UPDATE trips SET cover_url = ? WHERE id = ?", (cover, src_id))
+            conn.commit()
+        res = client.post(f"/api/trips/clone/{src_id}", headers=auth_headers)
+        assert res.status_code == 200, res.get_data(as_text=True)
+        new_id = res.get_json()["tripId"]
+        with get_db() as conn:
+            return conn.execute(
+                "SELECT cover_url FROM trips WHERE id = ?", (new_id,),
+            ).fetchone()["cover_url"]
+
+    # An uploaded cover (source owner's namespace) is DROPPED → country default.
+    assert _clone_with_cover(
+        "cover-upl-src", f"/static/uploads/{seed_user}/personal.jpg",
+    ) is None
+    # A country-default / external cover URL is KEPT.
+    kept = "/static/country-defaults/norway.jpg"
+    assert _clone_with_cover("cover-def-src", kept) == kept
+
+
 def test_clone_trip_drops_expenses_and_share_state(
     client, seed_user, auth_headers,
 ):

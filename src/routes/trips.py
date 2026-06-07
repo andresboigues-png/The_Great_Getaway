@@ -1312,6 +1312,20 @@ def _clone_trip_attempt(cursor, src, new_owner_id, new_trip_id, include_marked_p
     duplicating a trip they can see) copy the wishlist; share-link clones pass
     False because the share page hides markedPlaces from the recipient."""
     new_name = f"{src['name'] or 'Trip'} (copy)"
+    # Audit MK5 BUG-037/057: do NOT copy an UPLOADED cover verbatim. It lives in
+    # the SOURCE owner's /static/uploads/<owner>/ namespace, so the clone's cover
+    # 404s the moment the owner deletes/unshares the source — and the cloner
+    # can't serve a file outside their own namespace anyway. A personal upload
+    # belongs to the original owner (same rule as the photos/documents/checklist
+    # this clone already drops), so NULL it → the clone falls back to its
+    # country-default cover. A country-default / external cover URL is a stable
+    # shared asset and is kept.
+    src_cover = src['cover_url']
+    clone_cover = (
+        None
+        if (isinstance(src_cover, str) and src_cover.startswith('/static/uploads/'))
+        else src_cover
+    )
     cursor.execute('''
         INSERT INTO trips (
             id, user_id, name, country, country_code,
@@ -1351,7 +1365,7 @@ def _clone_trip_attempt(cursor, src, new_owner_id, new_trip_id, include_marked_p
         # clone visits the same places, so the country set is the
         # same — no reason to force re-discovery on the clone.
         src['trip_countries_json'],
-        src['cover_url'],
+        clone_cover,
     ))
 
 

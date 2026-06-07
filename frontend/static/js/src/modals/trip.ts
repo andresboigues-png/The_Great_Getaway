@@ -552,6 +552,14 @@ export const openEditTripModal = (trip: Trip) => {
             const newEnd = parseUTC(newEndIso);
             const oldFirst = parseUTC(numberedDays[0]!.date || '');
             const oldLast = parseUTC(numberedDays[numberedDays.length - 1]!.date || '');
+            // Audit MK5 BUG-063: an instantiated template / clone has numbered
+            // days with NULL dates (oldFirst/oldLast parse to null), so the
+            // start/end-change guards below short-circuit and the user's picked
+            // range never reaches the day rows — the cards stay date-less
+            // forever. Treat a fully date-less set as "seed dates from the picked
+            // start": the rebase loop then dates each day sequentially and the
+            // extend/shorten step runs against the seeded span.
+            const datesAreUnset = !oldFirst;
 
             // Compute targets WITHOUT committing yet — gives us a clean
             // place to fork between cases.
@@ -561,8 +569,9 @@ export const openEditTripModal = (trip: Trip) => {
                 newEnd && oldLast && newEnd.getTime() !== oldLast.getTime();
 
             // Step 1 — rebase if start changed (preserves the OLD length
-            // shifted to the new start). Same logic as before.
-            if (startChanged && newStart) {
+            // shifted to the new start). Same logic as before. BUG-063: also
+            // run when the days are date-less, to SEED dates from the new start.
+            if ((startChanged || datesAreUnset) && newStart) {
                 for (const day of numberedDays) {
                     const d = new Date(newStart);
                     d.setUTCDate(d.getUTCDate() + (day.dayNumber - 1));
@@ -587,8 +596,10 @@ export const openEditTripModal = (trip: Trip) => {
                 })()
                 : null;
 
-            // Step 2 — extend or shorten based on the END date.
-            if (endChanged && newEnd && effectiveStart && effectiveLast) {
+            // Step 2 — extend or shorten based on the END date. BUG-063: also
+            // run for a date-less set so a range longer/shorter than the
+            // template's day count still adds/removes days against the seeded span.
+            if ((endChanged || datesAreUnset) && newEnd && effectiveStart && effectiveLast) {
                 if (newEnd > effectiveLast) {
                     // Case (c) — LENGTHEN. Scaffold the extension only.
                     const lengthenStart = new Date(effectiveLast);

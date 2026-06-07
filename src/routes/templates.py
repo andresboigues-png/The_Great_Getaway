@@ -493,8 +493,12 @@ def delete_template(template_id):
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
-        if not _is_creator(cursor, user_id):
-            return jsonify({"error": "Forbidden"}), 403
+        # Audit MK5 BUG-055: deleting your OWN template requires OWNERSHIP, not
+        # the (separately revocable) can-CREATE privilege. The old _is_creator
+        # gate here locked a revoked creator out of managing their still-live
+        # templates forever (and there's no admin UI to remove them either). The
+        # ownership-scoped DELETE below (owner_id = user_id) + 404-on-rowcount-0
+        # is the correct authorization. Create/update keep the creator gate.
         cursor.execute(
             "DELETE FROM trip_templates WHERE id = ? AND owner_id = ?",
             (template_id, user_id),
