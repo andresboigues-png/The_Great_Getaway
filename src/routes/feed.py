@@ -178,10 +178,17 @@ def _attach_engagement_counts(cursor, events: list, user_id: str) -> None:
         [user_id, *event_ids],
     )
     bookmarked_by_me = {r['event_id'] for r in cursor.fetchall()}
+    # Audit MK5 BUG-032: exclude comments authored by users the caller has
+    # blocked, so the chip count matches the (already block-filtered) thread
+    # list in list_feed_comments. Without this, a blocked author's comment on a
+    # THIRD party's share survived the block sweep (which only touches the
+    # blocker's OWN posts) and inflated the count above the rendered rows.
     cursor.execute(
         f"SELECT event_id, COUNT(*) AS c FROM feed_comments "
-        f"WHERE event_id IN ({id_placeholders}) GROUP BY event_id",
-        event_ids,
+        f"WHERE event_id IN ({id_placeholders}) "
+        f"  AND user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?) "
+        f"GROUP BY event_id",
+        [*event_ids, user_id],
     )
     comments_count = {r['event_id']: r['c'] for r in cursor.fetchall()}
     for e in events:
@@ -456,6 +463,13 @@ def explore_feed():
               AND t.user_id NOT IN (
                   SELECT blocked_id FROM blocks WHERE blocker_id = ?
               )
+              -- Audit MK5 BUG-031: also exclude owners who blocked the CALLER
+              -- (bidirectional, matching build_feed_context + fetch_share_payload).
+              -- Without this, a user who blocked the caller still had their
+              -- deliberately-public trip cards surface in the caller's Explore.
+              AND t.user_id NOT IN (
+                  SELECT blocker_id FROM blocks WHERE blocked_id = ?
+              )
             -- R5-B6 perf: cap the candidate set at 200 most-recent
             -- pre-Python-rank. The 180-day recency_factor decay means
             -- the top 24 (the slice the caller takes) is essentially
@@ -465,7 +479,7 @@ def explore_feed():
             ORDER BY t.created_at DESC
             LIMIT 200
             """,
-            (user_id, user_id, user_id),
+            (user_id, user_id, user_id, user_id),
         )
         rows = cursor.fetchall()
 

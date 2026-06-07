@@ -314,6 +314,80 @@ def test_settle_up_rejects_non_member(
     assert res.status_code == 403
 
 
+def _seed_third_user(uid, email):
+    """Insert a bare user row + return their auth headers (for 3-party tests)."""
+    from auth import issue_token
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            (uid, email, "Cee"),
+        )
+        conn.commit()
+    return {"Authorization": f"Bearer {issue_token(uid)}"}
+
+
+def test_relaxer_cannot_fabricate_settlement_between_others(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Audit MK5 BUG-054 (security): a non-party RELAXER must NOT be able to
+    record a settlement between two OTHER members. Pre-fix any accepted member
+    could, and since /api/data fans every settlement out to all members
+    (MONEY-3), the fabricated row shifted everyone's shared balance graph."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-bug054")
+    _seed_member(trip_id, seed_other_user, role="planner")
+    user_c = "test-user-c054"
+    headers_c = _seed_third_user(user_c, "c054@example.com")
+    _seed_member(trip_id, user_c, role="relaxer")
+    # C (a relaxer, neither party) tries to assert "owner paid B".
+    res = client.post("/api/settlements", headers=headers_c, json={
+        "tripId": trip_id, "fromUserId": seed_user, "toUserId": seed_other_user,
+        "amount": 50.0, "currency": "EUR", "euroValue": 50.0,
+    })
+    assert res.status_code == 403, res.get_json()
+
+
+def test_relaxer_party_can_still_record_own_settlement(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Audit MK5 BUG-054: the security gate must NOT block the legit case — a
+    relaxer logging a payment they themselves are a party to."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-bug054-party")
+    _seed_member(trip_id, seed_other_user, role="planner")
+    user_c = "test-user-c054b"
+    headers_c = _seed_third_user(user_c, "c054b@example.com")
+    _seed_member(trip_id, user_c, role="relaxer")
+    # C is the PAYER → allowed even as a relaxer.
+    res = client.post("/api/settlements", headers=headers_c, json={
+        "tripId": trip_id, "fromUserId": user_c, "toUserId": seed_user,
+        "amount": 20.0, "currency": "EUR", "euroValue": 20.0,
+    })
+    assert res.status_code == 201, res.get_json()
+
+
+def test_recorder_can_delete_own_recorded_settlement(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Audit MK5 BUG-054: a planner who records a settlement on the parties'
+    behalf can DELETE it (recorded_by), instead of stranding a mistaken entry
+    on the named payer."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-bug054-del")
+    _seed_member(trip_id, seed_other_user, role="planner")
+    user_c = "test-user-c054c"
+    headers_c = _seed_third_user(user_c, "c054c@example.com")
+    _seed_member(trip_id, user_c, role="planner")
+    # C (a planner, non-party) records "owner paid B".
+    res = client.post("/api/settlements", headers=headers_c, json={
+        "tripId": trip_id, "fromUserId": seed_user, "toUserId": seed_other_user,
+        "amount": 25.0, "currency": "EUR", "euroValue": 25.0,
+    })
+    assert res.status_code == 201, res.get_json()
+    sid = res.get_json()["settlement"]["id"]
+    # C is neither owner nor payer, but IS the recorder → can delete.
+    res = client.delete(f"/api/settlements/{sid}", headers=headers_c)
+    assert res.status_code == 200, res.get_json()
+
+
 def test_settle_up_rejects_from_or_to_non_member(
     client, seed_user, seed_other_user, auth_headers,
 ):

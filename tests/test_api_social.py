@@ -541,6 +541,48 @@ def test_feed_comments_post_then_list(
     assert any(c.get("body") == "Looks great!" for c in comments)
 
 
+def test_comment_count_excludes_blocked_author_on_third_party_share(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Audit MK5 BUG-032: after A blocks B, the comment-count chip on a THIRD
+    party's shared trip must match the (block-filtered) thread. The block sweep
+    only deletes B's engagement on A's OWN posts, so B's comment on C's share
+    survives — pre-fix the count COUNT(*)'d it (chip said 2) while the list
+    hid it (thread showed 1). Count and list must agree."""
+    from auth import issue_token
+    from database import get_db
+    # C is the third-party owner; A (seed_user) follows C so C's share appears
+    # in A's feed (where engagement counts are attached).
+    user_c = "test-c-bug032"
+    with get_db() as conn:
+        conn.execute("INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+                     (user_c, "c032@example.com", "Cee"))
+        conn.execute("INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)",
+                     (seed_user, user_c))
+        conn.commit()
+    headers_c = {"Authorization": f"Bearer {issue_token(user_c)}"}
+    trip_id = _create_trip(client, headers_c, trip_id="trip-bug032", public=True)
+    share = client.post("/api/feed/share", headers=headers_c, json={"trip_id": trip_id})
+    event_id = f"share_{share.get_json()['post_id']}"
+    # A and B both comment on C's PUBLIC share.
+    assert client.post(f"/api/feed/comment/{event_id}", headers=auth_headers,
+                       json={"body": "from A"}).status_code == 200
+    assert client.post(f"/api/feed/comment/{event_id}", headers=other_auth_headers,
+                       json={"body": "from B"}).status_code == 200
+    # A blocks B.
+    assert client.post(f"/api/blocks/{seed_other_user}",
+                       headers=auth_headers).status_code == 200
+    # The thread A sees excludes B's comment (pre-existing list filter).
+    listed = client.get(f"/api/feed/comments/{event_id}", headers=auth_headers).get_json()
+    assert len(listed) == 1, listed
+    # The count on A's feed event must MATCH the visible list (the BUG-032 fix).
+    feed = client.get("/api/feed", headers=auth_headers).get_json()
+    evt = next((e for e in feed if e["id"] == event_id), None)
+    assert evt is not None, "A follows C, so C's shared trip must be in A's feed"
+    assert evt["comment_count"] == 1, \
+        f"comment_count {evt.get('comment_count')} != 1 visible (BUG-032 not block-filtered)"
+
+
 def test_feed_comment_delete_owner_only(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):

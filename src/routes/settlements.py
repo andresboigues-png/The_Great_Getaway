@@ -12,9 +12,13 @@ Surface:
   DELETE /api/settlements/<id>         — undo (creator or trip owner)
 
 Permission model:
-  - Any accepted member of the trip can RECORD a settlement (planners,
-    budgeteers AND relaxers — a relaxer paying their planner needs to
-    be able to log it themselves).
+  - A PARTY to the settlement (the payer or recipient) of ANY role can
+    RECORD it — incl. a relaxer logging a payment they made or received.
+    A NON-party may record only if they are a trip planner/owner (logging
+    on others' behalf). Audit MK5 BUG-054: this replaced the old "any
+    accepted member incl. relaxer" gate, which let a non-party relaxer
+    fabricate a settlement between two OTHER members and shift everyone's
+    shared balance graph.
   - The recorded `from_user_id` and `to_user_id` must both be accepted
     members of the trip (no logging payments to/from strangers).
   - Only the creator or the trip OWNER can delete a settlement. The
@@ -141,15 +145,13 @@ def create_settlement():
     involving strangers — that's how spam would get into the
     notifications stream).
 
-    Note: the caller does NOT have to be one of the two parties.
-    Trip planners often log settlements on behalf of others (e.g.
-    "the four of us settled at dinner; Andre handled it"). Auditing
-    is preserved via `created_at` + the `recorded_by` column
-    (migration f5a6b7c8d9e1; populated below at the INSERT site).
-    The original "for v1 we keep the shape lean" plan was
-    revisited — the column landed when the impersonation risk
-    moved from theoretical to "user A could spoof a settle-up
-    if it becomes a real concern."""
+    A non-party caller may record on others' behalf ONLY as a trip
+    planner/owner ("the four of us settled at dinner; Andre handled it").
+    Audit MK5 BUG-054 tightened this — a non-party relaxer can no longer
+    fabricate a settlement between two other members. A party (payer or
+    recipient) of any role may always record their own. Auditing is
+    preserved via `created_at` + the `recorded_by` column (migration
+    f5a6b7c8d9e1; populated below at the INSERT site)."""
     user_id = current_user_id()
     body = json_body()
 
@@ -230,8 +232,23 @@ def create_settlement():
 
     with get_db() as conn:
         cursor = conn.cursor()
-        if not _is_accepted_member(cursor, trip_id, user_id):
+        # Audit MK5 BUG-054 (security): only a PARTY to the settlement (the payer
+        # or recipient) or a trip planner/owner may RECORD it. Previously ANY
+        # accepted member — including a Relaxer who is neither party — could
+        # fabricate a settlement between two OTHER members, and since /api/data
+        # ships every settlement to every member (MONEY-3), the bogus row shifted
+        # everyone's shared balance graph. A party of any role still records their
+        # own payment (the legit "relaxer paid the planner" case); trip_member_role
+        # returns 'planner' for owners, so this also admits owners + planners
+        # recording on behalf of others.
+        caller_role = trip_member_role(cursor, trip_id, user_id)
+        if caller_role is None:
             return jsonify({"error": "Not a member of this trip"}), 403
+        is_party = user_id == from_user_id or user_id == to_user_id
+        if not is_party and caller_role != "planner":
+            return jsonify({
+                "error": "Only the payer, recipient, or a trip planner can record this settlement",
+            }), 403
         if not _is_accepted_member(cursor, trip_id, from_user_id):
             return jsonify({"error": "fromUserId is not a member of this trip"}), 400
         if not _is_accepted_member(cursor, trip_id, to_user_id):
@@ -492,6 +509,9 @@ def delete_settlement(settlement_id):
       - the trip owner (full control on their own trip)
       - the row's payer (`from_user_id`) — they typed it, they can
         retract it
+      - the recorder (`recorded_by`) — e.g. a planner who logged the
+        settlement on the parties' behalf (Audit MK5 BUG-054) — so a
+        mistaken/abusive entry is self-cleanable, not stranded on the payer
     The recipient (`to_user_id`) intentionally CANNOT delete because
     a recipient quietly un-receiving money would leave the payer
     thinking the debt is settled when it isn't.
@@ -518,7 +538,14 @@ def delete_settlement(settlement_id):
         bind_trip_context(row["trip_id"])
 
         owner_id = _trip_owner_id(cursor, row["trip_id"])
-        if user_id != owner_id and user_id != row["from_user_id"]:
+        # Audit MK5 BUG-054: also allow the RECORDER (recorded_by) to delete the
+        # row they created. Pre-fix rows have NULL recorded_by → no match, so
+        # they keep the old owner/payer-only rule.
+        if (
+            user_id != owner_id
+            and user_id != row["from_user_id"]
+            and user_id != row["recorded_by"]
+        ):
             return jsonify({"error": "Forbidden"}), 403
         # R10-B6e F5: archive write gate. Deleting a settlement on an
         # archived trip would resurface the original debt + fire a

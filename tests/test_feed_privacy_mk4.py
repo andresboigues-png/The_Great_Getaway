@@ -287,6 +287,33 @@ def test_soc2_archived_trip_absent_from_explore(client, seed_user):
     assert "live-explore" in trip_ids, "live trip wrongly absent from Explore"
 
 
+def test_explore_excludes_owner_who_blocked_caller(client, seed_user):
+    """Audit MK5 BUG-031: a public+shared trip whose owner has BLOCKED the
+    caller must not appear in the caller's Explore. Pre-fix the explore query
+    only filtered one direction (trips the caller blocked), so an owner who
+    blocked the caller still had their cards surface — unlike the feed +
+    share-payload paths which filter both directions."""
+    viewer = seed_user
+    blocker_owner = "blk-owner-031"
+    other_owner = "open-owner-031"
+    _mk_user(blocker_owner, "Blocker", "blk031@example.com")
+    _mk_user(other_owner, "Opener", "open031@example.com")
+    _mk_trip("blk-explore-031", blocker_owner, "Hidden", "Norway",
+             is_public=1, share_token="tok-blk-031")
+    _mk_trip("ok-explore-031", other_owner, "Visible", "Sweden",
+             is_public=1, share_token="tok-ok-031")
+    # The owner blocks the viewer.
+    assert client.post(
+        f"/api/blocks/{viewer}", headers=_hdr(blocker_owner),
+    ).status_code == 200
+    resp = client.get("/api/feed/explore", headers=_hdr(viewer))
+    assert resp.status_code == 200, resp.data
+    trip_ids = {it["tripId"] for it in resp.get_json()["items"]}
+    assert "blk-explore-031" not in trip_ids, \
+        "trip from an owner who blocked the caller leaked into Explore (BUG-031)"
+    assert "ok-explore-031" in trip_ids, "control trip wrongly absent from Explore"
+
+
 def test_soc2_public_trip_404_for_nonmember_when_archived(client, seed_user):
     """get_public_trip must 404 an ARCHIVED trip for a non-member,
     mirroring fetch_share_payload's archived refusal."""
