@@ -504,6 +504,14 @@ export function openEditSettlementModal(id: string): void {
         .map((p) => `<option value="${esc(p)}" ${toPerson === p ? 'selected' : ''}>${esc(p)}</option>`)
         .join('');
     const home = getHomeCurrency();
+    // BUG-043: edit the settlement in its OWN currency, never force home.
+    // The old code prefilled + saved in `home`, which moved the row to a
+    // different per-currency bucket (computeTripBalancesByCurrency keys on
+    // currency) and re-opened the original-currency debt.
+    const cur = (s.currency || home).toUpperCase();
+    const oldValue = Number.isFinite(s.value) ? (s.value as number) : 0;
+    const oldEuro = s.euroValue || 0;
+    const prefillAmount = oldValue > 0 ? oldValue : convertCurrency(oldEuro, 'EUR', cur);
 
     const { root: modalRoot, close } = showModal({
         variant: 'glass-light',
@@ -515,8 +523,8 @@ export function openEditSettlementModal(id: string): void {
                 <select id="editSettleFrom" class="glass-input stl-card-minor-bg">${fromOpts}</select>
                 <label class="form-label stl-mt-6">${esc(t('settlement.labelTo'))}</label>
                 <select id="editSettleTo" class="glass-input stl-card-minor-bg">${toOpts}</select>
-                <label class="form-label stl-mt-6">${esc(t('settlement.labelAmount', { currency: home }))}</label>
-                <input type="number" step="0.01" min="0.01" id="editSettleAmount" value="${convertCurrency(s.euroValue || 0, 'EUR', home).toFixed(2)}" class="glass-input" required class="stl-card-minor">
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelAmount', { currency: cur }))}</label>
+                <input type="number" step="0.01" min="0.01" id="editSettleAmount" value="${prefillAmount.toFixed(2)}" class="glass-input" required class="stl-card-minor">
                 <label class="form-label stl-mt-6">${esc(t('settlement.labelDate'))}</label>
                 <input type="date" id="editSettleDate" value="${esc(s.date || '')}" class="glass-input" required class="stl-card-minor">
                 <div style="display:flex; gap: var(--space-3); margin-top: var(--space-4);">
@@ -540,8 +548,15 @@ export function openEditSettlementModal(id: string): void {
         s.who = from;
         s.splits = { [to]: 100 };
         s.value = amount;
-        s.currency = home;
-        s.euroValue = convertCurrency(amount, home, 'EUR');
+        // BUG-043: preserve the settlement's original currency. Recompute
+        // euroValue at the live rate when one exists; for a no-rate currency,
+        // scale the original euroValue proportionally so we never fabricate a
+        // 1:1 rate (and stay consistent with the money invariant — no new
+        // FX-over-time, just the original implied rate carried forward).
+        s.currency = cur;
+        s.euroValue = hasRate(cur)
+            ? convertCurrency(amount, cur, 'EUR')
+            : (oldValue > 0 ? oldEuro * (amount / oldValue) : oldEuro);
         s.date = date;
         s.label = t('settlement.settlementLabel', { from, to });
         emit(EVENTS.STATE_CHANGED);

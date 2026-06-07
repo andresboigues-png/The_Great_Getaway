@@ -11,7 +11,7 @@ from flask import Blueprint, jsonify, request
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
-from fx_rates import get_rate_eur
+from fx_rates import get_rate_eur, compute_euro_value
 from helpers import can_edit_expenses, is_trip_archived_for, json_body
 from validators import (
     ValidationError,
@@ -110,6 +110,18 @@ def upsert_budget():
             return jsonify({"error": str(ve)}), 400
     else:
         original_currency = currency
+
+    # Audit MK5 BUG-044: budgets are CANONICAL EUR. The in-app modal already
+    # converts + stamps currency='EUR', but a raw-API / CSV / legacy caller can
+    # post a non-EUR canonical amount — which every reader then mis-reads as that
+    # many EUR (budgetStatus target=amount vs spent=Σ euroValue; Budgets/Insights
+    # format/convert assuming EUR). Normalize to EUR here so the stored amount is
+    # always EUR. The foreign value is preserved in original_amount/currency
+    # (defaulted above when the client didn't send its own) for the "was X" badge.
+    # The IA-10 gate above already guaranteed a live rate exists for `currency`.
+    if currency != "EUR":
+        amount = compute_euro_value(amount, currency)
+        currency = "EUR"
 
     with get_db() as conn:
         cursor = conn.cursor()

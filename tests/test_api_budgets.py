@@ -305,6 +305,39 @@ def test_budget_rejects_no_rate_currency(client, seed_user, auth_headers):
         fx_rates._cache_set_at = 0.0
 
 
+def test_budget_non_eur_normalized_to_eur(client, seed_user, auth_headers):
+    """Audit MK5 BUG-044: a non-EUR budget posted via the raw API (the in-app
+    modal always sends EUR) is normalized to CANONICAL EUR on write, so the
+    readers — which all treat budgets.amount as EUR — stay correct. The foreign
+    value is preserved in original_amount/original_currency for the 'was X' badge."""
+    import fx_rates
+    from database import get_db
+    fx_rates._cache = {"EUR": 1.0, "USD": 0.5}  # 1 USD = 0.5 EUR
+    fx_rates._cache_set_at = __import__('time').time()
+    try:
+        res = client.post("/api/budgets", headers=auth_headers, json={
+            "budget": {
+                "id": "bud-bug044-usd", "amount": 100, "currency": "USD",
+                "label": "USD budget",
+            },
+        })
+        assert res.status_code == 200, res.get_data(as_text=True)
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT amount, currency, original_amount, original_currency "
+                "FROM budgets WHERE id = ?",
+                ("bud-bug044-usd",),
+            ).fetchone()
+        assert row is not None
+        assert row["currency"] == "EUR", "canonical currency must be normalized to EUR"
+        assert abs(row["amount"] - 50.0) < 0.001, "amount must be the EUR value (100 USD * 0.5)"
+        assert abs(row["original_amount"] - 100.0) < 0.001, "foreign amount preserved"
+        assert row["original_currency"] == "USD", "foreign currency preserved for the badge"
+    finally:
+        fx_rates._cache = {}
+        fx_rates._cache_set_at = 0.0
+
+
 def test_budget_upsert_rejects_cross_user_id(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):
