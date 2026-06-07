@@ -1450,9 +1450,15 @@ def delete_user_data():
         doomed_post_ids = [row["id"] for row in cursor.fetchall()]
         if doomed_post_ids:
             ph = ",".join(["?"] * len(doomed_post_ids))
+            # Audit MK5 BUG-046: engagement notifications store the post in the
+            # `post_id` column (the ACTOR goes in `related_id`), and the real
+            # types are share_liked / share_commented / share_reposted — so the
+            # old `related_id IN (...) AND type IN ('feed_liked', …)` filter
+            # matched ZERO rows and left orphans on other users' bells. Mirror
+            # the single-post (feed.py) + trip-delete (trips.py) sweeps and
+            # delete by post_id.
             cursor.execute(
-                f"DELETE FROM notifications WHERE related_id IN ({ph}) "
-                f"AND type IN ('feed_liked', 'feed_commented', 'feed_reposted', 'feed_bookmarked')",
+                f"DELETE FROM notifications WHERE post_id IN ({ph})",
                 doomed_post_ids,
             )
         # feed_posts CASCADE-deletes reposts (FK on repost_of_post_id).

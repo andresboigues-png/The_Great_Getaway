@@ -1054,6 +1054,18 @@ def respond_trip_invite():
             msg = f"{responder_name} declined the invite to {trip_name}."
             note_type = "trip_invite_declined"
 
+        # Audit MK5 BUG-047: clear the invitee's OWN trip_invite notification now
+        # that they've acted on it. Otherwise it stays unread forever (the 30-day
+        # cleanup only removes is_read=1 rows), the bell badge sticks, and a
+        # re-tap reopens a resolved invite → 404 'No pending invitation'. The
+        # frontend deliberately skips markNotificationRead for trip_invite,
+        # expecting the server to remove it on accept/decline.
+        cursor.execute(
+            "DELETE FROM notifications WHERE user_id = ? AND type = 'trip_invite' "
+            "AND related_id = ?",
+            (user_id, trip_id),
+        )
+
         # R5-B2: skip if the inviter blocked the responder. A blocked
         # user accepting/declining shouldn't ping the blocker's bell.
         from routes.blocks import is_blocked
@@ -1138,18 +1150,23 @@ def remove_trip_member():
             (target, trip_id),
         )
 
-        cursor.execute("SELECT name FROM users WHERE id = ?", (actor,))
-        actor_row = cursor.fetchone()
-        actor_name = actor_row["name"] if actor_row else "A planner"
-        cursor.execute("SELECT name FROM trips WHERE id = ?", (trip_id,))
-        trip_row = cursor.fetchone()
-        trip_name = trip_row["name"] if trip_row else "a trip"
-        msg = f"{actor_name} removed you from {trip_name}."
-        cursor.execute(
-            "INSERT INTO notifications (user_id, type, title, related_id, message, is_read) "
-            "VALUES (?, 'trip_member_removed', 'Removed from trip', ?, ?, 0)",
-            (target, trip_id, msg),
-        )
+        # Audit MK5 BUG-048: don't notify on SELF-leave. The leaver IS the actor,
+        # so the unconditional insert told them "{their own name} removed you from
+        # {trip}" and bumped their own unread badge for an action they took. Only
+        # notify when a planner removed someone ELSE.
+        if not is_self_leave:
+            cursor.execute("SELECT name FROM users WHERE id = ?", (actor,))
+            actor_row = cursor.fetchone()
+            actor_name = actor_row["name"] if actor_row else "A planner"
+            cursor.execute("SELECT name FROM trips WHERE id = ?", (trip_id,))
+            trip_row = cursor.fetchone()
+            trip_name = trip_row["name"] if trip_row else "a trip"
+            msg = f"{actor_name} removed you from {trip_name}."
+            cursor.execute(
+                "INSERT INTO notifications (user_id, type, title, related_id, message, is_read) "
+                "VALUES (?, 'trip_member_removed', 'Removed from trip', ?, ?, 0)",
+                (target, trip_id, msg),
+            )
         conn.commit()
     return jsonify({"status": "ok"})
 

@@ -594,6 +594,89 @@ def test_trip_invite_respond_accept(
     assert res.status_code == 200
 
 
+def _invite_notif_count(user_id, trip_id):
+    from database import get_db
+    with get_db() as conn:
+        return conn.execute(
+            "SELECT COUNT(*) AS c FROM notifications "
+            "WHERE user_id = ? AND type = 'trip_invite' AND related_id = ?",
+            (user_id, trip_id),
+        ).fetchone()["c"]
+
+
+def test_accept_invite_clears_invitee_trip_invite_notification(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Audit MK5 BUG-047: accepting a trip invite must DELETE the invitee's own
+    trip_invite notification, so the bell badge doesn't stick unread forever and
+    a re-tap can't reopen a resolved invite (404 'No pending invitation')."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-bug047")
+    client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id, "target_user_id": seed_other_user, "role": "relaxer",
+    })
+    assert _invite_notif_count(seed_other_user, trip_id) == 1, "invite should create the notification"
+    res = client.post("/api/trips/invite/respond", headers=other_auth_headers, json={
+        "trip_id": trip_id, "accept": True,
+    })
+    assert res.status_code == 200
+    assert _invite_notif_count(seed_other_user, trip_id) == 0, \
+        "accept must clear the invitee's trip_invite notification (BUG-047)"
+
+
+def test_self_leave_does_not_notify_the_leaver(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Audit MK5 BUG-048: leaving a trip yourself must NOT send you a
+    '{your name} removed you from {trip}' notification."""
+    from database import get_db
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-bug048")
+    client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id, "target_user_id": seed_other_user, "role": "relaxer",
+    })
+    client.post("/api/trips/invite/respond", headers=other_auth_headers, json={
+        "trip_id": trip_id, "accept": True,
+    })
+    # The member leaves the trip themselves (target == actor).
+    res = client.post("/api/trips/members/remove", headers=other_auth_headers, json={
+        "trip_id": trip_id, "target_user_id": seed_other_user,
+    })
+    assert res.status_code == 200, res.get_data(as_text=True)
+    with get_db() as conn:
+        c = conn.execute(
+            "SELECT COUNT(*) AS c FROM notifications "
+            "WHERE user_id = ? AND type = 'trip_member_removed'",
+            (seed_other_user,),
+        ).fetchone()["c"]
+    assert c == 0, "self-leave must not create a removal notification (BUG-048)"
+
+
+def test_planner_removing_other_member_still_notifies(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Audit MK5 BUG-048 complement: removing someone ELSE still notifies the
+    removed member — the self-leave guard must not suppress legit removals."""
+    from database import get_db
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-bug048b")
+    client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id, "target_user_id": seed_other_user, "role": "relaxer",
+    })
+    client.post("/api/trips/invite/respond", headers=other_auth_headers, json={
+        "trip_id": trip_id, "accept": True,
+    })
+    # The OWNER removes the member.
+    res = client.post("/api/trips/members/remove", headers=auth_headers, json={
+        "trip_id": trip_id, "target_user_id": seed_other_user,
+    })
+    assert res.status_code == 200, res.get_data(as_text=True)
+    with get_db() as conn:
+        c = conn.execute(
+            "SELECT COUNT(*) AS c FROM notifications "
+            "WHERE user_id = ? AND type = 'trip_member_removed' AND related_id = ?",
+            (seed_other_user, trip_id),
+        ).fetchone()["c"]
+    assert c == 1, "removing another member must still notify them"
+
+
 def test_trip_members_remove_owner_only(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):
