@@ -88,6 +88,28 @@ describe('computeAutoRate — FX', () => {
         const r = computeAutoRate('fx', 'XYZ', 2020, [], undefined, 'EUR', noRate);
         expect(r).toBeNull();
     });
+
+    it('suppresses the blind 1:1 live-rate fallback for a no-rate currency via hasRate (Audit MK5 BUG-051)', () => {
+        // convertFn returns 1 for an unknown code (mirrors the real
+        // convertCurrency 1:1 fallback). Without the hasRate gate this would pin
+        // a bogus "1 ARS = 1 EUR"; with hasRate('ARS') === false it's null.
+        const oneToOne = (_a: number, _f: string, _t: string): number => 1;
+        const hasRate = (code: string): boolean => code === 'USD' || code === 'EUR';
+        const r = computeAutoRate('fx', 'ARS', 2020, [], undefined, 'EUR', oneToOne, hasRate);
+        expect(r).toBeNull();
+    });
+
+    it('still derives a no-rate currency rate from real expenses even when hasRate is false', () => {
+        // The hasRate gate only blocks the BLIND fallback — an implied rate from
+        // the user's actual ARS spend that year is honest and must survive.
+        const oneToOne = (_a: number, _f: string, _t: string): number => 1;
+        const hasRate = (_code: string): boolean => false;
+        const expenses: AutoRateExpense[] = [
+            { value: 1000, currency: 'ARS', date: '2020-06-15', euroValue: 1 }, // implied 0.001
+        ];
+        const r = computeAutoRate('fx', 'ARS', 2020, expenses, undefined, 'EUR', oneToOne, hasRate);
+        expect(r).toBeCloseTo(0.001, 9);
+    });
 });
 
 describe('computeAutoRate — inflation', () => {

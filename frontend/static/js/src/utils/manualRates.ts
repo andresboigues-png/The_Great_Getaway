@@ -155,6 +155,11 @@ export function computeAutoRate(
     cpiSeriesForCurrency: Record<number, number> | undefined,
     home: string,
     convertFn: (amount: number, from: string, to: string) => number,
+    // Audit MK5 BUG-051: optional live-rate check. When supplied, the blind
+    // convertFn(1, cur, home) FX fallback is suppressed for currencies with no
+    // real rate (it would otherwise return 1 → a bogus "1 unit = 1 home" pin).
+    // Optional so existing callers + the implied-from-expenses path are unaffected.
+    hasRate?: (code: string) => boolean,
 ): number | null {
     const cur = (currency || '').toUpperCase();
     const homeCur = (home || 'EUR').toUpperCase();
@@ -188,7 +193,16 @@ export function computeAutoRate(
         const r = homeValue / (value as number);
         if (Number.isFinite(r) && r > 0) implied.push(r);
     }
-    const rate = implied.length > 0 ? median(implied) : convertFn(1, cur, homeCur);
+    if (implied.length > 0) {
+        const r = median(implied);
+        return Number.isFinite(r) && r > 0 ? r : null;
+    }
+    // No expense-derived rate. The blind convertFn(1, cur, home) fallback
+    // returns the input unchanged (→ 1) for a currency with no live/static rate,
+    // which would pin a bogus "1 unit = 1 home" (Audit MK5 BUG-051). Only offer
+    // the live-rate fallback when a real rate actually exists for this currency.
+    if (hasRate && !hasRate(cur)) return null;
+    const rate = convertFn(1, cur, homeCur);
     return Number.isFinite(rate) && rate > 0 ? rate : null;
 }
 

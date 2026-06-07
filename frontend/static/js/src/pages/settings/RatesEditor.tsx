@@ -34,7 +34,7 @@ import { useStore } from '../../react/store.js';
 import { STATE } from '../../state.js';
 import { CURRENCY_SYMBOLS } from '../../constants.js';
 import { getHomeCurrency } from '../../utils.js';
-import { getSupportedCurrencies, convertCurrency } from '../../utils/currency.js';
+import { getSupportedCurrencies, convertCurrency, hasRate } from '../../utils/currency.js';
 import {
     getManualRatesForCurrency,
     setManualRate,
@@ -211,6 +211,11 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
     const autoHint = (cur: string, year: string): string | null => {
         if (isFx) {
             if (Number(year) !== CURRENT_YEAR) return null;
+            // Audit MK5 BUG-051: convertCurrency(1, cur, home) returns 1 for a
+            // currency with no live/static rate, so without this gate the hint
+            // would read a bogus "auto ≈ 1 EUR" for ARS/EGP/VND/… Suppress it —
+            // there's no honest live rate to suggest.
+            if (!hasRate(cur)) return null;
             const r = convertCurrency(1, cur, home);
             if (!Number.isFinite(r) || r <= 0) return null;
             return t('settings.ratesAutoHint', { value: String(Number(r.toPrecision(6))) + ' ' + home });
@@ -352,7 +357,12 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
             }
             return next;
         });
-        setDirty(false);
+        // Audit MK5 BUG-053: do NOT clear `dirty` here. The deletion is persisted
+        // immediately (clearCellPersisted), so it isn't an unsaved edit — but the
+        // user may have typed OTHER cells that ARE still unsaved in the draft.
+        // Blindly setting dirty=false disabled Save and stranded those edits (lost
+        // on navigate). Leaving dirty untouched preserves them; the deletion
+        // needed no Save anyway.
         setSavedFlash(false);
         setImportedCount(null);
     };
@@ -372,7 +382,9 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
             if (cur in next) next[cur] = {};
             return next;
         });
-        setDirty(false);
+        // Audit MK5 BUG-053: do NOT clear `dirty` here (see removeYear) — the
+        // currency deletion is persisted immediately, but other typed-but-unsaved
+        // draft cells would otherwise be stranded with Save disabled.
         setSavedFlash(false);
         setImportedCount(null);
     };
@@ -418,7 +430,7 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                             );
                             if (!hasExpense) continue;
                         }
-                        const auto = computeAutoRate(mode, cur, year, expenseList, cpi[cur], home, convertCurrency);
+                        const auto = computeAutoRate(mode, cur, year, expenseList, cpi[cur], home, convertCurrency, hasRate);
                         if (auto == null || !Number.isFinite(auto)) continue;
                         row[year] = String(auto);
                         filled += 1;
@@ -444,9 +456,12 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
         if (typed != null && typed.trim() !== '') return typed;
         const stored = storedValue(cur, year);
         if (stored != null) return String(stored);
-        const cpi = STATE.cpiCache as Record<string, Record<number, number>>;
-        const auto = computeAutoRate(mode, cur, year, (expenses || []) as Expense[], cpi[cur], home, convertCurrency);
-        return auto != null && Number.isFinite(auto) ? String(auto) : '';
+        // Audit MK5 BUG-052: emit ONLY actually-pinned values (a typed draft or a
+        // stored override). Previously this fell back to computeAutoRate, baking
+        // auto SUGGESTIONS — including misleading today's-rate baselines for past
+        // years — into the downloaded template; re-importing then froze them as
+        // permanent overrides. Auto cells stay blank (= automatic) in the export.
+        return '';
     };
 
     const onDownloadTemplate = () => {
