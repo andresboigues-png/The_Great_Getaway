@@ -223,6 +223,15 @@ function confirmResetApp(): void {
 // ────────────────────────────────────────────────────────────────────
 export function Settings() {
     const { tab } = useSettingsTabSnapshot();
+    // DSGN-021: subscribe the top-level component to the store so a locale
+    // change (setLocale → emit('state:changed')) repaints the ENTIRE Settings
+    // subtree — the page H1, the "Back to Control Center" button, the menu
+    // cards, and the sub-tab strip. useSettingsTabSnapshot only tracks the tab
+    // store, so without this the surrounding chrome stayed in the old language
+    // until the user navigated away and back. useStore re-renders on every
+    // state:changed (version-counter snapshot); MenuView/SubTabStrip are plain
+    // children, so they repaint with their parent.
+    useStore((s) => s.preferences);
 
     return (
         <div>

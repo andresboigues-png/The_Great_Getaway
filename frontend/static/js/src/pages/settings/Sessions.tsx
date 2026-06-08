@@ -45,7 +45,7 @@ function _formatRelativeTime(iso: string | null | undefined): string {
  *  the OS + browser tokens for display. Falls back to the raw value
  *  truncated to 60 chars if nothing matches. */
 function _deviceLabel(raw: string | null | undefined): string {
-    if (!raw) return 'Unknown device';
+    if (!raw) return t('settings.sessionsUnknownDevice');
     // Common patterns in mobile + desktop UAs.
     const browser =
         /Edg\/[\d.]+/.exec(raw)?.[0]?.split('/')[0] ||
@@ -53,13 +53,15 @@ function _deviceLabel(raw: string | null | undefined): string {
         /Firefox\/[\d.]+/.exec(raw)?.[0]?.split('/')[0] ||
         /Safari\/[\d.]+/.exec(raw)?.[0]?.split('/')[0] ||
         '';
-    let os = 'Unknown';
+    // Browser + OS tokens are proper nouns kept verbatim; only the
+    // "Unknown" fallback + the "{browser} on {os}" connector localize.
+    let os = t('settings.sessionsUnknownOs');
     if (/iPhone|iPad|iPod/.test(raw)) os = 'iOS';
     else if (/Android/.test(raw)) os = 'Android';
     else if (/Macintosh|Mac OS X/.test(raw)) os = 'macOS';
     else if (/Windows/.test(raw)) os = 'Windows';
     else if (/Linux/.test(raw)) os = 'Linux';
-    return browser ? `${browser} on ${os}` : raw.slice(0, 60);
+    return browser ? t('settings.sessionsDeviceOn', { browser, os }) : raw.slice(0, 60);
 }
 
 
@@ -90,12 +92,12 @@ export function SessionsView() {
             // think the kick was instant + walk away assuming the
             // other device is locked out RIGHT NOW. Tell the truth.
             const message = isCurrent
-                ? "This will sign you out on this device. You'll need to log back in."
-                : `Sign out the "${_deviceLabel(s.deviceLabel)}" device? It'll be signed out within ~15 seconds (when it next polls the server).`;
+                ? t('settings.sessionsConfirmCurrentBody')
+                : t('settings.sessionsConfirmOtherBody', { device: _deviceLabel(s.deviceLabel) });
             showConfirmModal({
-                title: isCurrent ? 'Sign out here?' : 'Sign out that device?',
+                title: isCurrent ? t('settings.sessionsConfirmCurrentTitle') : t('settings.sessionsConfirmOtherTitle'),
                 message,
-                confirmText: isCurrent ? 'Sign out' : 'Revoke',
+                confirmText: isCurrent ? t('settings.sessionsSignOut') : t('settings.sessionsRevoke'),
                 onConfirm: () => { void (async () => {
                     setBusyId(s.id);
                     const ok = await revokeAuthSession(s.id);
@@ -115,21 +117,17 @@ export function SessionsView() {
         [refresh],
     );
 
-    // i18n note: keys for these strings can be added to the locale
-    // tables once the SessionsView ships — for now we hard-code
-    // English so the panel doesn't gate on a translation pass.
+    // DSGN-009: panel content now routes through the settings.sessions*
+    // locale keys (title reuses settings.cardSessionsTitle).
     return (
         <div className="settings-section">
-            <h2 className="settings-section-title">Active sessions</h2>
-            <p className="settings-section-body">
-                Devices currently signed in to your account.
-                Revoke any you don't recognise.
-            </p>
+            <h2 className="settings-section-title">{t('settings.cardSessionsTitle')}</h2>
+            <p className="settings-section-body">{t('settings.sessionsBody')}</p>
             {sessions === null ? (
-                <p className="text-muted" style={{ padding: '12px' }}>Loading…</p>
+                <p className="text-muted" style={{ padding: '12px' }}>{t('settings.sessionsLoading')}</p>
             ) : sessions.length === 0 ? (
                 <p className="text-muted" style={{ padding: '12px' }}>
-                    No active sessions found.
+                    {t('settings.sessionsNone')}
                 </p>
             ) : (
                 <ul style={{ listStyle: 'none', padding: 0, margin: '12px 0' }}>
@@ -165,7 +163,7 @@ export function SessionsView() {
                                                 letterSpacing: '0.06em',
                                             }}
                                         >
-                                            This device
+                                            {t('settings.sessionsThisDevice')}
                                         </span>
                                     ) : null}
                                 </div>
@@ -176,8 +174,10 @@ export function SessionsView() {
                                         marginTop: '2px',
                                     }}
                                 >
-                                    Last active {_formatRelativeTime(s.lastSeenAt || s.createdAt)} ·
-                                    Signed in {_formatRelativeTime(s.createdAt)}
+                                    {t('settings.sessionsLastActiveSignedIn', {
+                                        last: _formatRelativeTime(s.lastSeenAt || s.createdAt),
+                                        signed: _formatRelativeTime(s.createdAt),
+                                    })}
                                 </div>
                             </div>
                             <button
@@ -197,7 +197,7 @@ export function SessionsView() {
                                 }}
                                 onClick={() => onRevoke(s)}
                             >
-                                {busyId === s.id ? '…' : s.isCurrent ? 'Sign out' : 'Revoke'}
+                                {busyId === s.id ? '…' : s.isCurrent ? t('settings.sessionsSignOut') : t('settings.sessionsRevoke')}
                             </button>
                         </li>
                     ))}
