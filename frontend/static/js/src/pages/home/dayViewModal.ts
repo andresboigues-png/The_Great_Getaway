@@ -48,7 +48,7 @@ export const openDayView = (day: TripDay): void => {
     ];
     const renderParagraph = (text: string | null | undefined) => {
         if (!text || !text.trim()) {
-            return `<p class="dvm-italic-muted">Nothing planned.</p>`;
+            return `<p class="dvm-italic-muted">${t('dayView.nothingPlanned')}</p>`;
         }
         // pre-wrap preserves user's line breaks; esc() defends
         // against XSS.
@@ -65,33 +65,33 @@ export const openDayView = (day: TripDay): void => {
             <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-10);">
                 <div>
                     <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2);">
-                        <div style="background: var(--accent-blue); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase;">Day ${day.dayNumber}</div>
+                        <div style="background: var(--accent-blue); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase;">${t('tripMedia.dayBucketDay', { n: day.dayNumber })}</div>
                         ${day.date ? `<div style="color: var(--text-secondary); font-weight: 600; font-size: var(--font-base);">${formatDayDate(day.date) || ''}</div>` : ''}
-                        <div style="background: rgba(0,0,0,0.06); color: rgba(0,0,0,0.55); padding: 2px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing:0.05em;">View only</div>
+                        <div style="background: rgba(0,0,0,0.06); color: rgba(0,0,0,0.55); padding: 2px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing:0.05em;">${t('dayView.viewOnly')}</div>
                     </div>
-                    <h2 style="font-size: 2.5rem; color: #002d5b; font-weight: 800; letter-spacing: -0.04em; margin: 0;">${esc(day.name || `Day ${day.dayNumber}`)}</h2>
+                    <h2 style="font-size: 2.5rem; color: #002d5b; font-weight: 800; letter-spacing: -0.04em; margin: 0;">${esc(day.name || t('tripMedia.dayBucketDay', { n: day.dayNumber }))}</h2>
                 </div>
                 <button id="closeViewBtn" class="close-x-btn" aria-label="${t('common.close')}">✕</button>
             </div>
             <div class="dvm-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-10);">
                 <div class="flex flex-col gap-6">
                     <div class="subcard-soft">
-                        <h4 class="text-tag">Morning</h4>
+                        <h4 class="text-tag">${t('dayView.morning')}</h4>
                         ${renderParagraph(day.plan?.morning)}
                     </div>
                     <div class="subcard-soft">
-                        <h4 class="text-tag" style="--accent: 255,149,0;">Afternoon</h4>
+                        <h4 class="text-tag" style="--accent: 255,149,0;">${t('dayView.afternoon')}</h4>
                         ${renderParagraph(day.plan?.afternoon)}
                     </div>
                     <div class="subcard-soft">
-                        <h4 class="text-tag" style="--accent: 88,86,214;">Evening</h4>
+                        <h4 class="text-tag" style="--accent: 88,86,214;">${t('dayView.evening')}</h4>
                         ${renderParagraph(day.plan?.evening)}
                     </div>
                 </div>
                 <div class="flex flex-col gap-6">
                     <div style="background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
-                        <h4 class="text-tag">Personal Notes</h4>
-                        ${day.notes ? `<p class="dvm-plan-text">${esc(day.notes)}</p>` : `<p class="dvm-italic-muted">No notes.</p>`}
+                        <h4 class="text-tag">${t('dayView.personalNotes')}</h4>
+                        ${day.notes ? `<p class="dvm-plan-text">${esc(day.notes)}</p>` : `<p class="dvm-italic-muted">${t('dayView.noNotes')}</p>`}
                     </div>
                     <!-- Photos + Documents always render. For Trip
                          Anchor these surface the trip-wide bucket

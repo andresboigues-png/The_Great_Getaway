@@ -18,6 +18,7 @@
 
 export const en = {
     common: {
+        noActiveTrips: 'No Active Trips',
         save: 'Save',
         cancel: 'Cancel',
         delete: 'Delete',
@@ -1631,6 +1632,13 @@ export const en = {
     // to non-planners and on archived trips. Pre-fix every label and
     // empty-state body was hardcoded English in the template literal.
     dayView: {
+        morning: 'Morning',
+        afternoon: 'Afternoon',
+        evening: 'Evening',
+        personalNotes: 'Personal Notes',
+        noNotes: 'No notes.',
+        nothingPlanned: 'Nothing planned.',
+        viewOnly: 'View only',
         photosTripWide: 'Trip-wide photos',
         photos: 'Photos',
         photosEmptyTripWide: 'No trip-wide photos yet — add some from the Photos tab.',
@@ -2094,6 +2102,12 @@ export const en = {
         pdfOptCompanionsBody: 'Roster of travelers',
         pdfOptMarkedPlaces: '⭐ Marked places',
         pdfOptMarkedPlacesBody: 'Saved places + addresses',
+        pdfOptExpenses: 'Expenses',
+        pdfOptExpensesBody: 'Itemised expense list with per-currency subtotals.',
+        pdfOptSettlements: 'Settle up',
+        pdfOptSettlementsBody: 'Who-owes-whom balances and recorded settlements.',
+        pdfOptPhotos: 'Photos',
+        pdfOptPhotosBody: 'Embed your trip and per-day photos.',
         pdfCancelBtn: 'Cancel',
         pdfDownloadBtn: 'Download PDF',
         pdfStatusBuilding: 'Building…',

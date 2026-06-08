@@ -71,16 +71,16 @@ export const openPdfExportModal = (trip: Trip) => {
                     t('modals.pdfOptTodoBody'))}
                 ${renderPdfOption('includeBudgets', t('modals.pdfOptBudgets'),
                     t('modals.pdfOptBudgetsBody'))}
-                ${/* MK4 PDF-2/3/4: new opt-in (default OFF) sections. The
-                      modal labels are English literals because the brief
-                      forbids touching the locale files; the PDF CONTENT is
-                      localised server-side via the active locale we POST. */ ''}
-                ${renderPdfOption('includeExpenses', 'Expenses',
-                    'Itemised expense list with per-currency subtotals.', false)}
-                ${renderPdfOption('includeSettlements', 'Settle up',
-                    'Who-owes-whom balances and recorded settlements.', false)}
-                ${renderPdfOption('includePhotos', 'Photos',
-                    'Embed your trip and per-day photos.', false)}
+                ${/* MK4 PDF-2/3/4: new opt-in (default OFF) sections.
+                      DSGN-013: option labels now localized via t() like every
+                      sibling; the PDF CONTENT is also localised server-side
+                      via the active locale we POST. */ ''}
+                ${renderPdfOption('includeExpenses', t('modals.pdfOptExpenses'),
+                    t('modals.pdfOptExpensesBody'), false)}
+                ${renderPdfOption('includeSettlements', t('modals.pdfOptSettlements'),
+                    t('modals.pdfOptSettlementsBody'), false)}
+                ${renderPdfOption('includePhotos', t('modals.pdfOptPhotos'),
+                    t('modals.pdfOptPhotosBody'), false)}
                 ${renderPdfOption('includeCompanions', t('modals.pdfOptCompanions'),
                     t('modals.pdfOptCompanionsBody'))}
                 ${renderPdfOption('includeMarkedPlaces', t('modals.pdfOptMarkedPlaces'),

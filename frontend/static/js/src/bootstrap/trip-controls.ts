@@ -42,7 +42,7 @@ export function updateTripSelector() {
     if (selectors.length === 0) return;
 
     if (STATE.trips.length === 0) {
-        for (const sel of selectors) sel.innerHTML = '<option value="">No Active Trips</option>';
+        for (const sel of selectors) sel.innerHTML = `<option value="">${esc(t('common.noActiveTrips'))}</option>`;
         for (const btn of completeBtns) btn.style.display = 'none';
         for (const btn of deleteBtns) btn.style.display = 'none';
         return;

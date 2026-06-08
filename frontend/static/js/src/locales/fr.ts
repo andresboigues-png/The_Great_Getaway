@@ -19,6 +19,7 @@ import type { Translations } from './en.js';
 
 export const fr: Translations = {
     common: {
+        noActiveTrips: 'Aucun voyage actif',
         save: 'Enregistrer',
         cancel: 'Annuler',
         delete: 'Supprimer',
@@ -1284,6 +1285,13 @@ export const fr: Translations = {
         },
     },
     dayView: {
+        morning: 'Matin',
+        afternoon: 'Après-midi',
+        evening: 'Soir',
+        personalNotes: 'Notes personnelles',
+        noNotes: 'Aucune note.',
+        nothingPlanned: 'Rien de prévu.',
+        viewOnly: 'Lecture seule',
         photosTripWide: 'Photos du voyage',
         photos: 'Photos',
         photosEmptyTripWide: 'Pas encore de photos du voyage — ajoute-en depuis l\'onglet Photos.',
@@ -1663,6 +1671,12 @@ export const fr: Translations = {
         pdfOptCompanionsBody: 'Liste des voyageurs',
         pdfOptMarkedPlaces: '⭐ Lieux marqués',
         pdfOptMarkedPlacesBody: 'Lieux enregistrés + adresses',
+        pdfOptExpenses: 'Dépenses',
+        pdfOptExpensesBody: 'Liste détaillée des dépenses avec sous-totaux par devise.',
+        pdfOptSettlements: 'Régler les comptes',
+        pdfOptSettlementsBody: 'Soldes qui-doit-quoi et remboursements enregistrés.',
+        pdfOptPhotos: 'Photos',
+        pdfOptPhotosBody: 'Intégrez les photos du voyage et de chaque jour.',
         pdfCancelBtn: 'Annuler',
         pdfDownloadBtn: 'Télécharger le PDF',
         pdfStatusBuilding: 'Construction…',
