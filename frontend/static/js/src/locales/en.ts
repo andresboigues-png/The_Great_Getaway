@@ -1472,6 +1472,24 @@ export const en = {
         commentDeleteConfirmBody: 'This will permanently remove your comment from the thread. This can\'t be undone.',
         commentDeleteConfirmBtn: 'Delete',
     },
+    // DSGN-005/006/025/059: map surface — InfoWindow bubbles + search
+    // dropdown. These render via imperative innerHTML builders, so they
+    // read t() at build time rather than carrying data-i18n bindings.
+    map: {
+        addToTodo: '📋 Add to to-do list',
+        onTodo: '✓ On your to-do list',
+        onTodoPill: 'On your to-do list',
+        viewOnGoogleMaps: 'View on Google Maps →',
+        searchResult: 'Search result',
+        noMatches: 'No matches.',
+        clear: 'Clear',
+        clearSearch: 'Clear search',
+        searchResultsLabel: 'Search results',
+        resultsAnnounce: { one: '{count} result', other: '{count} results' },
+        tripHub: 'Trip Hub',
+        dayLabel: 'Day {n}',
+        placeFallback: 'Place',
+    },
     home: {
         // Pre-trip empty-state hero (welcomeCard.ts buildEmptyStateHtml).
         emptyHeroTitle: "Let's travel.",

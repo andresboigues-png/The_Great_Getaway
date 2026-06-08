@@ -23,7 +23,7 @@
 // dayMarkers.ts.
 
 import { esc } from '../../utils.js';
-import { getIntlLocale } from '../../i18n.js';
+import { getIntlLocale, t } from '../../i18n.js';
 import type { Trip, TripDay, MarkedPlace } from '../../types';
 
 /** Inputs paintTodoMarkers needs from renderHome. */
@@ -109,7 +109,7 @@ export function paintTodoMarkers(ctx: TodoMarkersContext): Record<string, google
      *  to-do reads consistently across both windows. */
     const openTodoInfoWindow = (marker: google.maps.Marker, place: MarkedPlace) => {
         const iw = getIw();
-        const displayName = place.verifiedName || place.name || 'Place';
+        const displayName = place.verifiedName || place.name || t('map.placeFallback');
         // Phase G v3 — photo height tightened (120 → 96) so the
         // whole InfoWindow (chip row + title + photo + address +
         // rating + optional why/fact + CTA) fits inside the IW's
@@ -142,19 +142,19 @@ export function paintTodoMarkers(ctx: TodoMarkersContext): Record<string, google
             : '';
         const assignedDay = place.dayId ? days.find(d => d.id === place.dayId) : null;
         const dayChipHtml = (assignedDay && selectedIsAnchor && assignedDay.dayNumber > 0)
-            ? `<div style="margin-top:10px;"><span style="display:inline-block; padding:3px 10px; border-radius:999px; background:rgba(0,113,227,0.12); color:#005bb8; font-size:0.66rem; font-weight:800; letter-spacing:0.06em; text-transform:uppercase;">Day ${assignedDay.dayNumber}${assignedDay.name ? ` · ${esc(assignedDay.name)}` : ''}</span></div>`
+            ? `<div style="margin-top:10px;"><span style="display:inline-block; padding:3px 10px; border-radius:999px; background:rgba(0,113,227,0.12); color:#005bb8; font-size:0.66rem; font-weight:800; letter-spacing:0.06em; text-transform:uppercase;">${esc(t('map.dayLabel', { n: assignedDay.dayNumber }))}${assignedDay.name ? ` · ${esc(assignedDay.name)}` : ''}</span></div>`
             : '';
         const href = place.mapsUrl
             || (place.placeId ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(place.placeId)}` : '');
         const linkHtml = href
             ? `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer"
-                style="display:block; margin-top:12px; padding:9px 14px; background:linear-gradient(135deg,#9b59b6 0%,#5856d6 100%); color:white; text-decoration:none; border-radius:10px; font-size:0.82rem; font-weight:700; text-align:center; box-shadow:0 3px 10px rgba(155,89,182,0.28);">View on Google Maps →</a>`
+                style="display:block; margin-top:12px; padding:9px 14px; background:linear-gradient(135deg,#9b59b6 0%,#5856d6 100%); color:white; text-decoration:none; border-radius:10px; font-size:0.82rem; font-weight:700; text-align:center; box-shadow:0 3px 10px rgba(155,89,182,0.28);">${esc(t('map.viewOnGoogleMaps'))}</a>`
             : '';
         const html = `
             <div style="font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif; min-width:260px; max-width:300px; padding:8px 10px 4px;">
                 <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
                     <span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:6px; background:rgba(155,89,182,0.14); color:#7c3a9e; font-size:0.85rem;">📋</span>
-                    <span style="display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; background:rgba(155,89,182,0.14); color:#7c3a9e; font-size:0.6rem; font-weight:800; letter-spacing:0.08em; text-transform:uppercase;">On your to-do list</span>
+                    <span style="display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; background:rgba(155,89,182,0.14); color:#7c3a9e; font-size:0.6rem; font-weight:800; letter-spacing:0.08em; text-transform:uppercase;">${esc(t('map.onTodoPill'))}</span>
                 </div>
                 <div style="font-size:0.98rem; font-weight:800; color:#002d5b; line-height:1.25; letter-spacing:-0.01em;">${esc(displayName)}</div>
                 ${photoHtml}
@@ -196,7 +196,7 @@ export function paintTodoMarkers(ctx: TodoMarkersContext): Record<string, google
                 scaledSize: new google.maps.Size(32, 32),
                 anchor: new google.maps.Point(16, 16),
             },
-            title: place.verifiedName || place.name || 'On your to-do list',
+            title: place.verifiedName || place.name || t('map.onTodoPill'),
             // zIndex 50 — above the day-pin (1) and below the
             // numbered-day pin (100), so day pins still draw on top
             // when they overlap (the user usually wants the day

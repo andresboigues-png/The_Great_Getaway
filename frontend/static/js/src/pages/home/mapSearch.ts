@@ -22,6 +22,7 @@
 
 import { POI_CATEGORIES, type PoiCategory } from './poiCategories.js';
 import { esc } from '../../utils.js';
+import { t, tn } from '../../i18n.js';
 import type { Trip } from '../../types';
 
 /** What the map-search wiring needs from home.ts to do its job.
@@ -63,12 +64,17 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
     const searchInput = (document.getElementById('homeMapSearchInput') as HTMLInputElement | null);
     const resultsEl = (document.getElementById('homeMapSearchResults') as HTMLElement | null);
     const clearBtn = (document.getElementById('homeMapSearchClear') as HTMLButtonElement | null);
+    // DSGN-006: polite live region announcing the result count / no-matches.
+    const statusEl = (document.getElementById('homeMapSearchStatus') as HTMLElement | null);
     if (!searchInput || !resultsEl || !clearBtn) return;
     if (typeof google === 'undefined' || !google.maps?.places?.AutocompleteService) return;
 
     const autocomplete = new google.maps.places.AutocompleteService();
     let searchMarker: google.maps.Marker | null = null;
     let typingTimer: ReturnType<typeof setTimeout> | null = null;
+    // DSGN-006: index of the keyboard-highlighted option (-1 = none).
+    let activeIndex = -1;
+    const OPTION_ID_PREFIX = 'homeMapSearchOpt';
 
     /** Pick the best POI category match for a place — used so the
      *  InfoWindow matches the colour/icon of the relevant pill if
@@ -86,6 +92,11 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
     const hideResults = () => {
         resultsEl.style.display = 'none';
         resultsEl.innerHTML = '';
+        // DSGN-006: collapse the combobox + drop any active-option link.
+        activeIndex = -1;
+        searchInput.setAttribute('aria-expanded', 'false');
+        searchInput.removeAttribute('aria-activedescendant');
+        if (statusEl) statusEl.textContent = '';
     };
 
     /** Format a metres count as a compact distance. <1km in metres
@@ -100,13 +111,21 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
     };
 
     const renderPredictions = (preds: google.maps.places.AutocompletePrediction[] | null | undefined) => {
+        // DSGN-006: each (re)render resets the active option + opens the combobox.
+        activeIndex = -1;
+        searchInput.setAttribute('aria-expanded', 'true');
+        searchInput.removeAttribute('aria-activedescendant');
         if (!preds || preds.length === 0) {
             resultsEl.style.display = 'block';
-            resultsEl.innerHTML = `<div style="padding:14px 18px; color:var(--text-secondary); font-size:0.85rem;">No matches.</div>`;
+            // DSGN-059: localized "No matches." (also announced via statusEl).
+            resultsEl.innerHTML = `<div style="padding:14px 18px; color:var(--text-secondary); font-size:0.85rem;">${esc(t('map.noMatches'))}</div>`;
+            if (statusEl) statusEl.textContent = t('map.noMatches');
             return;
         }
         resultsEl.style.display = 'block';
-        resultsEl.innerHTML = preds.slice(0, 6).map((p) => {
+        const shown = preds.slice(0, 6);
+        if (statusEl) statusEl.textContent = tn('map.resultsAnnounce', shown.length);
+        resultsEl.innerHTML = shown.map((p, i) => {
             // distance_meters is populated by the AutocompleteService
             // when the request carried an `origin` (the trip's anchor
             // pin lat/lng, see the request builder below). Falls back
@@ -117,7 +136,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
                 ? `<span style="flex-shrink:0; font-size:0.72rem; color:var(--text-secondary); font-weight:700; margin-left:8px; padding:2px 8px; background:rgba(0,113,227,0.07); border-radius:999px; align-self:center;">${esc(formatDistance(p.distance_meters))}</span>`
                 : '';
             return `
-                <button type="button" class="map-search-row" data-place-id="${esc(p.place_id)}"
+                <button type="button" class="map-search-row" role="option" id="${OPTION_ID_PREFIX}${i}" aria-selected="false" data-place-id="${esc(p.place_id)}"
                     style="width:100%; text-align:left; padding:11px 16px; background:transparent; border:0; border-bottom:1px solid rgba(0,0,0,0.05); display:flex; gap:10px; align-items:flex-start; cursor:pointer;">
                     <span style="font-size:1rem; line-height:1.2; flex-shrink:0;">📍</span>
                     <div style="flex:1; min-width:0;">
@@ -177,7 +196,9 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
             fields: ['place_id', 'name', 'formatted_address', 'vicinity', 'geometry', 'types', 'rating', 'user_ratings_total', 'icon', 'url'],
         }, (place: google.maps.places.PlaceResult | null, status: google.maps.places.PlacesServiceStatus) => {
             if (status !== google.maps.places.PlacesServiceStatus.OK || !place) return;
-            const cat = guessCategory(place.types) || _FALLBACK_CAT;
+            // DSGN-059: localize the fallback label at use-time (the module-level
+            // const can't call t() — locale isn't resolved at import).
+            const cat = guessCategory(place.types) || { ..._FALLBACK_CAT, label: t('map.searchResult') };
             dropMarker(place, cat);
         });
     };
@@ -221,14 +242,58 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
         }, 220);
     });
 
-    resultsEl.addEventListener('click', (e) => {
-        const target = e.target as HTMLElement | null;
-        const row = target?.closest('.map-search-row') as HTMLElement | null;
+    /** Commit a result row: fill the input, close the dropdown, fetch
+     *  geometry + open the marker. Shared by mouse click and Enter key. */
+    const selectRow = (row: HTMLElement | null) => {
         if (!row?.dataset.placeId) return;
         const placeId = row.dataset.placeId;
         searchInput.value = row.querySelector('div')?.textContent?.trim() || searchInput.value;
         hideResults();
         fetchDetails(placeId);
+    };
+
+    resultsEl.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement | null;
+        selectRow(target?.closest('.map-search-row') as HTMLElement | null);
+    });
+
+    /** DSGN-006: move the keyboard highlight across the rendered options,
+     *  wrapping at the ends, and mirror it into aria-activedescendant +
+     *  a visible background so both AT and sighted keyboard users can see
+     *  which result Enter will pick. */
+    const setActiveOption = (nextIndex: number) => {
+        const rows = Array.from(resultsEl.querySelectorAll('.map-search-row')) as HTMLElement[];
+        if (rows.length === 0) return;
+        activeIndex = (nextIndex + rows.length) % rows.length;
+        rows.forEach((r, i) => {
+            const on = i === activeIndex;
+            r.style.background = on ? 'rgba(0,113,227,0.10)' : 'transparent';
+            r.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        const activeEl = rows[activeIndex];
+        if (activeEl) {
+            searchInput.setAttribute('aria-activedescendant', activeEl.id);
+            activeEl.scrollIntoView({ block: 'nearest' });
+        }
+    };
+
+    searchInput.addEventListener('keydown', (e) => {
+        if (resultsEl.style.display === 'none') return;
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setActiveOption(activeIndex + 1);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setActiveOption(activeIndex - 1);
+        } else if (e.key === 'Enter') {
+            const active = resultsEl.querySelector('.map-search-row[aria-selected="true"]') as HTMLElement | null;
+            if (active) {
+                e.preventDefault();
+                selectRow(active);
+            }
+        } else if (e.key === 'Escape') {
+            hideResults();
+        }
     });
 
     clearBtn.addEventListener('click', () => {

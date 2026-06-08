@@ -49,13 +49,23 @@ export function MapSearchBar() {
                     type="text"
                     autoComplete="off"
                     placeholder={t('home.searchMapPlaceholder')}
+                    // DSGN-005: a placeholder is not an accessible name, so give
+                    // the field a persistent aria-label. DSGN-006: expose it as
+                    // an ARIA combobox driving the results listbox below — the
+                    // expanded state + active option are managed in mapSearch.ts.
+                    aria-label={t('home.searchMapPlaceholder')}
+                    role="combobox"
+                    aria-expanded="false"
+                    aria-controls="homeMapSearchResults"
+                    aria-autocomplete="list"
+                    aria-haspopup="listbox"
                     className="flex-1 min-w-0 border-0 outline-0 bg-transparent py-1.5 px-0 text-[0.95rem] text-brand-navy font-semibold"
                 />
                 <button
                     id="homeMapSearchClear"
                     type="button"
-                    title="Clear"
-                    aria-label="Clear search"
+                    title={t('map.clear')}
+                    aria-label={t('map.clearSearch')}
                     className="hidden bg-[rgba(0,0,0,0.05)] border-0 text-[rgba(0,0,0,0.5)] w-6 h-6 rounded-full cursor-pointer text-[0.8rem] leading-none shrink-0"
                 >
                     ✕
@@ -67,8 +77,20 @@ export function MapSearchBar() {
                 mapSearch.ts toggles display + populates innerHTML. */}
             <div
                 id="homeMapSearchResults"
+                // DSGN-006: the live results list is an ARIA listbox; mapSearch.ts
+                // injects role="option" rows + drives aria-activedescendant.
+                role="listbox"
+                aria-label={t('map.searchResultsLabel')}
                 className="hidden absolute top-[calc(100%_+_6px)] left-0 right-0 bg-[var(--surface-glass-light)] backdrop-filter-[blur(22px)_saturate(160%)] [-webkit-backdrop-filter:blur(22px)_saturate(160%)] border border-[rgba(0,0,0,0.08)] rounded-lg shadow-[0_18px_44px_rgba(0,45,91,0.18)] overflow-hidden max-h-[320px] overflow-y-auto"
             ></div>
+            {/* DSGN-006: visually-hidden polite live region so screen readers
+                hear the result count / "No matches." that sighted users see. */}
+            <span
+                id="homeMapSearchStatus"
+                role="status"
+                aria-live="polite"
+                className="absolute w-px h-px -m-px p-0 overflow-hidden whitespace-nowrap border-0 [clip:rect(0,0,0,0)]"
+            ></span>
         </div>
     );
 }

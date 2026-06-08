@@ -43,6 +43,7 @@ import {
 import { canEdit } from '../../permissions.js';
 import { findMarkedPlace, toggleTodoListMembership } from '../../markedPlaces.js';
 import { esc } from '../../utils.js';
+import { t } from '../../i18n.js';
 import {
     POI_CATEGORIES,
     pickPlaceIcon,
@@ -286,7 +287,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                         <div style="display: flex; gap: 6px; margin-top: 10px;">
                             <button type="button" data-action="toggle-todo" data-place-id="${esc(place.place_id)}"
                                 style="flex: 1; padding: 7px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; border: 1.5px solid #9b59b6; background: ${isOnTodo ? '#7c3a9e' : 'white'}; color: ${isOnTodo ? 'white' : '#7c3a9e'};">
-                                ${isOnTodo ? '✓ On your to-do list' : '📋 Add to to-do list'}
+                                ${isOnTodo ? esc(t('map.onTodo')) : esc(t('map.addToTodo'))}
                             </button>
                         </div>
                     `
@@ -300,7 +301,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                     </div>
                     ${safeVicinity ? `<div style="font-size: 0.75rem; color: #666; line-height: 1.4;">${safeVicinity}</div>` : ''}
                     ${ratingHtml}
-                    <a href="${mapsUrl}" target="_blank" rel="noopener" style="display: inline-block; margin-top: 10px; padding: 6px 12px; background: ${cat.color}; color: white; text-decoration: none; border-radius: 8px; font-size: 0.75rem; font-weight: 700;">View on Google Maps →</a>
+                    <a href="${mapsUrl}" target="_blank" rel="noopener" style="display: inline-block; margin-top: 10px; padding: 6px 12px; background: ${cat.color}; color: white; text-decoration: none; border-radius: 8px; font-size: 0.75rem; font-weight: 700;">${esc(t('map.viewOnGoogleMaps'))}</a>
                     ${markBtnsHtml}
                 </div>
             `;

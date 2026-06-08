@@ -23,6 +23,7 @@
 
 import { esc, formatDayDate } from '../../utils.js';
 import { streetViewUrl } from '../../googleMapsServices.js';
+import { t } from '../../i18n.js';
 import type { Trip, TripDay } from '../../types';
 
 /** Inputs `paintDayMarkers` needs from renderHome. The caller owns
@@ -92,8 +93,8 @@ export function paintDayMarkers(ctx: DayMarkersContext): Record<string, google.m
         const url = streetViewUrl({ lat, lng } as { lat: number; lng: number }, { width: 280, height: 160, fov: 90 });
         const isStartingPoint = day.dayNumber === 0;
         const headerLabel = isStartingPoint
-            ? '⭐ Trip Hub'
-            : `Day ${day.dayNumber}`;
+            ? `⭐ ${t('map.tripHub')}`
+            : t('map.dayLabel', { n: day.dayNumber });
         const dayNameHtml = day.name && !isStartingPoint
             ? `<div style="font-size:0.78rem; color:rgba(0,45,91,0.6); margin-top:2px;">${esc(day.name)}</div>`
             : '';
@@ -128,8 +129,8 @@ export function paintDayMarkers(ctx: DayMarkersContext): Record<string, google.m
             map,
             draggable: isEditing,
             title: isStartingPoint
-                ? 'Trip Hub'
-                : `Day ${day.dayNumber}: ${day.name}`,
+                ? t('map.tripHub')
+                : `${t('map.dayLabel', { n: day.dayNumber })}: ${day.name}`,
             label: isStartingPoint
                 ? undefined
                 : {
