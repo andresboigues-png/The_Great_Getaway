@@ -143,8 +143,19 @@ def test_generate_itinerary_502_when_both_models_fail(
     client, seed_user, auth_headers, monkeypatch,
 ):
     """Handler tries gemini-flash-latest then gemini-2.5-flash. Both
-    failing → 502 with last_error. Pin the retry-then-bail sequence
-    so a future single-model regression doesn't silently degrade."""
+    failing on the user's BYO key — with no host pool to fall back to —
+    → 502. Pin the retry-then-bail sequence so a future single-model
+    regression doesn't silently degrade.
+
+    DSGN-008: clear the host pool so this stays a pure BYO-only failure
+    (the BYO→host fallback has its own test below), and assert the new
+    BYO-specific message (must NOT tell a user who already brought a key
+    to 'add your own key')."""
+    # DSGN-008: no host keys → BYO has nothing to fall back to, so the
+    # rotation is exactly [BYO] (2 model calls, no pool walk).
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    for slot in range(2, 7):
+        monkeypatch.delenv(f"GEMINI_API_KEY_{slot}", raising=False)
     call_log = []
 
     def fake_post(url, headers=None, json=None, timeout=None, **kwargs):
@@ -169,16 +180,72 @@ def test_generate_itinerary_502_when_both_models_fail(
     })
     assert res.status_code == 502
     body = res.get_json()
-    # R3-Round 3 fix: user-facing error is now a friendly one-liner
-    # (no Google internal codes). The raw "UNAVAILABLE" / response
-    # text lands in the server log only.
-    assert "AI generation failed" in body["error"]
+    # DSGN-008: BYO-specific message + flag; must not echo Google's raw
+    # codes nor the generic "add your own key" hint (the dead-end bug).
+    assert body.get("byoFailed") is True
+    assert "personal Gemini key" in body["error"]
     assert "UNAVAILABLE" not in body["error"], \
         "Google's raw error status should not appear in user-facing message"
-    # Confirm both models were attempted before bailing.
+    # Confirm both models were attempted on the BYO key before bailing.
     assert len(call_log) == 2
     assert "gemini-flash-latest" in call_log[0]
     assert "gemini-2.5-flash" in call_log[1]
+
+
+def test_generate_itinerary_byo_quota_falls_back_to_host_pool(
+    client, seed_user, auth_headers, monkeypatch,
+):
+    """DSGN-008: a saved BYO Gemini key that's quota-exhausted must fall
+    through to the shared host pool instead of dead-ending. Mock the BYO
+    key (slot 0) to a 429 quota error and a host key (slot 1) to succeed;
+    assert the plan still generates AND the host success is metered
+    against the user's daily cap."""
+    monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_MAPS_SERVER_KEY", raising=False)
+    import routes.integrations as integ
+    # Exactly one host slot available (slot 1 = GEMINI_API_KEY); clear
+    # the rest so the fallback target is deterministic.
+    monkeypatch.setenv("GEMINI_API_KEY", "host-key-1")
+    for slot in range(2, 7):
+        monkeypatch.delenv(f"GEMINI_API_KEY_{slot}", raising=False)
+    integ._exhausted_keys.clear()
+    integ._ai_user_counts.pop(seed_user, None)
+
+    byo_key = "AIzaSy" + "B" * 33
+    fake_itinerary = [{
+        "day": 1, "title": "Fallback day",
+        "morning": {"items": []}, "afternoon": {"items": []},
+        "evening": {"items": []},
+    }]
+    ok_body = {"candidates": [{"content": {"parts": [{"text": json.dumps(fake_itinerary)}]}}]}
+
+    seen = []
+
+    def fake_post(url, headers=None, json=None, timeout=None, **kwargs):
+        seen.append(url)
+        if byo_key in url:
+            # The user's own key is out of quota.
+            return _FakeGeminiResponse(
+                429,
+                json_body={"error": {"status": "RESOURCE_EXHAUSTED", "message": "quota exceeded"}},
+            )
+        # Host pool key succeeds.
+        return _FakeGeminiResponse(200, json_body=ok_body)
+
+    monkeypatch.setattr(integ.requests, "post", fake_post)
+
+    res = client.post("/api/generate_itinerary", headers=auth_headers, json={
+        "destination": "Tokyo", "numDays": 1, "gemini_key": byo_key,
+    })
+    assert res.status_code == 200, res.get_json()
+    body = res.get_json()
+    assert body["status"] == "success"
+    assert len(body["itinerary"]) == 1
+    # BYO tried first, host pool served the fallback.
+    assert any(byo_key in u for u in seen), "BYO key should be tried first"
+    assert any("host-key-1" in u for u in seen), "host pool should serve the fallback"
+    # DSGN-008: the host-pool success is metered against the daily cap.
+    assert integ._ai_count_for_user(seed_user) == 1
 
 
 def test_generate_itinerary_places_verification_enriches_items(

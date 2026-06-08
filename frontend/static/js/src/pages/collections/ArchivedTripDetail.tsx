@@ -88,6 +88,20 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
     const totalPhotos = tripDays.reduce((n, d) => n + (d.photos || []).length, 0) + tripPhotos.length;
     const totalDocs = tripDays.reduce((n, d) => n + (d.tickets || []).length, 0) + tripDocs.length;
 
+    // DSGN-011: ownership gate. This detail view renders for BOTH the
+    // user's own (archived or active) trips AND FOREIGN public trips
+    // opened from the Feed / Footprint map. Restore + the privacy
+    // <select> are owner-only: on a foreign trip restoreTrip /
+    // toggleTripPrivacy no-op (the row isn't in local STATE), yet the
+    // uncontrolled <select> still flips visually — making the viewer
+    // believe they changed someone else's trip's visibility. Clone +
+    // Share stay (legit cross-user actions).
+    const isInArchived = (STATE.archivedTrips ?? []).some((tt) => tt.id === trip.id);
+    const isOwnTrip =
+        isInArchived
+        || (STATE.trips ?? []).some((tt) => tt.id === trip.id)
+        || (!!trip.ownerId && trip.ownerId === STATE.user?.id);
+
     // Hero background — coverUrl → first trip-photo → first day-photo → gradient.
     let firstPhoto: string | null = null;
     if (trip.coverUrl) firstPhoto = trip.coverUrl;
@@ -269,7 +283,9 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                         </svg>
                         {cloning ? t('archivedDetail.cloneStatusCloning') : t('archivedDetail.cloneBtn')}
                     </button>
-                    <button type="button" className="restore-trip-btn" onClick={() => restoreTrip(trip.id)} style={{ background: '#ffffff', color: '#002d5b', padding: '10px 18px', borderRadius: '999px', fontWeight: 800, fontSize: '0.85rem', cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,0,0,0.18)', border: 0 }}>{t('archivedDetail.restoreBtn')}</button>
+                    {isInArchived ? (
+                        <button type="button" className="restore-trip-btn" onClick={() => restoreTrip(trip.id)} style={{ background: '#ffffff', color: '#002d5b', padding: '10px 18px', borderRadius: '999px', fontWeight: 800, fontSize: '0.85rem', cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,0,0,0.18)', border: 0 }}>{t('archivedDetail.restoreBtn')}</button>
+                    ) : null}
                 </div>
 
                 <div style={{ position: 'relative', zIndex: 1, maxWidth: 'calc(100% - 260px)' }}>
@@ -289,6 +305,7 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                     {totalDocs > 0 ? <StatChip icon={<Icon name="document" size={17} />} label={t('archivedDetail.statDocuments')} value={String(totalDocs)} /> : null}
                     {expenses.length > 0 ? <StatChip icon={<Icon name="wallet" size={17} />} label={t('archivedDetail.statSpent')} value={formatHome(totalSpent, 'EUR')} /> : null}
 
+                    {isOwnTrip ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: CHIP_BG, border: CHIP_BORDER, padding: '6px 14px', borderRadius: '999px', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
                         <select
                             className="trip-privacy-select"
@@ -302,6 +319,7 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                             <option value="public-full" className="text-brand-navy">{t('archivedDetail.visibilityPublicAll')}</option>
                         </select>
                     </div>
+                    ) : null}
                 </div>
             </div>
 

@@ -678,20 +678,32 @@ def generate_itinerary():
     _GEMINI_KEY_RE = re.compile(r"^AIzaSy[A-Za-z0-9_-]{33}$")
     keys_to_try: list[tuple[int, str]] = []
     using_byo = bool(user_key and _GEMINI_KEY_RE.match(user_key))
-    if using_byo:
-        keys_to_try.append((0, user_key))  # slot 0 = BYO
-    else:
-        keys_to_try = _available_host_keys()
 
-    # R8-B2: per-user daily cap on host-pool usage. Pre-fix this was
-    # a @limiter.limit() decorator that counted FAILURES + applied
-    # to BYO users. Now: only checked on the host-pool path, only
-    # counts on success (incremented post-response below), with a
-    # friendly 429 message the frontend can surface.
+    # R8-B2: per-user daily cap on host-pool usage. Computed up-front
+    # now (was host-path-only) because DSGN-008's BYO→host fallback
+    # below must also respect it. Counts only successful HOST calls
+    # (incremented post-response), never the user's own BYO key.
     requesting_user_id = current_user_id() or "anon"
-    if not using_byo:
-        used_today = _ai_count_for_user(requesting_user_id)
-        if used_today >= _AI_DAILY_CAP_PER_USER:
+    used_today = _ai_count_for_user(requesting_user_id)
+    under_cap = used_today < _AI_DAILY_CAP_PER_USER
+
+    if using_byo:
+        keys_to_try.append((0, user_key))  # slot 0 = BYO, tried first
+        # DSGN-008: pre-fix a saved BYO key made keys_to_try BYO-ONLY, so
+        # an exhausted / rate-limited / invalid personal key dead-ended
+        # with an "add your own key" hint (which they already followed)
+        # and never reached the shared pool other users get for free.
+        # Append the host pool as a fallback (slots 1+, so no collision
+        # with BYO's slot 0); the existing rotation loop walks BYO → host
+        # automatically on failure. Gated on the daily cap so a failing
+        # BYO key can't grant unlimited host-pool spend.
+        if under_cap:
+            keys_to_try.extend(_available_host_keys())
+    else:
+        # Host-only path: enforce the daily cap up-front (unchanged
+        # behaviour + message + the userCapHit flag the frontend
+        # branches on to show the BYO escape hatch).
+        if not under_cap:
             return jsonify({
                 "error": (
                     f"You've used today's {_AI_DAILY_CAP_PER_USER} AI "
@@ -702,6 +714,7 @@ def generate_itinerary():
                 "host_keys": _pool_status(),
                 "userCapHit": True,
             }), 429
+        keys_to_try = _available_host_keys()
 
     if not keys_to_try:
         return jsonify({
@@ -900,6 +913,25 @@ def generate_itinerary():
             host_status["total"] > 0
             and host_status["available"] == 0
         )
+        if using_byo:
+            # DSGN-008: the user's own key failed AND the host fallback
+            # (if attempted; skipped when they're over the daily cap)
+            # didn't recover. Surface a key-specific message — telling a
+            # BYO user to "add your own key" is the exact dead-end bug.
+            logger.warning(
+                "BYO Gemini failed; host fallback %d/%d avail: %s",
+                host_status["available"], host_status["total"], last_error,
+            )
+            return jsonify({
+                "error": (
+                    "Your personal Gemini key couldn't generate this plan — "
+                    "it may be rate-limited, out of quota, or invalid — and "
+                    "the shared pool is busy too. Check the key in Settings, "
+                    "or try again shortly."
+                ),
+                "host_keys": host_status,
+                "byoFailed": True,
+            }), 502
         # R3-Round 3 fix: don't return Google's raw HTTP error body to
         # the user. The pre-fix message "AI generation failed.
         # Last error: <google's verbose text>" was incomprehensible
@@ -964,10 +996,12 @@ def generate_itinerary():
                 byo=using_byo,
             ),
         )
-        # R8-B2: bump the per-user daily counter ONLY on success +
-        # ONLY when the host pool was used. BYO calls are uncapped
-        # by design (the user is spending their own quota).
-        if not using_byo:
+        # R8-B2 + DSGN-008: bump the per-user daily counter on success
+        # ONLY when a HOST slot (>=1) served the request — which now
+        # includes the BYO→host fallback, so a failing personal key
+        # can't tap the shared pool without limit. Slot 0 (the user's
+        # own key) stays uncapped (they're spending their own quota).
+        if slot != 0:
             _ai_increment_for_user(requesting_user_id)
         # MK2 BUG-2 (defence-in-depth): the model sometimes wraps the plan as
         # {"days": [...]} (see days_count above) or returns a stray non-list.

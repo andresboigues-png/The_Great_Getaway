@@ -25,6 +25,7 @@ import { useStore } from '../../react/store.js';
 import { navigate } from '../../router.js';
 import { formatHome, esc } from '../../utils.js';
 import { STATE, emit } from '../../state.js';
+import { fetchTripMedia } from '../../api.js';
 import { wireRoleButtonKeys } from '../../components/Keyboard.js';
 import { t, tn } from '../../i18n.js';
 import { iconSvg } from '../../icons.js';
@@ -735,9 +736,37 @@ function albumGradient(key: string): string {
  *  photos. Up to 3 tiles; trips without a photo show a gradient tile so
  *  a single-photo album still reads as a stack. Click / Enter / Space
  *  drills into the album. */
+// DSGN-010: album covers come from tripCover(), which needs trip.photos —
+// but /api/data ships the heavy media fields empty and the Collections list
+// never hydrates them (fetchTripMedia only fires for the active/opened
+// trip), so un-opened trips render gradient placeholders even when they're
+// full of photos. We lazily hydrate each album's cover candidates via the
+// existing (media-write-invariant-safe) fetchTripMedia path. Bounded three
+// ways so opening Collections can't fan out an unbounded burst of media
+// GETs: per-album (only enough trips to fill the 3-cover fan), per-session
+// (_COVER_HYDRATION_SESSION_CAP), and deduped (each trip attempted once).
+const _coverHydrationTried = new Set<string>();
+const _COVER_HYDRATION_SESSION_CAP = 30;
+
 function AlbumStack(
     { album, label, groupBy, onOpen }: { album: TripAlbum; label: string; groupBy: GroupBy; onOpen: () => void },
 ) {
+    // DSGN-010: hydrate missing covers for this album, then force a LOCAL
+    // recompute — the parent's `albums` useMemo won't bust on an in-place
+    // media mutation, so a state:changed repaint wouldn't refresh the fan.
+    const [, bumpCovers] = useState(0);
+    useEffect(() => {
+        if (_coverHydrationTried.size >= _COVER_HYDRATION_SESSION_CAP) return;
+        const needHydrate = album.trips
+            .filter((tr) => !tripCover(tr) && !_coverHydrationTried.has(tr.id))
+            .slice(0, 3);
+        if (needHydrate.length === 0) return;
+        let alive = true;
+        for (const tr of needHydrate) _coverHydrationTried.add(tr.id);
+        void Promise.all(needHydrate.map((tr) => fetchTripMedia(tr.id).catch(() => {})))
+            .then(() => { if (alive) bumpCovers((n) => n + 1); });
+        return () => { alive = false; };
+    }, [album]);
     // Group-identity watermark over the stack: a continent silhouette when
     // grouping by continent, the year number when grouping by year.
     const silhouette = groupBy === 'continent' ? CONTINENT_SILHOUETTES[album.key] : undefined;
