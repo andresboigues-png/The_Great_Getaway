@@ -311,6 +311,21 @@ export function runBatchImport(
         mappings = format.mappings;
     }
 
+    // BUG-029: register every Tricount payer from the WHOLE file BEFORE the
+    // per-row loop. The equal-split default below divides 100 over the trip's
+    // CURRENT roster; pre-fix that roster grew row-by-row, so early Tricount
+    // rows (which carry no splits column) were split across fewer people than
+    // later ones — the same "shared by everyone" intent produced order-dependent
+    // settle-up balances. Building the full roster up front makes the split
+    // order-independent. (Splitwise has no payer column, and custom formats
+    // carry an explicit splits column, so neither needs this pre-pass.)
+    if (activeTrip && isPopular && popularFormat === 'tricount') {
+        for (const row of parsedRows) {
+            const payer = String(row[4] || '').trim();
+            if (payer) addTripCompanion(activeTrip, payer);
+        }
+    }
+
     parsedRows.forEach((row, rowIndex) => {
         let who = '', catName = '', label = '', date = '', country = '';
         let value = 0, currency = 'EUR';
@@ -338,7 +353,13 @@ export function runBatchImport(
                 catName = String(row[2] || '').trim();
                 value = parseAmount(row[3]) || 0;
                 currency = String(row[4] || 'EUR').trim().toUpperCase();
-                who = 'Me';
+                // BUG-030: the app's Splitwise column layout
+                // [Date, Description, Category, Cost, Currency] has NO payer
+                // column, so the old `who = 'Me'` fabricated a payer + planted a
+                // literal 'Me' companion, mis-crediting every row. Leave the
+                // payer UNKNOWN — the user assigns it post-import — rather than
+                // inventing one.
+                who = '';
                 country = 'Unknown';
             }
         } else {

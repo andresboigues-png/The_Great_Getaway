@@ -75,17 +75,49 @@ describe('runBatchImport — Tricount (popular)', () => {
         runBatchImport([['Solo', '20', 'EUR', '2026-05-30', 'Alex']], 'popular:tricount');
         expect(STATE.expenses[0]!.splits).toEqual({ Alex: 100 });
     });
+
+    it('BUG-029: equal-split is order-independent — the FIRST row splits across ALL payers in the file', () => {
+        seedTrip([]); // empty roster; every payer is discovered from the file
+        const rows = [
+            ['Dinner', '30', 'EUR', '2026-05-30', 'Alice'],
+            ['Taxi', '15', 'EUR', '2026-05-31', 'Bob'],
+            ['Drinks', '9', 'EUR', '2026-06-01', 'Carol'],
+        ];
+        const res = runBatchImport(rows, 'popular:tricount');
+        expect(res.added).toBe(3);
+
+        // Pre-fix, the roster grew row-by-row, so Alice's (first) expense was
+        // split {Alice:100}, Bob's {Alice:50,Bob:50}, only Carol's across all
+        // three — order-dependent debt for the same "shared by everyone"
+        // intent. The pre-pass registers Alice/Bob/Carol up front, so EVERY
+        // row — including the first — splits equally across all three.
+        const everyone = ['Alice', 'Bob', 'Carol'];
+        for (const exp of STATE.expenses) {
+            expect(Object.keys(exp.splits ?? {}).sort()).toEqual(everyone);
+            expect((exp.splits ?? {})['Alice']).toBeCloseTo(100 / 3, 5);
+        }
+        // The three payers are the complete trip roster — nothing else snuck in.
+        expect(
+            (STATE.trips?.[0]?.companions ?? []).map((c) => c.name).sort(),
+        ).toEqual(everyone);
+    });
 });
 
 describe('runBatchImport — Splitwise (popular)', () => {
-    it('uses "Me" as payer and creates a category from the Category column', () => {
+    it('BUG-030: leaves payer UNKNOWN (no fabricated "Me") + creates a category from the Category column', () => {
         seedTrip([]);
         const rows = [['2026-05-30', 'Taxi', 'Transportation', '20.00', 'EUR']];
         const res = runBatchImport(rows, 'popular:splitwise');
         expect(res.added).toBe(1);
 
         const exp = STATE.expenses[0]!;
-        expect(exp.who).toBe('Me');
+        // BUG-030: the app's Splitwise layout [Date, Description, Category,
+        // Cost, Currency] has NO payer column. The old code fabricated
+        // `who = 'Me'`, which both mis-credited every row to a literal "Me" and
+        // planted a bogus "Me" companion on the trip. The payer must stay
+        // UNKNOWN (the user assigns it post-import).
+        expect(exp.who).toBe('');
+        expect(STATE.trips?.[0]?.companions?.some((c) => c.name === 'Me')).toBe(false);
         expect(exp.label).toBe('Taxi');
         expect(exp.value).toBe(20);
         expect(exp.date).toBe('2026-05-30');
