@@ -175,6 +175,9 @@ export const en = {
         deleteDayTitle: 'Delete Day {n}?',
         deleteDayConfirmBtn: 'Delete Day',
         dayDeletedToast: 'Day deleted',
+        // DSGN-012: day-pin map toasts (place / save the pin).
+        dayPinClickMap: 'Click on the map to set the location for this day!',
+        dayPinSaved: 'Location saved!',
         restoreTripTitle: 'Restore this trip?',
         restoreTripConfirmBtn: 'Restore',
         deleteTripTitle: 'Delete this trip?',

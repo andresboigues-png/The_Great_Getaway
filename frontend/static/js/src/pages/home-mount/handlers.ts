@@ -109,7 +109,7 @@ export const addDayPin = (dayId: string): void => {
     // set so a re-entry doesn't overwrite the previous snapshot.
     _pinEditOriginalCoords = { lat: day.lat, lon: day.lon, lng: day.lng };
     editingDayId = dayId;
-    showLiquidAlert('Click on the map to set the location for this day!');
+    showLiquidAlert(t('errors.dayPinClickMap'));
 
     activeMapClickListener = (e) => {
         day.lat = e.latlng.lat;
@@ -172,7 +172,7 @@ export const saveDayPin = async (dayId: string): Promise<void> => {
     _pinEditOriginalCoords = null;
     emit('state:changed');
     await upsertDay(day);
-    showLiquidAlert('Location saved!');
+    showLiquidAlert(t('errors.dayPinSaved'));
     navigate('home', null, true);
 };
 

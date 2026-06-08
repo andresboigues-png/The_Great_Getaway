@@ -115,11 +115,11 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                     ${p.address ? `<div style="font-size:0.72rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.address)}</div>` : ''}
                 </div>
                 <div style="display:flex; gap:4px; flex-shrink:0;">
-                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="morning" title="${esc(t('dayDetail.shortlistAddToMorning'))}"
+                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="morning" aria-pressed="false" title="${esc(t('dayDetail.shortlistAddToMorning'))}"
                         style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.2); color:var(--accent-blue); padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">${esc(t('dayDetail.shortlistBtnAm'))}</button>
-                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="afternoon" title="${esc(t('dayDetail.shortlistAddToAfternoon'))}"
+                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="afternoon" aria-pressed="false" title="${esc(t('dayDetail.shortlistAddToAfternoon'))}"
                         style="background:rgba(255,149,0,0.08); border:1px solid rgba(255,149,0,0.25); color:#ff9500; padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">${esc(t('dayDetail.shortlistBtnPm'))}</button>
-                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="evening" title="${esc(t('dayDetail.shortlistAddToEvening'))}"
+                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="evening" aria-pressed="false" title="${esc(t('dayDetail.shortlistAddToEvening'))}"
                         style="background:rgba(88,86,214,0.08); border:1px solid rgba(88,86,214,0.25); color:#5856d6; padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">${esc(t('dayDetail.shortlistBtnEve'))}</button>
                 </div>
             </div>
@@ -742,10 +742,24 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             const place = allShortlist.find((p) => p.placeId === pid);
             if (!place || !place.name) return;
             const isThere = (planVals[time] ?? '').includes(place.name.toLowerCase());
-            // Restore the canonical label, then prefix with ✓
-            // if present.
-            const label = time === 'morning' ? '🌅 AM' : time === 'afternoon' ? '☀️ PM' : '🌙 Eve';
+            // DSGN-007: rebuild the canonical label from the LOCALIZED
+            // shortlist-button keys (same ones the initial render uses),
+            // then prefix with ✓ if present. Pre-fix this overwrote the
+            // textContent with hardcoded English '🌅 AM'/'☀️ PM'/'🌙 Eve',
+            // so a fr/es/pt user's button text regressed to English (and
+            // even swapped the emoji vs the initial paint) on first refresh.
+            const label =
+                time === 'morning'
+                    ? t('dayDetail.shortlistBtnAm')
+                    : time === 'afternoon'
+                      ? t('dayDetail.shortlistBtnPm')
+                      : t('dayDetail.shortlistBtnEve');
             btn.textContent = isThere ? `✓ ${label}` : label;
+            // DSGN-007: expose the toggle's pressed state to assistive tech
+            // (these buttons add/remove the place from a time slot). Pre-fix
+            // only the title flipped, which screen readers don't announce as
+            // a state change.
+            btn.setAttribute('aria-pressed', isThere ? 'true' : 'false');
             btn.style.background = isThere
                 ? (time === 'morning' ? 'rgba(0,113,227,0.22)' : time === 'afternoon' ? 'rgba(255,149,0,0.22)' : 'rgba(88,86,214,0.22)')
                 : (time === 'morning' ? 'rgba(0,113,227,0.08)' : time === 'afternoon' ? 'rgba(255,149,0,0.08)' : 'rgba(88,86,214,0.08)');

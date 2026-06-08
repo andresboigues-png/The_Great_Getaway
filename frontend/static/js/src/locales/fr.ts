@@ -132,6 +132,8 @@ export const fr: Translations = {
         deleteDayTitle: 'Supprimer le Jour {n} ?',
         deleteDayConfirmBtn: 'Supprimer le jour',
         dayDeletedToast: 'Jour supprimé',
+        dayPinClickMap: "Cliquez sur la carte pour définir le lieu de ce jour !",
+        dayPinSaved: 'Lieu enregistré !',
         restoreTripTitle: 'Restaurer ce voyage ?',
         restoreTripConfirmBtn: 'Restaurer',
         deleteTripTitle: 'Supprimer ce voyage ?',
