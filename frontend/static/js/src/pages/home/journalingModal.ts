@@ -15,6 +15,7 @@ import { upsertDay } from '../../api.js';
 import { navigate } from '../../router.js';
 import { showModal } from '../../components/Modal.js';
 import { esc, q, showLiquidAlert } from '../../utils.js';
+import { t } from '../../i18n.js';
 
 
 /** Open the day-journaling modal. No-op if dayId doesn't match
@@ -28,12 +29,12 @@ export const openJournalingModal = (dayId: string): void => {
         variant: 'glass-light',
         cardStyle: 'width: 580px;',
         innerHTML: `
-            <h2 style="font-size: var(--font-3xl); margin-bottom: var(--space-2); color: #002d5b; font-weight: 800; letter-spacing: -0.04em;">Day ${day.dayNumber} Journaling</h2>
-            <p class="text-subtitle">Capture your memories and stories from ${esc(day.name)}</p>
-            <textarea id="journalText" class="glass-input-light" style="height: 260px; font-size: 1.05rem; line-height: 1.6; margin-bottom: var(--space-5); resize: vertical; display: block;" placeholder="What happened today? How did you feel?">${esc(day.notes || '')}</textarea>
+            <h2 style="font-size: var(--font-3xl); margin-bottom: var(--space-2); color: #002d5b; font-weight: 800; letter-spacing: -0.04em;">${esc(t('modals.journalTitle', { n: day.dayNumber }))}</h2>
+            <p class="text-subtitle">${esc(t('modals.journalSubtitle', { place: day.name }))}</p>
+            <textarea id="journalText" class="glass-input-light" style="height: 260px; font-size: 1.05rem; line-height: 1.6; margin-bottom: var(--space-5); resize: vertical; display: block;" placeholder="${esc(t('modals.journalPlaceholder'))}">${esc(day.notes || '')}</textarea>
             <div style="display: flex; gap: var(--space-3);">
-                <button id="saveJournalBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Save Story</button>
-                <button id="closeJournalBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Close</button>
+                <button id="saveJournalBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">${esc(t('modals.journalSaveBtn'))}</button>
+                <button id="closeJournalBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">${esc(t('modals.journalCloseBtn'))}</button>
             </div>
         `,
     });
@@ -42,7 +43,7 @@ export const openJournalingModal = (dayId: string): void => {
         day.notes = (q(root, '#journalText') as HTMLTextAreaElement).value;
         emit('state:changed');
         await upsertDay(day);
-        showLiquidAlert('Memories saved!');
+        showLiquidAlert(t('modals.journalSavedToast'));
         close();
         navigate('home', null, true);
     };

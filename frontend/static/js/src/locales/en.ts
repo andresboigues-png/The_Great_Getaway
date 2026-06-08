@@ -2109,6 +2109,13 @@ export const en = {
         addDayConfirmBtn: 'Confirm',
         addDayCancelBtn: 'Cancel',
         addDayErrorServerSave: "Day created locally — server save failed (HTTP {status}). Won't appear on other devices until it syncs — try again or refresh.",
+        // ── Day journaling modal ──
+        journalTitle: 'Day {n} Journaling',
+        journalSubtitle: 'Capture your memories and stories from {place}',
+        journalPlaceholder: 'What happened today? How did you feel?',
+        journalSaveBtn: 'Save Story',
+        journalCloseBtn: 'Close',
+        journalSavedToast: 'Memories saved!',
         // ── Trip invite modal ──
         inviteTitle: 'Trip invitation',
         inviteBody: 'Accept and the trip appears in your active list. Planners can edit; Relaxers can only watch.',

@@ -1676,6 +1676,13 @@ export const pt: Translations = {
         addDayConfirmBtn: 'Confirmar',
         addDayCancelBtn: 'Cancelar',
         addDayErrorServerSave: 'Dia criado localmente — falha ao guardar no servidor (HTTP {status}). Não aparecerá noutros dispositivos até sincronizar — tenta novamente ou recarrega.',
+        // ── Day journaling modal ──
+        journalTitle: 'Diário do dia {n}',
+        journalSubtitle: 'Capture as suas memórias e histórias de {place}',
+        journalPlaceholder: 'O que aconteceu hoje? Como se sentiu?',
+        journalSaveBtn: 'Guardar história',
+        journalCloseBtn: 'Fechar',
+        journalSavedToast: 'Memórias guardadas!',
         inviteTitle: 'Convite de viagem',
         inviteBody: 'Aceita e a viagem aparece na tua lista ativa. Planeadores podem editar; Descansadores só podem ver.',
         inviteAcceptBtn: 'Aceitar',

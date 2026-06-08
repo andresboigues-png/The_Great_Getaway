@@ -39,18 +39,18 @@ export const openNewTripModal = () => {
                 <div id="fromTemplateBlock" hidden style="margin-top:8px;">
                     <p class="form-hint" style="margin-bottom:8px;">${esc(t('modals.tmplPrompt'))}</p>
                     <div style="display:flex;gap:8px;">
-                        <input type="text" id="templateCodeInput" class="glass-input-modal" style="flex:1;text-transform:uppercase;letter-spacing:0.08em;" placeholder="${esc(t('modals.tmplPlaceholder'))}" autocomplete="off">
+                        <input type="text" id="templateCodeInput" aria-label="${esc(t('modals.tmplPlaceholder'))}" class="glass-input-modal" style="flex:1;text-transform:uppercase;letter-spacing:0.08em;" placeholder="${esc(t('modals.tmplPlaceholder'))}" autocomplete="off">
                         <button type="button" id="useTemplateBtn" class="btn-primary">${esc(t('modals.tmplBtn'))}</button>
                     </div>
                 </div>
             </div>
             <form id="newTripForm" class="mdl-col-center">
                 <div class="w-full mb-4">
-                    <label class="form-label">${esc(t('modals.newTripLabelName'))}</label>
+                    <label class="form-label" for="tripName">${esc(t('modals.newTripLabelName'))}</label>
                     <input type="text" id="tripName" class="glass-input-modal" placeholder="${esc(t('modals.newTripPlaceholderName'))}" required>
                 </div>
                 <div class="w-full mb-4 relative">
-                    <label class="form-label">${esc(t('modals.newTripLabelDest'))}</label>
+                    <label class="form-label" for="tripPlaceInput">${esc(t('modals.newTripLabelDest'))}</label>
                     <input type="text" id="tripPlaceInput" class="glass-input-modal" placeholder="${esc(t('modals.newTripPlaceholderDest'))}" autocomplete="off">
                     <p id="tripPlaceHint" class="form-hint">${esc(t('modals.newTripDestHint'))}</p>
                 </div>
@@ -270,11 +270,11 @@ export const openEditTripModal = (trip: Trip) => {
             <h2 class="card-title mdl-title-hero">${esc(t('editTrip.title'))}</h2>
             <form id="editTripForm" class="mdl-col-center">
                 <div class="w-full mb-4">
-                    <label class="form-label">${esc(t('editTrip.adventureName'))}</label>
+                    <label class="form-label" for="editTripName">${esc(t('editTrip.adventureName'))}</label>
                     <input type="text" id="editTripName" class="glass-input-modal" required>
                 </div>
                 <div class="w-full mb-4 relative">
-                    <label class="form-label">${esc(t('editTrip.destination'))}</label>
+                    <label class="form-label" for="editTripPlaceInput">${esc(t('editTrip.destination'))}</label>
                     <input type="text" id="editTripPlaceInput" class="glass-input-modal" placeholder="${esc(t('editTrip.destinationPlaceholder'))}" autocomplete="off">
                     <p id="editTripPlaceHint" class="form-hint">${esc(t('editTrip.destinationHint'))}</p>
                 </div>

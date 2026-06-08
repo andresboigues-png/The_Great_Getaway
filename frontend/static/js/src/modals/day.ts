@@ -53,11 +53,11 @@ export const openAddDayModal = () => {
             </div>
             <form id="addDayForm" style="display: flex; flex-direction: column; width: 100%;">
                 <div class="mb-4">
-                    <label class="form-label text-black/50">${esc(t('modals.addDayLabelWhere'))}</label>
+                    <label class="form-label text-black/50" for="dayName">${esc(t('modals.addDayLabelWhere'))}</label>
                     <input type="text" id="dayName" class="glass-input-modal mdl-btn-dark" value="${esc(t('tripMedia.dayBucketDay', { n: nextDayNumber }))}" placeholder="${esc(t('modals.addDayPlaceholderWhere'))}" required autofocus>
                 </div>
                 <div style="margin-bottom: var(--space-6);">
-                    <label class="form-label text-black/50">${esc(t('modals.addDayLabelDate'))} ${suggestedDate ? esc(t('modals.addDayDateAuto')) : ''}</label>
+                    <label class="form-label text-black/50" for="dayDate">${esc(t('modals.addDayLabelDate'))} ${suggestedDate ? esc(t('modals.addDayDateAuto')) : ''}</label>
                     <input type="date" id="dayDate" class="glass-input-modal mdl-btn-dark" value="${suggestedDate}" required>
                 </div>
                 <div style="display: flex; gap: var(--space-2); width: 100%;">

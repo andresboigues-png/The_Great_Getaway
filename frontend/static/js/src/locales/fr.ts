@@ -1677,6 +1677,13 @@ export const fr: Translations = {
         addDayConfirmBtn: 'Confirmer',
         addDayCancelBtn: 'Annuler',
         addDayErrorServerSave: "Jour créé localement — échec de l'enregistrement sur le serveur (HTTP {status}). N'apparaîtra pas sur les autres appareils avant la synchronisation — réessaie ou rafraîchis.",
+        // ── Day journaling modal ──
+        journalTitle: 'Journal du jour {n}',
+        journalSubtitle: 'Capturez vos souvenirs et anecdotes de {place}',
+        journalPlaceholder: "Que s'est-il passé aujourd'hui ? Comment vous êtes-vous senti ?",
+        journalSaveBtn: "Enregistrer l'histoire",
+        journalCloseBtn: 'Fermer',
+        journalSavedToast: 'Souvenirs enregistrés !',
         inviteTitle: 'Invitation au voyage',
         inviteBody: 'Accepte et le voyage apparaît dans ta liste active. Les Planificateurs peuvent éditer ; les Détendus peuvent seulement regarder.',
         inviteAcceptBtn: 'Accepter',
