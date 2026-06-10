@@ -90,13 +90,29 @@ export function getPhotosForDay(trip: MaybeTrip, dayId: string | null): TripPhot
     return getAllTripPhotos(trip).filter((p) => p.dayId === dayId);
 }
 
+/** BUG-089: refuse unsafe URL schemes (javascript:, data:text/html, …) so
+ *  they never enter trip media. Mirrors the server strip in
+ *  update_trip_media + validators.is_safe_media_url. Allowed: empty,
+ *  same-origin '/'-relative paths, http(s), and data:image/* . */
+function isSafeMediaUrl(value: string): boolean {
+    const v = (value || '').trim();
+    if (!v) return true;
+    if (v.startsWith('/')) return true;
+    const low = v.toLowerCase();
+    return (
+        low.startsWith('http://')
+        || low.startsWith('https://')
+        || low.startsWith('data:image/')
+    );
+}
+
 /** Append a new trip-level document. Returns the appended entry so
  *  callers can use the assigned id for follow-up actions. */
 export function addTripDocument(
     trip: MaybeTrip,
     { name, url, dayId = null }: { name: string; url: string; dayId?: string | null },
 ): TripDocument | null {
-    if (!trip || !name || !url) return null;
+    if (!trip || !name || !url || !isSafeMediaUrl(url)) return null;
     if (!Array.isArray(trip.documents)) trip.documents = [];
     const entry: TripDocument = {
         id: `doc-${generateId()}`,
@@ -114,7 +130,7 @@ export function addTripPhoto(
     trip: MaybeTrip,
     { src, dayId = null }: { src: string; dayId?: string | null },
 ): TripPhoto | null {
-    if (!trip || !src) return null;
+    if (!trip || !src || !isSafeMediaUrl(src)) return null;
     if (!Array.isArray(trip.photos)) trip.photos = [];
     const entry: TripPhoto = {
         id: `photo-${generateId()}`,

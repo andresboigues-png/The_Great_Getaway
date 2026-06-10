@@ -380,6 +380,35 @@ def validate_upload_url(
     )
 
 
+def is_safe_media_url(value) -> bool:
+    """True if `value` is safe to store as a trip photo ``src`` / document
+    ``url`` and render to every trip member. Allows: empty/None, same-origin
+    '/'-relative paths (e.g. /static/uploads/...), http(s), and
+    ``data:image/*`` (inline image data URLs). Rejects ``javascript:``,
+    ``data:text/html``, ``vbscript:``, ``file:`` and any other scheme.
+
+    BUG-089: ``update_trip_media`` previously persisted item URLs verbatim,
+    so a crafted client could plant a stored-XSS / link-abuse scheme into
+    shared trip media that every member renders. Used by the server strip
+    and mirrored client-side in tripMedia.ts.
+    """
+    if value is None:
+        return True
+    if not isinstance(value, str):
+        return False
+    v = value.strip()
+    if not v:
+        return True
+    low = v.lower()
+    if v.startswith("/"):
+        return True
+    if low.startswith("http://") or low.startswith("https://"):
+        return True
+    if low.startswith("data:image/"):
+        return True
+    return False
+
+
 # ── Companions ──────────────────────────────────────────────────────
 #
 # R2 audit fix: the companions array (trip.companions_json) was

@@ -32,11 +32,19 @@ from flask import Blueprint, jsonify
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
-from helpers import ensure_user_exists
+from helpers import ensure_user_exists, user_daily_count, user_daily_increment
 from observability import get_logger, log_extra
 
 
 bp = Blueprint("follows", __name__)
+
+# BUG-079: per-account daily cap on NEW follows. The per-IP limiter
+# (60/min) is shared across everyone behind a NAT and doesn't bound a
+# single account's bell-spam fan-out (each first-ever follow notifies the
+# target). Mirror the per-user gate already used by feed_comment (200/day)
+# and trip_create (50/day). High enough no real user hits it, low enough
+# to defang scripted mass-follow.
+_FOLLOW_DAILY_CAP = 100
 logger = get_logger(__name__)
 
 
@@ -104,6 +112,16 @@ def follow_user(user_id):
         if is_blocked(cursor, user_id, caller_id) or is_blocked(cursor, caller_id, user_id):
             return jsonify({"error": "Not found"}), 404
 
+        # BUG-079: per-account daily follow cap. Counts only NEW first-time
+        # follows (incremented below), so unfollow/refollow toggling and
+        # idempotent re-POSTs don't burn quota — only genuinely-new
+        # notification-generating follows do.
+        if user_daily_count("follow", caller_id) >= _FOLLOW_DAILY_CAP:
+            return jsonify({
+                "error": "You've hit today's follow limit. Try again tomorrow.",
+                "followCapHit": True,
+            }), 429
+
         cursor.execute(
             "INSERT OR IGNORE INTO follows (follower_id, followee_id) VALUES (?, ?)",
             (caller_id, user_id),
@@ -134,6 +152,11 @@ def follow_user(user_id):
                     "VALUES (?, 'followed_you', 'New follower', ?, ?, 0)",
                     (user_id, caller_id, f"{actor_name} started following you."),
                 )
+                # BUG-079: meter this genuinely-new (first-ever, notifying)
+                # follow against the daily cap — after the notification is
+                # queued so a failed insert can't burn quota. In-memory
+                # bucket; no DB write.
+                user_daily_increment("follow", caller_id)
 
         conn.commit()
         counts = follower_counts(cursor, user_id)

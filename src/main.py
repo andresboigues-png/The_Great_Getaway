@@ -1246,6 +1246,14 @@ def components_preview():
     state (rest / hover / focus-visible / disabled where applicable) at
     both desktop width and iPhone-SE width side by side. Useful for
     visual regression checks and iterating on the design tokens."""
+    # BUG-097: dev-only surface. In production this exposed the entire
+    # design-system gallery (every primitive + internal class names) to
+    # anonymous visitors — a recon surface + dead weight on the prod
+    # routing table. 404 outside dev, matching the other _is_dev_env()
+    # guards (JWT-secret / rate-limit).
+    if not _is_dev_env():
+        from flask import abort
+        abort(404)
     return render_template("components.html")
 
 

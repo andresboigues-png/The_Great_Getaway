@@ -33,7 +33,7 @@ from helpers import (
     unlink_companion_user_from_trip,
 )
 from observability import bind_trip_context
-from validators import clean_companions
+from validators import clean_companions, is_safe_media_url
 
 
 bp = Blueprint("trips", __name__)
@@ -726,6 +726,18 @@ def update_trip_media(trip_id):
         value = body[key]
         if not isinstance(value, list):
             return jsonify({"error": f"{key} must be an array"}), 400
+        # BUG-089: photos/documents carry user-supplied URLs (src / url).
+        # Drop any item whose URL uses an unsafe scheme (javascript:,
+        # data:text/html, …) so a crafted client can't persist a stored-XSS
+        # / link-abuse payload into shared trip media that every member
+        # renders. http(s), same-origin paths, and data:image/* are kept;
+        # markedPlaces / checklist carry no URLs and pass through untouched.
+        if key in ("photos", "documents"):
+            url_field = "src" if key == "photos" else "url"
+            value = [
+                it for it in value
+                if not isinstance(it, dict) or is_safe_media_url(it.get(url_field))
+            ]
         payload = json.dumps(value)
         if len(payload.encode("utf-8")) > _MEDIA_FIELD_MAX_BYTES:
             return jsonify({"error": f"{key} payload too large"}), 413

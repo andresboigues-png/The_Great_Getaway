@@ -294,7 +294,7 @@ def sync_data():
         # the owner via the INSERT path.
         for t in trips:
             cursor.execute(
-                "SELECT user_id, is_public, public_show_expenses "
+                "SELECT user_id, is_public, public_show_expenses, is_archived "
                 "FROM trips WHERE id = ?", (t["id"],),
             )
             existing = cursor.fetchone()
@@ -325,6 +325,17 @@ def sync_data():
             countries_json = (
                 json.dumps([c for c in countries_raw if isinstance(c, str)])
                 if isinstance(countries_raw, list) else None
+            )
+            # BUG-098: trips.is_archived is the share/clone gate's source of
+            # truth and is OWNER-ONLY (the dedicated archive route mirrors it
+            # only for the owner). For a non-owner editor, pin the shared
+            # column to the stored value so a crafted /api/sync can't flip the
+            # owner's live-share state; the caller's own archive view still
+            # flows to their trip_members row below.
+            _owner_row = existing is None or existing["user_id"] == user_id
+            _active_is_archived = (
+                (1 if t.get('is_archived') else 0) if _owner_row
+                else (1 if existing["is_archived"] else 0)
             )
             cursor.execute('''
                 INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
@@ -377,7 +388,7 @@ def sync_data():
                     -- gate, blind-overwriting the sync-delivered state.
                     updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
             ''', (t['id'], user_id, t['name'], t['country'],
-                  1 if t.get('is_archived') else 0,
+                  _active_is_archived,
                   1 if t.get('isPublic') else 0,
                   1 if t.get('publicShowExpenses') else 0,
                   t.get('placeId'),
@@ -432,7 +443,7 @@ def sync_data():
         archived_trips = data.get("archived_trips", [])
         for t in archived_trips:
             cursor.execute(
-                "SELECT user_id, is_public, public_show_expenses "
+                "SELECT user_id, is_public, public_show_expenses, is_archived "
                 "FROM trips WHERE id = ?", (t["id"],),
             )
             existing = cursor.fetchone()
@@ -452,6 +463,13 @@ def sync_data():
                 json.dumps([c for c in arch_countries_raw if isinstance(c, str)])
                 if isinstance(arch_countries_raw, list) else None
             )
+            # BUG-098: same owner-only gate as the active loop. A non-owner
+            # planner must not force the shared trips.is_archived column (the
+            # share/clone gate's source of truth) to 1 by putting the trip in
+            # their archived_trips payload. Owner (or a brand-new row) archives
+            # normally; a non-owner leaves the stored value untouched.
+            _arch_owner_row = existing is None or existing["user_id"] == user_id
+            _arch_is_archived = 1 if _arch_owner_row else (1 if existing["is_archived"] else 0)
             cursor.execute('''
                 INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
                                    public_show_expenses,
@@ -459,11 +477,11 @@ def sync_data():
                                    trip_countries_json,
                                    companions_json, marked_places_json,
                                    documents_json, photos_json, cover_url)
-                VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
                     country=excluded.country,
-                    is_archived=1,
+                    is_archived=excluded.is_archived,
                     is_public=excluded.is_public,
                     public_show_expenses=excluded.public_show_expenses,
                     place_id=excluded.place_id,
@@ -493,6 +511,7 @@ def sync_data():
                     -- R4-B1: see active-trips block above for rationale.
                     updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
             ''', (t['id'], user_id, t['name'], t['country'],
+                  _arch_is_archived,
                   1 if t.get('isPublic') else 0,
                   1 if t.get('publicShowExpenses') else 0,
                   t.get('placeId'),
