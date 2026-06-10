@@ -431,6 +431,7 @@ export const fr: Translations = {
         ratesImportHint: 'Importez un .csv ou .xlsx : la première colonne est la devise, la première ligne les années. Ou téléchargez un modèle à modifier dans Excel.',
         ratesDownloadTemplate: 'Télécharger le modèle',
         ratesImportError: 'Impossible de lire ce fichier : vérifiez qu’il a une colonne Devise et des en-têtes d’année.',
+        ratesImportNoApplicable: 'Aucune ligne applicable : la devise locale n’a pas de taux de change à définir.',
         ratesImportedN: {
             one: '{count} valeur importée : vérifiez, puis Enregistrez.',
             other: '{count} valeurs importées : vérifiez, puis Enregistrez.',

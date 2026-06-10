@@ -430,6 +430,7 @@ export const pt: Translations = {
         ratesImportHint: 'Importa um .csv ou .xlsx: a primeira coluna é a moeda e a linha de cima os anos. Ou descarrega um modelo para editar no Excel.',
         ratesDownloadTemplate: 'Descarregar modelo',
         ratesImportError: 'Não foi possível ler esse ficheiro: verifica se tem uma coluna Moeda e cabeçalhos de ano.',
+        ratesImportNoApplicable: 'Sem linhas aplicáveis: a moeda base não tem taxa de câmbio para definir.',
         ratesImportedN: {
             one: '{count} valor importado: revê e guarda.',
             other: '{count} valores importados: revê e guarda.',

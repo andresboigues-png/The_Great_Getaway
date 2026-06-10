@@ -51,13 +51,26 @@ describe('computeAutoRate — FX', () => {
         expect(r).toBeCloseTo(0.7, 6);
     });
 
-    it('converts the frozen euroValue into a non-EUR home before dividing', () => {
+    it('converts the frozen euroValue into a non-EUR home before dividing (current year)', () => {
         // home = GBP. euroValue 115 EUR → 100 GBP; implied = 100 / 200 = 0.5.
+        // Current year only: today's EUR→home rate is the correct one to apply.
+        const yr = new Date().getFullYear();
+        const expenses: AutoRateExpense[] = [
+            { value: 200, currency: 'USD', date: `${yr}-06-15`, euroValue: 115 },
+        ];
+        const r = computeAutoRate('fx', 'USD', yr, expenses, undefined, 'GBP', convertFn);
+        expect(r).toBeCloseTo(0.5, 6);
+    });
+
+    it('BUG-082: returns null for a non-EUR home + PAST year (no epoch-blended suggestion)', () => {
+        // home = GBP, past year: dividing the frozen euroValue by TODAY's
+        // EUR→GBP rate blends two epochs, so no auto-suggestion is offered.
         const expenses: AutoRateExpense[] = [
             { value: 200, currency: 'USD', date: '2021-06-15', euroValue: 115 },
         ];
-        const r = computeAutoRate('fx', 'USD', 2021, expenses, undefined, 'GBP', convertFn);
-        expect(r).toBeCloseTo(0.5, 6);
+        expect(
+            computeAutoRate('fx', 'USD', 2021, expenses, undefined, 'GBP', convertFn),
+        ).toBeNull();
     });
 
     it('falls back to today\'s live rate (convertFn) when there are no expenses that year', () => {

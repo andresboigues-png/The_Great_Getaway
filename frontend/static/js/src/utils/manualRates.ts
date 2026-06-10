@@ -177,6 +177,13 @@ export function computeAutoRate(
 
     // FX. Home currency's rate is always 1 → nothing to pin.
     if (cur === homeCur) return null;
+    // BUG-082: for a NON-EUR home the implied rate below converts the frozen
+    // at-the-time euroValue with convertFn — which only knows TODAY's EUR→home
+    // rate — so a PAST-year suggestion blends two epochs (off by the home
+    // currency's drift vs EUR since that year). Only auto-suggest FX for the
+    // current year on a non-EUR home; past years stay blank for the user to
+    // fill. (EUR home needs no conversion, so it stays exact for all years.)
+    if (homeCur !== 'EUR' && Number(yr) < currentYear) return null;
 
     // Prefer the rate the user actually PAID that year: median of the implied
     // (homeValue / value) across their expenses in this currency+year.

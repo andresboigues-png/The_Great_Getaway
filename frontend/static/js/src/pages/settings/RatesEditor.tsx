@@ -134,6 +134,9 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
     const [autoFilledCount, setAutoFilledCount] = useState<number | null>(null);
     const [importedCount, setImportedCount] = useState<number | null>(null);
     const [importError, setImportError] = useState(false);
+    // BUG-094: "parsed fine but nothing applicable" (e.g. an FX file whose only
+    // rows are the home currency) is NOT a read error — distinct neutral state.
+    const [importNotice, setImportNotice] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Read the persisted value for one field of a currency+year (this mode).
@@ -522,6 +525,7 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
         e.target.value = '';
         if (!file) return;
         setImportError(false);
+        setImportNotice(false);
         setImportedCount(null);
         setSavedFlash(false);
         const reader = new FileReader();
@@ -540,7 +544,12 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                 const cells = parseRatesGrid(aoa, mode);
                 const applied = applyParsedCells(cells);
                 if (applied === 0) {
-                    setImportError(true);
+                    // BUG-094: a file that parsed into cells but applied none
+                    // (e.g. FX mode where every row is the home currency, which
+                    // has no rate to itself) is well-formed, not unreadable —
+                    // show a neutral notice, not the red read error.
+                    if (cells.length > 0) setImportNotice(true);
+                    else setImportError(true);
                     return;
                 }
                 setImportedCount(applied);
@@ -673,6 +682,10 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                 ) : importError ? (
                     <span className="text-[0.82rem] font-bold" style={{ color: '#ff3b30' }}>
                         {t('settings.ratesImportError')}
+                    </span>
+                ) : importNotice ? (
+                    <span className="text-secondary text-[0.82rem]">
+                        {t('settings.ratesImportNoApplicable')}
                     </span>
                 ) : (
                     <span className="text-secondary text-[0.78rem]">{t('settings.ratesImportHint')}</span>

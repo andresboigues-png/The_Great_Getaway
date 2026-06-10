@@ -426,6 +426,7 @@ export const es: Translations = {
         ratesImportHint: 'Importa un .csv o .xlsx: la primera columna es la moneda y la fila superior, los años. O descarga una plantilla para editar en Excel.',
         ratesDownloadTemplate: 'Descargar plantilla',
         ratesImportError: 'No se pudo leer ese archivo: comprueba que tenga una columna Moneda y encabezados de año.',
+        ratesImportNoApplicable: 'Sin filas aplicables: la moneda local no tiene tipo de cambio que ajustar.',
         ratesImportedN: {
             one: '{count} valor importado: revísalo y guarda.',
             other: '{count} valores importados: revísalos y guarda.',

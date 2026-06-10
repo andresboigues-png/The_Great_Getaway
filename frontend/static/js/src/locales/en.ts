@@ -528,6 +528,7 @@ export const en = {
         ratesImportHint: 'Import a .csv or .xlsx — first column the currency, top row the years. Or download a template to edit in Excel.',
         ratesDownloadTemplate: 'Download template',
         ratesImportError: "Couldn't read that file — check it has a Currency column and year headers.",
+        ratesImportNoApplicable: 'No applicable rows — the home currency has no exchange rate to set.',
         ratesImportedN: {
             one: 'Imported {count} value — review, then Save.',
             other: 'Imported {count} values — review, then Save.',
