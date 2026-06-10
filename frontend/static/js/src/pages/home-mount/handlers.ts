@@ -116,6 +116,10 @@ export const addDayPin = (dayId: string): void => {
         day.lon = e.latlng.lng;
         day.lng = e.latlng.lng;
         activeMapClickListener = null;
+        // BUG-084: persist the dropped coords locally now (saveDayPin remains
+        // the server commit). Pre-fix this only mutated in-memory + navigated,
+        // so navigating away before "Save pin" silently lost the placement.
+        emit('state:changed');
         navigate('home', null, true);
     };
 
@@ -242,7 +246,11 @@ export function ensureDayZero(activeTrip: Trip | null | undefined): void {
         !hasDay0 &&
         !flagSet &&
         typeof activeTrip.lat === 'number' &&
-        typeof activeTrip.lng === 'number'
+        typeof activeTrip.lng === 'number' &&
+        // BUG-103: (0,0) is the Maps-unavailable country-select fallback's
+        // "no coordinates" sentinel (Gulf of Guinea). Don't pin the Trip Hub
+        // anchor there — skip creation until the trip has real coordinates.
+        !(activeTrip.lat === 0 && activeTrip.lng === 0)
     ) {
         const day0 = {
             id: generateId(),

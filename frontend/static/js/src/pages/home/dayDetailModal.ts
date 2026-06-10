@@ -37,6 +37,21 @@ import { openDayView } from './dayViewModal.js';
 import { iconSvg } from '../../icons.js';
 
 
+/** BUG-083: a shortlisted place is "in" a plan slot ONLY when its canonical
+ *  appended line — "- {name}" — is present as a WHOLE line (trimmed,
+ *  case-insensitive), NOT when the bare name appears as a substring anywhere.
+ *  Pre-fix a short name ('Bar') matched any line that merely contained it
+ *  ('Barcelona Cathedral'), lighting the ✓ and — on toggle-off — splicing
+ *  that unrelated user-written line. Returns the matching line index, or -1. */
+function _shortlistLineIndex(text: string, name: string): number {
+    const want = `- ${name.trim().toLowerCase()}`;
+    const bare = name.trim().toLowerCase();
+    return (text || '').split('\n').findIndex((l) => {
+        const tl = l.trim().toLowerCase();
+        return tl === want || tl === bare;
+    });
+}
+
 /** What home tabs a Anchor quick-link can navigate to. Matches
  *  the activeHomeTab union in home.ts. */
 export type HomeTab = 'days' | 'companions' | 'documents' | 'photos';
@@ -741,7 +756,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             if (!pid || !time) return;
             const place = allShortlist.find((p) => p.placeId === pid);
             if (!place || !place.name) return;
-            const isThere = (planVals[time] ?? '').includes(place.name.toLowerCase());
+            const isThere = _shortlistLineIndex(planVals[time] ?? '', place.name) >= 0;
             // DSGN-007: rebuild the canonical label from the LOCALIZED
             // shortlist-button keys (same ones the initial render uses),
             // then prefix with ✓ if present. Pre-fix this overwrote the
@@ -862,19 +877,16 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         if (!place || !place.name) return;
         const ta = (root.querySelector(`textarea.plan-input[data-time="${time}"]`) as HTMLTextAreaElement | null);
         if (!ta) return;
-        const needle = place.name.toLowerCase();
-        const isThere = ta.value.toLowerCase().includes(needle);
+        // BUG-083: match the EXACT canonical "- {name}" line, not a bare
+        // substring of the name.
+        const matchIdx = _shortlistLineIndex(ta.value, place.name);
+        const isThere = matchIdx >= 0;
         if (isThere) {
-            // Remove mode — strip the FIRST line containing the
-            // place name. Splitting on '\n' so we work line-by-
-            // line; case-insensitive match so user edits don't
-            // trap the line. Filter is once-only (find index,
-            // splice) to preserve duplicates the user may have
-            // intentionally kept (rare, but safer than .filter
-            // which removes all).
+            // Remove mode — strip the canonical "- {name}" line. Whole-line
+            // match means a short name can't splice an unrelated line the
+            // user wrote. Splice once to preserve any intentional duplicates.
             const lines = ta.value.split('\n');
-            const idx = lines.findIndex(l => l.toLowerCase().includes(needle));
-            if (idx >= 0) lines.splice(idx, 1);
+            lines.splice(matchIdx, 1);
             // Collapse leading/trailing empties + any blank-line
             // gap the splice left behind, but keep meaningful
             // blank lines between sentences if the user added
