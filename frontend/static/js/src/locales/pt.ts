@@ -466,6 +466,8 @@ export const pt: Translations = {
     },
     profile: {
         logOut: 'Terminar sessão',
+        follow: 'Seguir',
+        following: 'A seguir',
         setStatus: 'Definir estado…',
         addBio: 'Adiciona uma biografia…',
         // R11-B4 i18n: lista pendente do estado de viagem.

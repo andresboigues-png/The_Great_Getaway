@@ -714,7 +714,7 @@ function ProfileInfoSection({
                             void logout();
                         }}
                     >
-                        Log Out
+                        {t('profile.logOut')}
                     </button>
                 ) : targetUserId ? (
                     <div className="flex items-center gap-2">

@@ -462,6 +462,8 @@ export const es: Translations = {
     },
     profile: {
         logOut: 'Cerrar sesión',
+        follow: 'Seguir',
+        following: 'Siguiendo',
         setStatus: 'Define un estado…',
         addBio: 'Añade una biografía…',
         // R11-B4 i18n: dropdown de estado de viaje.

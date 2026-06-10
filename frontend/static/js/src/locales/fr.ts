@@ -467,6 +467,8 @@ export const fr: Translations = {
     },
     profile: {
         logOut: 'Se déconnecter',
+        follow: 'Suivre',
+        following: 'Abonné',
         setStatus: 'Définir un statut…',
         addBio: 'Ajoute une bio…',
         // R11-B4 i18n: liste déroulante du statut de voyage.

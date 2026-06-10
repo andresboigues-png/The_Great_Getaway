@@ -82,7 +82,7 @@ export function FollowButton({ targetUserId, initialIsFollowing, onFollowersChan
                 transition: 'background 120ms ease, color 120ms ease',
             }}
         >
-            {isFollowing ? 'Following' : 'Follow'}
+            {isFollowing ? t('profile.following') : t('profile.follow')}
         </button>
     );
 }

@@ -568,6 +568,8 @@ export const en = {
     },
     profile: {
         logOut: 'Log Out',
+        follow: 'Follow',
+        following: 'Following',
         setStatus: 'Set status…',
         addBio: 'Add a bio…',
         // R11-B4 i18n: travel-status dropdown. The `value=` strings stay
