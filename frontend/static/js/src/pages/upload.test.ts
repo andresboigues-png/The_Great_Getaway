@@ -233,6 +233,42 @@ describe('runBatchImport — EU decimal-comma amounts (EXP-3)', () => {
     });
 });
 
+describe('runBatchImport — 2-digit year dates (BUG-077)', () => {
+    it('expands a DD/MM/YY date instead of dropping it to undated', () => {
+        seedTrip(['Alex']);
+        // Tricount row: [Title, Amount, Currency, Date, Paid-by]. Pre-fix
+        // '12/10/23' had no 4-digit year token so it imported date='' (Global).
+        runBatchImport([['Dinner', '20', 'EUR', '12/10/23', 'Alex']], 'popular:tricount');
+        // EU day-first: 12 = day, 10 = month, 23 → 2023.
+        expect(STATE.expenses[0]!.date).toBe('2023-10-12');
+    });
+
+    it('disambiguates day from month when a token is > 12', () => {
+        seedTrip(['Alex']);
+        runBatchImport([['Hotel', '50', 'EUR', '25/12/24', 'Alex']], 'popular:tricount');
+        expect(STATE.expenses[0]!.date).toBe('2024-12-25');
+    });
+
+    it('applies the 00-69 / 70-99 century pivot', () => {
+        seedTrip(['Alex']);
+        runBatchImport(
+            [
+                ['A', '5', 'EUR', '1-6-95', 'Alex'],
+                ['B', '5', 'EUR', '1-6-05', 'Alex'],
+            ],
+            'popular:tricount',
+        );
+        expect(STATE.expenses[0]!.date).toBe('1995-06-01');
+        expect(STATE.expenses[1]!.date).toBe('2005-06-01');
+    });
+
+    it('still parses a 4-digit-year date unchanged', () => {
+        seedTrip(['Alex']);
+        runBatchImport([['C', '5', 'EUR', '2026-05-30', 'Alex']], 'popular:tricount');
+        expect(STATE.expenses[0]!.date).toBe('2026-05-30');
+    });
+});
+
 describe('runBatchImport — split percentage bounds (EXP-5)', () => {
     it('drops negative and >100 split shares, keeping valid ones', () => {
         seedTrip([]);

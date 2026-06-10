@@ -228,9 +228,29 @@ function parseCellDate(cell: unknown): string {
     //    token is the year (the 4-digit one).
     const parts = raw.split(/[/\-.]/).map(p => p.trim()).filter(Boolean);
     if (parts.length === 3) {
-        const yIdx = parts.findIndex(p => /^\d{4}$/.test(p));
-        if (yIdx === -1) return '';  // No 4-digit year, can't disambiguate.
-        const year = parts[yIdx];
+        let yIdx = parts.findIndex(p => /^\d{4}$/.test(p));
+        let twoDigitYear = false;
+        if (yIdx === -1) {
+            // BUG-077: no 4-digit year token. Spreadsheet exports commonly
+            // write a 2-digit year ('12/10/23', '5-3-24'); pre-fix every such
+            // row imported undated ('Global'), silently losing the timeline.
+            // When all three tokens are 1-2 digit numbers, treat the LAST as a
+            // 2-digit year (the dominant DD/MM/YY & MM/DD/YY layouts) instead
+            // of dropping the date. (Year-first 2-digit YY/MM/DD is rare and
+            // not worth the extra ambiguity.)
+            if (parts.every(p => /^\d{1,2}$/.test(p))) {
+                yIdx = 2;
+                twoDigitYear = true;
+            } else {
+                return '';  // Not a recognisable date — can't disambiguate.
+            }
+        }
+        let year = parts[yIdx]!;
+        if (twoDigitYear) {
+            // Standard strptime %y pivot: 00-69 → 2000-2069, 70-99 → 1970-1999.
+            const yy = Number(year);
+            year = String(yy <= 69 ? 2000 + yy : 1900 + yy);
+        }
         const others = parts.filter((_, i) => i !== yIdx).map(Number);
         if (others.some(n => isNaN(n))) return '';
         // If first token is the year (YYYY-MM-DD), order is month, day.

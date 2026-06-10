@@ -94,7 +94,17 @@ export function BatchUpload() {
                 const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                 if (json.length < 2) return;
                 const header = json[0];
-                const rows = json.slice(1).filter((r: unknown[]) => r.length > 0 && r[0]);
+                // BUG-076: keep any row with at least one non-empty cell —
+                // NOT just rows whose FIRST cell is truthy. The meaningful
+                // column depends on the format/mapping (a custom format may
+                // map its required fields to columns B+, or a Tricount row may
+                // have a blank Title), so a first-cell filter silently dropped
+                // valid rows before runBatchImport's own per-row validation +
+                // skipped[] reporting could account for them. Let the importer
+                // decide what's unusable so nothing vanishes unreported.
+                const rows = json
+                    .slice(1)
+                    .filter((r: unknown[]) => Array.isArray(r) && r.some((cell) => cell !== '' && cell != null));
                 setParsed({ header, rows });
                 setStatus(null);
             } catch (err) {
