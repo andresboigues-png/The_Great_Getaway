@@ -23,7 +23,7 @@ import {
 } from './helpers.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Trip, Budget, Category } from '../../types';
-import { t, tn } from '../../i18n.js';
+import { t, tn, formatCurrency } from '../../i18n.js';
 
 export function Budgets() {
     const trips = useStore((s) => s.trips);
@@ -80,7 +80,17 @@ export function Budgets() {
     const tripsInBudgets = [
         ...new Set(allBudgets.map((b: Budget) => b.tripId).filter((id) => id && id !== 'all')),
     ] as string[];
-    const showTripChips = tripsInBudgets.length > 1;
+    // BUG-071: the filter lazy-inits to the active trip, but the chip strip
+    // (incl. the "All trips" reset chip) used to render ONLY when >1 TRIP
+    // carried budgets — and tripsInBudgets excludes the account-wide ('all')
+    // scope. So a user with one trip budget + one account-wide budget saw
+    // just the trip budget with no chip to clear the auto filter, hiding the
+    // account-wide budget irrecoverably. Count 'all' as its own scope and
+    // show the strip whenever ≥2 distinct scopes exist, so the reset chip is
+    // always reachable (and stays put after clearing).
+    const hasAccountWideBudget = allBudgets.some((b: Budget) => b.tripId === 'all');
+    const showTripChips =
+        tripsInBudgets.length + (hasAccountWideBudget ? 1 : 0) > 1;
 
     return (
         <div>
@@ -351,7 +361,15 @@ export function Budgets() {
                                         >
                                             {t('budgets.cardTarget', { amount: formatHome(b.amount, 'EUR') })}
                                             {b.originalCurrency && b.originalCurrency !== 'EUR'
-                                                ? t('budgets.cardTargetWasSuffix', { original: formatHome(b.originalAmount || 0, b.originalCurrency) })
+                                                ? t('budgets.cardTargetWasSuffix', {
+                                                      // BUG-070: render the user-typed amount in ITS OWN
+                                                      // currency. formatHome converted it to the home
+                                                      // currency + symbol, so the "was" badge showed a
+                                                      // duplicated/converted home figure (and a no-rate
+                                                      // currency's raw number under the € symbol) instead
+                                                      // of the "$100" the user actually typed.
+                                                      original: formatCurrency(b.originalAmount || 0, b.originalCurrency),
+                                                  })
                                                 : ''}
                                         </div>
                                     </div>
