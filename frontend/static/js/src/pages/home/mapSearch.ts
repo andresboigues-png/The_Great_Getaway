@@ -203,6 +203,9 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
         });
     };
 
+    // BUG-088: monotonic request id so a slow earlier prediction response
+    // can't overwrite a newer one (stale-render guard, checked in the callback).
+    let searchSeq = 0;
     searchInput.addEventListener('input', () => {
         const q = searchInput.value.trim();
         clearBtn.style.display = q ? 'inline-flex' : 'none';
@@ -212,6 +215,9 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
         // keystroke is wasteful and noisy visually as predictions
         // fight to render.
         typingTimer = setTimeout(() => {
+            // BUG-088: stamp this request so the callback can drop a stale
+            // (out-of-order) response that resolves after a newer keystroke.
+            const seq = ++searchSeq;
             // Bias predictions toward the current viewport so
             // "lisbon" while looking at Berlin doesn't surface
             // unrelated Lisbons; falls back to global if no map
@@ -229,6 +235,9 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
                 req.origin = { lat: activeTrip.lat, lng: activeTrip.lng };
             }
             autocomplete.getPlacePredictions(req, (preds: google.maps.places.AutocompletePrediction[] | null, status: google.maps.places.PlacesServiceStatus) => {
+                // BUG-088: ignore a stale response — a newer request was issued
+                // after this one, or the input has since moved on from `q`.
+                if (seq !== searchSeq || searchInput.value.trim() !== q) return;
                 if (status !== google.maps.places.PlacesServiceStatus.OK) {
                     if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
                         renderPredictions([]);

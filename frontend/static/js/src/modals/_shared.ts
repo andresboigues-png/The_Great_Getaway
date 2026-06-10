@@ -105,8 +105,14 @@ export function _scaffoldTripDays(
     const end = new Date(endDate + 'T00:00:00Z');
     if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return created;
 
+    // BUG-102: cap day generation at the server's hard limit (upsert_day
+    // rejects dayNumber > 999). Pre-fix an extreme date range (several years)
+    // scaffolded thousands of days locally; days 1000+ then silently 400'd
+    // server-side, leaving local STATE diverged from the server plus a POST
+    // storm. Stop at 999 so what we keep locally is exactly what persists.
+    const MAX_DAY_NUMBER = 999;
     let dayNumber = startDayNumber;
-    for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    for (let d = new Date(start); d <= end && dayNumber <= MAX_DAY_NUMBER; d.setUTCDate(d.getUTCDate() + 1)) {
         const iso = d.toISOString().split('T')[0] ?? '';
         /** @type {import('../types').TripDay} */
         const day = {
