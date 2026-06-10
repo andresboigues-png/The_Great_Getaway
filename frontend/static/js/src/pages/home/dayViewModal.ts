@@ -54,6 +54,11 @@ export const openDayView = (day: TripDay): void => {
         // against XSS.
         return `<p class="dvm-plan-text">${esc(text)}</p>`;
     };
+    // DSGN-054: the anchor (day 0) is the Trip Hub, not a calendar day — mirror
+    // the editable modal's gold "⭐ Trip Hub" chip + title in this read-only
+    // view instead of a blue "Day 0" badge, so the same entity reads the same
+    // for viewers and editors.
+    const isAnchor = Number(day.dayNumber) === 0;
     const { root, close } = showModal({
         cardClass: 'card glass day-view-modal',
         // 2026-05-25 (audit): width was a hard-coded 800px which
@@ -65,11 +70,13 @@ export const openDayView = (day: TripDay): void => {
             <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-10);">
                 <div>
                     <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2);">
-                        <div style="background: var(--accent-blue); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase;">${t('tripMedia.dayBucketDay', { n: day.dayNumber })}</div>
+                        ${isAnchor
+                            ? `<div style="background: var(--gradient-anchor-deep); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.06em;">${esc(t('dayDetail.headerChipAnchor'))}</div>`
+                            : `<div style="background: var(--accent-blue); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase;">${esc(t('tripMedia.dayBucketDay', { n: day.dayNumber }))}</div>`}
                         ${day.date ? `<div style="color: var(--text-secondary); font-weight: 600; font-size: var(--font-base);">${formatDayDate(day.date) || ''}</div>` : ''}
                         <div style="background: rgba(0,0,0,0.06); color: rgba(0,0,0,0.55); padding: 2px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing:0.05em;">${t('dayView.viewOnly')}</div>
                     </div>
-                    <h2 style="font-size: 2.5rem; color: #002d5b; font-weight: 800; letter-spacing: -0.04em; margin: 0;">${esc(day.name || t('tripMedia.dayBucketDay', { n: day.dayNumber }))}</h2>
+                    <h2 style="font-size: 2.5rem; color: #002d5b; font-weight: 800; letter-spacing: -0.04em; margin: 0;">${esc(isAnchor ? t('dayDetail.titleAnchor') : (day.name || t('tripMedia.dayBucketDay', { n: day.dayNumber })))}</h2>
                 </div>
                 <button id="closeViewBtn" class="close-x-btn" aria-label="${t('common.close')}">✕</button>
             </div>

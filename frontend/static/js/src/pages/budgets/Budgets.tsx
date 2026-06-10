@@ -69,7 +69,11 @@ export function Budgets() {
     const overallTier =
         totalAllocated === 0
             ? 'ok'
-            : totalSpent > totalAllocated
+            : totalSpent >= totalAllocated
+              // DSGN-030: match the per-card budgetStatus '>=' threshold (B5)
+              // so spend that exactly hits the ceiling reads "over" on BOTH
+              // the card and the Overall, not "over" on one and "near" on the
+              // other.
               ? 'over'
               : overallPct > 80
                 ? 'near'

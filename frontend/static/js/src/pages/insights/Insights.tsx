@@ -1242,7 +1242,8 @@ export function Insights() {
                         <span
                             className="text-accent-blue font-bold text-[1.1rem]"
                         >
-                            {totalDisplay > 0 ? targetSym + formatNumberForCurrency(topSpenderAmount, targetCurr) : '0'}
+                            {/* DSGN-053: format the zero case as e.g. €0.00 too — not a bare '0' — so it matches every other money figure on the page. */}
+                            {targetSym + formatNumberForCurrency(topSpenderAmount, targetCurr)}
                         </span>
                     </div>
                     <div
