@@ -129,3 +129,26 @@ def test_sync_non_owner_cannot_flip_trip_archived(
     )
     assert res3.status_code == 200
     assert _trip_is_archived(trip_id) == 1, "owner archive via /api/sync should still work"
+
+
+# ── BUG-096 ────────────────────────────────────────────────────────────────
+def test_sync_skips_malformed_rows_without_500(client, auth_headers):
+    """BUG-096: a bulk /api/sync entry missing id/tripId (or that isn't even a
+    dict) must be skipped, not raise a subscript KeyError → uncaught 500 —
+    mirroring the partial-sync silent-skip contract the loops already use."""
+    # Expense row with no id.
+    r1 = client.post("/api/sync", headers=auth_headers,
+                     json={"expenses": [{"value": 5, "currency": "EUR", "tripId": "t1"}]})
+    assert r1.status_code == 200, r1.get_data(as_text=True)
+    # Trip-day row with no id.
+    r2 = client.post("/api/sync", headers=auth_headers,
+                     json={"trip_days": [{"tripId": "t1", "name": "Day"}]})
+    assert r2.status_code == 200, r2.get_data(as_text=True)
+    # Expense row with no tripId.
+    r3 = client.post("/api/sync", headers=auth_headers,
+                     json={"expenses": [{"id": "e-x", "value": 5, "currency": "EUR"}]})
+    assert r3.status_code == 200, r3.get_data(as_text=True)
+    # Non-dict entries in the arrays are skipped, not crashed.
+    r4 = client.post("/api/sync", headers=auth_headers,
+                     json={"expenses": ["not-a-dict", None], "trip_days": [42]})
+    assert r4.status_code == 200, r4.get_data(as_text=True)

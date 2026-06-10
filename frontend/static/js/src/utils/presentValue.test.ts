@@ -87,6 +87,24 @@ describe('makeInflationFactor', () => {
         expect(f('1850-01-01')).toBe(1);
         expect(f('2050-01-01')).toBe(1);
     });
+
+    it('BUG-099: never returns a non-finite factor from a corrupt CPI series', () => {
+        // A non-finite index that survives upstream (e.g. a half-flushed cache)
+        // must not leak NaN/Infinity into the Insights total — fall back to 1.
+        const corruptLatest = makeInflationFactor(
+            { 2020: 100, 2024: Infinity } as unknown as Record<number, number>,
+            2024,
+        );
+        expect(Number.isFinite(corruptLatest('2020-06-01'))).toBe(true);
+        const corruptInterior = makeInflationFactor(
+            { 2018: 100, 2020: NaN, 2024: 130 } as unknown as Record<number, number>,
+            2024,
+        );
+        // Interior NaN self-heals (walk-down / `v || latest`); assert finiteness.
+        for (const yr of ['2018-01-01', '2019-01-01', '2020-01-01', '2024-01-01']) {
+            expect(Number.isFinite(corruptInterior(yr))).toBe(true);
+        }
+    });
 });
 
 describe('makePresentValueCalc — Spent (at-trip) leg', () => {

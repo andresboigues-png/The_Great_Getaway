@@ -83,7 +83,11 @@ export function makeInflationFactor(
         const base = valForYear(y);
         const f = base ? todayVal / base : 1;
         // PV-S6: clamp out redenomination / rebasing artifacts.
-        return Math.min(MAX_INFLATION_FACTOR, Math.max(0, f));
+        // BUG-099: final non-finite guard — if a corrupt CPI index (NaN /
+        // Infinity surviving upstream) makes `f` non-finite, fall back to 1
+        // (no adjustment) rather than leak a NaN factor that poisons the
+        // Insights headline total + donut.
+        return Number.isFinite(f) ? Math.min(MAX_INFLATION_FACTOR, Math.max(0, f)) : 1;
     };
 }
 

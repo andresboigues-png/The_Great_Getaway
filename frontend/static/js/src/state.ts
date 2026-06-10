@@ -186,6 +186,36 @@ export function loadState() {
             if (Object.keys(byYear).length === 0) delete all[cur];
         }
     }
+    // BUG-099: cpiCache / rateCache feed the SAME Insights inflation/FX calc
+    // (makeInflationFactor / convertCurrency) as the maps healed above, but
+    // validateLoadedState never inspects them and loadState never healed them.
+    // A corrupt / half-flushed / hand-edited localStorage value (a null/NaN CPI
+    // index in a non-latest year, or a non-finite cached rate) flowed straight
+    // into the calc and could surface as NaN totals. Drop any non-finite /
+    // non-positive entry on boot, mirroring the override + manual-rate heals.
+    if (!STATE.cpiCache || typeof STATE.cpiCache !== 'object') {
+        STATE.cpiCache = {};
+    } else {
+        const all = STATE.cpiCache as Record<string, Record<string, unknown>>;
+        for (const cur of Object.keys(all)) {
+            const byYear = all[cur];
+            if (!byYear || typeof byYear !== 'object') { delete all[cur]; continue; }
+            for (const yr of Object.keys(byYear)) {
+                const v = byYear[yr];
+                if (!Number.isFinite(v) || (v as number) <= 0) delete byYear[yr];
+            }
+            if (Object.keys(byYear).length === 0) delete all[cur];
+        }
+    }
+    if (!STATE.rateCache || typeof STATE.rateCache !== 'object') {
+        STATE.rateCache = {};
+    } else {
+        const all = STATE.rateCache as Record<string, unknown>;
+        for (const k of Object.keys(all)) {
+            const v = all[k];
+            if (!Number.isFinite(v) || (v as number) <= 0) delete all[k];
+        }
+    }
     if (!STATE.preferences) STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'], poiFilters: {}, pillEpicenters: {}, poiAnchoring: {}, poiVisible: {}, enabledPois: {} };
     if (!Array.isArray(STATE.preferences.mapDefaultPois)) {
         STATE.preferences.mapDefaultPois = ['sights', 'parks', 'transit'];

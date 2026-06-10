@@ -560,6 +560,11 @@ def sync_data():
             # existing trip_id, gate on THAT for UPDATEs.
             if 'expenses' in t:
                 for e in t['expenses']:
+                    # BUG-096: skip a malformed bundled expense (missing id)
+                    # rather than subscript KeyError → 500; tripId comes from
+                    # the parent trip here, so only the id is required.
+                    if not isinstance(e, dict) or not e.get('id'):
+                        continue
                     existing = cursor.execute(
                         "SELECT trip_id FROM expenses WHERE id = ?", (e['id'],),
                     ).fetchone()
@@ -647,6 +652,11 @@ def sync_data():
         # first and use IT for the permission check on updates; new
         # inserts gate on the claimed trip as before.
         for e in expenses:
+            # BUG-096: skip a malformed bulk row (missing id/tripId) instead of
+            # subscript KeyError → uncaught 500. Mirrors the partial-sync
+            # silent-skip contract the loop already uses for permission gaps.
+            if not isinstance(e, dict) or not e.get('id') or not e.get('tripId'):
+                continue
             existing = cursor.execute(
                 "SELECT trip_id, value, currency, euro_value FROM expenses WHERE id = ?",
                 (e['id'],),
@@ -812,6 +822,10 @@ def sync_data():
         # Sync Trip Days
         trip_days = data.get("trip_days", [])
         for d in trip_days:
+            # BUG-096: skip a malformed bulk row (missing id/tripId) instead of
+            # subscript KeyError → uncaught 500 (mirrors the expense loop).
+            if not isinstance(d, dict) or not d.get('id') or not d.get('tripId'):
+                continue
             # SEC (Audit MK5 P1 — IDOR): authorize EVERY day write. The trips
             # loop above gates on editable_trip_ids, but pre-fix this loop wrote
             # any (id, tripId) verbatim — a caller could inject or overwrite
