@@ -8,6 +8,7 @@
 // No state of its own; it's a pure presentational component.
 
 import type { ExploreFeedItem } from '../../api.js';
+import { t } from '../../i18n.js';
 import { Avatar } from '../../react/components/Avatar.js';
 
 
@@ -51,7 +52,7 @@ export function ExploreCard({ item }: { item: ExploreFeedItem }) {
                     <span
                         className="text-[0.8rem] text-secondary font-semibold"
                     >
-                        by {item.owner.firstName || 'Traveller'}
+                        {t('feed.exploreCardBy', { name: item.owner.firstName || t('feed.exploreCardTraveller') })}
                     </span>
                 </div>
             </div>

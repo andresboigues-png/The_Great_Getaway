@@ -186,22 +186,33 @@ export function bundleEvents(events: FeedEvent[]) {
 export function bundleLine(bundle: { actor: Actor; members: FeedEvent[]; type: string }) {
     const who = `<strong style="color:#002d5b;">${esc(bundle.actor.name)}</strong>`;
     const n = bundle.members.length;
-    const noun = n === 1 ? 'trip' : 'trips';
     switch (bundle.type) {
         case 'friend_created_trip':
-            return `${who} started planning <strong style="color:#002d5b;">${n} new ${noun}</strong>`;
+            return n === 1
+                ? t('feed.bundleCreatedTrip1', { who })
+                : t('feed.bundleCreatedTripN', { who, n: String(n) });
         case 'friend_archived_trip':
-            return `${who} just completed <strong style="color:#002d5b;">${n} ${noun}</strong> 🎉`;
+            return n === 1
+                ? t('feed.bundleArchivedTrip1', { who })
+                : t('feed.bundleArchivedTripN', { who, n: String(n) });
         case 'friend_joined_trip':
-            return `${who} joined <strong style="color:#002d5b;">${n} ${noun}</strong>`;
+            return n === 1
+                ? t('feed.bundleJoinedTrip1', { who })
+                : t('feed.bundleJoinedTripN', { who, n: String(n) });
         case 'new_friendship':
-            return `You and <strong style="color:#002d5b;">${n} new people</strong> are now friends 🤝`;
+            return n === 1
+                ? t('feed.bundleNewFriend1')
+                : t('feed.bundleNewFriendN', { n: String(n) });
         case 'achievement_unlocked':
-            return `${who} unlocked <strong style="color:#002d5b;">${n} new badges</strong> 🏅`;
+            return n === 1
+                ? t('feed.bundleAchievement1', { who })
+                : t('feed.bundleAchievementN', { who, n: String(n) });
         case 'settled_up':
-            return `${who} settled up <strong style="color:#002d5b;">${n} times</strong> 🤝`;
+            return n === 1
+                ? t('feed.bundleSettledUp1', { who })
+                : t('feed.bundleSettledUpN', { who, n: String(n) });
         default:
-            return `${who} did ${n} new things`;
+            return t('feed.bundleDefault', { who, n: String(n) });
     }
 }
 
@@ -326,9 +337,9 @@ export function eventLine(ev: FeedEvent) {
         case 'achievement_unlocked': {
             const badgeLabel = ev.badge?.label
                 ? `<strong style="color:#002d5b;">${esc(ev.badge.label)}</strong>`
-                : 'a new badge';
+                : t('feed.verbABadge');
             const emoji = ev.badge?.emoji ? ` ${esc(ev.badge.emoji)}` : '';
-            return `${who} unlocked ${badgeLabel}${emoji}`;
+            return t('feed.evAchievementUnlocked', { who, badge: badgeLabel, emoji });
         }
         case 'settled_up': {
             // Settled-up events are visible only to the two parties
@@ -350,8 +361,9 @@ export function eventLine(ev: FeedEvent) {
             const recipientIsSelf = !!meId && ev.recipient?.id === meId;
             const otherName = recipientIsSelf
                 ? esc(t('feed.verbYou'))
-                : esc(ev.recipient?.name || 'someone');
-            return `${who} settled up with <strong style="color:#002d5b;">${otherName}</strong> on ${tripName || 'a trip'} 🤝`;
+                : esc(ev.recipient?.name || t('feed.verbSomeone'));
+            const other = `<strong style="color:#002d5b;">${otherName}</strong>`;
+            return t('feed.evSettledUp', { who, other, trip: tripName || t('feed.verbATrip') });
         }
         default:
             return t('feed.evDefault', { who });
@@ -438,7 +450,7 @@ export function actionsRow(ev: FeedEvent) {
         className: 'feed-bookmark-btn',
         accent: bookmarked ? ACTION_ACCENTS.bookmark : ACTION_ACCENTS.muted,
         dataAttrs: `data-event-id="${esc(ev.id)}" data-bookmarked="${bookmarked ? '1' : '0'}"`,
-        title: bookmarked ? 'Remove bookmark' : 'Bookmark',
+        title: bookmarked ? t('feed.btnRemoveBookmark') : t('feed.btnBookmark'),
         svg: actionIconSvg('bookmark', bookmarked),
         marginLeftAuto: true,
     });
@@ -460,7 +472,7 @@ export function actionsRow(ev: FeedEvent) {
         className: 'feed-like-btn',
         accent: liked ? ACTION_ACCENTS.like : ACTION_ACCENTS.muted,
         dataAttrs: `data-event-id="${esc(ev.id)}" data-liked="${liked ? '1' : '0'}"`,
-        title: liked ? 'Unlike' : 'Like',
+        title: liked ? t('feed.btnUnlike') : t('feed.btnLike'),
         svg: actionIconSvg('heart', liked),
         count: likeCount,
         countThreshold: LIKE_COUNT_THRESHOLD,
@@ -469,7 +481,7 @@ export function actionsRow(ev: FeedEvent) {
         className: 'feed-comment-btn',
         accent: ACTION_ACCENTS.comment,
         dataAttrs: `data-event-id="${esc(ev.id)}"`,
-        title: 'Comments',
+        title: t('feed.btnComments'),
         svg: actionIconSvg('comment'),
         count: commentCount,
     });
@@ -478,7 +490,7 @@ export function actionsRow(ev: FeedEvent) {
               className: 'feed-repost-btn',
               accent: ACTION_ACCENTS.muted,
               dataAttrs: `data-post-id="${ev.post_id}"`,
-              title: 'Repost to your friends',
+              title: t('feed.btnRepost'),
               svg: actionIconSvg('repost'),
           })
         : '';

@@ -120,8 +120,8 @@ export function EventCard(props: EventCardProps) {
                     <button
                         type="button"
                         className="feed-unshare-btn bg-transparent border-0 text-[rgba(255,59,48,0.55)] cursor-pointer py-0.5 px-1.5 text-[0.85rem] font-extrabold shrink-0 leading-none"
-                        title="Unshare — removes from your friends' feeds"
-                        aria-label="Unshare"
+                        title={t('feed.btnUnshareTitle')}
+                        aria-label={t('feed.btnUnshare')}
                         onClick={() => onUnshare(ev.post_id!)}
                     >
                         ✕
@@ -206,21 +206,21 @@ export function EventCard(props: EventCardProps) {
                             active={liked}
                             count={likeCount}
                             showCountThreshold={LIKE_COUNT_THRESHOLD}
-                            title={liked ? 'Unlike' : 'Like'}
+                            title={liked ? t('feed.btnUnlike') : t('feed.btnLike')}
                             onClick={(btn) => onLike(ev.id, btn)}
                         />
                         <ActionButton
                             kind="comment"
                             active={false}
                             count={commentCount}
-                            title="Comments"
+                            title={t('feed.btnComments')}
                             onClick={() => onToggleComment(ev.id)}
                         />
                         {canRepost && ev.post_id ? (
                             <ActionButton
                                 kind="repost"
                                 active={false}
-                                title="Repost to your friends"
+                                title={t('feed.btnRepost')}
                                 onClick={(btn) => onRepost(ev.post_id!, btn)}
                             />
                         ) : null}
@@ -229,7 +229,7 @@ export function EventCard(props: EventCardProps) {
                 <ActionButton
                     kind="bookmark"
                     active={bookmarked}
-                    title={bookmarked ? 'Remove bookmark' : 'Bookmark'}
+                    title={bookmarked ? t('feed.btnRemoveBookmark') : t('feed.btnBookmark')}
                     marginLeftAuto
                     onClick={(btn) => onBookmark(ev.id, !bookmarked, btn)}
                 />

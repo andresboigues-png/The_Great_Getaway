@@ -130,8 +130,8 @@ export function BundleCard({ bundle, isExpanded, onToggleExpand, onBookmark }: B
                                 }}
                                 data-event-id={m.id}
                                 data-bookmarked={bookmarked ? '1' : '0'}
-                                title={bookmarked ? 'Remove bookmark' : 'Bookmark'}
-                                aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark'}
+                                title={bookmarked ? t('feed.btnRemoveBookmark') : t('feed.btnBookmark')}
+                                aria-label={bookmarked ? t('feed.btnRemoveBookmark') : t('feed.btnBookmark')}
                                 onClick={(e) =>
                                     onBookmark(m.id, !bookmarked, e.currentTarget)
                                 }

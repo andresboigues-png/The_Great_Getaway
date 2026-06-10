@@ -13,6 +13,7 @@
 import type { ExploreFeedItem } from '../../api.js';
 import { buildEmptyCardHtml } from '../../utils.js';
 import { countryCodeToFlag } from '../../utils/place-names.js';
+import { t } from '../../i18n.js';
 import { ExploreCard } from './ExploreCard.js';
 import { ExploreCountryChip } from './ExploreCountryChip.js';
 
@@ -46,7 +47,7 @@ export function ExploreSection({ explore, exploreCountry, onPickExploreCountry }
                 <div
                     className="text-secondary text-[0.88rem] font-semibold"
                 >
-                    Finding trips to discover…
+                    {t('feed.exploreLoading')}
                 </div>
             </div>
         );
@@ -58,8 +59,8 @@ export function ExploreSection({ explore, exploreCountry, onPickExploreCountry }
                     __html: buildEmptyCardHtml({
                         accent: 'blue',
                         emoji: '🌍',
-                        title: 'No public trips yet',
-                        body: 'Be the first — share one of your own to seed the Explore feed for everyone.',
+                        title: t('feed.exploreEmptyTitle'),
+                        body: t('feed.exploreEmptyBody'),
                     }),
                 }}
             />
@@ -103,7 +104,7 @@ export function ExploreSection({ explore, exploreCountry, onPickExploreCountry }
                 <div
                     className="explore-country-chips"
                     role="tablist"
-                    aria-label="Filter Explore by country"
+                    aria-label={t('feed.exploreFilterAria')}
                     style={{
                         display: 'flex',
                         gap: 8,
@@ -113,7 +114,7 @@ export function ExploreSection({ explore, exploreCountry, onPickExploreCountry }
                     }}
                 >
                     <ExploreCountryChip
-                        label="All"
+                        label={t('feed.exploreFilterAll')}
                         count={explore.length}
                         isSelected={exploreCountry === null}
                         onClick={() => onPickExploreCountry(null)}
@@ -143,19 +144,19 @@ export function ExploreSection({ explore, exploreCountry, onPickExploreCountry }
                     <div
                         className="font-extrabold text-primary mb-1"
                     >
-                        No trips here yet
+                        {t('feed.exploreCountryEmptyTitle')}
                     </div>
                     <div
                         className="text-[0.85rem] text-secondary mb-3"
                     >
-                        No public trips in this country right now — try another or browse all.
+                        {t('feed.exploreCountryEmptyBody')}
                     </div>
                     <button
                         type="button"
                         onClick={() => onPickExploreCountry(null)}
                         className="py-2 px-[18px] rounded-full bg-accent-blue text-white font-bold text-[0.85rem] border-0 cursor-pointer"
                     >
-                        Show all countries
+                        {t('feed.exploreShowAll')}
                     </button>
                 </div>
             ) : (
