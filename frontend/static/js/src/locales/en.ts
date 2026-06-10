@@ -1524,6 +1524,7 @@ export const en = {
         emptyHeroCta: 'Create Trips',
         // Per-trip greetings (welcomeCard.ts pickGreeting).
         greetingDefault: 'Welcome back, traveler',
+        greetingFallbackName: 'traveler',
         greetingNamed: 'Welcome back, {name}!',
         greetingTripName: 'Ready for your {trip} adventure?',
         greetingCountryStart: 'Your {country} adventure starts here.',

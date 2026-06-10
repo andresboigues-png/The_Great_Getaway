@@ -67,7 +67,10 @@ export function pickGreeting(activeTrip: Trip | null | undefined, isFresh: boole
     //      "USA - California" → "California",
     //      "8950 Castro Marim, Portugal" → "Castro Marim".
     const displayCountry = shortPlaceName(activeTrip.country);
-    const firstName = (STATE.user && STATE.user.firstName) ? STATE.user.firstName : 'traveler';
+    // BUG-080: the server only ever sends `name` (never firstName), so this
+    // always fell back to 'traveler'. Derive the first name from `name` like
+    // the rest of the app (modals/trip.ts), with a localized fallback word.
+    const firstName = STATE.user?.name?.split(' ')[0]?.trim() || t('home.greetingFallbackName');
     // i18n session 1: each greeting localized via t() with placeholder
     // interpolation. Random pick still picks one of four templates.
     const greetings = [

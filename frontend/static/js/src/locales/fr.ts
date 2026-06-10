@@ -1205,6 +1205,7 @@ export const fr: Translations = {
         emptyHeroBody: 'Ta prochaine grande aventure t\'attend. Crée un voyage pour commencer à suivre tes dépenses et planifier tes journées.',
         emptyHeroCta: 'Créer un voyage',
         greetingDefault: 'Bon retour, voyageur',
+        greetingFallbackName: 'voyageur',
         greetingNamed: 'Bon retour, {name} !',
         greetingTripName: 'Prêt pour ton aventure {trip} ?',
         greetingCountryStart: 'Ton aventure {country} commence ici.',

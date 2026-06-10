@@ -47,7 +47,7 @@ import {
     setSelectedDay,
 } from '../home/pathSelection.js';
 import { paintWeatherChips, loadAndPaintWeather, type WeatherForecast } from '../home/weather.js';
-import { canEdit, canManageRoster, ROLE_PLANNER, ROLE_BUDGETEER } from '../../permissions.js';
+import { canEdit, canManageRoster, getMyRole, ROLE_PLANNER, ROLE_BUDGETEER } from '../../permissions.js';
 import { findTripCompanionByLinkedUser } from '../../companions.js';
 import {
     addDayPin,
@@ -645,12 +645,25 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                         </button>
                     ) : null}
                     {!tripIsEditable ? (
-                        <span
-                            className="trip-role-badge trip-role-badge--relaxer"
-                            title={t('companions.relaxerBadgeTitle')}
-                        >
-                            👁 {t('companions.roleRelaxer')}
-                        </span>
+                        // BUG-073: show the viewer's ACTUAL role. canEdit is
+                        // planner-only, so BOTH relaxers and budgeteers land
+                        // here — the old hardcoded "👁 Relaxer" badge
+                        // mislabelled budgeteers, who can in fact edit expenses.
+                        getMyRole(activeTrip) === ROLE_BUDGETEER ? (
+                            <span
+                                className="trip-role-badge trip-role-badge--relaxer"
+                                title={t('companions.roleBudgeteer')}
+                            >
+                                💰 {t('companions.roleBudgeteer')}
+                            </span>
+                        ) : (
+                            <span
+                                className="trip-role-badge trip-role-badge--relaxer"
+                                title={t('companions.relaxerBadgeTitle')}
+                            >
+                                👁 {t('companions.roleRelaxer')}
+                            </span>
+                        )
                     ) : null}
                 </div>
                 <p

@@ -357,7 +357,10 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             stats.append((str(len(marked_places)), tr("stat_places")))
         # Expenses + budgets totals if available
         if trip_row.get("total_spend_eur") is not None:
-            stats.append((f"€{tr.num(int(trip_row['total_spend_eur']), 0)}", tr("stat_spend")))
+            # BUG-092: pass the float straight to tr.num(..., 0) — it already
+            # rounds-to-nearest. The old int() cast truncated first, so €842.90
+            # showed as €842 (always under-stating by up to ~€1).
+            stats.append((f"€{tr.num(trip_row['total_spend_eur'], 0)}", tr("stat_spend")))
         if stats:
             story.append(_summary_stats_row(rl, styles, stats, page_w, margin_lr))
             story.append(rl.Spacer(1, 0.7 * rl.cm))

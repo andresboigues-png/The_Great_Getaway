@@ -1204,6 +1204,7 @@ export const pt: Translations = {
         emptyHeroBody: 'A tua próxima grande aventura está à espera. Cria uma viagem para começar a registar despesas e a planear dias.',
         emptyHeroCta: 'Criar viagens',
         greetingDefault: 'Bem-vindo de volta, viajante',
+        greetingFallbackName: 'viajante',
         greetingNamed: 'Bem-vindo de volta, {name}!',
         greetingTripName: 'Pronto para a aventura em {trip}?',
         greetingCountryStart: 'A tua aventura em {country} começa aqui.',
