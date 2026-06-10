@@ -583,6 +583,40 @@ def test_comment_count_excludes_blocked_author_on_third_party_share(
         f"comment_count {evt.get('comment_count')} != 1 visible (BUG-032 not block-filtered)"
 
 
+def test_like_count_excludes_blocked_author_on_third_party_share(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Audit MK5 BUG-078: after A blocks B, the like-count on a THIRD party's
+    shared trip must exclude B's like (same block contract as the comment
+    count). The block sweep only removes B's engagement on A's OWN posts, so
+    B's like on C's share survives — pre-fix the count COUNT(*)'d it."""
+    from auth import issue_token
+    from database import get_db
+    user_c = "test-c-bug078"
+    with get_db() as conn:
+        conn.execute("INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+                     (user_c, "c078@example.com", "Cee"))
+        conn.execute("INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)",
+                     (seed_user, user_c))
+        conn.commit()
+    headers_c = {"Authorization": f"Bearer {issue_token(user_c)}"}
+    trip_id = _create_trip(client, headers_c, trip_id="trip-bug078", public=True)
+    share = client.post("/api/feed/share", headers=headers_c, json={"trip_id": trip_id})
+    event_id = f"share_{share.get_json()['post_id']}"
+    # A and B both like C's PUBLIC share.
+    assert client.post(f"/api/feed/like/{event_id}", headers=auth_headers).status_code == 200
+    assert client.post(f"/api/feed/like/{event_id}", headers=other_auth_headers).status_code == 200
+    # A blocks B.
+    assert client.post(f"/api/blocks/{seed_other_user}",
+                       headers=auth_headers).status_code == 200
+    # A's feed event like_count must exclude B's like (the BUG-078 fix).
+    feed = client.get("/api/feed", headers=auth_headers).get_json()
+    evt = next((e for e in feed if e["id"] == event_id), None)
+    assert evt is not None, "A follows C, so C's shared trip must be in A's feed"
+    assert evt["like_count"] == 1, \
+        f"like_count {evt.get('like_count')} != 1 visible (BUG-078 not block-filtered)"
+
+
 def test_feed_comment_delete_owner_only(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):

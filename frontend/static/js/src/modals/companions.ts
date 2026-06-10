@@ -66,11 +66,16 @@ export const openCompanionPickerModal = (tripId: string) => {
 
     // Names referenced by an existing expense — can't be removed without
     // orphaning balance math. Marked with a 🔒 in the UI.
+    // BUG-075: case-INSENSITIVE set. The rest of the companion system
+    // (findTripCompanion + server clean_companions) folds case, so a casing
+    // mismatch ('alice' in an expense vs an 'Alice' companion) must NOT drop
+    // the 🔒 remove-lock and let a referenced companion be deleted.
     const referencedNames = new Set(
         STATE.expenses
             .filter(e => e.tripId === tripId)
             .flatMap(e => [e.who, ...Object.keys(e.splits || {})])
             .filter(Boolean)
+            .map((n) => String(n).toLocaleLowerCase())
     );
 
     // Members on the trip already (accepted invitations). Used to render
@@ -90,7 +95,7 @@ export const openCompanionPickerModal = (tripId: string) => {
 
     /** Build a row for one companion currently on the trip. */
     const buildRow = (c: import('../types').Companion) => {
-        const isLocked = referencedNames.has(c.name);
+        const isLocked = referencedNames.has(c.name.toLocaleLowerCase());
         const linkedUserId = c.linkedUserId;
         const member = linkedUserId ? membersByUserId.get(linkedUserId) : null;
 

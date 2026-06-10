@@ -160,10 +160,16 @@ def _attach_engagement_counts(cursor, events: list, user_id: str) -> None:
         return
     event_ids = [e['id'] for e in events]
     id_placeholders = ",".join(["?"] * len(event_ids))
+    # Audit MK5 BUG-078: exclude likes by users the caller has blocked, so the
+    # like count honours the block contract — the same fix as the comment count
+    # below. The block sweep only touches the blocker's OWN posts, so a blocked
+    # user's like on a THIRD party's share otherwise still inflated the count.
     cursor.execute(
         f"SELECT event_id, COUNT(*) AS c FROM feed_likes "
-        f"WHERE event_id IN ({id_placeholders}) GROUP BY event_id",
-        event_ids,
+        f"WHERE event_id IN ({id_placeholders}) "
+        f"  AND user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?) "
+        f"GROUP BY event_id",
+        [*event_ids, user_id],
     )
     likes_count = {r['event_id']: r['c'] for r in cursor.fetchall()}
     cursor.execute(
@@ -1031,8 +1037,12 @@ def toggle_feed_like(event_id):
             owner_id = _post_owner_for_event(cursor, event_id)
             _fire_engagement_notification(cursor, owner_id, user_id, "share_liked", _post_id_for_event(event_id))
         cursor.execute(
-            "SELECT COUNT(*) AS c FROM feed_likes WHERE event_id = ?",
-            (event_id,),
+            # BUG-078: block-filter the returned count too, so it matches the
+            # (block-filtered) feed display instead of momentarily including a
+            # blocked user's like.
+            "SELECT COUNT(*) AS c FROM feed_likes WHERE event_id = ? "
+            "AND user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?)",
+            (event_id, user_id),
         )
         count = cursor.fetchone()['c']
         conn.commit()
