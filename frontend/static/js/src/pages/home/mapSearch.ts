@@ -42,13 +42,15 @@ export interface MapSearchContext {
  *  pill. A full PoiCategory so it can flow through the shared
  *  buildInfoWindowHtml / dropMarker display path; the search-strategy /
  *  placesType fields are inert here (never used to drive a nearbySearch). */
+// DSGN-059: getter so the label reflects the active locale at access
+// time rather than being frozen to the initial load locale.
 const _FALLBACK_CAT: PoiCategory = {
     key: 'search',
     placesType: null,
     searchStrategy: 'wide',
     icon: '📍',
     color: '#0071e3',
-    label: 'Search result',
+    get label() { return t('map.searchResult'); },
     defaultMinRating: 0,
 };
 
@@ -149,13 +151,28 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
         }).join('');
     };
 
+    /** Show a brief inline error in the results panel (sighted users)
+     *  and announce it via the ARIA live region (screen readers).
+     *  Auto-hides after 3 s so it doesn't linger once the user moves on. */
+    const showSearchError = (msg: string) => {
+        resultsEl.style.display = 'block';
+        resultsEl.innerHTML = `<div style="padding:14px 18px; color:var(--danger-color,#d32f2f); font-size:0.85rem;">${esc(msg)}</div>`;
+        if (statusEl) statusEl.textContent = msg;
+        setTimeout(() => hideResults(), 3000);
+    };
+
     /** Make-or-update the marker that represents the user's current
      *  search hit. Uses the same icon shape as POI markers (colour-
      *  fill SVG) so it reads as a search-pin rather than something
      *  arbitrary. */
     const dropMarker = (place: google.maps.places.PlaceResult, cat: PoiCategory) => {
         const loc = place?.geometry?.location;
-        if (!loc) return;
+        if (!loc) {
+            // DSGN-060: location missing — surface error instead of silently
+            // doing nothing after the user clicked a search result.
+            showSearchError(t('map.searchLoadError'));
+            return;
+        }
         const color = cat.color || '#0071e3';
         const icon = {
             path: 'M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z',
@@ -195,10 +212,13 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
             placeId,
             fields: ['place_id', 'name', 'formatted_address', 'vicinity', 'geometry', 'types', 'rating', 'user_ratings_total', 'icon', 'url'],
         }, (place: google.maps.places.PlaceResult | null, status: google.maps.places.PlacesServiceStatus) => {
-            if (status !== google.maps.places.PlacesServiceStatus.OK || !place) return;
-            // DSGN-059: localize the fallback label at use-time (the module-level
-            // const can't call t() — locale isn't resolved at import).
-            const cat = guessCategory(place.types) || { ..._FALLBACK_CAT, label: t('map.searchResult') };
+            if (status !== google.maps.places.PlacesServiceStatus.OK || !place) {
+                // DSGN-060: getDetails failed — surface error instead of silent
+                // dead-end after user clicked a search result.
+                showSearchError(t('map.searchLoadError'));
+                return;
+            }
+            const cat = guessCategory(place.types) || _FALLBACK_CAT;
             dropMarker(place, cat);
         });
     };

@@ -1270,6 +1270,7 @@ export const pt: Translations = {
         tripHub: 'Base da viagem',
         dayLabel: 'Dia {n}',
         placeFallback: 'Local',
+        searchLoadError: 'Não foi possível carregar este local.',
     },
     home: {
         mapUnavailable: 'Mapa indisponível',

@@ -1266,6 +1266,7 @@ export const es: Translations = {
         tripHub: 'Centro del viaje',
         dayLabel: 'Día {n}',
         placeFallback: 'Lugar',
+        searchLoadError: 'No se pudo cargar este lugar.',
     },
     home: {
         mapUnavailable: 'Mapa no disponible',

@@ -1271,6 +1271,7 @@ export const fr: Translations = {
         tripHub: 'Camp de base',
         dayLabel: 'Jour {n}',
         placeFallback: 'Lieu',
+        searchLoadError: "Impossible de charger ce lieu.",
     },
     home: {
         mapUnavailable: 'Carte indisponible',

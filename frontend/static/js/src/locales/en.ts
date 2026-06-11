@@ -1595,6 +1595,7 @@ export const en = {
         tripHub: 'Trip Hub',
         dayLabel: 'Day {n}',
         placeFallback: 'Place',
+        searchLoadError: "Couldn't load this place.",
     },
     home: {
         // Pre-trip empty-state hero (welcomeCard.ts buildEmptyStateHtml).
