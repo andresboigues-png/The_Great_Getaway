@@ -87,6 +87,8 @@ _STRINGS: dict[str, dict[str, str]] = {
             "companions, and marked places."
         ),
         "untitled_companion": "Untitled companion",
+        "days_overview_map_one": "EVERY DAY ON ONE MAP   ·   1 PIN",
+        "days_overview_map_many": "EVERY DAY ON ONE MAP   ·   {n} PINS",
     },
     "fr": {
         "trip_plan_kicker": "THE GREAT GETAWAY   ·   PLAN DE VOYAGE",
@@ -144,6 +146,8 @@ _STRINGS: dict[str, dict[str, str]] = {
             "les tâches, les budgets, les compagnons et les lieux."
         ),
         "untitled_companion": "Compagnon sans nom",
+        "days_overview_map_one": "TOUS LES JOURS SUR UNE CARTE   ·   1 PIN",
+        "days_overview_map_many": "TOUS LES JOURS SUR UNE CARTE   ·   {n} PINS",
     },
     "es": {
         "trip_plan_kicker": "THE GREAT GETAWAY   ·   PLAN DE VIAJE",
@@ -202,6 +206,8 @@ _STRINGS: dict[str, dict[str, str]] = {
             "y los lugares."
         ),
         "untitled_companion": "Compañero sin nombre",
+        "days_overview_map_one": "TODOS LOS DÍAS EN UN MAPA   ·   1 PIN",
+        "days_overview_map_many": "TODOS LOS DÍAS EN UN MAPA   ·   {n} PINS",
     },
     "pt": {
         "trip_plan_kicker": "THE GREAT GETAWAY   ·   PLANO DE VIAGEM",
@@ -259,6 +265,8 @@ _STRINGS: dict[str, dict[str, str]] = {
             "tarefas, os orçamentos, os companheiros e os locais."
         ),
         "untitled_companion": "Companheiro sem nome",
+        "days_overview_map_one": "TODOS OS DIAS NUM MAPA   ·   1 PIN",
+        "days_overview_map_many": "TODOS OS DIAS NUM MAPA   ·   {n} PINS",
     },
 }
 

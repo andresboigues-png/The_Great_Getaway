@@ -504,8 +504,10 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                         # to-edge.
                         full_w = page_w - 2 * margin_lr
                         ov_aspect = _image_aspect(overview_png)
+                        _n = len(pins)
+                        _ov_key = "days_overview_map_one" if _n == 1 else "days_overview_map_many"
                         story.append(rl.Paragraph(
-                            f"EVERY DAY ON ONE MAP   ·   {len(pins)} PIN{'S' if len(pins) != 1 else ''}",
+                            tr(_ov_key).replace("{n}", str(_n)),
                             styles["kicker"],
                         ))
                         story.append(rl.Image(
