@@ -10,7 +10,7 @@
 // only matters while the page is mounted, and re-mounts naturally
 // reset to "All trips" which matches user intuition.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useStore } from '../../react/store.js';
 import { formatHome } from '../../utils.js';
 import {
@@ -31,7 +31,8 @@ export function Budgets() {
     const categories = useStore((s) => s.categories);
     const budgets = useStore((s) => s.budgets);
     // Subscribe to expenses so spentForBudget recomputes on add/remove.
-    useStore((s) => s.expenses);
+    // Stored in a variable so useMemo below can list it as a dependency.
+    const expenses = useStore((s) => s.expenses);
 
     const allBudgets = budgets || [];
 
@@ -53,18 +54,37 @@ export function Budgets() {
         ? allBudgets.filter((b: Budget) => b.tripId === filterTrip)
         : allBudgets;
 
-    // BUD-4 (MK4): overlap-aware allocation — count only the broadest budget's
-    // target when scopes overlap (a trip-total + a sub-budget no longer inflate
-    // the denominator), so the Overall ratio is internally consistent with the
-    // deduped spend below.
-    const totalAllocated = allocatedAcrossBudgets(visibleBudgets);
-    // BUG-6 + BUD-5: count each expense ONCE across overlapping budget scopes,
-    // person-scope aware (a trip-total budget + a category sub-budget no longer
-    // double-count; a person-scoped budget's spend matches its own card).
-    const totalSpent = spentAcrossBudgets(visibleBudgets);
+    // DSGN-031: memoize all O(budgets × expenses) aggregations together so
+    // they only recompute when budgets or expenses actually change, not on
+    // every unrelated state update (trip name change, active-trip toggle, etc.).
+    // budgetStatusMap is computed once per render here and reused in the card
+    // list below — this eliminates the previous 2× O(budgets × expenses) pass
+    // (one for overBudgetCount, one inside the card map). `visibleBudgets` is
+    // derived from `budgets` which is a useStore selector — stable reference
+    // when budgets are unchanged; `expenses` same.
+    const {
+        totalAllocated,
+        totalSpent,
+        overBudgetCount,
+        budgetStatusMap,
+    } = useMemo(() => {
+        // BUD-4 (MK4): overlap-aware allocation — count only the broadest
+        // budget's target when scopes overlap (a trip-total + a sub-budget no
+        // longer inflate the denominator).
+        const ta = allocatedAcrossBudgets(visibleBudgets);
+        // BUG-6 + BUD-5: count each expense ONCE across overlapping scopes.
+        const ts = spentAcrossBudgets(visibleBudgets);
+        // Build a per-budget status map once; reused for overBudgetCount AND
+        // the card map — avoids calling budgetStatus (O(expenses)) twice per card.
+        const statusMap = new Map<string, ReturnType<typeof budgetStatus>>(
+            visibleBudgets.map((b: Budget) => [b.id, budgetStatus(b)]),
+        );
+        // BUD-8 (MK4): per-budget over-budget count.
+        const obc = [...statusMap.values()].filter((s) => s.tier === 'over').length;
+        return { totalAllocated: ta, totalSpent: ts, overBudgetCount: obc, budgetStatusMap: statusMap };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [visibleBudgets, expenses]);
     const totalRemaining = totalAllocated - totalSpent;
-    // BUD-8 (MK4): per-budget over-budget count — clearer than one blended tier.
-    const overBudgetCount = visibleBudgets.filter((b: Budget) => budgetStatus(b).tier === 'over').length;
     const overallPct = totalAllocated > 0 ? Math.min((totalSpent / totalAllocated) * 100, 999) : 0;
     const overallTier =
         totalAllocated === 0
@@ -312,7 +332,9 @@ export function Budgets() {
                     />
                 ) : (
                     visibleBudgets.map((b: Budget) => {
-                        const status = budgetStatus(b);
+                        // DSGN-031: reuse the memoized status from the map above
+                        // rather than calling budgetStatus(b) (O(expenses)) again.
+                        const status = budgetStatusMap.get(b.id) ?? budgetStatus(b);
                         const variance =
                             status.tier === 'over'
                                 ? t('budgets.cardOverBy', { amount: formatHome(status.spent - status.target, 'EUR') })
