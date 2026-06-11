@@ -178,6 +178,8 @@ _INTENTIONAL_ENGLISH = {
     'tripHub.notesLabel':           'fr: identical "Notes"',
     'tripHub.btnDocuments':         'fr: identical "Documents"',
     'tripHub.btnPhotos':            'fr: identical "Photos"',
+    # Templates "Discover" page — fr cognates.
+    'templates.groupContinent':     'fr: "Continent" identical',
 
     # ── R11-B7: dayView labels (Latin cognate sweep) ───────────────
     # 'Photos', 'Documents', 'Document' all spelled identically in FR.

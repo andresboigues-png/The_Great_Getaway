@@ -6256,3 +6256,136 @@ main#app-container.nav-anim-backward {
     outline: none;
 }
 
+
+/* ── Templates "Discover" page (Wave 3) ────────────────────────────────
+   Browse public templates by continent / year / creator. Album shelf +
+   drill-in mirror Collections; the card is template-specific (flag +
+   day count + creator chip + Use button). */
+.templates-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-top: 18px;
+}
+.templates-pillrow {
+    display: inline-flex;
+    gap: 4px;
+    background: var(--surface-glass-light, rgba(255,255,255,0.5));
+    border: 1px solid rgba(0,45,91,0.1);
+    border-radius: 999px;
+    padding: 4px;
+}
+.templates-pill {
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    font-weight: 700;
+    font-size: 0.82rem;
+    padding: 7px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.templates-pill.is-active {
+    background: #5856d6;
+    color: white;
+    box-shadow: 0 4px 12px rgba(88,86,214,0.28);
+}
+.templates-select,
+.templates-search {
+    padding: 9px 12px;
+    border: 1px solid rgba(0,45,91,0.14);
+    border-radius: 12px;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-brand-navy);
+    background: white;
+}
+.templates-search { flex: 1; min-width: 160px; }
+.templates-select:focus-visible,
+.templates-search:focus-visible { outline: none; border-color: #5856d6; }
+.templates-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: 0;
+    color: #5856d6;
+    font-weight: 800;
+    font-size: 0.85rem;
+    cursor: pointer;
+    padding: 0;
+}
+.templates-albums {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 20px;
+    align-items: start;
+}
+.templates-album {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 22px 16px;
+    cursor: pointer;
+    border: 0;
+    text-align: center;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.templates-album:hover { transform: translateY(-3px); box-shadow: 0 16px 36px rgba(0,45,91,0.12); }
+.templates-album__art {
+    width: 96px;
+    height: 96px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #5856d6;
+}
+.templates-album__silhouette { width: 100%; height: 100%; opacity: 0.85; }
+.templates-album__year { font-size: 2rem; font-weight: 800; color: var(--text-brand-navy); letter-spacing: -0.02em; }
+.templates-album__avatar {
+    width: 76px; height: 76px; border-radius: 50%; object-fit: cover;
+    border: 3px solid rgba(88,86,214,0.25); background: rgba(88,86,214,0.08);
+}
+.templates-album__avatar--fallback {
+    display: flex; align-items: center; justify-content: center; color: #5856d6;
+}
+.templates-album__meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; width: 100%; }
+.templates-album__label {
+    font-weight: 800; color: var(--text-brand-navy); font-size: 0.95rem;
+    letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.templates-album__count { font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); }
+.templates-card {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+}
+.templates-card__banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, rgba(88,86,214,0.12), rgba(0,113,227,0.06));
+}
+.templates-card__flag { font-size: 1.6rem; line-height: 1; }
+.templates-card__days {
+    font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
+    color: #5856d6; background: rgba(88,86,214,0.12); padding: 3px 9px; border-radius: 999px;
+}
+.templates-card__name { margin: 14px 16px 2px; font-size: 1.05rem; font-weight: 800; color: var(--text-brand-navy); line-height: 1.25; }
+.templates-card__dest { margin: 0 16px; font-size: 0.82rem; color: var(--text-secondary); font-weight: 600; }
+.templates-card__creator {
+    display: flex; align-items: center; gap: 7px; margin: 12px 16px 0;
+    font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);
+}
+.templates-card__avatar { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.templates-card__avatar--fallback {
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(88,86,214,0.1); color: #5856d6;
+}
+.templates-card__use { margin: 14px 16px 16px; }

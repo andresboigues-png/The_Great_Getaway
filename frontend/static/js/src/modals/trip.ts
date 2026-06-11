@@ -12,7 +12,6 @@ import {
     isUnretryableRejection,
 } from '../api.js';
 import { navigate } from '../router.js';
-import { createFromTemplateAndOpen } from '../bootstrap/template-intent.js';
 import { ROLE_PLANNER } from '../permissions.js';
 import { showModal } from '../components/Modal.js';
 import { t } from '../i18n.js';
@@ -35,14 +34,7 @@ export const openNewTripModal = () => {
         innerHTML: `
             <h2 class="card-title mdl-title-hero">${esc(t('modals.newTripTitle'))}</h2>
             <div class="w-full mb-3" style="text-align:center;">
-                <button type="button" id="fromTemplateToggle" class="tmpl-code-pill">${iconSvg('tag', { size: 14 })}<span>${esc(t('modals.tmplToggle'))}</span></button>
-                <div id="fromTemplateBlock" hidden style="margin-top:8px;">
-                    <p class="form-hint" style="margin-bottom:8px;">${esc(t('modals.tmplPrompt'))}</p>
-                    <div style="display:flex;gap:8px;">
-                        <input type="text" id="templateCodeInput" aria-label="${esc(t('modals.tmplPlaceholder'))}" class="glass-input-modal" style="flex:1;text-transform:uppercase;letter-spacing:0.08em;" placeholder="${esc(t('modals.tmplPlaceholder'))}" autocomplete="off">
-                        <button type="button" id="useTemplateBtn" class="btn-primary">${esc(t('modals.tmplBtn'))}</button>
-                    </div>
-                </div>
+                <button type="button" id="browseTemplatesBtn" class="tmpl-code-pill">${iconSvg('tag', { size: 14 })}<span>${esc(t('modals.tmplBrowse'))}</span></button>
             </div>
             <form id="newTripForm" class="mdl-col-center">
                 <div class="w-full mb-4">
@@ -91,28 +83,14 @@ export const openNewTripModal = () => {
     });
     _wireDateRangeValidation(root, 'tripStartDate', 'tripEndDate', 'tripDateHint');
 
-    // "Create from a template code" — reveals a code input that instantiates
-    // a template into a new owned trip via the shared helper (same path the
-    // public /t/<code> preview's "Use this template" CTA resumes after login).
-    const fromTemplateToggle = q(root, '#fromTemplateToggle') as HTMLButtonElement;
-    const fromTemplateBlock = q(root, '#fromTemplateBlock') as HTMLElement;
-    const templateCodeInput = q(root, '#templateCodeInput') as HTMLInputElement;
-    const useTemplateBtn = q(root, '#useTemplateBtn') as HTMLButtonElement;
-    fromTemplateToggle.onclick = () => {
-        fromTemplateBlock.hidden = !fromTemplateBlock.hidden;
-        if (!fromTemplateBlock.hidden) templateCodeInput.focus();
-    };
-    const submitTemplate = async () => {
-        const code = templateCodeInput.value.trim();
-        if (!code) return;
-        useTemplateBtn.disabled = true;
-        const ok = await createFromTemplateAndOpen(code);
-        useTemplateBtn.disabled = false;
-        if (ok) close();
-    };
-    useTemplateBtn.onclick = () => { void submitTemplate(); };
-    templateCodeInput.onkeydown = (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); void submitTemplate(); }
+    // "Browse templates" — close the modal and send the user to the
+    // Discover page, where they pick a creator's template (instantiated via
+    // the shared createFromTemplateAndOpen path). The manual-code entry now
+    // lives on that page's "Have a code?" accordion, so direct /t/<code>
+    // share links + typed codes still work — just no longer from here.
+    (q(root, '#browseTemplatesBtn') as HTMLButtonElement).onclick = () => {
+        close();
+        navigate('templates');
     };
 
     (q(root, '#cancelTripBtn') as HTMLButtonElement).onclick = () => close();

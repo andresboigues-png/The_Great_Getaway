@@ -56,6 +56,34 @@ export async function listTemplates(): Promise<TemplateSummary[]> {
     }
 }
 
+/** A public template as shown on the Discover page — card-level metadata
+ *  only (no snapshot internals). `country`/`countryCode` come from the
+ *  source trip's snapshot and drive continent grouping + the card flag. */
+export interface PublicTemplate {
+    id: string;
+    code: string;
+    name: string;
+    useCount: number;
+    createdAt: string | null;
+    country?: string | null;
+    countryCode?: string | null;
+    dayCount: number;
+    creator: { id: string; name: string; picture?: string | null };
+}
+
+/** The Discover feed — every creator's public template, for any signed-in
+ *  user to browse. Returns [] on error so the page renders an empty state. */
+export async function listPublicTemplates(): Promise<PublicTemplate[]> {
+    try {
+        const res = await apiFetch('/api/templates/public');
+        if (!res.ok) return [];
+        const body = await res.json();
+        return Array.isArray(body && body.templates) ? body.templates : [];
+    } catch {
+        return [];
+    }
+}
+
 export async function createTemplate(input: TemplateInput): Promise<TemplateSummary | null> {
     try {
         const res = await apiFetch('/api/templates', {

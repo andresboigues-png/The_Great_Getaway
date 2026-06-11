@@ -352,6 +352,52 @@ def list_templates():
     return jsonify({"templates": [_template_summary(r) for r in rows]})
 
 
+@bp.route("/api/templates/public", methods=["GET"])
+@require_auth
+@limiter.limit("60/minute")
+def list_public_templates():
+    """The Discover feed: every creator's template, browsable by any
+    signed-in user. Creators are a gated set and a template is a
+    deliberately-shareable artifact, so there is no per-template public
+    flag — all of them are listed. Returns ONLY safe, card-level metadata
+    (name, destination, day count, creator identity, popularity) — never
+    the snapshot internals. The destination fields come from the snapshot
+    (which stores the source trip's country/countryCode) and drive the
+    page's continent grouping + card flag."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT t.id, t.code, t.name, t.use_count, t.created_at, "
+            "       t.snapshot_json, "
+            "       u.id AS creator_id, u.name AS creator_name, "
+            "       u.picture AS creator_picture "
+            "FROM trip_templates t "
+            "JOIN users u ON u.id = t.owner_id "
+            "ORDER BY t.created_at DESC"
+        )
+        rows = cursor.fetchall()
+    out = []
+    for r in rows:
+        snap = _loads(r["snapshot_json"]) or {}
+        days = snap.get("days") if isinstance(snap, dict) else None
+        out.append({
+            "id": r["id"],
+            "code": r["code"],
+            "name": r["name"],
+            "useCount": r["use_count"] or 0,
+            "createdAt": r["created_at"],
+            "country": snap.get("country") if isinstance(snap, dict) else None,
+            "countryCode": snap.get("countryCode") if isinstance(snap, dict) else None,
+            "dayCount": len(days) if isinstance(days, list) else 0,
+            "creator": {
+                "id": r["creator_id"],
+                "name": r["creator_name"] or "",
+                "picture": r["creator_picture"],
+            },
+        })
+    return jsonify({"templates": out})
+
+
 @bp.route("/api/templates", methods=["POST"])
 @require_auth
 @limiter.limit("30/minute")

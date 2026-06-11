@@ -17,6 +17,7 @@ export const PAGES = {
     PERSONALIZATION: 'personalization',
     BUDGETS: 'budgets',
     COLLECTIONS: 'collections',
+    TEMPLATES: 'templates',
     AI: 'ai',
     SETTLEMENT: 'settlement',
     FRIENDS: 'friends',

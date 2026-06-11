@@ -150,6 +150,42 @@ def test_snapshot_excludes_accommodation(client, seed_user, auth_headers):
     assert snap["days"][0]["lat"] == 45.76
 
 
+# ── public Discover feed ──────────────────────────────────────────────
+def test_public_templates_requires_auth(client):
+    """Anonymous callers can't browse the Discover feed."""
+    assert client.get("/api/templates/public").status_code == 401
+
+
+def test_public_templates_browsable_by_any_user(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """The Discover feed is open to ANY signed-in user (not just creators).
+    Each entry carries its creator's identity + destination for the page's
+    grouping — but never the snapshot internals."""
+    _make_creator(seed_user)
+    _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="pub-src")
+    res = client.post("/api/templates", headers=auth_headers, json={
+        "name": "Paris Getaway", "sourceTripId": "pub-src", "includePlans": True,
+    })
+    assert res.status_code == 200
+    # A NON-creator browses the feed (creator gate must NOT apply here).
+    res2 = client.get("/api/templates/public", headers=other_auth_headers)
+    assert res2.status_code == 200
+    templates = res2.get_json()["templates"]
+    assert len(templates) == 1
+    tpl = templates[0]
+    assert tpl["name"] == "Paris Getaway"
+    assert tpl["countryCode"] == "FR"
+    assert tpl["dayCount"] == 1
+    assert tpl["creator"]["id"] == seed_user
+    # No snapshot internals leak through.
+    assert "snapshot_json" not in tpl
+    assert "snapshotJson" not in tpl
+    blob = json.dumps(tpl)
+    for sentinel in ("SECRETEXPENSE", "SECRETCOMPANION", "SECRETPHOTO", "SECRETDOC"):
+        assert sentinel not in blob
+
+
 def test_snapshot_toggles_off_omit_sections(client, seed_user, auth_headers):
     _make_creator(seed_user)
     _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src2")

@@ -174,6 +174,7 @@ const PAGE_LOADERS: Record<PageName, () => Promise<MountFn>> = {
     [PAGES.PERSONALIZATION]: async () => (await import('./pages/settings/mount.js')).mountPersonalization,
     [PAGES.BUDGETS]: async () => (await import('./pages/budgets/mount.js')).mountBudgets,
     [PAGES.COLLECTIONS]: async () => (await import('./pages/collections-mount/mount.js')).mountCollections,
+    [PAGES.TEMPLATES]: async () => (await import('./pages/templates-mount/mount.js')).mountTemplates,
     [PAGES.AI]: async () => (await import('./pages/ai/mount.js')).mountAI,
     [PAGES.SETTLEMENT]: async () => (await import('./pages/settlement/mount.js')).mountSettlement,
     [PAGES.FRIENDS]: async () => (await import('./pages/friends/mount.js')).mountFriends,
