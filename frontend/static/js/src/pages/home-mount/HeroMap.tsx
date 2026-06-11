@@ -964,7 +964,7 @@ function PinEditToolbar({ label, canSave, onSave, onCancel }: PinEditToolbarProp
     return (
         <div
             role="toolbar"
-            aria-label="Pin edit controls"
+            aria-label={t('dayView.pinEditControlsAria')}
             className="absolute top-3 left-[50%] translate-x-[-50%] z-[1000] flex items-center gap-2 pt-1.5 pr-1.5 pb-1.5 pl-3.5 bg-[rgba(255,255,255,0.96)] backdrop-filter-[blur(20px)_saturate(160%)] [-webkit-backdrop-filter:blur(20px)_saturate(160%)] border border-[rgba(0,45,91,0.10)] rounded-full shadow-[0_12px_32px_rgba(0,45,91,0.18)] max-w-[calc(100%_-_24px)]"
         >
             <span
@@ -976,8 +976,8 @@ function PinEditToolbar({ label, canSave, onSave, onCancel }: PinEditToolbarProp
                 type="button"
                 onClick={onSave}
                 disabled={!canSave}
-                title={canSave ? 'Save new location' : 'Tap the map to place the pin first'}
-                aria-label="Save new pin location"
+                title={canSave ? t('dayView.pinSaveTitleReady') : t('dayView.pinSaveTitleHint')}
+                aria-label={t('dayView.pinSaveAria')}
                 style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -1013,8 +1013,8 @@ function PinEditToolbar({ label, canSave, onSave, onCancel }: PinEditToolbarProp
             <button
                 type="button"
                 onClick={onCancel}
-                title="Cancel — revert to the previous location"
-                aria-label="Cancel pin edit"
+                title={t('dayView.pinCancelTitle')}
+                aria-label={t('dayView.pinCancelAria')}
                 className="inline-flex items-center justify-center w-[34px] h-[34px] rounded-full border-0 bg-[#ff3b30] text-white cursor-pointer shadow-[0_4px_12px_rgba(255,59,48,0.4)] transition-[background_0.15s_ease,_box-shadow_0.15s_ease] shrink-0"
             >
                 <svg

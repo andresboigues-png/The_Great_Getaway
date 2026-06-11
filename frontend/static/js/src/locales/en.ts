@@ -98,6 +98,7 @@ export const en = {
         notifications: 'Notifications',
         markAllRead: 'Mark all read',
         notificationsEmpty: 'No new notifications',
+        skipToContent: 'Skip to content',
     },
     // 2026-05-25 (audit): notification dropdown row title fallbacks.
     // Server sometimes ships a row without a title; previously the
@@ -197,6 +198,7 @@ export const en = {
         tripCreateCapHit: 'You\'ve reached the daily limit for new trips. Try again tomorrow.',
         tripCreateFailed: 'Couldn\'t create the trip — please try again.',
         outboxDropped: "Some offline changes couldn't be saved — your access may have changed. Refreshed to the latest.",
+        feedSaveFailed: "Couldn't save — try again in a moment.",
     },
     // R4-B4: PWA service-worker update prompt. Routed through t() so
     // non-EN users don't see English copy at the most-disruptive
@@ -632,6 +634,9 @@ export const en = {
         updatedRatesReset: 'Profile updated — your custom exchange rates were reset for the new home currency.',
         saveFailed: "Couldn't save your profile (HTTP {status}). Try again.",
         saveNetwork: "Network error — couldn't save your profile.",
+        avatarAlt: 'Profile picture',
+        homeCountryAria: 'Home country',
+        homeCurrencyAria: 'Home currency',
     },
     settlement: {
         // Page header.
@@ -1015,6 +1020,7 @@ export const en = {
         clearConfirmMessageMany: 'This removes all {count} places from the to-do list for "{trip}". This can\'t be undone.',
         clearConfirmBtn: 'Clear list',
         clearedToast: 'To-do list cleared.',
+        openInMapsTitle: 'Open {place} on Google Maps',
     },
     ai: {
         // Page header.
@@ -1156,6 +1162,7 @@ export const en = {
         keyHelpRateLimitTip: 'If a request fails with a "rate limit" / 429-style error, wait a minute and try again; if it persists the daily cap is full — try again tomorrow.',
         keyHelpDashboardLink: 'See your <strong>actual</strong> numbers (and how much you\'ve used) on Google\'s <a href="https://aistudio.google.com/rate-limit?timeRange=last-28-days" target="_blank" rel="noreferrer" style="color: #005bb8; font-weight: 700;">rate-limit dashboard</a>.',
         keyHelpDoneBtn: 'Got it',
+        usageTodayAria: 'AI usage today',
     },
     collections: {
         // Page header.
@@ -1228,6 +1235,10 @@ export const en = {
         tripUnavailable: 'This trip isn\'t available — it may be private or deleted.',
         tripNotFound: 'Trip not found.',
         loadFailed: "Couldn't load this trip — try again in a moment.",
+        sortTitle: 'Sort',
+        filterYearTitle: 'Filter by year',
+        filterDestTitle: 'Filter by destination',
+        publicViewsTitle: 'Public-link views',
     },
     friends: {
         // Page header — Model B rebrand. "Friends" used to be a
@@ -1290,6 +1301,7 @@ export const en = {
         toastRemoveDone: 'Unfollowed.',
         toastRemoveFailed: 'Could not unfollow.',
         toastRemoveFailedNetwork: 'Could not unfollow — try again.',
+        networkFilterAria: 'Network filter',
     },
     expenses: {
         // Page header.
@@ -1391,6 +1403,10 @@ export const en = {
         savedToast: '✓ Expense saved — view in History',
         updatedToast: '✓ Expense updated — view in History',
         saveFailed: "Couldn't save — check your connection and try again.",
+        viewReceiptAria: 'View receipt',
+        editExpenseAria: 'Edit expense',
+        deleteExpenseAria: 'Delete expense',
+        addSplitPersonAria: 'Add a person to split the expense between',
     },
     feed: {
         // Page header.
@@ -1540,6 +1556,7 @@ export const en = {
         btnRemoveBookmark: 'Remove bookmark',
         btnUnshare: 'Unshare',
         btnUnshareTitle: "Unshare — removes from your friends' feeds",
+        commentPostAria: 'Post comment',
     },
     // DSGN-005/006/025/059: map surface — InfoWindow bubbles + search
     // dropdown. These render via imperative innerHTML builders, so they
@@ -1694,6 +1711,12 @@ export const en = {
         documentFallback: 'Document',
         expertTip: 'Expert Tip',
         expertTipDefault: 'Always keep a portable charger and a small bottle of water in your bag for long exploration days.',
+        pinEditControlsAria: 'Pin edit controls',
+        pinSaveTitleReady: 'Save new location',
+        pinSaveTitleHint: 'Tap the map to place the pin first',
+        pinSaveAria: 'Save new pin location',
+        pinCancelTitle: 'Cancel — revert to the previous location',
+        pinCancelAria: 'Cancel pin edit',
     },
     // R11-B7: tripChecklistModal.ts — packing/errand list. Every
     // template-literal label and inline-string fallback now via t().
@@ -2230,6 +2253,7 @@ export const en = {
         shareAlready: 'Already shared to your feed.',
         shareSuccess: 'Shared to your feed.',
         notesChip: '📝 Notes',
+        shareFailed: 'Share failed — HTTP {status}',
     },
     // Upload tab (pages/upload.ts) — Excel/CSV import for bulk expenses.
     upload: {
@@ -2263,6 +2287,8 @@ export const en = {
         // EXP-1: actionable line for rows in a currency with no exchange rate.
         noRateImport: '{count} row(s) use {currency}, which has no exchange rate — add them manually with a EUR amount.',
         errorParsing: 'Error parsing file. Check the format.',
+        formatTricount: 'Tricount Export (CSV/XLSX)',
+        formatSplitwise: 'Splitwise Export',
     },
 } as const;
 

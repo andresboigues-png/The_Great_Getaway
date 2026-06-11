@@ -302,7 +302,7 @@ export function Collections() {
                         chevron because `appearance: none` strips the
                         native one — matches the legacy markup verbatim. */}
                     <select
-                        title="Sort"
+                        title={t('collections.sortTitle')}
                         value={sort}
                         onChange={(e) => onSortChange(e.target.value as CollectionsSort)}
                         style={chipSelectStyle}
@@ -319,7 +319,7 @@ export function Collections() {
 
                     {availableYears.length > 1 && (
                         <select
-                            title="Filter by year"
+                            title={t('collections.filterYearTitle')}
                             value={filterYear}
                             onChange={(e) => onYearChange(e.target.value)}
                             style={chipSelectStyle}
@@ -335,7 +335,7 @@ export function Collections() {
 
                     {availableDestinations.length > 1 && (
                         <select
-                            title="Filter by destination"
+                            title={t('collections.filterDestTitle')}
                             value={filterDestination}
                             onChange={(e) => onDestinationChange(e.target.value)}
                             style={{ ...chipSelectStyle, maxWidth: '180px' }}
@@ -547,7 +547,7 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                         )}
                         {trip.shareToken && (trip.shareViews ?? 0) > 0 && (
                             <span
-                                title="Public-link views"
+                                title={t('collections.publicViewsTitle')}
                                 className="text-[#0071e3] font-bold"
                             >
                                 👁 {trip.shareViews}{' '}

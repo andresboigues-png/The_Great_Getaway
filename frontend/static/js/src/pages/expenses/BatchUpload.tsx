@@ -173,7 +173,7 @@ export function BatchUpload() {
                     <label htmlFor="formatSelect" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '8px' }}>{t('upload.labelImportFormat')}</label>
                     <select id="formatSelect" className="glass-input" style={{ width: '100%' }} value={formatVal} onChange={(e) => onFormatChange(e.target.value)}>
                         <optgroup label={t('upload.groupPopular')}>
-                            {POPULARS.map((p) => <option key={p.id} value={`popular:${p.id}`}>{p.name}</option>)}
+                            {POPULARS.map((p) => <option key={p.id} value={`popular:${p.id}`}>{p.id === 'tricount' ? t('upload.formatTricount') : t('upload.formatSplitwise')}</option>)}
                         </optgroup>
                         <optgroup label={t('upload.groupCustom')}>
                             {(savedFormats || []).length === 0

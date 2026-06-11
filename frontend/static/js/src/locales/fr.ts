@@ -85,6 +85,7 @@ export const fr: Translations = {
         notifications: 'Notifications',
         markAllRead: 'Tout marquer comme lu',
         notificationsEmpty: 'Aucune nouvelle notification',
+        skipToContent: 'Aller au contenu',
     },
     notifications: {
         titleNewFollower: 'Nouvel abonné',
@@ -152,6 +153,7 @@ export const fr: Translations = {
         tripCreateCapHit: 'Tu as atteint la limite quotidienne de nouveaux voyages. Réessaie demain.',
         tripCreateFailed: 'Impossible de créer le voyage. Réessaie.',
         outboxDropped: "Certaines modifications hors ligne n'ont pas pu être enregistrées — ton accès a peut-être changé. Données actualisées.",
+        feedSaveFailed: 'Impossible de sauvegarder — réessaie dans un instant.',
     },
     install: {
         title: 'Installer The Great Getaway',
@@ -518,6 +520,9 @@ export const fr: Translations = {
         updatedRatesReset: 'Profil mis à jour — tes taux de change personnalisés ont été réinitialisés pour la nouvelle devise principale.',
         saveFailed: 'Impossible d\'enregistrer le profil (HTTP {status}). Réessaie.',
         saveNetwork: 'Erreur réseau — impossible d\'enregistrer le profil.',
+        avatarAlt: 'Photo de profil',
+        homeCountryAria: 'Pays d\'origine',
+        homeCurrencyAria: 'Devise d\'origine',
     },
     settlement: {
         title: 'Règlements',
@@ -816,6 +821,7 @@ export const fr: Translations = {
         clearConfirmMessageMany: 'Cela retire les {count} lieux de la liste à faire de "{trip}". Action irréversible.',
         clearConfirmBtn: 'Effacer la liste',
         clearedToast: 'Liste à faire effacée.',
+        openInMapsTitle: 'Ouvrir {place} dans Google Maps',
     },
     ai: {
         title: 'Planifier avec l\'IA ✦',
@@ -929,6 +935,7 @@ export const fr: Translations = {
         keyHelpRateLimitTip: 'Si une requête échoue avec une erreur "rate limit" / type 429, attends une minute et réessaie ; si ça persiste, le quota quotidien est plein — réessaie demain.',
         keyHelpDashboardLink: 'Vois tes chiffres <strong>réels</strong> (et combien tu as utilisé) sur le <a href="https://aistudio.google.com/rate-limit?timeRange=last-28-days" target="_blank" rel="noreferrer" style="color: #005bb8; font-weight: 700;">tableau de bord des limites de Google</a>.',
         keyHelpDoneBtn: 'Compris',
+        usageTodayAria: "Utilisation de l'IA aujourd'hui",
     },
     collections: {
         title: 'Collections',
@@ -990,6 +997,10 @@ export const fr: Translations = {
         tripUnavailable: 'Ce voyage n\'est pas disponible — il peut être privé ou supprimé.',
         tripNotFound: 'Voyage introuvable.',
         loadFailed: 'Impossible de charger ce voyage — réessaie dans un instant.',
+        sortTitle: 'Trier',
+        filterYearTitle: 'Filtrer par année',
+        filterDestTitle: 'Filtrer par destination',
+        publicViewsTitle: 'Vues du lien public',
     },
     friends: {
         title: 'Ton réseau',
@@ -1032,6 +1043,7 @@ export const fr: Translations = {
         toastRemoveDone: 'Tu ne suis plus.',
         toastRemoveFailed: 'Impossible de ne plus suivre.',
         toastRemoveFailedNetwork: 'Impossible — réessaie.',
+        networkFilterAria: 'Filtre de réseau',
     },
     expenses: {
         title: 'Dépenses',
@@ -1116,7 +1128,11 @@ export const fr: Translations = {
         saveExpense: 'Enregistrer la dépense',
         savedToast: '✓ Dépense enregistrée — voir dans l’Historique',
         updatedToast: '✓ Dépense mise à jour — voir dans l’Historique',
-        saveFailed: 'Impossible d’enregistrer — vérifie ta connexion et réessaie.',
+        saveFailed: "Impossible d'enregistrer — vérifie ta connexion et réessaie.",
+        viewReceiptAria: "Voir le reçu",
+        editExpenseAria: "Modifier la dépense",
+        deleteExpenseAria: "Supprimer la dépense",
+        addSplitPersonAria: "Ajouter une personne pour diviser la dépense",
     },
     feed: {
         title: 'Fil',
@@ -1221,6 +1237,7 @@ export const fr: Translations = {
         btnRemoveBookmark: 'Retirer des sauvegardes',
         btnUnshare: 'Arrêter de partager',
         btnUnshareTitle: 'Arrêter de partager — sera retiré du fil de tes amis',
+        commentPostAria: 'Publier le commentaire',
     },
     map: {
         addToTodo: '📋 Ajouter à la liste de choses à faire',
@@ -1342,6 +1359,12 @@ export const fr: Translations = {
         documentFallback: 'Document',
         expertTip: 'Astuce d\'expert',
         expertTipDefault: 'Garde toujours une batterie portable et une petite bouteille d\'eau dans ton sac pour les longues journées d\'exploration.',
+        pinEditControlsAria: 'Commandes de modification d\'épingle',
+        pinSaveTitleReady: 'Enregistrer le nouvel emplacement',
+        pinSaveTitleHint: 'Touche la carte pour placer l\'épingle d\'abord',
+        pinSaveAria: 'Enregistrer la nouvelle position de l\'épingle',
+        pinCancelTitle: 'Annuler — revenir à l\'emplacement précédent',
+        pinCancelAria: 'Annuler la modification de l\'épingle',
     },
     checklist: {
         modalTitle: '📝 Liste du voyage',
@@ -1787,6 +1810,7 @@ export const fr: Translations = {
         shareAlready: 'Déjà partagé dans ton feed.',
         shareSuccess: 'Partagé dans ton feed.',
         notesChip: '📝 Notes',
+        shareFailed: 'Échec du partage — HTTP {status}',
     },
     upload: {
         modeSwitchAria: 'Mode de téléversement',
@@ -1815,5 +1839,7 @@ export const fr: Translations = {
         skippedRows: '{count} ligne(s) ignorée(s) (montant ou devise invalides) : {rows}.',
         noRateImport: '{count} ligne(s) utilisent {currency}, qui n’a pas de taux de change — ajoute-les manuellement avec un montant en EUR.',
         errorParsing: "Erreur d'analyse du fichier. Vérifie le format.",
+        formatTricount: 'Export Tricount (CSV/XLSX)',
+        formatSplitwise: 'Export Splitwise',
     },
 };

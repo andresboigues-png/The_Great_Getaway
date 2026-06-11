@@ -326,8 +326,8 @@ export function HistoryTab() {
                                         <button
                                             type="button"
                                             className="icon-action-btn"
-                                            aria-label="View receipt"
-                                            title="View receipt"
+                                            aria-label={t('expenses.viewReceiptAria')}
+                                            title={t('expenses.viewReceiptAria')}
                                             style={{ ['--accent' as string]: '138,86,190' }}
                                             onClick={() =>
                                                 window.open(e.receiptUrl!, '_blank', 'noopener,noreferrer')
@@ -373,7 +373,7 @@ export function HistoryTab() {
                                             <button
                                                 type="button"
                                                 className="icon-action-btn"
-                                                aria-label="Edit expense"
+                                                aria-label={t('expenses.editExpenseAria')}
                                                 style={{ ['--accent' as string]: '0,113,227' }}
                                                 onClick={() => openEditExpenseModal(e.id)}
                                             >
@@ -395,7 +395,7 @@ export function HistoryTab() {
                                             <button
                                                 type="button"
                                                 className="icon-action-btn"
-                                                aria-label="Delete expense"
+                                                aria-label={t('expenses.deleteExpenseAria')}
                                                 style={{ ['--accent' as string]: '255,59,48' }}
                                                 onClick={() => deleteExpense(e.id)}
                                             >

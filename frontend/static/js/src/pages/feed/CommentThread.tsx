@@ -125,8 +125,8 @@ export function CommentThread({ eventId, comments, onDelete, onEdit, onSubmit }:
                 <button
                     type="submit"
                     className="feed-comment-submit bg-accent-blue text-white border-0 py-2 px-4 rounded-full text-[0.82rem] font-extrabold cursor-pointer"
-                    title="Post comment"
-                    aria-label="Post comment"
+                    title={t('feed.commentPostAria')}
+                    aria-label={t('feed.commentPostAria')}
                 >
                     {t('feed.commentSubmit')}
                 </button>

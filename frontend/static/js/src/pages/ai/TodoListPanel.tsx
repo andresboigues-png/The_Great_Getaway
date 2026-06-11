@@ -370,8 +370,8 @@ function MarkedCard({
                     href={mapsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title={`Open ${place.name} on Google Maps`}
-                    aria-label={`Open ${place.name} on Google Maps`}
+                    title={t('todo.openInMapsTitle', { place: place.name ?? '' })}
+                    aria-label={t('todo.openInMapsTitle', { place: place.name ?? '' })}
                     className="flex items-start gap-[10px] no-underline text-inherit hover:opacity-80 transition-[opacity_0.15s]"
                 >
                     <span className="text-[1.4rem] leading-none">{place.icon}</span>

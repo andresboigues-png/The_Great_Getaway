@@ -221,7 +221,7 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                     if (!result || !result.ok) {
                         const status = result?.status ?? 'no-response';
                         const errMsg = result?.body?.error || '';
-                        showLiquidAlert(`Share failed — HTTP ${status}` + (errMsg ? ` · ${errMsg}` : ''));
+                        showLiquidAlert(t('archivedDetail.shareFailed', { status: String(status) }) + (errMsg ? ' · ' + errMsg : ''));
                         console.error('[collections.share] failed', { tripId: trip.id, status, body: result?.body });
                         return;
                     }

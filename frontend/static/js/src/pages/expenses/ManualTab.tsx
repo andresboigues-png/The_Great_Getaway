@@ -837,7 +837,7 @@ export function ManualTab() {
                         <div className="add-split-row flex gap-[14px] mb-5">
                             <select
                                 className="glass-input flex-1 p-3.5 rounded-[16px] bg-[rgba(255,255,255,0.4)] text-primary font-semibold border border-[rgba(0,0,0,0.05)] box-border"
-                                aria-label="Add a person to split the expense between"
+                                aria-label={t('expenses.addSplitPersonAria')}
                                 disabled={!hasTripCompanions}
                                 value={addSplitChoice}
                                 onChange={(e) => setAddSplitChoice(e.target.value)}

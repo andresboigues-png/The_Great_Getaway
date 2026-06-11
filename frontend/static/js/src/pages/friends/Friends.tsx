@@ -430,7 +430,7 @@ export function Friends() {
                 an intervening <nav> breaks it (aria-required-parent /
                 aria-required-children). Mirrors TripBody.tsx's tabnav. */}
             <div className="trip-tabnav-wrap">
-                <nav className="trip-tabnav network-tabnav" role="tablist" aria-label="Network filter">
+                <nav className="trip-tabnav network-tabnav" role="tablist" aria-label={t('friends.networkFilterAria')}>
                     {([
                         { id: 'followers', label: t('friends.followersOnlyTitle'), short: t('friends.tabFollowers'), count: followers.length },
                         { id: 'following', label: t('friends.followingOnlyTitle'), short: t('friends.tabFollowing'), count: following.length },

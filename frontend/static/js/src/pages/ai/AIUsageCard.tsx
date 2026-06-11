@@ -93,7 +93,7 @@ export function AIUsageCard({
                         aria-valuenow={pct}
                         aria-valuemin={0}
                         aria-valuemax={100}
-                        aria-label="AI usage today"
+                        aria-label={t('ai.usageTodayAria')}
                         className="relative h-2.5 rounded-full bg-[rgba(155,89,182,0.10)] border border-[rgba(155,89,182,0.18)] overflow-hidden mt-0.5"
                     >
                         <div

@@ -553,7 +553,7 @@ export function Feed() {
                 : existing;
             setCachedThread(eventId, rolledBack);
             setThreads((prev) => ({ ...prev, [eventId]: rolledBack }));
-            showLiquidAlert("Couldn't save — try again in a moment.");
+            showLiquidAlert(t('errors.feedSaveFailed'));
         }
     };
 

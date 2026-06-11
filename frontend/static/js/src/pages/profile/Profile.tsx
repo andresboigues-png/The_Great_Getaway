@@ -583,7 +583,7 @@ function ProfilePicSection({
                 <img
                     id="profilePicDisplay"
                     src={displaySrc}
-                    alt="Profile Picture"
+                    alt={t('profile.avatarAlt')}
                     referrerPolicy="no-referrer"
                     onError={() => setFallbackVisible(true)}
                     style={{
@@ -1024,7 +1024,7 @@ function BioBlock({
                             <select
                                 ref={homeCountryRef}
                                 className="brand-select pf-pill-sm"
-                                aria-label="Home country"
+                                aria-label={t('profile.homeCountryAria')}
                                 defaultValue={user.homeCountry || ''}
                                 onChange={() => setDirty(true)}
                             >
@@ -1054,7 +1054,7 @@ function BioBlock({
                             <select
                                 ref={homeCurrencyRef}
                                 className="brand-select pf-pill-sm"
-                                aria-label="Home currency"
+                                aria-label={t('profile.homeCurrencyAria')}
                                 defaultValue={getHomeCurrency()}
                                 onChange={() => setDirty(true)}
                             >

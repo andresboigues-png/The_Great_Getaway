@@ -80,6 +80,7 @@ export const pt: Translations = {
         notifications: 'Notificações',
         markAllRead: 'Marcar todas como lidas',
         notificationsEmpty: 'Sem notificações novas',
+        skipToContent: 'Ir para o conteúdo',
     },
     notifications: {
         titleNewFollower: 'Novo seguidor',
@@ -147,6 +148,7 @@ export const pt: Translations = {
         tripCreateCapHit: 'Atingiste o limite diário de novas viagens. Tenta amanhã.',
         tripCreateFailed: 'Não foi possível criar a viagem. Tenta novamente.',
         outboxDropped: 'Algumas alterações offline não puderam ser guardadas — o teu acesso pode ter mudado. Dados atualizados.',
+        feedSaveFailed: 'Não foi possível guardar — tenta novamente daqui a pouco.',
     },
     install: {
         title: 'Instalar The Great Getaway',
@@ -517,6 +519,9 @@ export const pt: Translations = {
         updatedRatesReset: 'Perfil atualizado — as tuas taxas de câmbio personalizadas foram repostas para a nova moeda principal.',
         saveFailed: 'Não foi possível guardar o perfil (HTTP {status}). Tenta novamente.',
         saveNetwork: 'Erro de rede — não foi possível guardar o perfil.',
+        avatarAlt: 'Foto de perfil',
+        homeCountryAria: 'País de origem',
+        homeCurrencyAria: 'Moeda de origem',
     },
     settlement: {
         title: 'Acertos de contas',
@@ -815,6 +820,7 @@ export const pt: Translations = {
         clearConfirmMessageMany: 'Isto remove todos os {count} lugares da lista de tarefas de "{trip}". Não pode ser desfeito.',
         clearConfirmBtn: 'Limpar lista',
         clearedToast: 'Lista de tarefas limpa.',
+        openInMapsTitle: 'Abrir {place} no Google Maps',
     },
     ai: {
         title: 'Planear com IA ✦',
@@ -928,6 +934,7 @@ export const pt: Translations = {
         keyHelpRateLimitTip: 'Se um pedido falhar com erro "rate limit" / estilo 429, espera um minuto e tenta novamente; se persistir, o limite diário está cheio — tenta de novo amanhã.',
         keyHelpDashboardLink: 'Vê os teus números <strong>reais</strong> (e quanto já usaste) no <a href="https://aistudio.google.com/rate-limit?timeRange=last-28-days" target="_blank" rel="noreferrer" style="color: #005bb8; font-weight: 700;">painel de limites do Google</a>.',
         keyHelpDoneBtn: 'Percebi',
+        usageTodayAria: 'Utilização da IA hoje',
     },
     collections: {
         title: 'Coleções',
@@ -989,6 +996,10 @@ export const pt: Translations = {
         tripUnavailable: 'Esta viagem não está disponível — pode ser privada ou ter sido apagada.',
         tripNotFound: 'Viagem não encontrada.',
         loadFailed: 'Não foi possível carregar esta viagem — tenta novamente daqui a pouco.',
+        sortTitle: 'Ordenar',
+        filterYearTitle: 'Filtrar por ano',
+        filterDestTitle: 'Filtrar por destino',
+        publicViewsTitle: 'Visualizações do link público',
     },
     friends: {
         title: 'A tua rede',
@@ -1031,6 +1042,7 @@ export const pt: Translations = {
         toastRemoveDone: 'Deixaste de seguir.',
         toastRemoveFailed: 'Não foi possível deixar de seguir.',
         toastRemoveFailedNetwork: 'Não foi possível — tenta novamente.',
+        networkFilterAria: 'Filtro de rede',
     },
     expenses: {
         title: 'Despesas',
@@ -1116,6 +1128,10 @@ export const pt: Translations = {
         savedToast: '✓ Despesa guardada — ver no Histórico',
         updatedToast: '✓ Despesa atualizada — ver no Histórico',
         saveFailed: 'Não foi possível guardar — verifica a tua ligação e tenta novamente.',
+        viewReceiptAria: 'Ver recibo',
+        editExpenseAria: 'Editar despesa',
+        deleteExpenseAria: 'Eliminar despesa',
+        addSplitPersonAria: 'Adicionar uma pessoa para dividir a despesa',
     },
     feed: {
         title: 'Feed',
@@ -1220,6 +1236,7 @@ export const pt: Translations = {
         btnRemoveBookmark: 'Remover dos guardados',
         btnUnshare: 'Deixar de partilhar',
         btnUnshareTitle: 'Deixar de partilhar — será removido do feed dos teus amigos',
+        commentPostAria: 'Publicar comentário',
     },
     map: {
         addToTodo: '📋 Adicionar à lista de tarefas',
@@ -1341,6 +1358,12 @@ export const pt: Translations = {
         documentFallback: 'Documento',
         expertTip: 'Dica de especialista',
         expertTipDefault: 'Leva sempre uma powerbank e uma garrafa de água na mochila para os dias longos de exploração.',
+        pinEditControlsAria: 'Controlos de edição do pin',
+        pinSaveTitleReady: 'Guardar nova localização',
+        pinSaveTitleHint: 'Toca no mapa para colocar o pin primeiro',
+        pinSaveAria: 'Guardar nova posição do pin',
+        pinCancelTitle: 'Cancelar — reverter para a localização anterior',
+        pinCancelAria: 'Cancelar edição do pin',
     },
     checklist: {
         modalTitle: '📝 Lista da viagem',
@@ -1786,6 +1809,7 @@ export const pt: Translations = {
         shareAlready: 'Já partilhado no teu feed.',
         shareSuccess: 'Partilhado no teu feed.',
         notesChip: '📝 Notas',
+        shareFailed: 'Falha ao partilhar — HTTP {status}',
     },
     upload: {
         modeSwitchAria: 'Modo de carregamento',
@@ -1814,5 +1838,7 @@ export const pt: Translations = {
         skippedRows: '{count} linha(s) ignorada(s) (montante ou moeda inválidos): {rows}.',
         noRateImport: '{count} linha(s) usam {currency}, que não tem taxa de câmbio — adiciona-as manualmente com um valor em EUR.',
         errorParsing: 'Erro ao analisar o ficheiro. Verifica o formato.',
+        formatTricount: 'Exportação do Tricount (CSV/XLSX)',
+        formatSplitwise: 'Exportação do Splitwise',
     },
 };
