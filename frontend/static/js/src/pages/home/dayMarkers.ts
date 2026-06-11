@@ -1,14 +1,13 @@
 // pages/home/dayMarkers.ts — B1 fourth slice extraction.
 //
-// Paints Google-Maps markers for every Trip Day with a pinned
-// location. Two flavours, both keyed by day.id:
+// Paints Google-Maps markers for every NUMBERED Trip Day with a
+// pinned location: a 36-44px blue circle (red while pin-editing) with
+// the day number as a label, keyed by day.id.
 //
-//   - Anchor day (dayNumber === 0): a 48px gold circle stamped
-//     with a Lucide-style anchor glyph (loop + shaft + bottom arc),
-//     shipped as a single SVG data-URL so the icon never glitches
-//     on re-render and there's no font-fallback risk.
-//   - Numbered days: a 36-44px blue circle (red while pin-editing)
-//     with the day number as a label.
+// The Trip Hub (anchor, dayNumber === 0) is NO LONGER rendered on the
+// map — it's a tab now (TripHubTab), not a pin. The anchor's lat/lng
+// still drives map centering + POI search epicentre elsewhere; here we
+// simply skip it so the gold star no longer appears.
 //
 // Click → opens a single shared InfoWindow with a Street View Static
 // thumbnail of the pinned spot. Drag (only when the matching day is
@@ -50,21 +49,6 @@ export interface DayMarkersContext {
     getInfoWindow?: () => google.maps.InfoWindow;
 }
 
-/** The Hub day's map icon: a gold-plated circle with a filled
- *  white 5-point star stamped inside, shipped as one SVG data-URL —
- *  no text label, no font fallback, the glyph is part of the image
- *  so it never glitches on re-render.
- *
- *  2026-05-21: replaced the white anchor glyph (line/circle/path
- *  trio) with a filled star polygon to match the Trip Anchor →
- *  Trip Hub rename + ⭐ visual identity elsewhere in the app. */
-const _GENESIS_SVG = 'data:image/svg+xml;utf8,'
-    + '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">'
-    + '<circle cx="24" cy="24" r="21" fill="%23c89a18" stroke="white" stroke-width="3"/>'
-    + '<polygon points="24 10 28.4 19.6 39 21 31 28.6 33 39 24 33.6 15 39 17 28.6 9 21 19.6 19.6" '
-    + 'fill="white" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>'
-    + '</svg>';
-
 /** Paint markers for every Trip Day with a pinned location. Returns
  *  the lookup `{ [dayId]: marker }` the caller can use to address
  *  individual markers later (pin-edit mode, etc.). One shared
@@ -91,14 +75,13 @@ export function paintDayMarkers(ctx: DayMarkersContext): Record<string, google.m
         const lat = day.lat;
         const lng = day.lng || day.lon;
         const url = streetViewUrl({ lat, lng } as { lat: number; lng: number }, { width: 280, height: 160, fov: 90 });
-        const isStartingPoint = day.dayNumber === 0;
-        const headerLabel = isStartingPoint
-            ? `⭐ ${t('map.tripHub')}`
-            : t('map.dayLabel', { n: day.dayNumber });
-        const dayNameHtml = day.name && !isStartingPoint
+        // Only numbered days reach this point now (the anchor is skipped
+        // in the marker loop below), so the header is always "Day N".
+        const headerLabel = t('map.dayLabel', { n: day.dayNumber });
+        const dayNameHtml = day.name
             ? `<div style="font-size:0.78rem; color:rgba(0,45,91,0.6); margin-top:2px;">${esc(day.name)}</div>`
             : '';
-        const dateHtml = day.date && !isStartingPoint
+        const dateHtml = day.date
             ? `<div style="font-size:0.7rem; color:#005bb8; font-weight:700; margin-top:2px;">📅 ${esc(formatDayDate(day.date) || day.date)}</div>`
             : '';
         const imgHtml = url
@@ -119,41 +102,33 @@ export function paintDayMarkers(ctx: DayMarkersContext): Record<string, google.m
     };
 
     days.forEach(day => {
+        // Trip Hub (day 0) is a tab now, not a map pin — never render a
+        // marker for the anchor. Numbered days only.
+        if (Number(day.dayNumber) === 0) return;
         if (!(day.lat && (day.lon || day.lng))) return;
         const lon = day.lon || day.lng;
         const isEditing = editingDayId === day.id;
-        const isStartingPoint = day.dayNumber === 0;
 
         const marker = new google.maps.Marker({
             position: { lat: day.lat, lng: lon },
             map,
             draggable: isEditing,
-            title: isStartingPoint
-                ? t('map.tripHub')
-                : `${t('map.dayLabel', { n: day.dayNumber })}: ${day.name}`,
-            label: isStartingPoint
-                ? undefined
-                : {
-                    text: String(day.dayNumber),
-                    color: 'white',
-                    fontWeight: '800',
-                    fontSize: isEditing ? '16px' : '14px',
-                },
-            icon: isStartingPoint
-                ? {
-                    url: _GENESIS_SVG,
-                    scaledSize: new google.maps.Size(48, 48),
-                    anchor: new google.maps.Point(24, 24),
-                }
-                : {
-                    path: google.maps.SymbolPath.CIRCLE,
-                    fillOpacity: 1,
-                    fillColor: isEditing ? '#ff3b30' : '#007aff',
-                    strokeColor: 'white',
-                    strokeWeight: 3,
-                    scale: isEditing ? 22 : 18,
-                },
-            zIndex: isStartingPoint ? 1 : 100, // numbered days draw above the anchor
+            title: `${t('map.dayLabel', { n: day.dayNumber })}: ${day.name}`,
+            label: {
+                text: String(day.dayNumber),
+                color: 'white',
+                fontWeight: '800',
+                fontSize: isEditing ? '16px' : '14px',
+            },
+            icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                fillOpacity: 1,
+                fillColor: isEditing ? '#ff3b30' : '#007aff',
+                strokeColor: 'white',
+                strokeWeight: 3,
+                scale: isEditing ? 22 : 18,
+            },
+            zIndex: 100,
         });
 
         markers[day.id] = marker;

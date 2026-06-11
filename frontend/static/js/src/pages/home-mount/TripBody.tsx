@@ -724,6 +724,29 @@ export function TripBody({ activeTrip }: TripBodyProps) {
             <div className="trip-tabnav-wrap">
                 <nav className="trip-tabnav" role="tablist" aria-label="Trip view">
                     <button
+                        className={`trip-tabnav__tab${activeTab === 'hub' ? ' is-active' : ''}`}
+                        role="tab"
+                        aria-selected={activeTab === 'hub'}
+                        onClick={() => switchTab('hub')}
+                    >
+                        {/* 5-point star — matches the Trip Hub anchor identity
+                            used on the map marker + (formerly) the Path-wheel
+                            anchor card. Hub is the left-most (primary) tab. */}
+                        <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            stroke="currentColor"
+                            strokeWidth="1.2"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                        >
+                            <polygon points="12 2 15 8.5 22 9.3 17 14.3 18.2 21.3 12 18 5.8 21.3 7 14.3 2 9.3 9 8.5" />
+                        </svg>
+                        <span>{t('home.tabHub')}</span>
+                    </button>
+                    <button
                         className={`trip-tabnav__tab${activeTab === 'days' ? ' is-active' : ''}`}
                         role="tab"
                         aria-selected={activeTab === 'days'}
@@ -744,29 +767,6 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                             <circle cx="12" cy="10" r="3"></circle>
                         </svg>
                         <span>{t('home.tabPath')}</span>
-                    </button>
-                    <button
-                        className={`trip-tabnav__tab${activeTab === 'hub' ? ' is-active' : ''}`}
-                        role="tab"
-                        aria-selected={activeTab === 'hub'}
-                        onClick={() => switchTab('hub')}
-                    >
-                        {/* 5-point star — matches the Trip Hub anchor identity
-                            used on the map marker + (formerly) the Path-wheel
-                            anchor card. */}
-                        <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                            stroke="currentColor"
-                            strokeWidth="1.2"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                        >
-                            <polygon points="12 2 15 8.5 22 9.3 17 14.3 18.2 21.3 12 18 5.8 21.3 7 14.3 2 9.3 9 8.5" />
-                        </svg>
-                        <span>{t('home.tabHub')}</span>
                     </button>
                     <button
                         className={`trip-tabnav__tab${activeTab === 'companions' ? ' is-active' : ''}`}
