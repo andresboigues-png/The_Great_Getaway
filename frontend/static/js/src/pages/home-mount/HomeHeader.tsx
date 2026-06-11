@@ -13,6 +13,7 @@
 // openShareChooserModal(trip, onShareToFeed) where the inner share
 // dispatches shareTripToFeed.
 
+import { useMemo } from 'react';
 import { STATE } from '../../state.js';
 import { showLiquidAlert } from '../../utils.js';
 import { esc } from '../../utils/dom-helpers.js';
@@ -62,7 +63,11 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
     const tripExpenses = (STATE.expenses || []).filter((e) => e && e.tripId === activeTrip.id);
     const tripDays = (STATE.tripDays || []).filter((d) => d.tripId === activeTrip.id);
     const isFresh = tripExpenses.length === 0 && tripDays.length === 0;
-    const greeting = pickGreeting(activeTrip, isFresh);
+    // DSGN-044: memoize on [trip id, freshness] so the random pick
+    // is stable across unrelated state updates (poll ticks, theme
+    // toggles, etc.) and only re-rolls when the user actually switches
+    // trips or adds the first day/expense.
+    const greeting = useMemo(() => pickGreeting(activeTrip, isFresh), [activeTrip.id, isFresh]);
 
     // Maps href — exact same resolution logic the legacy
     // trip-header version used. Falls through place_id → lat/lng

@@ -129,8 +129,14 @@ export function applyCollectionsView(
             out.sort((a, b) => tripTotalSpent(b) - tripTotalSpent(a));
             break;
         case 'daysDesc':
+            // DSGN-035: count only itinerary days (dayNumber > 0);
+            // day-0 (Trip Hub anchor) is excluded so the sort
+            // reflects actual travel days, matching the displayed
+            // day count on ArchivedCard.
             out.sort(
-                (a, b) => (b.tripDays?.length || 0) - (a.tripDays?.length || 0),
+                (a, b) =>
+                    (b.tripDays?.filter((d) => (d.dayNumber || 0) > 0).length || 0) -
+                    (a.tripDays?.filter((d) => (d.dayNumber || 0) > 0).length || 0),
             );
             break;
     }
@@ -203,6 +209,11 @@ export function groupTrips(trips: Trip[], groupBy: GroupBy): TripAlbum[] {
         buckets.get(key)!.push(trip);
     }
     const ordered = order.filter((k) => k !== ALBUM_OTHER);
+    // DSGN-033: for year albums, sort keys newest-first so the
+    // shelf always reads 2025 → 2024 → 2023, regardless of the
+    // order trips appear after the caller's sort. Continent albums
+    // keep first-appearance order (no meaningful numeric sort).
+    if (groupBy === 'year') ordered.sort((a, b) => parseInt(b, 10) - parseInt(a, 10));
     if (buckets.has(ALBUM_OTHER)) ordered.push(ALBUM_OTHER);
     return ordered.map((key) => ({ key, trips: buckets.get(key)! }));
 }

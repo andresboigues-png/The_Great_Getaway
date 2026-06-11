@@ -171,7 +171,9 @@ export function collectSettlementHistory(trip: Trip): HistoryItem[] {
             source: 'settlement',
             who: fromName,
             to: toName,
-            euroValue: s.euroValue || s.amount || 0,
+            // DSGN-056: use the safe helper (never treats a non-EUR
+            // raw `amount` as if it were EUR for the history total).
+            euroValue: settlementEurForTotal(s),
             // s.createdAt is a full ISO timestamp; we group by
             // YYYY-MM-DD so the renderer's date logic works on
             // both shapes.

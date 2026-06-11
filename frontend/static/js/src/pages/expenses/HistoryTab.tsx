@@ -27,7 +27,7 @@ import { useMemo, useState } from 'react';
 import { useStore } from '../../react/store.js';
 import { useActiveTrip } from '../../react/TripContext.js';
 import { STATE, emit } from '../../state.js';
-import { showConfirmModal, formatHome, getHomeCurrency } from '../../utils.js';
+import { showConfirmModal, formatHome, getHomeCurrency, currencySymbol } from '../../utils.js';
 import { deleteExpenseOnServer } from '../../api.js';
 import { navigate } from '../../router.js';
 import { t, tn, getIntlLocale } from '../../i18n.js';
@@ -55,6 +55,10 @@ export function HistoryTab() {
         canEditExpenses: showRowActions,
     } = useActiveTrip();
     const homeCurrency = getHomeCurrency();
+    // DSGN-038: value-range filter always compares against euroValue
+    // (the EUR-normalized amount), so the label always shows the EUR
+    // symbol. Derive it from currencySymbol() rather than a literal.
+    const eurSym = currencySymbol('EUR');
 
     // Payer filter draws from this trip's companions. Falls back to
     // the union of `who` values already on file so the page works
@@ -252,7 +256,7 @@ export function HistoryTab() {
                             />
                         </div>
                         <div>
-                            <label className="filter-label">{t('expenses.filterValueRangeLabel')} (€)</label>
+                            <label className="filter-label">{t('expenses.filterValueRangeLabel')} ({eurSym})</label>
                             <div className="flex gap-2 items-center">
                                 <input
                                     type="number"

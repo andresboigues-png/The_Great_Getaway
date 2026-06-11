@@ -235,6 +235,10 @@ function startCycle(
         if (imgEl) {
             imgEl.style.opacity = '0';
             setTimeout(() => {
+                // DSGN-045: restore visibility first (a prior slide
+                // may have hidden the img via its onerror handler).
+                // The new onerror re-hides it if this URL also fails.
+                imgEl.style.display = '';
                 imgEl.src = images[next] ?? '';
                 imgEl.style.opacity = '1';
             }, 800);
