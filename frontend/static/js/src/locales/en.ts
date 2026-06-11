@@ -240,6 +240,22 @@ export const en = {
         unitThousand: 'thousand',
         genericFallback: 'Did you know? {label} is full of hidden gems waiting to be explored.',
     },
+    // DSGN-047: home-hero inspirational quotes for the no-trip slideshow.
+    // Index matches INSPIRATIONAL_PAIRS order in constants.ts.
+    quotes: {
+        noTrip0: 'To lose yourself in a new country is to find yourself in the world.',
+        noTrip1: 'Traveling is finding a place where every path leads somewhere beautiful.',
+        noTrip2: 'To travel is to find peace in the untamed beauty of the world.',
+        noTrip3: 'Every sunrise is a new beginning.',
+        noTrip4: 'Allow yourself to wander roads that feel ancient and alive.',
+        noTrip5: 'Traveling is the bridge that connects mind and soul.',
+        noTrip6: 'Discover hidden places in every corner.',
+        noTrip7: 'Go where the horizon meets the ocean and time stands still.',
+        noTrip8: "Adventure is not a destination, it's a belief system.",
+        noTrip9: 'Embrace the spirit of the backpacker.',
+        noTrip10: 'The essence of traveling beats in every human heart.',
+        noTrip11: 'Explore the peak of your potential.',
+    },
     // 2026-05-25: sidebar (hamburger drawer) chrome — header + section
     // dividers + close button. The nav items themselves reuse `nav.*`
     // keys above.

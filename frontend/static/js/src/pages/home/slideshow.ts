@@ -35,6 +35,7 @@
 import { INSPIRATIONAL_PAIRS } from '../../constants.js';
 import { getMediaForTrip } from '../../utils.js';
 import { localizeFact } from '../../utils/place-names.js';
+import { t } from '../../i18n.js';
 import type { Trip } from '../../types';
 
 
@@ -91,7 +92,11 @@ export function setupSlideshow(activeTrip: Trip | null): SlideshowController {
         // INSPIRATIONAL_PAIRS. Shuffle once at construction so
         // a reload rolls a different opening quote.
         images = INSPIRATIONAL_PAIRS.map(p => p.i);
-        quotes = INSPIRATIONAL_PAIRS.map(p => p.q);
+        quotes = [
+            t('quotes.noTrip0'), t('quotes.noTrip1'), t('quotes.noTrip2'), t('quotes.noTrip3'),
+            t('quotes.noTrip4'), t('quotes.noTrip5'), t('quotes.noTrip6'), t('quotes.noTrip7'),
+            t('quotes.noTrip8'), t('quotes.noTrip9'), t('quotes.noTrip10'), t('quotes.noTrip11'),
+        ];
         const indices = Array.from({ length: images.length }, (_, i) => i);
         indices.sort(() => Math.random() - 0.5);
         // indices come from a length-checked Array.from above, so
