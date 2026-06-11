@@ -1273,6 +1273,7 @@ export const fr: Translations = {
         placeFallback: 'Lieu',
     },
     home: {
+        mapUnavailable: 'Carte indisponible',
         emptyHeroTitle: 'Partons en voyage.',
         emptyHeroBody: 'Ta prochaine grande aventure t\'attend. Crée un voyage pour commencer à suivre tes dépenses et planifier tes journées.',
         emptyHeroCta: 'Créer un voyage',

@@ -1598,6 +1598,7 @@ export const en = {
     },
     home: {
         // Pre-trip empty-state hero (welcomeCard.ts buildEmptyStateHtml).
+        mapUnavailable: 'Map unavailable',
         emptyHeroTitle: "Let's travel.",
         emptyHeroBody: 'Your next big adventure is waiting. Create a trip to start tracking expenses and planning days.',
         emptyHeroCta: 'Create Trips',

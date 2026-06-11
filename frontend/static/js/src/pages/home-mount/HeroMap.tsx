@@ -85,6 +85,10 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
     // effect's deps so React re-runs the effect once the SDK is
     // ready instead of leaving the map blank.
     const [mapRetryTick, setMapRetryTick] = useState(0);
+    // DSGN-043: set to true when whenGoogleMapsReady() rejects (SDK never
+    // loaded / blocked API key / offline). Renders a placeholder so the
+    // hero card isn't just an empty blurred glass panel.
+    const [mapLoadFailed, setMapLoadFailed] = useState(false);
 
     // Slideshow controller built lazily (once per mount). The active-
     // trip Home doesn't rotate the slideshow — only the quote at
@@ -163,6 +167,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 })
                 .catch((err) => {
                     console.warn('[HeroMap] Google Maps failed to load:', err);
+                    if (!cancelled) setMapLoadFailed(true);
                 });
             return () => {
                 cancelled = true;
@@ -926,6 +931,21 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 id="homeHeroMap"
                 className="w-full h-full absolute inset-0 z-0"
             />
+            {/* DSGN-043: when the Maps SDK fails to load, show a muted
+                placeholder so the hero card isn't a blank glass panel.
+                Sits at z-[1] so the gradient + quote overlay (z-[1] / z-[2])
+                still render on top. */}
+            {mapLoadFailed && (
+                <div
+                    className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-2 pointer-events-none"
+                    style={{ background: 'rgba(0,0,0,0.08)' }}
+                >
+                    <span style={{ fontSize: '2rem', opacity: 0.4 }}>🗺️</span>
+                    <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>
+                        {t('home.mapUnavailable')}
+                    </span>
+                </div>
+            )}
             <div className="cover-card__gradient pointer-events-none z-[1]" />
             <div className="cover-card__content pointer-events-none z-[2]">
                 <p id="homeQuote" className="cover-card__quote">

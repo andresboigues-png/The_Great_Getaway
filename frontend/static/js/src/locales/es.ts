@@ -1268,6 +1268,7 @@ export const es: Translations = {
         placeFallback: 'Lugar',
     },
     home: {
+        mapUnavailable: 'Mapa no disponible',
         emptyHeroTitle: 'Vamos a viajar.',
         emptyHeroBody: 'Tu próxima gran aventura te espera. Crea un viaje para empezar a registrar gastos y planificar días.',
         emptyHeroCta: 'Crear viajes',
