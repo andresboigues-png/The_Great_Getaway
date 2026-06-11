@@ -21,6 +21,7 @@
 
 import { esc } from '../../utils.js';
 import { iconSvg } from '../../icons.js';
+import { t } from '../../i18n.js';
 
 /** Phase G item shape after server-side Places verification. The
  *  legacy strings still flow through `renderSlotItem` below — they
@@ -177,7 +178,7 @@ function renderSlotItem(item: AiPlanItem): string {
         const displayName = v.verifiedName || text;
         return `
             <li class="ai-plan-block__item ai-plan-block__item--card">
-                <a class="ai-place-card" href="${esc(href)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(displayName)} on Google Maps">
+                <a class="ai-place-card" href="${esc(href)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(t('ai.placeMapAria', { name: displayName }))}">
                     ${photoHtml}
                     <div class="ai-place-card__body">
                         <span class="ai-place-card__name">${esc(displayName)}</span>
@@ -206,7 +207,7 @@ function renderSlotItem(item: AiPlanItem): string {
         <li class="ai-plan-block__item ai-plan-block__item--unverified">
             <div style="display:flex; align-items:baseline; gap:6px; flex-wrap:wrap;">
                 <span class="ai-plan-block__item-text">${esc(text)}</span>
-                <span class="ai-plan-block__unverified-chip" title="The Places lookup couldn't resolve this. Worth double-checking before adding to your plan.">unverified</span>
+                <span class="ai-plan-block__unverified-chip" title="${esc(t('ai.unverifiedChipTitle'))}">${esc(t('ai.unverifiedChipLabel'))}</span>
             </div>
             ${unverifiedWhy}
             ${unverifiedFact}

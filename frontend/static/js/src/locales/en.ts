@@ -1163,6 +1163,11 @@ export const en = {
         keyHelpDashboardLink: 'See your <strong>actual</strong> numbers (and how much you\'ve used) on Google\'s <a href="https://aistudio.google.com/rate-limit?timeRange=last-28-days" target="_blank" rel="noreferrer" style="color: #005bb8; font-weight: 700;">rate-limit dashboard</a>.',
         keyHelpDoneBtn: 'Got it',
         usageTodayAria: 'AI usage today',
+        keyStatusOk: '✓ Key saved on this device.',
+        keyStatusBadFormat: '⚠ Saved, but the format looks off (Gemini keys usually start with "AIza"). Click i for help.',
+        placeMapAria: 'Open {name} on Google Maps',
+        unverifiedChipTitle: "The Places lookup couldn't resolve this. Worth double-checking before adding to your plan.",
+        unverifiedChipLabel: 'unverified',
     },
     collections: {
         // Page header.

@@ -217,9 +217,9 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
         if (!v) return { text: t('ai.keyStatusEmpty'), color: '#a85d00' };
         const looksLegit = v.startsWith('AIza') && v.length >= 30;
         return looksLegit
-            ? { text: '✓ Key saved on this device.', color: '#1a6b3c' }
+            ? { text: t('ai.keyStatusOk'), color: '#1a6b3c' }
             : {
-                  text: '⚠ Saved, but the format looks off (Gemini keys usually start with "AIza"). Click i for help.',
+                  text: t('ai.keyStatusBadFormat'),
                   color: '#a85d00',
               };
     })();

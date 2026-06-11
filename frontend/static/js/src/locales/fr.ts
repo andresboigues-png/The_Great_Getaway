@@ -936,6 +936,11 @@ export const fr: Translations = {
         keyHelpDashboardLink: 'Vois tes chiffres <strong>réels</strong> (et combien tu as utilisé) sur le <a href="https://aistudio.google.com/rate-limit?timeRange=last-28-days" target="_blank" rel="noreferrer" style="color: #005bb8; font-weight: 700;">tableau de bord des limites de Google</a>.',
         keyHelpDoneBtn: 'Compris',
         usageTodayAria: "Utilisation de l'IA aujourd'hui",
+        keyStatusOk: '✓ Clé enregistrée sur cet appareil.',
+        keyStatusBadFormat: '⚠ Enregistrée, mais le format semble incorrect (les clés Gemini commencent généralement par "AIza"). Clique sur i pour de l\'aide.',
+        placeMapAria: 'Ouvrir {name} sur Google Maps',
+        unverifiedChipTitle: "La recherche Places n'a pas pu résoudre ça. Vaut la peine de vérifier avant d'ajouter au plan.",
+        unverifiedChipLabel: 'non vérifié',
     },
     collections: {
         title: 'Collections',
