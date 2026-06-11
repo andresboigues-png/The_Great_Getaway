@@ -157,15 +157,14 @@ export function initGoogleLogin() {
     // via the shared `ensureGsiInitialized` helper. 250ms x 40 = 10s
     // upper bound — plenty for any realistic load time without spinning
     // forever if the script never arrives.
+    // DSGN-029: the old renderButton(document.getElementById('googleBtnContainer'))
+    // branch was dead — that element never exists anywhere in the app; the
+    // real login button is rendered by LoginWall.tsx into #loginWallBtnContainer.
+    // The only live effect here is wiring the GIS callback via ensureGsiInitialized(),
+    // so we keep the polling loop but drop the dead container lookup.
     let attempts = 0;
     const tryInit = () => {
-        if (ensureGsiInitialized()) {
-            const container = document.getElementById("googleBtnContainer");
-            if (container) {
-                google.accounts.id.renderButton(container, { theme: "outline", size: "large", shape: "pill" });
-            }
-            return;
-        }
+        if (ensureGsiInitialized()) return;
         if (++attempts < 40) setTimeout(tryInit, 250);
     };
     tryInit();

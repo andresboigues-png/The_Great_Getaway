@@ -247,8 +247,6 @@ export const es: Translations = {
         sessionsNone: 'No se encontraron sesiones activas.',
         sessionsThisDevice: 'Este dispositivo',
         sessionsUnknownDevice: 'Dispositivo desconocido',
-        sessionsUnknownOs: 'Desconocido',
-        sessionsDeviceOn: '{browser} en {os}',
         sessionsLastActiveSignedIn: 'Última actividad {last} · Sesión iniciada {signed}',
         sessionsSignOut: 'Cerrar sesión',
         sessionsRevoke: 'Revocar',

@@ -287,9 +287,14 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
         }
         const from = new Date(dateFrom);
         const to = new Date(dateTo);
-        const numDays = Math.max(
-            1,
-            Math.round((to.getTime() - from.getTime()) / 86400000) + 1,
+        // DSGN-026: clamp to the same 30-day ceiling the server applies
+        // (integrations.py num_days = max(1, min(30, …))), so the
+        // result heading '{numDays}-Day Itinerary' matches the plan
+        // that's actually generated — a 60-day date range no longer
+        // produces a '60-Day Itinerary' with only ~30 day cards.
+        const numDays = Math.min(
+            30,
+            Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1),
         );
 
         // Build to-do suffix from forAI && forManual marked places.

@@ -327,8 +327,6 @@ export const en = {
         sessionsNone: 'No active sessions found.',
         sessionsThisDevice: 'This device',
         sessionsUnknownDevice: 'Unknown device',
-        sessionsUnknownOs: 'Unknown',
-        sessionsDeviceOn: '{browser} on {os}',
         sessionsLastActiveSignedIn: 'Last active {last} · Signed in {signed}',
         sessionsSignOut: 'Sign out',
         sessionsRevoke: 'Revoke',

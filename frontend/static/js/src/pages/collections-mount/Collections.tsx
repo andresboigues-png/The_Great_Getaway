@@ -479,6 +479,10 @@ function ArchivedCard({ trip }: { trip: Trip }) {
     // Pre-fix this card used `trip.tripDays.length` (Hub included), so a
     // trip read "4 days" here but "3 days" everywhere else.
     const plannedDays = (trip.tripDays || []).filter((d) => ((d as { dayNumber?: number }).dayNumber || 0) > 0).length;
+    // DSGN-032: use the full fallback chain (coverUrl → trip photo → day
+    // photo) so a trip with photos but no explicit cover shows a thumbnail
+    // here, matching the album-overview tile and the detail hero.
+    const coverSrc = tripCover(trip);
 
     return (
         <div
@@ -492,9 +496,9 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                 aria-label={`Open ${trip.name} details`}
                 onClick={() => void viewArchivedDetails(trip.id)}
             >
-                {trip.coverUrl && (
+                {coverSrc && (
                     <img
-                        src={trip.coverUrl}
+                        src={coverSrc}
                         alt=""
                         data-cover-thumb
                         /* R5-B6 perf: lazy + async decode + intrinsic

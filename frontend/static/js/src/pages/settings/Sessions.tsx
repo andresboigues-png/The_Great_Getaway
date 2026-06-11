@@ -40,28 +40,17 @@ function _formatRelativeTime(iso: string | null | undefined): string {
     return new Date(tms).toLocaleDateString(getIntlLocale());
 }
 
-/** Trim a User-Agent down to a human-friendly device hint. The
- *  server stores the raw header (capped at 120 chars); we pick out
- *  the OS + browser tokens for display. Falls back to the raw value
- *  truncated to 60 chars if nothing matches. */
+/** Return the server-supplied device label for display, with a
+ *  localized 'Unknown device' fallback for absent/empty values.
+ *
+ *  DSGN-028: the previous version parsed a raw User-Agent string with
+ *  browser/OS regexes — that was dead code. The server already
+ *  summarises the UA to a coarse 'Browser on OS' string via
+ *  _summarize_ua() before storing it (auth.py), so no client-side
+ *  parse is needed; every regex branch missed the summary and fell
+ *  through to the raw .slice(0,60) fallback anyway. */
 function _deviceLabel(raw: string | null | undefined): string {
-    if (!raw) return t('settings.sessionsUnknownDevice');
-    // Common patterns in mobile + desktop UAs.
-    const browser =
-        /Edg\/[\d.]+/.exec(raw)?.[0]?.split('/')[0] ||
-        /Chrome\/[\d.]+/.exec(raw)?.[0]?.split('/')[0] ||
-        /Firefox\/[\d.]+/.exec(raw)?.[0]?.split('/')[0] ||
-        /Safari\/[\d.]+/.exec(raw)?.[0]?.split('/')[0] ||
-        '';
-    // Browser + OS tokens are proper nouns kept verbatim; only the
-    // "Unknown" fallback + the "{browser} on {os}" connector localize.
-    let os = t('settings.sessionsUnknownOs');
-    if (/iPhone|iPad|iPod/.test(raw)) os = 'iOS';
-    else if (/Android/.test(raw)) os = 'Android';
-    else if (/Macintosh|Mac OS X/.test(raw)) os = 'macOS';
-    else if (/Windows/.test(raw)) os = 'Windows';
-    else if (/Linux/.test(raw)) os = 'Linux';
-    return browser ? t('settings.sessionsDeviceOn', { browser, os }) : raw.slice(0, 60);
+    return raw || t('settings.sessionsUnknownDevice');
 }
 
 
