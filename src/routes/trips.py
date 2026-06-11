@@ -865,7 +865,12 @@ def invite_trip_member():
 
     with get_db() as conn:
         cursor = conn.cursor()
-        if not can_edit_trip(cursor, trip_id, inviter):
+        # DSGN-036: roster management (invite + kick) is owner-only. The UI
+        # already hides the controls from non-owner planners; align the server
+        # gate to match. Pre-fix, can_edit_trip admitted any accepted planner,
+        # so a non-owner planner could invite or kick via the API despite the
+        # UI telling them 'Roster is managed by the trip owner'.
+        if not is_trip_owner(cursor, trip_id, inviter):
             return jsonify({"error": "Forbidden"}), 403
 
         # 2026-05-26 (audit PE2): block invites to nonexistent users.
@@ -1120,7 +1125,10 @@ def remove_trip_member():
         # check below still blocks self-leave for owners (they need
         # to delete the trip via /api/trips/<id> DELETE instead).
         is_self_leave = (actor == target)
-        if not is_self_leave and not can_edit_trip(cursor, trip_id, actor):
+        # DSGN-036: same gate as invite — only the owner can remove OTHER
+        # members. Self-leave (is_self_leave) is still open to any role so
+        # any invited member can leave the trip without owner intervention.
+        if not is_self_leave and not is_trip_owner(cursor, trip_id, actor):
             return jsonify({"error": "Forbidden"}), 403
         if is_trip_owner(cursor, trip_id, target):
             return jsonify({"error": "Cannot remove the trip owner"}), 400
