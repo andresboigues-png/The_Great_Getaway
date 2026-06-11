@@ -45,7 +45,7 @@ describe('runBatchImport — Tricount (popular)', () => {
             ['Museum', '30', 'EUR', '2026-05-31', 'Sara'],
         ];
         const res = runBatchImport(rows, 'popular:tricount');
-        expect(res).toEqual({ added: 2, skipped: [], noRateCurrencies: {} });
+        expect(res).toEqual({ added: 2, skipped: [], noRateCurrencies: {}, truncatedCount: 0 });
         expect(STATE.expenses).toHaveLength(2);
 
         const dinner = STATE.expenses[0]!;
