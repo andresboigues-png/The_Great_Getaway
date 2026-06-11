@@ -78,6 +78,72 @@ def test_day_notes_and_tip_persist_independently(client, seed_user, auth_headers
     assert (day2["tip"] or "") == ""             # notes must NOT become the tip
 
 
+def test_day_accommodation_round_trips(client, seed_user, auth_headers):
+    """Wave 2: the three flat accommodation columns persist via /api/days
+    and come back camelCased on /api/data, alongside the day's lat/lng
+    (which, when set via Places, mirror the hotel — the hotel IS the pin)."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "Tuscany"},
+    })
+    res = client.post("/api/days", headers=auth_headers, json={
+        "day": {
+            "id": "day-1", "tripId": "trip-1", "dayNumber": 1, "name": "Florence",
+            "accommodation": "Hotel Garnier",
+            "accommodationPlaceId": "ChIJ_hotel_123",
+            "accommodationAddress": "25 Via Roma, Firenze",
+            "lat": 43.77, "lng": 11.25,
+        },
+    })
+    assert res.status_code == 200
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    day = next(d for d in data["tripDays"] if d["id"] == "day-1")
+    assert day["accommodation"] == "Hotel Garnier"
+    assert day["accommodationPlaceId"] == "ChIJ_hotel_123"
+    assert day["accommodationAddress"] == "25 Via Roma, Firenze"
+    assert day["lat"] == 43.77
+
+
+def test_day_accommodation_can_be_cleared(client, seed_user, auth_headers):
+    """Clearing accommodation (null) on a re-upsert wipes the columns —
+    the day-detail 'Clear' action must actually remove the stored hotel."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "Tuscany"},
+    })
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {"id": "day-1", "tripId": "trip-1", "dayNumber": 1, "name": "Florence",
+                "accommodation": "Hotel Garnier", "accommodationPlaceId": "ChIJ_x",
+                "accommodationAddress": "Somewhere"},
+    })
+    # Re-upsert with the fields nulled (the Clear action).
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {"id": "day-1", "tripId": "trip-1", "dayNumber": 1, "name": "Florence",
+                "accommodation": None, "accommodationPlaceId": None,
+                "accommodationAddress": None},
+    })
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    day = next(d for d in data["tripDays"] if d["id"] == "day-1")
+    assert (day["accommodation"] or "") == ""
+    assert (day["accommodationPlaceId"] or "") == ""
+    assert (day["accommodationAddress"] or "") == ""
+
+
+def test_day_accommodation_not_exposed_on_public_trip(client, seed_user, auth_headers):
+    """Privacy: accommodation reveals where you sleep — it must NOT appear
+    on the public-trip read surface (the public day serializer whitelists
+    fields, so the columns simply aren't projected)."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-pub-acc", public=True)
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {"id": "day-acc", "tripId": trip_id, "dayNumber": 1, "name": "Day 1",
+                "accommodation": "Secret Hotel", "accommodationAddress": "Hidden St",
+                "lat": 38.7, "lng": -9.1},
+    })
+    pub = client.get(f"/api/public-trip/{trip_id}").get_json()
+    days = pub["trip"]["tripDays"]
+    assert days, "public trip should expose the day"
+    assert "accommodation" not in days[0], "accommodation must not leak publicly"
+    assert "accommodationAddress" not in days[0]
+
+
 def test_delete_day_happy_path(client, seed_user, auth_headers):
     """Planner can delete a numbered day; row is gone after."""
     client.post("/api/trips", headers=auth_headers, json={

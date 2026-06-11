@@ -30,6 +30,7 @@ import type { MarkedPlace } from '../../types';
 import { canEdit } from '../../permissions.js';
 import { showModal } from '../../components/Modal.js';
 import { esc, q, formatDayDate, shortPlaceName, showLiquidAlert } from '../../utils.js';
+import { whenGoogleMapsReady } from '../../googleMapsServices.js';
 import { t } from '../../i18n.js';
 import { navigate } from '../../router.js';
 import { openTripChecklistModal } from './tripChecklistModal.js';
@@ -508,6 +509,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             <h4 class="text-tag">${esc(t('dayDetail.personalNotesHeading'))}</h4>
             <textarea id="detailNotes" class="plain-textarea plain-textarea--no-resize" style="height: 200px;" placeholder="${esc(t('dayDetail.personalNotesPlaceholder'))}">${esc(day.notes || '')}</textarea>
         </div>
+        <div id="dayAccommodationCard" style="background: rgba(88,86,214,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(88,86,214,0.12); margin-top: var(--space-6);"></div>
         ${checklistPanelHtml}
     `;
 
@@ -859,6 +861,117 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         });
     });
     notesTextarea?.addEventListener('input', () => { queueSave(); });
+
+    // ── Accommodation picker (Wave 2) ─────────────────────────────
+    // "Where you're staying" for this day. A Places pick records the
+    // hotel/address AND sets it as the day pin (day.lat/lng → the place
+    // coords — the hotel IS the pin); a free-text fallback (or a
+    // Maps-blocked environment) records just the name. The card swaps
+    // between a search input and a set/display state. Persists via
+    // upsertDay directly (NOT saveDayPin), so a later MANUAL pin move can
+    // null accommodationPlaceId without this write fighting it.
+    const accCard = (root.querySelector('#dayAccommodationCard') as HTMLElement | null);
+    if (accCard) {
+        // `day` is narrowed to non-null here (early return at the top), but a
+        // hoisted inner function would widen it again — capture a non-null
+        // const so every closure below sees a defined TripDay.
+        const accDay = day;
+        let accForceSearch = false;
+        const persistAccommodation = () => {
+            emit('state:changed');
+            void upsertDay(accDay);
+        };
+        const inputStyle = 'width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid rgba(0,45,91,0.14); border-radius:12px; font:inherit; font-size:0.9rem; color:var(--text-brand-navy); background:white;';
+        const hintStyle = 'margin:6px 2px 0; font-size:0.72rem; color:var(--text-secondary); font-weight:500;';
+        const setFreeText = (val: string) => {
+            accDay.accommodation = val;
+            accDay.accommodationPlaceId = null;
+            accDay.accommodationAddress = null;
+            accForceSearch = false;
+            persistAccommodation();
+            renderAccommodationCard();
+        };
+        function renderAccommodationCard() {
+            if (!accCard) return;
+            const heading = `<h4 class="text-tag">${esc(t('dayDetail.accommodationHeading'))}</h4>`;
+            if (accDay.accommodation && !accForceSearch) {
+                accCard.innerHTML = heading + `
+                    <div style="display:flex; align-items:flex-start; gap:10px;">
+                        <span style="font-size:1.1rem; line-height:1.3;">🏨</span>
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-weight:700; color:var(--text-brand-navy); line-height:1.3; word-break:break-word;">${esc(accDay.accommodation)}</div>
+                            ${accDay.accommodationAddress ? `<div style="font-size:0.78rem; color:var(--text-secondary); margin-top:2px;">${esc(accDay.accommodationAddress)}</div>` : ''}
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:8px; margin-top:12px;">
+                        <button type="button" id="accChangeBtn" class="day-action-btn day-action-btn--neutral" style="flex:1;">${esc(t('dayDetail.accommodationChange'))}</button>
+                        <button type="button" id="accClearBtn" class="day-action-btn day-action-btn--danger" style="flex:1;">${esc(t('dayDetail.accommodationClear'))}</button>
+                    </div>
+                `;
+                (accCard.querySelector('#accChangeBtn') as HTMLButtonElement | null)?.addEventListener('click', () => {
+                    accForceSearch = true;
+                    renderAccommodationCard();
+                });
+                (accCard.querySelector('#accClearBtn') as HTMLButtonElement | null)?.addEventListener('click', () => {
+                    accDay.accommodation = null;
+                    accDay.accommodationPlaceId = null;
+                    accDay.accommodationAddress = null;
+                    // Keep lat/lng — clearing the hotel label shouldn't yank
+                    // the day pin out from under the user; they remove the pin
+                    // via the map controls if they want.
+                    accForceSearch = false;
+                    persistAccommodation();
+                    renderAccommodationCard();
+                });
+                return;
+            }
+            accCard.innerHTML = heading + `
+                <input type="text" id="accInput" autocomplete="off" placeholder="${esc(t('dayDetail.accommodationPlaceholder'))}" value="${esc(accForceSearch ? (accDay.accommodation || '') : '')}" style="${inputStyle}">
+                <p style="${hintStyle}">${esc(t('dayDetail.accommodationHint'))}</p>
+            `;
+            const input = (accCard.querySelector('#accInput') as HTMLInputElement | null);
+            if (!input) return;
+            const wasForceSearch = accForceSearch;
+            // Free-text fallback: on blur, if nothing resolved via Places,
+            // store the typed name (no coords / no placeId). Lets users
+            // record "Grandma's place" or work when Maps is blocked.
+            input.addEventListener('blur', () => {
+                setTimeout(() => {
+                    const val = input.value.trim();
+                    if (!val) return;
+                    // A Places pick already set accDay.accommodation (+placeId);
+                    // don't override it. Only store free-text when nothing was
+                    // picked, or when re-typing in Change mode.
+                    if (!accDay.accommodation) setFreeText(val);
+                    else if (wasForceSearch && val !== accDay.accommodation) setFreeText(val);
+                }, 200);
+            });
+            // Places autocomplete — no `types` restriction so a hotel NAME
+            // or a street address both resolve ("hotel or street").
+            void whenGoogleMapsReady().then(() => {
+                if (typeof google === 'undefined' || !google.maps?.places?.Autocomplete) return;
+                const ac = new google.maps.places.Autocomplete(input, {
+                    fields: ['place_id', 'name', 'formatted_address', 'geometry'],
+                });
+                ac.addListener('place_changed', () => {
+                    const place = ac.getPlace();
+                    const loc = place?.geometry?.location;
+                    if (!loc) return;
+                    accDay.accommodation = place.name || place.formatted_address || input.value;
+                    accDay.accommodationPlaceId = place.place_id || null;
+                    accDay.accommodationAddress = place.formatted_address || null;
+                    // Hotel IS the day pin.
+                    accDay.lat = loc.lat();
+                    accDay.lng = loc.lng();
+                    accDay.lon = loc.lng();
+                    accForceSearch = false;
+                    persistAccommodation();
+                    renderAccommodationCard();
+                });
+            }).catch(() => { /* Maps blocked — the free-text fallback still works */ });
+        }
+        renderAccommodationCard();
+    }
 
     // Wire shortlist "Add to AM/PM/Eve" buttons. The button is
     // a toggle: first click APPENDS "- {name}" on a new line to

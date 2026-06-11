@@ -2016,6 +2016,11 @@ export const en = {
         // Personal notes section (numbered days).
         personalNotesHeading: 'Personal Notes',
         personalNotesPlaceholder: 'Private thoughts about this day...',
+        accommodationHeading: "Where you're staying",
+        accommodationPlaceholder: 'Search for a hotel or address…',
+        accommodationHint: "Pick a place and it becomes this day's pin on the map.",
+        accommodationChange: 'Change',
+        accommodationClear: 'Clear',
         // Shortlist (to-do list) section.
         shortlistAllPill: 'All',
         shortlistFilterPlaceholder: 'Filter…',

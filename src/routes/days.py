@@ -106,8 +106,8 @@ def upsert_day():
             # See migration b7c8d9e0f1a2_add_tombstone_columns for the
             # column rationale.
             cursor.execute('''
-                INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, notes, lat, lng, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
+                INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, notes, lat, lng, accommodation, accommodation_place_id, accommodation_address, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
                 ON CONFLICT(id) DO UPDATE SET
                     day_number=excluded.day_number,
                     date=excluded.date,
@@ -119,6 +119,9 @@ def upsert_day():
                     notes=excluded.notes,
                     lat=excluded.lat,
                     lng=excluded.lng,
+                    accommodation=excluded.accommodation,
+                    accommodation_place_id=excluded.accommodation_place_id,
+                    accommodation_address=excluded.accommodation_address,
                     updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
                 WHERE trip_days.deleted_at IS NULL
                   -- R8-B4 atomic staleness gate. See trips.py /
@@ -142,6 +145,13 @@ def upsert_day():
                   # §2.4 — `or` drops lng=0 (prime meridian). Explicit
                   # is-not-None instead.
                   d['lng'] if d.get('lng') is not None else d.get('lon'),
+                  # Wave 2: day accommodation. Bound directly (excluded.X)
+                  # like every other day field — the client always sends the
+                  # full day object, so a set value round-trips and an unset
+                  # one stays NULL.
+                  d.get('accommodation'),
+                  d.get('accommodationPlaceId'),
+                  d.get('accommodationAddress'),
                   client_updated_at, client_updated_at))
             # R8-B4: existing + rowcount==0 = stale OR tombstoned.
             # Disambiguate via a live re-read of deleted_at (mirrors

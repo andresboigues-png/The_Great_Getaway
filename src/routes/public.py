@@ -239,6 +239,12 @@ def get_public_trip(trip_id):
             day['tripId'] = day.pop('trip_id')
             day['dayNumber'] = day.pop('day_number')
             day['lon'] = day.pop('lng')
+            # Wave 2: accommodation reveals where the traveller sleeps —
+            # strip it from the public read surface (members get it via the
+            # authenticated /api/data path instead).
+            day.pop('accommodation', None)
+            day.pop('accommodation_place_id', None)
+            day.pop('accommodation_address', None)
             day['plan'] = {
                 'morning': unwrap_legacy_plan_text(day.pop('morning', '')),
                 'afternoon': unwrap_legacy_plan_text(day.pop('afternoon', '')),

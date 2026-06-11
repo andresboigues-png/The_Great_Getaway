@@ -685,6 +685,12 @@ def init_db():
                 tip TEXT,
                 lat REAL,
                 lng REAL,
+                -- Wave 2: where you're staying this day. When set via
+                -- Places, lat/lng above mirror the hotel (hotel = day pin).
+                -- Migration d8f3b1a06c52 adds these to existing DBs.
+                accommodation TEXT,
+                accommodation_place_id TEXT,
+                accommodation_address TEXT,
                 -- 2026-05-26 (audit SY5): tombstone column — see
                 -- migration b7c8d9e0f1a2_add_tombstone_columns and the
                 -- matching comment on `expenses` above.
@@ -1164,6 +1170,8 @@ _EXPECTED_COLUMNS = {
         "id", "trip_id", "day_number", "date", "name",
         "morning", "afternoon", "evening", "notes",
         "photos", "documents", "tip", "lat", "lng",
+        # Wave 2: day accommodation.
+        "accommodation", "accommodation_place_id", "accommodation_address",
         # 2026-05-26: tombstone (audit SY5).
         "deleted_at",
         # R3-Round 4: optimistic-concurrency primitive.

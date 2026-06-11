@@ -651,6 +651,27 @@ def generate_itinerary():
     sights_context = _scrub(sights_context).strip()
     legacy_context = _scrub(legacy_context).strip()
 
+    # Wave 2: per-day accommodations (where the traveller sleeps each
+    # night). Fed to the model as spatial anchors so each day's food /
+    # sights cluster near the right place. Parse defensively + scrub every
+    # field exactly like the free-text context above; cap the list length
+    # and per-field sizes so a hostile client can't balloon the prompt.
+    accommodations: list[dict] = []
+    _accommodations_raw = data.get("accommodations", [])
+    if isinstance(_accommodations_raw, list):
+        for a in _accommodations_raw[:30]:
+            if not isinstance(a, dict):
+                continue
+            try:
+                a_day = max(1, min(30, int(a.get("day", 0))))
+            except (TypeError, ValueError):
+                continue
+            a_name = _scrub(str(a.get("name", ""))[:120]).strip()
+            if not a_name:
+                continue
+            a_addr = _scrub(str(a.get("address", ""))[:200]).strip()
+            accommodations.append({"day": a_day, "name": a_name, "address": a_addr})
+
     # BYO key path: client sends its own Gemini key in the request
     # body so power users (or the user whose pool we exhausted) can
     # keep generating. We never persist this to disk — used for
@@ -758,6 +779,20 @@ def generate_itinerary():
         context_lines.append(f"Sightseeing preferences: <user-data>{sights_tagged}</user-data>")
     if legacy_context and not (food_context or sights_context):
         context_lines.append(f"Additional context: <user-data>{legacy_tagged}</user-data>")
+    # Wave 2: inject the per-day accommodation anchors. Each name/address
+    # goes through _tagged (same injection defense as every other user
+    # field) and lands inside one <user-data> block.
+    if accommodations:
+        acc_lines = "; ".join(
+            f"Day {a['day']}: {_tagged(a['name'])}"
+            + (f" ({_tagged(a['address'])})" if a['address'] else "")
+            for a in accommodations
+        )
+        context_lines.append(
+            "Pre-booked accommodation — treat as spatial anchors: keep each "
+            "listed day's food and sights within reasonable travel distance of "
+            f"where the traveller sleeps that night: <user-data>{acc_lines}</user-data>"
+        )
     context_block = "\n    ".join(context_lines) or "Additional context: (none provided)"
 
     prompt = f"""

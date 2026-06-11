@@ -243,11 +243,23 @@ export interface TripDay {
     photos: string[];
     notes: string;
     plan: { morning: string; afternoon: string; evening: string };
-    /** GPS latitude, set when the day has been pinned on the map. */
+    /** GPS latitude, set when the day has been pinned on the map. When
+     *  accommodation is set via Places, this is the hotel's latitude
+     *  (the hotel IS the day pin). */
     lat?: number | null;
     /** Longitude. `lon` and `lng` are both written; readers should accept either. */
     lon?: number | null;
     lng?: number | null;
+    /** Where you're staying this day. Display name, e.g. "Hotel Garnier".
+     *  Set via the day-detail Accommodation picker. NULL / '' = none. */
+    accommodation?: string | null;
+    /** Google Place identifier for the accommodation. Present when picked
+     *  via Places (the day's lat/lng then mirror the hotel). NULL when the
+     *  pin was placed manually or moved off the Places location — the name
+     *  may still be retained as informational text. */
+    accommodationPlaceId?: string | null;
+    /** Formatted address of the accommodation, from Places. NULL = none. */
+    accommodationAddress?: string | null;
     tickets?: Ticket[];
     documents?: Document[];
     /** Free-form "pro tip" string surfaced on the day-detail card. */

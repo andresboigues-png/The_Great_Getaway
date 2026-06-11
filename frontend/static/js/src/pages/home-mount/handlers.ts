@@ -174,6 +174,12 @@ export const saveDayPin = async (dayId: string): Promise<void> => {
     editingDayId = null;
     activeMapClickListener = null;
     _pinEditOriginalCoords = null;
+    // Wave 2: a MANUAL pin placement divorces the day pin from any
+    // Places-sourced accommodation — the pin is now user-positioned, so
+    // drop the place-id link (the accommodation NAME/address stay as
+    // informational text). The accommodation picker writes its own pin
+    // via upsertDay (not this path), so it isn't affected.
+    if (day.accommodationPlaceId) day.accommodationPlaceId = null;
     emit('state:changed');
     await upsertDay(day);
     showLiquidAlert(t('errors.dayPinSaved'));

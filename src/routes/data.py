@@ -1296,6 +1296,11 @@ def get_data():
             day['tripId'] = day.pop('trip_id')
             day['dayNumber'] = day.pop('day_number')
             day['lon'] = day.pop('lng')
+            # Wave 2: day accommodation — `accommodation` passes through
+            # as-is (already the camelCase name); rename the two snake_case
+            # columns. NULL when the day has no accommodation set.
+            day['accommodationPlaceId'] = day.pop('accommodation_place_id', None)
+            day['accommodationAddress'] = day.pop('accommodation_address', None)
             # R3-Round 5: optimistic-concurrency stamp surfaced as
             # camelCase. Client stores → sends back as clientUpdatedAt
             # on the next /api/days POST.

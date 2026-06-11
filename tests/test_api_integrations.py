@@ -109,6 +109,64 @@ def test_generate_itinerary_happy_path(client, seed_user, auth_headers, monkeypa
     assert day["morning"]["items"][0] == {"text": "Blue Bottle", "verified": False}
 
 
+def test_generate_itinerary_includes_accommodation_anchor(
+    client, seed_user, auth_headers, monkeypatch,
+):
+    """Wave 2: per-day accommodations are injected into the Gemini prompt
+    as spatial anchors (inside a <user-data> block, name + address scrubbed),
+    so each day's suggestions can cluster near where the traveller sleeps."""
+    monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_MAPS_SERVER_KEY", raising=False)
+    captured = {}
+    fake_resp_body = {"candidates": [{"content": {"parts": [{"text": "[]"}]}}]}
+
+    def fake_post(url, headers=None, json=None, timeout=None, **kwargs):
+        captured["body"] = json
+        return _FakeGeminiResponse(200, json_body=fake_resp_body)
+
+    import routes.integrations
+    monkeypatch.setattr(routes.integrations.requests, "post", fake_post)
+
+    res = client.post("/api/generate_itinerary", headers=auth_headers, json={
+        "destination": "France", "numDays": 3, "gemini_key": "byo-key",
+        "accommodations": [
+            {"day": 2, "date": "2026-04-16",
+             "name": "Hotel Lyon Vieux", "address": "5 Rue Saint-Jean, Lyon"},
+        ],
+    })
+    assert res.status_code == 200
+    prompt = json.dumps(captured["body"])
+    assert "Pre-booked accommodation" in prompt
+    assert "Hotel Lyon Vieux" in prompt
+    assert "Day 2" in prompt
+
+
+def test_generate_itinerary_no_accommodation_block_when_empty(
+    client, seed_user, auth_headers, monkeypatch,
+):
+    """No accommodations set → no accommodation block in the prompt (keeps
+    it lean and avoids a misleading empty anchor)."""
+    monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_MAPS_SERVER_KEY", raising=False)
+    captured = {}
+    fake_resp_body = {"candidates": [{"content": {"parts": [{"text": "[]"}]}}]}
+
+    def fake_post(url, headers=None, json=None, timeout=None, **kwargs):
+        captured["body"] = json
+        return _FakeGeminiResponse(200, json_body=fake_resp_body)
+
+    import routes.integrations
+    monkeypatch.setattr(routes.integrations.requests, "post", fake_post)
+
+    res = client.post("/api/generate_itinerary", headers=auth_headers, json={
+        "destination": "France", "numDays": 3, "gemini_key": "byo-key",
+        "accommodations": [],
+    })
+    assert res.status_code == 200
+    prompt = json.dumps(captured["body"])
+    assert "Pre-booked accommodation" not in prompt
+
+
 def test_generate_itinerary_strips_markdown_fences(
     client, seed_user, auth_headers, monkeypatch,
 ):

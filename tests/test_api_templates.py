@@ -121,6 +121,35 @@ def test_snapshot_copies_shareable_strips_sensitive(client, seed_user, auth_head
         assert key not in snap
 
 
+def test_snapshot_excludes_accommodation(client, seed_user, auth_headers):
+    """Wave 2: a day's accommodation (hotel name / placeId / address) is
+    time-sensitive and personal — it must NEVER ride into a template
+    snapshot. The day's lat/lng (its location) IS carried, like any pin,
+    because a template shares the route, not where the creator slept."""
+    _make_creator(seed_user)
+    _create_trip(client, auth_headers, trip_id="acc-src", name="Lyon")
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO trip_days (id, trip_id, day_number, name, lat, lng, "
+            "accommodation, accommodation_place_id, accommodation_address) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("acc-d1", "acc-src", 1, "Day 1", 45.76, 4.83,
+             "HOTELSENTINEL", "PLACEIDSENTINEL", "ADDRSENTINEL"),
+        )
+        conn.commit()
+    res = client.post("/api/templates", headers=auth_headers, json={
+        "name": "Lyon Template", "sourceTripId": "acc-src", "includePlans": True,
+    })
+    assert res.status_code == 200
+    snap = _read_snapshot(res.get_json()["template"]["code"])
+    blob = json.dumps(snap)
+    for sentinel in ("HOTELSENTINEL", "PLACEIDSENTINEL", "ADDRSENTINEL"):
+        assert sentinel not in blob, f"snapshot leaked accommodation: {sentinel}"
+    # The day's location IS carried (templates share the route).
+    assert snap["days"][0]["lat"] == 45.76
+
+
 def test_snapshot_toggles_off_omit_sections(client, seed_user, auth_headers):
     _make_creator(seed_user)
     _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src2")

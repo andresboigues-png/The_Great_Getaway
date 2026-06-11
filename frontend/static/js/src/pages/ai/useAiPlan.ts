@@ -327,6 +327,19 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
         // having a marked restaurant suddenly land in the sightseeing
         // section AND the breakfast slot.
         const sightsContextWithMarked = sightseeingContext + markedSuffix;
+        // Wave 2: per-day accommodations the user has set. Passed to the
+        // AI as spatial anchors so each day's food/sights suggestions
+        // cluster near where they're actually sleeping that night (a Day-3
+        // hotel in Lyon should steer Day-3 picks to Lyon, not Paris).
+        const accommodations = (STATE.tripDays || [])
+            .filter((d) => d.tripId === activeTrip.id && (d.dayNumber || 0) > 0 && d.accommodation)
+            .sort((a, b) => a.dayNumber - b.dayNumber)
+            .map((d) => ({
+                day: d.dayNumber,
+                date: d.date || '',
+                name: d.accommodation || '',
+                address: d.accommodationAddress || '',
+            }));
         activeTrip.aiFoodContext = foodContext;
         activeTrip.aiSightseeingContext = sightseeingContext;
         activeTrip.aiNumDays = numDays;
@@ -362,6 +375,7 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                     dateTo,
                     foodContext,
                     sightseeingContext: sightsContextWithMarked,
+                    accommodations,
                     gemini_key: (STATE.geminiApiKey || '').trim(),
                 }),
             }, 75_000);  // MK2 BUG-3: generation takes ~30s (Gemini + Places); the blanket 20s aborted every multi-day plan
