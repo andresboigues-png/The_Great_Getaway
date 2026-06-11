@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><style>
+  body { margin:0; background:#eef1f5; font-family:-apple-system,sans-serif; display:flex; flex-wrap:wrap; gap:24px; padding:24px; }
+  .panel { background:#fff; border-radius:12px; padding:12px 12px 4px; box-shadow:0 4px 16px rgba(0,0,0,.08); }
+  .panel h3 { margin:0 0 8px; font-size:13px; color:#334; font-weight:700; }
+  svg { display:block; background:#fafbfc; border:1px solid #dde; }
+  .grid line { stroke:#d6dde6; stroke-width:.3; }
+  .grid text { fill:#9aa7b4; font-size:3px; }
+  .leg { font-size:11px; color:#445; margin-top:6px; line-height:1.5; }
+  .sw { display:inline-block; width:10px; height:10px; border-radius:2px; vertical-align:middle; margin-right:4px; }
+</style></head>
+<body>
+<div class="panel">
+  <h3>Europe — current, color-coded sub-paths (viewBox 0 0 100 100 → 460px)</h3>
+  <svg id="coded" width="460" height="460" viewBox="0 0 100 100"></svg>
+  <div class="leg" id="legend"></div>
+</div>
+<div class="panel">
+  <h3>Europe — current, solid fill (watermark read)</h3>
+  <svg width="460" height="460" viewBox="0 0 100 100">
+    <g class="grid" id="grid2"></g>
+    <path id="solid" fill="#1f3a5f" fill-rule="nonzero"></path>
+  </svg>
+</div>
+<script>
+// Sub-paths of the CURRENT Europe silhouette (from continentSilhouettes.ts)
+const parts = [
+  ['body',          'M33 46 Q28 50 34 57 Q42 64 57 62 Q74 61 79 51 Q82 44 71 43 Q62 38 51 39 Q42 40 33 46 Z', '#2563eb'],
+  ['Scandinavia',   'M45 46 Q49 47 54 47 Q58 46 60 36 Q63 23 56 15 Q49 10 47 18 Q43 33 45 46 Z', '#dc2626'],
+  ['Iberia',        'M30 58 Q24 61 27 69 Q31 75 39 70 Q46 66 41 58 Q38 53 33 55 Z', '#16a34a'],
+  ['Italy',         'M54 60 Q57 70 53 76 Q50 78 49 72 Q48 64 50 59 Q52 57 54 60 Z', '#d97706'],
+  ['Greece/Balkans','M62 60 Q66 62 63 66 Q59 67 59 63 Q59 59 62 60 Z', '#9333ea'],
+  ['Britain',       'M22 48 Q16 50 19 58 Q23 64 26 56 Q29 49 22 48 Z', '#0891b2'],
+  ['Ireland',       'M14 50 Q11 51 13 55 Q16 57 17 53 Q18 49 14 50 Z', '#65a30d'],
+];
+const svgns='http://www.w3.org/2000/svg';
+function grid(g){
+  for(let i=0;i<=100;i+=25){
+    for(const [x1,y1,x2,y2] of [[i,0,i,100],[0,i,100,i]]){
+      const l=document.createElementNS(svgns,'line');
+      l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2);
+      g.appendChild(l);
+    }
+    const t=document.createElementNS(svgns,'text');t.setAttribute('x',i+0.5);t.setAttribute('y',4);t.textContent=i;g.appendChild(t);
+    const t2=document.createElementNS(svgns,'text');t2.setAttribute('x',0.5);t2.setAttribute('y',i+3);t2.textContent=i;g.appendChild(t2);
+  }
+}
+const coded=document.getElementById('coded');
+const gg=document.createElementNS(svgns,'g');gg.setAttribute('class','grid');coded.appendChild(gg);grid(gg);
+const legend=document.getElementById('legend');
+let solidD='';
+for(const [name,d,color] of parts){
+  const p=document.createElementNS(svgns,'path');p.setAttribute('d',d);p.setAttribute('fill',color);p.setAttribute('fill-opacity','.55');p.setAttribute('stroke',color);p.setAttribute('stroke-width','.4');coded.appendChild(p);
+  legend.innerHTML += `<span class="sw" style="background:${color}"></span>${name}<br>`;
+  solidD += d+' ';
+}
+grid(document.getElementById('grid2'));
+document.getElementById('solid').setAttribute('d',solidD.trim());
+</script>
+</body>
+</html>

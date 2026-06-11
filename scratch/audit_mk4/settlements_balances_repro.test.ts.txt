@@ -1,0 +1,325 @@
+// MK4 audit — settlement+dashboard deep scenarios (throwaway; delete after).
+//
+// Focus: does the cross-trip dashboard behave with MANY trips + MANY
+// settlements for the SAME user? Per-trip vs cross-trip agreement, identity
+// edges at scale, per-currency, simplifyDebts epsilon/FX residue, memo.
+
+import { describe, it, expect, beforeEach } from 'vitest';
+import { STATE, emit, getStateVersion } from '../../state.js';
+import { EVENTS } from '../../constants.js';
+import type { Expense, Settlement, Trip } from '../../types';
+import {
+    simplifyDebts,
+    computeTripBalances,
+    computeTripBalancesByCurrency,
+    computeGlobalBalances,
+} from './balances.js';
+
+type Companion = { name: string; linkedUserId?: string };
+function trip(id: string, companions: Companion[]): Trip {
+    return { id, companions } as unknown as Trip;
+}
+function expense(e: Partial<Expense> & { tripId: string; who: string }): Expense {
+    return e as unknown as Expense;
+}
+function settlement(s: Partial<Settlement> & { tripId: string }): Settlement {
+    return s as unknown as Settlement;
+}
+const c = (n: number) => Math.round(n * 100) / 100;
+const cents = (m: Record<string, number>) => {
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(m)) out[k] = c(v);
+    return out;
+};
+
+beforeEach(() => {
+    STATE.trips = [];
+    STATE.archivedTrips = [];
+    STATE.expenses = [];
+    STATE.settlements = [];
+    STATE.user = { id: 'u-you', name: 'You Zero' } as unknown as typeof STATE.user;
+    emit(EVENTS.STATE_CHANGED);
+});
+
+// ── 1. Per-trip vs cross-trip AGREEMENT at scale ──────────────────────────
+
+describe('MK4: cross-trip dashboard agreement at scale', () => {
+    it('global balance == sum of per-trip balances for the same person (5 trips)', () => {
+        // "You" + Alice + Bob across 5 trips. Each trip: You pays 90 EUR
+        // split equally 3 ways; one settlement You->Alice of 5.
+        const companions: Companion[] = [
+            { name: 'You', linkedUserId: 'u-you' },
+            { name: 'Alice', linkedUserId: 'u-a' },
+            { name: 'Bob', linkedUserId: 'u-b' },
+        ];
+        const trips: Trip[] = [];
+        const expenses: Expense[] = [];
+        const settlements: Settlement[] = [];
+        for (let i = 0; i < 5; i++) {
+            const tid = `t${i}`;
+            trips.push(trip(tid, companions));
+            expenses.push(expense({
+                id: `e${i}`, tripId: tid, who: 'You', value: 90, euroValue: 90,
+                splits: { You: 1, Alice: 1, Bob: 1 },
+            }));
+            settlements.push(settlement({
+                id: `s${i}`, tripId: tid, fromUserId: 'u-a', toUserId: 'u-you',
+                fromName: 'Alice', toName: 'You', amount: 5, euroValue: 5,
+            }));
+        }
+        STATE.trips = trips;
+        STATE.expenses = expenses;
+        STATE.settlements = settlements;
+        emit(EVENTS.STATE_CHANGED);
+
+        // Sum per-trip balances.
+        const perTripSum: Record<string, number> = {};
+        for (const t of trips) {
+            const { balances } = computeTripBalances(t);
+            for (const [name, v] of Object.entries(balances)) {
+                perTripSum[name] = (perTripSum[name] || 0) + v;
+            }
+        }
+        const global = computeGlobalBalances();
+        // They must AGREE person-by-person (MK2 BUG-4 / MK1 MONEY-4).
+        expect(cents(global)).toEqual(cents(perTripSum));
+        // Sanity: each trip You is +60 (paid 90, owes 30) minus 5 received
+        // = +55 per trip → +275 across 5. Alice owes 30 + paid 5 = -25/trip
+        // → -125. Bob -30/trip → -150.
+        expect(cents(global)).toEqual({ You: 275, Alice: -125, Bob: -150 });
+        // Global conservation: everything sums to ~0.
+        expect(c(Object.values(global).reduce((a, b) => a + b, 0))).toBe(0);
+    });
+
+    it('does not double-count when active STATE.settlements also appears in an archived snapshot', () => {
+        const companions: Companion[] = [
+            { name: 'You', linkedUserId: 'u-you' },
+            { name: 'Alice', linkedUserId: 'u-a' },
+        ];
+        STATE.trips = [trip('t1', companions)];
+        STATE.expenses = [expense({ id: 'e1', tripId: 't1', who: 'You', value: 100, euroValue: 100, splits: { You: 50, Alice: 50 } })];
+        const s = settlement({ id: 's1', tripId: 't1', fromUserId: 'u-a', toUserId: 'u-you', fromName: 'Alice', toName: 'You', amount: 50, euroValue: 50 });
+        STATE.settlements = [s];
+        emit(EVENTS.STATE_CHANGED);
+        const before = computeGlobalBalances();
+        // Now ALSO put the same settlement id in an archived trip snapshot
+        // (this is what pullFromServer does for archived trips).
+        STATE.archivedTrips = [
+            { ...trip('t1', companions), settlements: [s], expenses: [] } as unknown as Trip,
+        ];
+        emit(EVENTS.STATE_CHANGED);
+        const after = computeGlobalBalances();
+        // Dedup by id → identical (settlement applied once, debt clears).
+        expect(cents(after)).toEqual(cents(before));
+        expect(cents(after)).toEqual({ You: 0, Alice: 0 });
+    });
+});
+
+// ── 2. Identity edge at scale: member who is ALSO a name-companion ─────────
+
+describe('MK4: identity edge (member + unlinked namesake companion)', () => {
+    it('settlement to a member reconciles to the existing companion balance (no phantom)', () => {
+        // Trip roster has BOTH a linked self entry AND an UNLINKED "Sara"
+        // namesake. An expense splits onto "Sara". A settlement (full
+        // account name "Sara Lopez", user_id u-s) must land on the existing
+        // "Sara" balance, NOT a phantom "Sara Lopez" person.
+        STATE.trips = [trip('t1', [
+            { name: 'You', linkedUserId: 'u-you' },
+            { name: 'Sara' }, // unlinked namesake of the member
+        ])];
+        STATE.expenses = [expense({
+            id: 'e1', tripId: 't1', who: 'You', value: 100, euroValue: 100,
+            splits: { You: 50, Sara: 50 },
+        })];
+        STATE.settlements = [settlement({
+            id: 's1', tripId: 't1', fromUserId: 'u-s', toUserId: 'u-you',
+            fromName: 'Sara Lopez', toName: 'You', amount: 50, euroValue: 50,
+        })];
+        emit(EVENTS.STATE_CHANGED);
+        const { balances } = computeTripBalances(STATE.trips[0]!);
+        // Sara owed 50, paid 50 → 0. You +50 received -50 → 0. No phantom.
+        expect(cents(balances)).toEqual({ You: 0, Sara: 0 });
+        expect(Object.keys(balances).sort()).toEqual(['Sara', 'You']);
+        // And the GLOBAL view must agree (no phantom across trips either).
+        const g = computeGlobalBalances();
+        expect(Object.keys(g)).not.toContain('Sara Lopez');
+    });
+
+    it('GLOBAL: settlement reconciles even when the trip is NOT in the local cache (snapshot names)', () => {
+        // A settlement whose trip isn't hydrated locally — global balance
+        // must still apply it via the fromName/toName snapshot.
+        STATE.trips = [trip('t1', [
+            { name: 'You', linkedUserId: 'u-you' },
+            { name: 'Alice', linkedUserId: 'u-a' },
+        ])];
+        STATE.expenses = [expense({ id: 'e1', tripId: 't1', who: 'You', value: 100, euroValue: 100, splits: { You: 50, Alice: 50 } })];
+        STATE.settlements = [
+            // settlement for t1 (clears the t1 debt)
+            settlement({ id: 's1', tripId: 't1', fromUserId: 'u-a', toUserId: 'u-you', fromName: 'Alice', toName: 'You', amount: 50, euroValue: 50 }),
+            // settlement for an UNHYDRATED trip t-ghost (not in STATE.trips)
+            settlement({ id: 's2', tripId: 't-ghost', fromUserId: 'u-you', toUserId: 'u-a', fromName: 'You', toName: 'Alice', amount: 20, euroValue: 20 }),
+        ];
+        emit(EVENTS.STATE_CHANGED);
+        const g = computeGlobalBalances();
+        // t1 nets to 0; the ghost-trip settlement still shifts: You paid 20
+        // → +20, Alice received 20 → -20. (F4 fix: don't drop unhydrated.)
+        expect(cents(g)).toEqual({ You: 20, Alice: -20 });
+    });
+});
+
+// ── 3. Per-currency at scale (EUR + USD + CHF) ────────────────────────────
+
+describe('MK4: per-currency settlements', () => {
+    it('keeps EUR/USD/CHF debts separate and settles per currency', () => {
+        const companions: Companion[] = [
+            { name: 'You', linkedUserId: 'u-you' },
+            { name: 'Alice', linkedUserId: 'u-a' },
+        ];
+        STATE.trips = [trip('t1', companions)];
+        STATE.expenses = [
+            expense({ id: 'e1', tripId: 't1', who: 'You', value: 100, currency: 'EUR', splits: { You: 50, Alice: 50 } }),
+            expense({ id: 'e2', tripId: 't1', who: 'You', value: 200, currency: 'USD', splits: { You: 50, Alice: 50 } }),
+            expense({ id: 'e3', tripId: 't1', who: 'Alice', value: 60, currency: 'CHF', splits: { You: 50, Alice: 50 } }),
+        ];
+        // Settle the USD debt only (Alice pays You 100 USD).
+        STATE.settlements = [settlement({ id: 's1', tripId: 't1', fromUserId: 'u-a', toUserId: 'u-you', fromName: 'Alice', toName: 'You', amount: 100, currency: 'USD', euroValue: 92 })];
+        emit(EVENTS.STATE_CHANGED);
+        const { byCurrency } = computeTripBalancesByCurrency(STATE.trips[0]!);
+        // EUR: You +50, Alice -50 (untouched by the USD settlement).
+        expect(cents(byCurrency.EUR!)).toEqual({ You: 50, Alice: -50 });
+        // USD: You +100 then -100 (received) = 0; Alice -100 then +100 = 0.
+        expect(cents(byCurrency.USD!)).toEqual({ You: 0, Alice: 0 });
+        // CHF: Alice paid 60 → +30, You -30.
+        expect(cents(byCurrency.CHF!)).toEqual({ You: -30, Alice: 30 });
+    });
+
+    it('no-rate currency (ARS) stays in ARS, never collapses to EUR', () => {
+        STATE.trips = [trip('t1', [{ name: 'You' }, { name: 'Alice' }])];
+        STATE.expenses = [
+            expense({ id: 'e1', tripId: 't1', who: 'You', value: 10000, currency: 'ARS', euroValue: 0, splits: { You: 50, Alice: 50 } }),
+        ];
+        emit(EVENTS.STATE_CHANGED);
+        const { byCurrency } = computeTripBalancesByCurrency(STATE.trips[0]!);
+        // Per-currency uses ORIGINAL value (10000 ARS), split 5000 each.
+        expect(cents(byCurrency.ARS!)).toEqual({ You: 5000, Alice: -5000 });
+        // EUR per-trip (computeTripBalances) reads euroValue:0 → €0 (nominal,
+        // no silent 1:1). So the EUR dashboard shows 0, ARS view shows real.
+        const { balances } = computeTripBalances(STATE.trips[0]!);
+        expect(cents(balances)).toEqual({ You: 0, Alice: 0 });
+    });
+});
+
+// ── 4. simplifyDebts epsilon / FX residue (MK1 MONEY-5 / MK2 BUG-23) ──────
+
+describe('MK4: simplifyDebts epsilon + FX residue', () => {
+    it('does NOT drop a real sub-€0.50 debt (€0.49 surfaces)', () => {
+        const debts = simplifyDebts({ Alice: 0.49, Bob: -0.49 });
+        expect(debts).toHaveLength(1);
+        expect(debts[0]).toMatchObject({ from: 'Bob', to: 'Alice', amount: 0.49 });
+    });
+
+    it('FX residue: many JPY→EUR thousandths net to noise, not a phantom debt', () => {
+        // 3-way split of a JPY expense leaves sub-cent thousandths each.
+        STATE.trips = [trip('t1', [{ name: 'You' }, { name: 'Alice' }, { name: 'Bob' }])];
+        STATE.expenses = [
+            // euroValue 100.00 split 3 ways = 33.333... each → residue.
+            expense({ id: 'e1', tripId: 't1', who: 'You', value: 15000, currency: 'JPY', euroValue: 100, splits: { You: 1, Alice: 1, Bob: 1 } }),
+        ];
+        emit(EVENTS.STATE_CHANGED);
+        const { balances } = computeTripBalances(STATE.trips[0]!);
+        const debts = simplifyDebts(balances);
+        // You is owed ~66.67; the residue (<1 cent) must not create a 3rd
+        // phantom edge. Expect exactly 2 edges (Alice→You, Bob→You).
+        expect(debts).toHaveLength(2);
+        expect(debts.every((d) => d.to === 'You')).toBe(true);
+    });
+});
+
+// ── 5. Memoization correctness (MK3-11) ───────────────────────────────────
+
+describe('MK4: computeGlobalBalances memo', () => {
+    it('returns a fresh copy each call (caller mutation cannot corrupt cache)', () => {
+        STATE.trips = [trip('t1', [{ name: 'You' }, { name: 'Alice' }])];
+        STATE.expenses = [expense({ id: 'e1', tripId: 't1', who: 'You', value: 100, euroValue: 100, splits: { You: 50, Alice: 50 } })];
+        emit(EVENTS.STATE_CHANGED);
+        const g1 = computeGlobalBalances();
+        g1.You = 99999; // mutate the returned object
+        const g2 = computeGlobalBalances(); // same state version → cached
+        expect(c(g2.You!)).toBe(50); // not corrupted by the mutation
+    });
+
+    it('recomputes after a new settlement bumps the state version', () => {
+        STATE.trips = [trip('t1', [{ name: 'You', linkedUserId: 'u-you' }, { name: 'Alice', linkedUserId: 'u-a' }])];
+        STATE.expenses = [expense({ id: 'e1', tripId: 't1', who: 'You', value: 100, euroValue: 100, splits: { You: 50, Alice: 50 } })];
+        emit(EVENTS.STATE_CHANGED);
+        expect(cents(computeGlobalBalances())).toEqual({ You: 50, Alice: -50 });
+        const vBefore = getStateVersion();
+        STATE.settlements = [settlement({ id: 's1', tripId: 't1', fromUserId: 'u-a', toUserId: 'u-you', fromName: 'Alice', toName: 'You', amount: 50, euroValue: 50 })];
+        emit(EVENTS.STATE_CHANGED);
+        expect(getStateVersion()).not.toBe(vBefore);
+        expect(cents(computeGlobalBalances())).toEqual({ You: 0, Alice: 0 });
+    });
+});
+
+// ── 6b. Cross-trip NAME COLLISION (two different people, same display name) ─
+
+describe('MK4: cross-trip name collision merges distinct people', () => {
+    it('two DIFFERENT "Alex" across two trips collapse into one global balance', () => {
+        // Trip A: You + "Alex" (linked u-alex1). Trip B: You + "Alex"
+        // (a name-only companion, a DIFFERENT real person). The global
+        // view keys purely on the display name "Alex" → both people's
+        // money lands on ONE "Alex" balance.
+        STATE.trips = [
+            trip('tA', [{ name: 'You', linkedUserId: 'u-you' }, { name: 'Alex', linkedUserId: 'u-alex1' }]),
+            trip('tB', [{ name: 'You', linkedUserId: 'u-you' }, { name: 'Alex' }]),
+        ];
+        STATE.expenses = [
+            expense({ id: 'eA', tripId: 'tA', who: 'You', value: 100, euroValue: 100, splits: { You: 50, Alex: 50 } }),
+            expense({ id: 'eB', tripId: 'tB', who: 'You', value: 40, euroValue: 40, splits: { You: 50, Alex: 50 } }),
+        ];
+        emit(EVENTS.STATE_CHANGED);
+        const g = computeGlobalBalances();
+        // The two distinct Alexes are MERGED: -50 (tripA) + -20 (tripB) = -70.
+        // A correct per-person view would show two separate -50 and -20 debts.
+        expect(cents(g)).toEqual({ You: 70, Alex: -70 });
+        // There is only ONE "Alex" key — the collision is silent.
+        expect(Object.keys(g).filter((k) => k === 'Alex')).toHaveLength(1);
+    });
+});
+
+// ── 6c. findAcceptedMemberUserId first-name collision (settle routing) ─────
+
+describe('MK4: settle-routing first-name collision', () => {
+    it('two members sharing a first name → settle falls to legacy path (undefined)', async () => {
+        const { findAcceptedMemberUserId } = await import('../../companions.js');
+        const t = {
+            companions: [{ name: 'Sara' }],
+            members: [
+                { userId: 'u-s1', name: 'Sara Lopez' },
+                { userId: 'u-s2', name: 'Sara Kim' },
+            ],
+        } as unknown as Trip;
+        // "Sara" matches BOTH members by first-name → ambiguous → undefined,
+        // so settleDebt routes to the legacy fake-expense path even though
+        // both ARE real accepted members. (Documents the ambiguity fallback.)
+        expect(findAcceptedMemberUserId(t, 'Sara')).toBeUndefined();
+    });
+});
+
+// ── 6. Over-settlement on the client ledger (refund-owed direction flip) ──
+
+describe('MK4: over-settlement flips the balance (client has no hard gate)', () => {
+    it('recording MORE than owed inverts the pairwise balance', () => {
+        // Alice owes You 30. A 60 settlement (Alice->You) flips it: now You
+        // owes Alice 30. The client only WARNS (overpay confirm); the ledger
+        // math itself applies it. This documents the post-confirm semantics.
+        STATE.trips = [trip('t1', [{ name: 'You', linkedUserId: 'u-you' }, { name: 'Alice', linkedUserId: 'u-a' }])];
+        STATE.expenses = [expense({ id: 'e1', tripId: 't1', who: 'You', value: 60, euroValue: 60, splits: { You: 50, Alice: 50 } })];
+        STATE.settlements = [settlement({ id: 's1', tripId: 't1', fromUserId: 'u-a', toUserId: 'u-you', fromName: 'Alice', toName: 'You', amount: 60, euroValue: 60 })];
+        emit(EVENTS.STATE_CHANGED);
+        const { balances } = computeTripBalances(STATE.trips[0]!);
+        // You: +30 (paid 60, owes 30) then -60 received = -30. Alice: -30
+        // then +60 = +30. Direction flipped.
+        expect(cents(balances)).toEqual({ You: -30, Alice: 30 });
+    });
+});

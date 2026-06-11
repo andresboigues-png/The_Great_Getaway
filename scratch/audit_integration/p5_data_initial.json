@@ -1,0 +1,2192 @@
+{
+  "achievements": [
+    {
+      "badgeId": "first_settle_up",
+      "context": {},
+      "description": "Closed the loop on a settle-up.",
+      "earnedAt": "2026-06-01 14:38:04",
+      "emoji": "\ud83e\udd1d",
+      "label": "Square Deal"
+    },
+    {
+      "badgeId": "first_share",
+      "context": {},
+      "description": "Shared your first trip on the feed.",
+      "earnedAt": "2026-06-01 14:38:04",
+      "emoji": "\ud83d\udce3",
+      "label": "Storyteller"
+    },
+    {
+      "badgeId": "first_trip",
+      "context": {},
+      "description": "Started planning your first trip.",
+      "earnedAt": "2026-06-01 14:38:04",
+      "emoji": "\ud83e\uddf3",
+      "label": "First Trip"
+    },
+    {
+      "badgeId": "social_butterfly",
+      "context": {
+        "friendCount": 5
+      },
+      "description": "Connected with 3 friends.",
+      "earnedAt": "2026-06-01 14:38:04",
+      "emoji": "\ud83e\udd8b",
+      "label": "Social Butterfly"
+    }
+  ],
+  "budgets": [
+    {
+      "amount": 1200.0,
+      "categoryId": null,
+      "currency": "EUR",
+      "id": "bud-6bb626bc",
+      "label": "Total trip budget",
+      "originalAmount": 1200.0,
+      "originalCurrency": "EUR",
+      "tripId": "trip-lisbon",
+      "updatedAt": "2026-06-01 14:28:07.764",
+      "user": null
+    },
+    {
+      "amount": 250.0,
+      "categoryId": "food",
+      "currency": "EUR",
+      "id": "bud-032c2c59",
+      "label": "Food",
+      "originalAmount": 250.0,
+      "originalCurrency": "EUR",
+      "tripId": "trip-lisbon",
+      "updatedAt": "2026-06-01 14:28:07.768",
+      "user": null
+    },
+    {
+      "amount": 6000.0,
+      "categoryId": null,
+      "currency": "EUR",
+      "id": "trip-p6-biggroup-bud-all",
+      "label": "Overall",
+      "originalAmount": 6000.0,
+      "originalCurrency": "EUR",
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.097",
+      "user": null
+    },
+    {
+      "amount": 1500.0,
+      "categoryId": "food",
+      "currency": "EUR",
+      "id": "trip-p6-biggroup-bud-food",
+      "label": "Food",
+      "originalAmount": 1500.0,
+      "originalCurrency": "EUR",
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.100",
+      "user": null
+    }
+  ],
+  "categories": [],
+  "expenses": [
+    {
+      "categoryId": "flights",
+      "country": "",
+      "currency": "EUR",
+      "date": "2026-06-13",
+      "deleted_at": null,
+      "euroValue": 312.4,
+      "id": "exp-939fc506e1",
+      "isSettlement": false,
+      "label": "TAP flights LIS",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 50.0,
+        "Sara": 50.0
+      },
+      "tripId": "trip-lisbon",
+      "updatedAt": "2026-06-01 14:28:07.572",
+      "value": 312.4,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "accommodation",
+      "country": "",
+      "currency": "EUR",
+      "date": "2026-06-11",
+      "deleted_at": null,
+      "euroValue": 415.0,
+      "id": "exp-16b397fb55",
+      "isSettlement": false,
+      "label": "Hotel Baixa (3 nights)",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 50.0,
+        "Sara": 50.0
+      },
+      "tripId": "trip-lisbon",
+      "updatedAt": "2026-06-01 14:28:07.579",
+      "value": 415.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "food",
+      "country": "",
+      "currency": "EUR",
+      "date": "2026-06-11",
+      "deleted_at": null,
+      "euroValue": 9.6,
+      "id": "exp-d3ea2822bf",
+      "isSettlement": false,
+      "label": "Pasteis de Belem",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 50.0,
+        "Sara": 50.0
+      },
+      "tripId": "trip-lisbon",
+      "updatedAt": "2026-06-01 14:28:07.583",
+      "value": 9.6,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "food",
+      "country": "",
+      "currency": "EUR",
+      "date": "2026-06-14",
+      "deleted_at": null,
+      "euroValue": 84.0,
+      "id": "exp-f2dd8153c7",
+      "isSettlement": false,
+      "label": "Fado dinner",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 50.0,
+        "Sara": 50.0
+      },
+      "tripId": "trip-lisbon",
+      "updatedAt": "2026-06-01 14:28:07.589",
+      "value": 84.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "transport",
+      "country": "",
+      "currency": "EUR",
+      "date": "2026-06-11",
+      "deleted_at": null,
+      "euroValue": 53.2,
+      "id": "exp-1ad47ac708",
+      "isSettlement": false,
+      "label": "Sintra train + palaces",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 50.0,
+        "Sara": 50.0
+      },
+      "tripId": "trip-lisbon",
+      "updatedAt": "2026-06-01 14:28:07.594",
+      "value": 53.2,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "shopping",
+      "country": "",
+      "currency": "EUR",
+      "date": "2026-06-14",
+      "deleted_at": null,
+      "euroValue": 47.0,
+      "id": "exp-710d0fa107",
+      "isSettlement": false,
+      "label": "Souvenirs (tiles)",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 50.0,
+        "Sara": 50.0
+      },
+      "tripId": "trip-lisbon",
+      "updatedAt": "2026-06-01 14:28:07.600",
+      "value": 47.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "transport",
+      "country": "",
+      "currency": "EUR",
+      "date": "2026-06-12",
+      "deleted_at": null,
+      "euroValue": 18.5,
+      "id": "exp-19caea19a1",
+      "isSettlement": false,
+      "label": "Airport taxi",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 50.0,
+        "Sara": 50.0
+      },
+      "tripId": "trip-lisbon",
+      "updatedAt": "2026-06-01 14:28:07.603",
+      "value": 18.5,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "food",
+      "country": "",
+      "currency": "USD",
+      "date": "2026-06-11",
+      "deleted_at": null,
+      "euroValue": 30.9172,
+      "id": "exp-c6fc6f3ad3",
+      "isSettlement": false,
+      "label": "Rooftop drinks",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 50.0,
+        "Sara": 50.0
+      },
+      "tripId": "trip-lisbon",
+      "updatedAt": "2026-06-01 14:28:07.759",
+      "value": 36.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "transport",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-25",
+      "deleted_at": null,
+      "euroValue": 21.1271,
+      "id": "trip-p6-biggroup-e001",
+      "isSettlement": false,
+      "label": "Airport taxi",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:03.997",
+      "value": 800.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "food",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-25",
+      "deleted_at": null,
+      "euroValue": 84.5085,
+      "id": "trip-p6-biggroup-e002",
+      "isSettlement": false,
+      "label": "Group dinner",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:03.999",
+      "value": 3200.0,
+      "who": "Sara"
+    },
+    {
+      "categoryId": "shopping",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-25",
+      "deleted_at": null,
+      "euroValue": 31.6907,
+      "id": "trip-p6-biggroup-e003",
+      "isSettlement": false,
+      "label": "SIM cards",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.001",
+      "value": 1200.0,
+      "who": "Mia"
+    },
+    {
+      "categoryId": "accommodation",
+      "country": "Thailand",
+      "currency": "EUR",
+      "date": "2026-05-25",
+      "deleted_at": null,
+      "euroValue": 240.0,
+      "id": "trip-p6-biggroup-e004",
+      "isSettlement": false,
+      "label": "Hotel night 1",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.003",
+      "value": 240.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "food",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-26",
+      "deleted_at": null,
+      "euroValue": 15.8453,
+      "id": "trip-p6-biggroup-e005",
+      "isSettlement": false,
+      "label": "Street food",
+      "receiptUrl": null,
+      "splits": {
+        "Leo": 50.0,
+        "Nina": 50.0
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.004",
+      "value": 600.0,
+      "who": "Leo"
+    },
+    {
+      "categoryId": "activities",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-26",
+      "deleted_at": null,
+      "euroValue": 63.3814,
+      "id": "trip-p6-biggroup-e006",
+      "isSettlement": false,
+      "label": "Temple tour",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.006",
+      "value": 2400.0,
+      "who": "Nina"
+    },
+    {
+      "categoryId": "food",
+      "country": "Thailand",
+      "currency": "EUR",
+      "date": "2026-05-26",
+      "deleted_at": null,
+      "euroValue": 12.5,
+      "id": "trip-p6-biggroup-e007",
+      "isSettlement": false,
+      "label": "Coffee",
+      "receiptUrl": null,
+      "splits": {
+        "Omar": 100.0
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.008",
+      "value": 12.5,
+      "who": "Omar"
+    },
+    {
+      "categoryId": "accommodation",
+      "country": "Thailand",
+      "currency": "EUR",
+      "date": "2026-05-26",
+      "deleted_at": null,
+      "euroValue": 240.0,
+      "id": "trip-p6-biggroup-e008",
+      "isSettlement": false,
+      "label": "Hotel night 2",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.011",
+      "value": 240.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "activities",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-27",
+      "deleted_at": null,
+      "euroValue": 118.8401,
+      "id": "trip-p6-biggroup-e009",
+      "isSettlement": false,
+      "label": "Cooking class",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 25.0,
+        "Leo": 25.0,
+        "Mia": 25.0,
+        "Sara": 25.0
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.013",
+      "value": 4500.0,
+      "who": "Mia"
+    },
+    {
+      "categoryId": "food",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-27",
+      "deleted_at": null,
+      "euroValue": 23.768,
+      "id": "trip-p6-biggroup-e010",
+      "isSettlement": false,
+      "label": "Lunch",
+      "receiptUrl": null,
+      "splits": {
+        "Leo": 33.0,
+        "Mia": 33.0,
+        "Sara": 34.0
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.015",
+      "value": 900.0,
+      "who": "Sara"
+    },
+    {
+      "categoryId": "transport",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-27",
+      "deleted_at": null,
+      "euroValue": 9.2431,
+      "id": "trip-p6-biggroup-e011",
+      "isSettlement": false,
+      "label": "Tuk-tuk",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.016",
+      "value": 350.0,
+      "who": "Omar"
+    },
+    {
+      "categoryId": "accommodation",
+      "country": "Thailand",
+      "currency": "EUR",
+      "date": "2026-05-27",
+      "deleted_at": null,
+      "euroValue": 240.0,
+      "id": "trip-p6-biggroup-e012",
+      "isSettlement": false,
+      "label": "Hotel night 3",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.018",
+      "value": 240.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "activities",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-28",
+      "deleted_at": null,
+      "euroValue": 39.6134,
+      "id": "trip-p6-biggroup-e013",
+      "isSettlement": false,
+      "label": "Massage",
+      "receiptUrl": null,
+      "splits": {
+        "Nina": 50.0,
+        "Sara": 50.0
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.020",
+      "value": 1500.0,
+      "who": "Nina"
+    },
+    {
+      "categoryId": "shopping",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-28",
+      "deleted_at": null,
+      "euroValue": 55.4587,
+      "id": "trip-p6-biggroup-e014",
+      "isSettlement": false,
+      "label": "Night market",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.022",
+      "value": 2100.0,
+      "who": "Leo"
+    },
+    {
+      "categoryId": "food",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-28",
+      "deleted_at": null,
+      "euroValue": 47.536,
+      "id": "trip-p6-biggroup-e015",
+      "isSettlement": false,
+      "label": "Dinner",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.024",
+      "value": 1800.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "accommodation",
+      "country": "Thailand",
+      "currency": "EUR",
+      "date": "2026-05-28",
+      "deleted_at": null,
+      "euroValue": 240.0,
+      "id": "trip-p6-biggroup-e016",
+      "isSettlement": false,
+      "label": "Hotel night 4",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.025",
+      "value": 240.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "flights",
+      "country": "Thailand",
+      "currency": "USD",
+      "date": "2026-05-29",
+      "deleted_at": null,
+      "euroValue": 81.5871,
+      "id": "trip-p6-biggroup-e017",
+      "isSettlement": false,
+      "label": "Domestic flight",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.027",
+      "value": 95.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "food",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-29",
+      "deleted_at": null,
+      "euroValue": 6.6022,
+      "id": "trip-p6-biggroup-e018",
+      "isSettlement": false,
+      "label": "Snacks",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.030",
+      "value": 250.0,
+      "who": "Mia"
+    },
+    {
+      "categoryId": "food",
+      "country": "Thailand",
+      "currency": "USD",
+      "date": "2026-05-29",
+      "deleted_at": null,
+      "euroValue": 34.3525,
+      "id": "trip-p6-biggroup-e019",
+      "isSettlement": false,
+      "label": "Airport lounge",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 50.0,
+        "Sara": 50.0
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.031",
+      "value": 40.0,
+      "who": "Sara"
+    },
+    {
+      "categoryId": "accommodation",
+      "country": "Thailand",
+      "currency": "USD",
+      "date": "2026-05-29",
+      "deleted_at": null,
+      "euroValue": 47.2346,
+      "id": "trip-p6-biggroup-e020",
+      "isSettlement": false,
+      "label": "Hotel night 5",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.033",
+      "value": 55.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "transport",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-05-30",
+      "deleted_at": null,
+      "euroValue": 12.963,
+      "id": "trip-p6-biggroup-e021",
+      "isSettlement": false,
+      "label": "Hanoi taxi",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.035",
+      "value": 350000.0,
+      "who": "Omar"
+    },
+    {
+      "categoryId": "food",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-05-30",
+      "deleted_at": null,
+      "euroValue": 22.2222,
+      "id": "trip-p6-biggroup-e022",
+      "isSettlement": false,
+      "label": "Pho dinner",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.037",
+      "value": 600000.0,
+      "who": "Leo"
+    },
+    {
+      "categoryId": "food",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-05-30",
+      "deleted_at": null,
+      "euroValue": 4.4444,
+      "id": "trip-p6-biggroup-e023",
+      "isSettlement": false,
+      "label": "Egg coffee",
+      "receiptUrl": null,
+      "splits": {
+        "Nina": 100.0
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.038",
+      "value": 120000.0,
+      "who": "Nina"
+    },
+    {
+      "categoryId": "accommodation",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-05-30",
+      "deleted_at": null,
+      "euroValue": 48.1481,
+      "id": "trip-p6-biggroup-e024",
+      "isSettlement": false,
+      "label": "Hotel night 6",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.041",
+      "value": 1300000.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "activities",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-05-31",
+      "deleted_at": null,
+      "euroValue": 166.6667,
+      "id": "trip-p6-biggroup-e025",
+      "isSettlement": false,
+      "label": "Ha Long cruise",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.042",
+      "value": 4500000.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "food",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-05-31",
+      "deleted_at": null,
+      "euroValue": 29.6296,
+      "id": "trip-p6-biggroup-e026",
+      "isSettlement": false,
+      "label": "Lunch on boat",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.044",
+      "value": 800000.0,
+      "who": "Sara"
+    },
+    {
+      "categoryId": "activities",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-05-31",
+      "deleted_at": null,
+      "euroValue": 18.5185,
+      "id": "trip-p6-biggroup-e027",
+      "isSettlement": false,
+      "label": "Kayak rental",
+      "receiptUrl": null,
+      "splits": {
+        "Leo": 33.0,
+        "Mia": 34.0,
+        "Nina": 33.0
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.046",
+      "value": 500000.0,
+      "who": "Mia"
+    },
+    {
+      "categoryId": "accommodation",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-05-31",
+      "deleted_at": null,
+      "euroValue": 48.1481,
+      "id": "trip-p6-biggroup-e028",
+      "isSettlement": false,
+      "label": "Hotel night 7",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.047",
+      "value": 1300000.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "transport",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-06-01",
+      "deleted_at": null,
+      "euroValue": 25.9259,
+      "id": "trip-p6-biggroup-e029",
+      "isSettlement": false,
+      "label": "Bus to Sapa",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.050",
+      "value": 700000.0,
+      "who": "Leo"
+    },
+    {
+      "categoryId": "activities",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-06-01",
+      "deleted_at": null,
+      "euroValue": 44.4444,
+      "id": "trip-p6-biggroup-e030",
+      "isSettlement": false,
+      "label": "Trekking guide",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.052",
+      "value": 1200000.0,
+      "who": "Nina"
+    },
+    {
+      "categoryId": "shopping",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-06-01",
+      "deleted_at": null,
+      "euroValue": 33.3333,
+      "id": "trip-p6-biggroup-e031",
+      "isSettlement": false,
+      "label": "Souvenirs",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.053",
+      "value": 900000.0,
+      "who": "Omar"
+    },
+    {
+      "categoryId": "food",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-06-01",
+      "deleted_at": null,
+      "euroValue": 1111.1111,
+      "id": "trip-p6-biggroup-e032",
+      "isSettlement": false,
+      "label": "Big group splurge",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.055",
+      "value": 30000000.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "accommodation",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-06-02",
+      "deleted_at": null,
+      "euroValue": 44.4444,
+      "id": "trip-p6-biggroup-e033",
+      "isSettlement": false,
+      "label": "Future hotel A",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.057",
+      "value": 1200000.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "food",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-06-02",
+      "deleted_at": null,
+      "euroValue": 25.9259,
+      "id": "trip-p6-biggroup-e034",
+      "isSettlement": false,
+      "label": "Future dinner",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.059",
+      "value": 700000.0,
+      "who": "Sara"
+    },
+    {
+      "categoryId": "activities",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-06-03",
+      "deleted_at": null,
+      "euroValue": 74.0741,
+      "id": "trip-p6-biggroup-e035",
+      "isSettlement": false,
+      "label": "Future tour",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.061",
+      "value": 2000000.0,
+      "who": "Mia"
+    },
+    {
+      "categoryId": "food",
+      "country": "Vietnam",
+      "currency": "USD",
+      "date": "2026-06-03",
+      "deleted_at": null,
+      "euroValue": 77.293,
+      "id": "trip-p6-biggroup-e036",
+      "isSettlement": false,
+      "label": "Future snacks",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.062",
+      "value": 90.0,
+      "who": "Leo"
+    },
+    {
+      "categoryId": "transport",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-06-04",
+      "deleted_at": null,
+      "euroValue": 11.1111,
+      "id": "trip-p6-biggroup-e037",
+      "isSettlement": false,
+      "label": "Future taxi",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.064",
+      "value": 300000.0,
+      "who": "Nina"
+    },
+    {
+      "categoryId": "shopping",
+      "country": "Vietnam",
+      "currency": "EUR",
+      "date": "2026-06-04",
+      "deleted_at": null,
+      "euroValue": 80.0,
+      "id": "trip-p6-biggroup-e038",
+      "isSettlement": false,
+      "label": "Future shopping",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.066",
+      "value": 80.0,
+      "who": "Omar"
+    },
+    {
+      "categoryId": "flights",
+      "country": "Vietnam",
+      "currency": "EUR",
+      "date": "2026-06-05",
+      "deleted_at": null,
+      "euroValue": 220.0,
+      "id": "trip-p6-biggroup-e039",
+      "isSettlement": false,
+      "label": "Future flight back",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.068",
+      "value": 220.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "food",
+      "country": "Vietnam",
+      "currency": "EUR",
+      "date": "2026-06-05",
+      "deleted_at": null,
+      "euroValue": 25.0,
+      "id": "trip-p6-biggroup-e040",
+      "isSettlement": false,
+      "label": "Future lunch",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.070",
+      "value": 25.0,
+      "who": "Sara"
+    },
+    {
+      "categoryId": "food",
+      "country": "Vietnam",
+      "currency": "EUR",
+      "date": "2026-06-06",
+      "deleted_at": null,
+      "euroValue": 8.0,
+      "id": "trip-p6-biggroup-e041",
+      "isSettlement": false,
+      "label": "Future coffee",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.072",
+      "value": 8.0,
+      "who": "Mia"
+    },
+    {
+      "categoryId": "shopping",
+      "country": "Vietnam",
+      "currency": "EUR",
+      "date": "2026-06-06",
+      "deleted_at": null,
+      "euroValue": 60.0,
+      "id": "trip-p6-biggroup-e042",
+      "isSettlement": false,
+      "label": "Future gift",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.074",
+      "value": 60.0,
+      "who": "Leo"
+    },
+    {
+      "categoryId": "food",
+      "country": "Vietnam",
+      "currency": "EUR",
+      "date": "2026-06-07",
+      "deleted_at": null,
+      "euroValue": 120.0,
+      "id": "trip-p6-biggroup-e043",
+      "isSettlement": false,
+      "label": "Future last dinner",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.076",
+      "value": 120.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "food",
+      "country": "Vietnam",
+      "currency": "EUR",
+      "date": "2026-06-07",
+      "deleted_at": null,
+      "euroValue": 15.0,
+      "id": "trip-p6-biggroup-e044",
+      "isSettlement": false,
+      "label": "Future airport snack",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.077",
+      "value": 15.0,
+      "who": "Nina"
+    },
+    {
+      "categoryId": "food",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-25",
+      "deleted_at": null,
+      "euroValue": 2.3768,
+      "id": "trip-p6-biggroup-e045",
+      "isSettlement": false,
+      "label": "Water bottles",
+      "receiptUrl": null,
+      "splits": {
+        "Sara": 100.0
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.079",
+      "value": 90.0,
+      "who": "Sara"
+    },
+    {
+      "categoryId": "shopping",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-26",
+      "deleted_at": null,
+      "euroValue": 9.2431,
+      "id": "trip-p6-biggroup-e046",
+      "isSettlement": false,
+      "label": "Sunscreen",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 50.0,
+        "Mia": 50.0
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.081",
+      "value": 350.0,
+      "who": "Mia"
+    },
+    {
+      "categoryId": "food",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-27",
+      "deleted_at": null,
+      "euroValue": 12.6763,
+      "id": "trip-p6-biggroup-e047",
+      "isSettlement": false,
+      "label": "Beers",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 25.0,
+        "Leo": 25.0,
+        "Nina": 25.0,
+        "Omar": 25.0
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.083",
+      "value": 480.0,
+      "who": "Leo"
+    },
+    {
+      "categoryId": "transport",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-28",
+      "deleted_at": null,
+      "euroValue": 1.5845,
+      "id": "trip-p6-biggroup-e048",
+      "isSettlement": false,
+      "label": "Ferry",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.085",
+      "value": 60.0,
+      "who": "Nina"
+    },
+    {
+      "categoryId": "shopping",
+      "country": "Thailand",
+      "currency": "USD",
+      "date": "2026-05-29",
+      "deleted_at": null,
+      "euroValue": 6.8705,
+      "id": "trip-p6-biggroup-e049",
+      "isSettlement": false,
+      "label": "Postcards",
+      "receiptUrl": null,
+      "splits": {
+        "Omar": 100.0
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.086",
+      "value": 8.0,
+      "who": "Omar"
+    },
+    {
+      "categoryId": "transport",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-05-30",
+      "deleted_at": null,
+      "euroValue": 7.4074,
+      "id": "trip-p6-biggroup-e050",
+      "isSettlement": false,
+      "label": "Bike rental",
+      "receiptUrl": null,
+      "splits": {
+        "Mia": 50.0,
+        "Sara": 50.0
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.088",
+      "value": 200000.0,
+      "who": "Sara"
+    },
+    {
+      "categoryId": "food",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-05-31",
+      "deleted_at": null,
+      "euroValue": 11.1111,
+      "id": "trip-p6-biggroup-e051",
+      "isSettlement": false,
+      "label": "Extra drinks",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.090",
+      "value": 300000.0,
+      "who": "Leo"
+    },
+    {
+      "categoryId": "shopping",
+      "country": "Vietnam",
+      "currency": "VND",
+      "date": "2026-06-01",
+      "deleted_at": null,
+      "euroValue": 5.5556,
+      "id": "trip-p6-biggroup-e052",
+      "isSettlement": false,
+      "label": "Laundry",
+      "receiptUrl": null,
+      "splits": {
+        "Mia": 100.0
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.092",
+      "value": 150000.0,
+      "who": "Mia"
+    },
+    {
+      "categoryId": "activities",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-26",
+      "deleted_at": null,
+      "euroValue": 7.9227,
+      "id": "trip-p6-biggroup-e053",
+      "isSettlement": false,
+      "label": "Park entry",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.094",
+      "value": 300.0,
+      "who": "Alex"
+    },
+    {
+      "categoryId": "food",
+      "country": "Thailand",
+      "currency": "THB",
+      "date": "2026-05-27",
+      "deleted_at": null,
+      "euroValue": 5.81,
+      "id": "trip-p6-biggroup-e054",
+      "isSettlement": false,
+      "label": "Boat snacks",
+      "receiptUrl": null,
+      "splits": {
+        "Alex": 16.6667,
+        "Leo": 16.6667,
+        "Mia": 16.6667,
+        "Nina": 16.6667,
+        "Omar": 16.6667,
+        "Sara": 16.6667
+      },
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:04.095",
+      "value": 220.0,
+      "who": "Omar"
+    },
+    {
+      "categoryId": "transport",
+      "country": "",
+      "currency": "JPY",
+      "date": "2026-09-02",
+      "deleted_at": null,
+      "euroValue": 150.9841,
+      "id": "exp-a1548b96e7",
+      "isSettlement": false,
+      "label": "JR Pass",
+      "receiptUrl": null,
+      "splits": {},
+      "tripId": "trip-tokyo",
+      "updatedAt": "2026-06-01 14:28:07.790",
+      "value": 28000.0,
+      "who": "Alex"
+    }
+  ],
+  "newlyEarnedAchievements": [
+    {
+      "badgeId": "first_trip",
+      "context": {},
+      "description": "Started planning your first trip.",
+      "emoji": "\ud83e\uddf3",
+      "label": "First Trip"
+    },
+    {
+      "badgeId": "social_butterfly",
+      "context": {
+        "friendCount": 5
+      },
+      "description": "Connected with 3 friends.",
+      "emoji": "\ud83e\udd8b",
+      "label": "Social Butterfly"
+    },
+    {
+      "badgeId": "first_share",
+      "context": {},
+      "description": "Shared your first trip on the feed.",
+      "emoji": "\ud83d\udce3",
+      "label": "Storyteller"
+    },
+    {
+      "badgeId": "first_settle_up",
+      "context": {},
+      "description": "Closed the loop on a settle-up.",
+      "emoji": "\ud83e\udd1d",
+      "label": "Square Deal"
+    }
+  ],
+  "settlements": [
+    {
+      "amount": 45.0,
+      "createdAt": "2026-06-01 14:28:07",
+      "currency": "EUR",
+      "euroValue": 45.0,
+      "fromName": "Sara Lopez",
+      "fromUserId": "test-user-2",
+      "id": "MwWWGwVdhlc",
+      "method": "revolut",
+      "note": null,
+      "recordedBy": "test-user-1",
+      "toName": "Alex Rivera",
+      "toUserId": "test-user-1",
+      "tripId": "trip-lisbon"
+    }
+  ],
+  "tripDays": [
+    {
+      "date": null,
+      "dayNumber": 0,
+      "deleted_at": null,
+      "documents": [],
+      "id": "day-lisbon-0",
+      "lat": null,
+      "lon": null,
+      "name": "Arrival & Alfama",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "Wander Alfama's alleys",
+        "evening": "Fado dinner @ Clube de Fado",
+        "morning": "Land at LIS, drop bags"
+      },
+      "tip": "Buy a 24h Metro pass",
+      "tripId": "trip-lisbon",
+      "updatedAt": "2026-06-01 14:28:07.548"
+    },
+    {
+      "date": null,
+      "dayNumber": 1,
+      "deleted_at": null,
+      "documents": [],
+      "id": "day-lisbon-1",
+      "lat": null,
+      "lon": null,
+      "name": "Belem & Monuments",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "Pasteis de Belem (get 6)",
+        "evening": "Sunset at MAAT",
+        "morning": "Jeronimos Monastery"
+      },
+      "tip": "Book Belem Tower slot online",
+      "tripId": "trip-lisbon",
+      "updatedAt": "2026-06-01 14:28:07.553"
+    },
+    {
+      "date": null,
+      "dayNumber": 2,
+      "deleted_at": null,
+      "documents": [],
+      "id": "day-lisbon-2",
+      "lat": null,
+      "lon": null,
+      "name": "Sintra Day Trip",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "Pena Palace + Quinta da Regaleira",
+        "evening": "Dinner back in Bairro Alto",
+        "morning": "Train to Sintra"
+      },
+      "tip": "Wear comfy shoes",
+      "tripId": "trip-lisbon",
+      "updatedAt": "2026-06-01 14:28:07.558"
+    },
+    {
+      "date": null,
+      "dayNumber": 3,
+      "deleted_at": null,
+      "documents": [],
+      "id": "day-lisbon-3",
+      "lat": null,
+      "lon": null,
+      "name": "Markets & Departure",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "LX Factory shopping",
+        "evening": "Flight home",
+        "morning": "Time Out Market brunch"
+      },
+      "tip": "Keep EUR20 for the airport taxi",
+      "tripId": "trip-lisbon",
+      "updatedAt": "2026-06-01 14:28:07.562"
+    },
+    {
+      "date": "2026-05-25",
+      "dayNumber": 1,
+      "deleted_at": null,
+      "documents": [],
+      "id": "trip-p6-biggroup-d1",
+      "lat": null,
+      "lon": null,
+      "name": "Day 1",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "",
+        "evening": "",
+        "morning": ""
+      },
+      "tip": "",
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:03.949"
+    },
+    {
+      "date": "2026-05-26",
+      "dayNumber": 2,
+      "deleted_at": null,
+      "documents": [],
+      "id": "trip-p6-biggroup-d2",
+      "lat": null,
+      "lon": null,
+      "name": "Day 2",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "",
+        "evening": "",
+        "morning": ""
+      },
+      "tip": "",
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:03.951"
+    },
+    {
+      "date": "2026-05-27",
+      "dayNumber": 3,
+      "deleted_at": null,
+      "documents": [],
+      "id": "trip-p6-biggroup-d3",
+      "lat": null,
+      "lon": null,
+      "name": "Day 3",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "",
+        "evening": "",
+        "morning": ""
+      },
+      "tip": "",
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:03.953"
+    },
+    {
+      "date": "2026-05-28",
+      "dayNumber": 4,
+      "deleted_at": null,
+      "documents": [],
+      "id": "trip-p6-biggroup-d4",
+      "lat": null,
+      "lon": null,
+      "name": "Day 4",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "",
+        "evening": "",
+        "morning": ""
+      },
+      "tip": "",
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:03.954"
+    },
+    {
+      "date": "2026-05-29",
+      "dayNumber": 5,
+      "deleted_at": null,
+      "documents": [],
+      "id": "trip-p6-biggroup-d5",
+      "lat": null,
+      "lon": null,
+      "name": "Day 5",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "",
+        "evening": "",
+        "morning": ""
+      },
+      "tip": "",
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:03.956"
+    },
+    {
+      "date": "2026-05-30",
+      "dayNumber": 6,
+      "deleted_at": null,
+      "documents": [],
+      "id": "trip-p6-biggroup-d6",
+      "lat": null,
+      "lon": null,
+      "name": "Day 6",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "",
+        "evening": "",
+        "morning": ""
+      },
+      "tip": "",
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:03.960"
+    },
+    {
+      "date": "2026-05-31",
+      "dayNumber": 7,
+      "deleted_at": null,
+      "documents": [],
+      "id": "trip-p6-biggroup-d7",
+      "lat": null,
+      "lon": null,
+      "name": "Day 7",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "",
+        "evening": "",
+        "morning": ""
+      },
+      "tip": "",
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:03.963"
+    },
+    {
+      "date": "2026-06-01",
+      "dayNumber": 8,
+      "deleted_at": null,
+      "documents": [],
+      "id": "trip-p6-biggroup-d8",
+      "lat": null,
+      "lon": null,
+      "name": "Day 8",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "",
+        "evening": "",
+        "morning": ""
+      },
+      "tip": "",
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:03.965"
+    },
+    {
+      "date": "2026-06-02",
+      "dayNumber": 9,
+      "deleted_at": null,
+      "documents": [],
+      "id": "trip-p6-biggroup-d9",
+      "lat": null,
+      "lon": null,
+      "name": "Day 9",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "",
+        "evening": "",
+        "morning": ""
+      },
+      "tip": "",
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:03.967"
+    },
+    {
+      "date": "2026-06-03",
+      "dayNumber": 10,
+      "deleted_at": null,
+      "documents": [],
+      "id": "trip-p6-biggroup-d10",
+      "lat": null,
+      "lon": null,
+      "name": "Day 10",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "",
+        "evening": "",
+        "morning": ""
+      },
+      "tip": "",
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:03.969"
+    },
+    {
+      "date": "2026-06-04",
+      "dayNumber": 11,
+      "deleted_at": null,
+      "documents": [],
+      "id": "trip-p6-biggroup-d11",
+      "lat": null,
+      "lon": null,
+      "name": "Day 11",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "",
+        "evening": "",
+        "morning": ""
+      },
+      "tip": "",
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:03.971"
+    },
+    {
+      "date": "2026-06-05",
+      "dayNumber": 12,
+      "deleted_at": null,
+      "documents": [],
+      "id": "trip-p6-biggroup-d12",
+      "lat": null,
+      "lon": null,
+      "name": "Day 12",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "",
+        "evening": "",
+        "morning": ""
+      },
+      "tip": "",
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:03.973"
+    },
+    {
+      "date": "2026-06-06",
+      "dayNumber": 13,
+      "deleted_at": null,
+      "documents": [],
+      "id": "trip-p6-biggroup-d13",
+      "lat": null,
+      "lon": null,
+      "name": "Day 13",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "",
+        "evening": "",
+        "morning": ""
+      },
+      "tip": "",
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:03.974"
+    },
+    {
+      "date": "2026-06-07",
+      "dayNumber": 14,
+      "deleted_at": null,
+      "documents": [],
+      "id": "trip-p6-biggroup-d14",
+      "lat": null,
+      "lon": null,
+      "name": "Day 14",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "",
+        "evening": "",
+        "morning": ""
+      },
+      "tip": "",
+      "tripId": "trip-p6-biggroup",
+      "updatedAt": "2026-06-01 14:38:03.976"
+    },
+    {
+      "date": null,
+      "dayNumber": 0,
+      "deleted_at": null,
+      "documents": [],
+      "id": "day-tokyo-0",
+      "lat": null,
+      "lon": null,
+      "name": "Shibuya & Harajuku",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "",
+        "evening": "",
+        "morning": ""
+      },
+      "tip": "",
+      "tripId": "trip-tokyo",
+      "updatedAt": "2026-06-01 14:28:07.776"
+    },
+    {
+      "date": null,
+      "dayNumber": 1,
+      "deleted_at": null,
+      "documents": [],
+      "id": "day-tokyo-1",
+      "lat": null,
+      "lon": null,
+      "name": "Day trip to Hakone",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "",
+        "evening": "",
+        "morning": ""
+      },
+      "tip": "",
+      "tripId": "trip-tokyo",
+      "updatedAt": "2026-06-01 14:28:07.780"
+    },
+    {
+      "date": null,
+      "dayNumber": 2,
+      "deleted_at": null,
+      "documents": [],
+      "id": "day-tokyo-2",
+      "lat": null,
+      "lon": null,
+      "name": "Senso-ji & Akihabara",
+      "notes": "",
+      "photos": [],
+      "plan": {
+        "afternoon": "",
+        "evening": "",
+        "morning": ""
+      },
+      "tip": "",
+      "tripId": "trip-tokyo",
+      "updatedAt": "2026-06-01 14:28:07.785"
+    }
+  ],
+  "trips": [
+    {
+      "actionsHidden": false,
+      "companions": [
+        {
+          "linkStatus": null,
+          "linkedUserId": null,
+          "name": "Sara"
+        },
+        {
+          "linkStatus": null,
+          "linkedUserId": null,
+          "name": "Tom"
+        }
+      ],
+      "countries": [
+        "PT",
+        "ES"
+      ],
+      "country": "Portugal",
+      "countryCode": "PT",
+      "coverUrl": null,
+      "created_at": "2026-06-01 14:28:07",
+      "id": "trip-lisbon",
+      "isArchived": false,
+      "isPublic": true,
+      "lat": null,
+      "lng": null,
+      "media_updated_at": "2026-06-01 14:28:07.566",
+      "members": [
+        {
+          "archived": false,
+          "name": "Alex",
+          "picture": "",
+          "role": "planner",
+          "userId": "test-user-1"
+        },
+        {
+          "archived": false,
+          "name": "Sara",
+          "picture": "",
+          "role": "planner",
+          "userId": "test-user-2"
+        }
+      ],
+      "myArchived": false,
+      "myRole": "planner",
+      "name": "Lisbon Getaway",
+      "ownerId": "test-user-1",
+      "placeId": null,
+      "placeTypes": null,
+      "publicShowExpenses": false,
+      "shareShowCost": false,
+      "shareShowPlans": false,
+      "shareToken": "_tM90_KG2d8jterya3s2qA",
+      "shareViews": 0,
+      "updatedAt": "2026-06-01 14:28:07.815",
+      "user_id": "test-user-1",
+      "viewport": null
+    },
+    {
+      "actionsHidden": false,
+      "companions": [
+        {
+          "linkStatus": null,
+          "linkedUserId": null,
+          "name": "Alex"
+        },
+        {
+          "linkStatus": null,
+          "linkedUserId": null,
+          "name": "Sara"
+        },
+        {
+          "linkStatus": null,
+          "linkedUserId": null,
+          "name": "Mia"
+        },
+        {
+          "linkStatus": null,
+          "linkedUserId": null,
+          "name": "Leo"
+        },
+        {
+          "linkStatus": null,
+          "linkedUserId": null,
+          "name": "Nina"
+        },
+        {
+          "linkStatus": null,
+          "linkedUserId": null,
+          "name": "Omar"
+        }
+      ],
+      "countries": [
+        "TH",
+        "VN"
+      ],
+      "country": "Thailand",
+      "countryCode": "TH",
+      "coverUrl": null,
+      "created_at": "2026-06-01 14:38:03",
+      "id": "trip-p6-biggroup",
+      "isArchived": false,
+      "isPublic": false,
+      "lat": null,
+      "lng": null,
+      "media_updated_at": null,
+      "members": [
+        {
+          "archived": false,
+          "name": "Alex",
+          "picture": "",
+          "role": "planner",
+          "userId": "test-user-1"
+        },
+        {
+          "archived": false,
+          "name": "Sara",
+          "picture": "",
+          "role": "budgeteer",
+          "userId": "test-user-2"
+        },
+        {
+          "archived": false,
+          "name": "Mia",
+          "picture": "",
+          "role": "planner",
+          "userId": "test-user-3"
+        },
+        {
+          "archived": false,
+          "name": "Leo",
+          "picture": "",
+          "role": "relaxer",
+          "userId": "test-user-4"
+        },
+        {
+          "archived": false,
+          "name": "Nina",
+          "picture": "",
+          "role": "relaxer",
+          "userId": "test-user-5"
+        },
+        {
+          "archived": false,
+          "name": "Omar",
+          "picture": "",
+          "role": "budgeteer",
+          "userId": "test-user-6"
+        }
+      ],
+      "myArchived": false,
+      "myRole": "planner",
+      "name": "SE Asia Big Group",
+      "ownerId": "test-user-1",
+      "placeId": null,
+      "placeTypes": null,
+      "publicShowExpenses": false,
+      "shareShowCost": false,
+      "shareShowPlans": false,
+      "shareToken": null,
+      "shareViews": 0,
+      "updatedAt": "2026-06-01 14:38:03.946",
+      "user_id": "test-user-1",
+      "viewport": null
+    },
+    {
+      "actionsHidden": false,
+      "companions": [
+        {
+          "linkStatus": null,
+          "linkedUserId": null,
+          "name": "Tom"
+        }
+      ],
+      "countries": [],
+      "country": "Japan",
+      "countryCode": "JP",
+      "coverUrl": null,
+      "created_at": "2026-06-01 14:28:07",
+      "id": "trip-tokyo",
+      "isArchived": false,
+      "isPublic": false,
+      "lat": null,
+      "lng": null,
+      "media_updated_at": null,
+      "members": [
+        {
+          "archived": false,
+          "name": "Alex",
+          "picture": "",
+          "role": "planner",
+          "userId": "test-user-1"
+        }
+      ],
+      "myArchived": false,
+      "myRole": "planner",
+      "name": "Tokyo Adventure",
+      "ownerId": "test-user-1",
+      "placeId": null,
+      "placeTypes": null,
+      "publicShowExpenses": false,
+      "shareShowCost": false,
+      "shareShowPlans": false,
+      "shareToken": null,
+      "shareViews": 0,
+      "updatedAt": "2026-06-01 14:28:07.772",
+      "user_id": "test-user-1",
+      "viewport": null
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "key": "ai",
+  "verdicts": [
+    {
+      "title": "Accept Plan silently deletes ALL numbered days — wiping day journals, plan text, and permanently destroying day-attached photos/documents from disk",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P0",
+      "reasoning": "onAcceptPlan (useAiPlan.ts:450-456) deletes EVERY dayNumber>0 day with no provenance guard (unlike dropAITaggedPlaces which keeps source!=='ai' places, markedPlaces.ts:347), and DELETE /api/days/<id> cascade-drops trip-level photos_json/documents_json items with dayId==day_id (days.py:313-318, drop=True) then unlinks their files from disk via delete_upload_files (days.py:351-352); itinerary re-paints from activeTrip.aiPlan on remount (useAiPlan.ts:152) and accepted is local useState (ItineraryOutput.tsx:87) so re-accept after editing days is reachable, making the disk deletion irreversible."
+    },
+    {
+      "title": "AI itinerary renders as EMPTY cards (and Accept writes '[object Object]') when the server has no Google Maps key — the documented 'graceful no-op' path is broken for the food/sights schema",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P1",
+      "reasoning": "With no Maps key _enrich_itinerary returns the itinerary unchanged (integrations.py:307-308) so meals keep their raw Gemini shape {name,why,fact} with no text field (prompt schema integrations.py:782-787); MealBlock's guard p.text||p.name is true because name exists (ItineraryOutput.tsx:291) and calls renderRestaurantCard→renderSlotItem which returns '' since `const text=String(v.text||''); if(!text) return ''` (slots.ts:122-123, 274) → empty card, while on Accept itemToText falls to String(item) = '[object Object]' (slots.ts:234) which flattenMealForTextarea writes (truthy, not skipped) into the day plan."
+    },
+    {
+      "title": "A saved BYO Gemini key permanently disables the shared host-pool fallback — a user with an exhausted personal key is stuck with no way to generate",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "runGenerate always sends the user's key (useAiPlan.ts:361); when it matches the shape regex using_byo=true and keys_to_try=[(0,user_key)] ONLY, skipping the _available_host_keys() else-branch (integrations.py:673-677), and on a quota error slot 0 is exempt from cooldown but the loop simply breaks/exhausts with result_text empty (integrations.py:872-887) — there is no fall-back-to-host-pool path, so an exhausted BYO key dead-ends (recoverable only by clearing the key in Settings)."
+    },
+    {
+      "title": "Re-running Accept Plan orphans manually day-assigned places (dangling dayId) — they silently drop out of their day and fall into 'Unsorted'",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "Each Accept mints new day ids 'day_'+Date.now()+'_'+idx and deletes the old days (useAiPlan.ts:456,466); addOrUpdatePlaceFromVerified only re-stamps dayId for places in the new plan (`existing.dayId = dayId ?? existing.dayId`, markedPlaces.ts:259), and the server's day-delete cascade NULLs the dayId of detached markedPlaces (days.py:300-305, drop=False), so a manual place not in the new plan lands in Unsorted/__orphan__ per the dayId===day.id filters (dayDetailModal.ts:354, tripMediaModals.ts:97)."
+    },
+    {
+      "title": "numDays has no client-side upper bound — request a 31+ day range and the result heading lies ('60-Day Itinerary' but only 30 days render/accept)",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Client computes numDays with no upper clamp (Math.max(1, round(diff)+1), useAiPlan.ts:291-294) and stores it as activeTrip.aiNumDays (line 328) which the heading renders verbatim ('{numDays}-Day {country} Itinerary', AI.tsx:78→en.ts:1012), while the server caps num_days=max(1,min(30,...)) (integrations.py:602), so a 31+ day range produces a heading that overstates the actual ≤30-day plan."
+    },
+    {
+      "title": "Hardcoded English strings on the AI surface (BYO key status, card aria-labels, 'unverified' chip + tooltip) break i18n for es/fr/pt users",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Verified inline English literals: useAiPlan.ts keyStatus uses t('ai.keyStatusEmpty') for the empty case but hardcodes the 'Key saved' (line 221) and 'format looks off' (223) branches; slots.ts:180 aria-label 'Open … on Google Maps' and slots.ts:209 'unverified' chip + title; AIUsageCard.tsx:96 aria-label 'AI usage today'; TodoListPanel.tsx:373-374 title/aria-label 'Open … on Google Maps' — all untranslated."
+    }
+  ]
+}

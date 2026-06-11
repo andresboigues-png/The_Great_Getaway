@@ -1,0 +1,58 @@
+{
+  "engine_pre": {
+    "Alex": 133.35925000000003,
+    "Sara": -133.35924999999997
+  },
+  "scenarioA_jpy_no_ev": {
+    "sent_amount_jpy": 24732.0,
+    "status": 201,
+    "body": {
+      "settlement": {
+        "amount": 24732.0,
+        "createdAt": "2026-06-01 14:38:37",
+        "currency": "JPY",
+        "euroValue": 133.3621,
+        "fromName": "Sara",
+        "fromUserId": "test-user-2",
+        "id": "4LjXpM2USmc",
+        "method": "revolut",
+        "note": "settle in yen, no euroValue",
+        "recordedBy": "test-user-2",
+        "toName": "Alex",
+        "toUserId": "test-user-1",
+        "tripId": "trip-p2-asia"
+      }
+    }
+  },
+  "scenarioB_xyz": {
+    "status": 400,
+    "body": {
+      "error": "currency 'XYZ' is not supported"
+    }
+  },
+  "allowed_currencies_without_live_rate": [
+    "AED",
+    "ARS",
+    "BGN",
+    "CLP",
+    "COP",
+    "EGP",
+    "HRK",
+    "PEN",
+    "SAR",
+    "TWD",
+    "VND"
+  ],
+  "scenarioB_norate_allowed": {
+    "currency": "AED",
+    "status": 400,
+    "body": {
+      "currency": "AED",
+      "error": "euroValue is required for non-EUR settlements"
+    }
+  },
+  "engine_after_A": {
+    "Alex": -0.0028499999999667125,
+    "Sara": 0.002850000000023556
+  }
+}

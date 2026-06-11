@@ -1,0 +1,29 @@
+{
+  "key": "money-invariant",
+  "verdicts": [
+    {
+      "title": "Editing a foreign-currency settlement (name-only companions) silently re-denominates it to the home currency, corrupting the per-currency Settle view",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "The legacy isSettlement edit modal (actions.ts:454-470) has NO currency selector and the submit hard-sets s.currency = home + s.euroValue = convertCurrency(amount, home, 'EUR') (486-487) where amount = convertCurrency(s.euroValue,'EUR',home) (462); since computeTripBalancesByCurrency buckets strictly on exp.currency (balances.ts:254) and these foreign legacy rows are creatable via the per-currency manual-settle dropdown (actions.ts:347,371→settleDebt PATH B:206), the edited row jumps currency buckets and re-opens the original-currency debt — but the EUR euroValue round-trips intact (headline EUR balance unaffected), so the blast radius is the per-currency view only, narrower than P1."
+    },
+    {
+      "title": "Budget stored in a non-EUR currency (via API/legacy) is read as EUR everywhere, producing wrong spent-vs-target status and Insights totals",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "budgets.py validates+persists amount and currency verbatim with no euro_value column and no conversion (INSERT 203-225), and the IA-10 gate (64) only rejects no-rate non-EUR currencies without normalizing them; every reader treats amount as EUR (helpers.ts:198 target=budget.amount vs spent=Σ euroValue; Budgets.tsx:352 formatHome(b.amount,'EUR'); Insights.tsx:480-481 convertCurrency(stat.spent/target,'EUR',targetCurr)), so a rate-backed non-EUR budget posted via raw API/CSV mis-reads — correctness only, and unreachable from the UI which always converts to EUR + sets currency:'EUR' (helpers.ts:388-403)."
+    },
+    {
+      "title": "Settling the exact foreign-currency debt clears the per-currency Settle view but leaves a residual in the EUR balance / Global tab / Insights (settle-time FX vs frozen expense FX)",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "The per-currency view nets raw exp.value minus raw s.amount (balances.ts:255,272) so matching foreign amounts zero the bucket, while computeTripBalances nets frozen exp.euroValue (183) against settlement euroValue computed at settle-time (applySettlementToBalances:92; client actions.ts:115 / server settlements.py:211 compute_euro_value both at the live settle-time rate) — so under FX drift the EUR headline + Global + Insights retain a residual; this is a real divergence between the two coexisting balance models, though it is the inherent consequence of the owner-confirmed NOMINAL/write-time-frozen design (money_fx_inflation_invariant.md), not a logic error."
+    },
+    {
+      "title": "convertCurrency silently falls back to 1:1 for any code missing from both live and static tables, so a stored amount in a now-unsupported currency renders at a fabricated rate",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "_rateFor returns CONVERSION_RATES[upper] || 1 (currency.ts:77) — a silent 1.0 fallback that convertCurrency (119-123) and formatHome (137) propagate with no hasRate guard, while the write paths were all hardened (expenses C1, server settlements compute_euro_value/euroValue-required settlements.py:224-229, budgets IA-10 line 64); balance/budget math reads the stored euroValue (safe) and the live per-currency display hint is hasRate-gated (SettlementView.tsx:302), so the only trigger is a row whose code slipped past write-time gates or later left the live feed rendering at 1:1 — a genuine but minor display-only latent edge, matching the reported P3."
+    }
+  ]
+}

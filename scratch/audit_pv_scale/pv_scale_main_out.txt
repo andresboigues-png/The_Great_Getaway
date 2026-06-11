@@ -1,0 +1,55 @@
+Generated 462 expenses / 6 trips / 25 currencies / years 2006-2026
+  counts: {'EUR': 61, 'GBP': 37, 'USD': 32, 'CHF': 26, 'JPY': 25, 'DKK': 23, 'SEK': 22, 'INR': 21, 'CAD': 20, 'THB': 20, 'CZK': 18, 'NOK': 16, 'PLN': 15, 'VND': 15, 'SGD': 13, 'MXN': 13, 'ZAR': 12, 'AUD': 11, 'BRL': 11, 'HUF': 10, 'CNY': 10, 'IDR': 10, 'KRW': 10, 'ARS': 7, 'TRY': 4}
+
+World Bank CPI…
+  CPI ARS/ARG: 0 yrs EMPTY
+  CPI AUD/AUS: 55 yrs latest=2024
+  CPI BRL/BRA: 45 yrs latest=2024
+  CPI CAD/CAN: 55 yrs latest=2024
+  CPI CHF/CHE: 55 yrs latest=2024
+  CPI CNY/CHN: 39 yrs latest=2024
+  CPI CZK/CZE: 34 yrs latest=2024
+  CPI DKK/DNK: 55 yrs latest=2024
+  CPI EUR/DEU: 55 yrs latest=2024
+  CPI GBP/GBR: 55 yrs latest=2024
+  CPI HUF/HUN: 53 yrs latest=2024
+  CPI IDR/IDN: 55 yrs latest=2024
+  CPI INR/IND: 55 yrs latest=2024
+  CPI JPY/JPN: 55 yrs latest=2024
+  CPI KRW/KOR: 55 yrs latest=2024
+  CPI MXN/MEX: 55 yrs latest=2024
+  CPI NOK/NOR: 55 yrs latest=2024
+  CPI PLN/POL: 55 yrs latest=2024
+  CPI SEK/SWE: 55 yrs latest=2024
+  CPI SGD/SGP: 55 yrs latest=2024
+  CPI THB/THA: 55 yrs latest=2024
+  CPI TRY/TUR: 55 yrs latest=2024
+  CPI USD/USA: 55 yrs latest=2024
+  CPI VND/VNM: 30 yrs latest=2024
+  CPI ZAR/ZAF: 55 yrs latest=2024
+Frankfurter historical FX…
+  need 391 distinct Frankfurter dates
+  histFX 1/391 (2006-01-10)
+  histFX 26/391 (2007-01-08)
+  histFX 51/391 (2007-12-06)
+  histFX 76/391 (2012-03-20)
+  histFX 101/391 (2013-01-21)
+  histFX 126/391 (2013-11-21)
+  histFX 151/391 (2014-08-23)
+  histFX 176/391 (2016-09-09)
+  histFX 201/391 (2017-09-04)
+  histFX 226/391 (2018-06-15)
+  histFX 251/391 (2019-05-02)
+  histFX 276/391 (2020-06-14)
+  histFX 301/391 (2021-08-16)
+  histFX 326/391 (2022-11-08)
+  histFX 351/391 (2024-10-15)
+  histFX 376/391 (2026-04-06)
+Frankfurter current FX…
+  currentFX as of 2026-06-02
+
+Historical-FX misses: 26/462
+Current-FX misses: ['ARS', 'VND']
+No-CPI currencies (factor=1.0): ['ARS']
+
+Wrote scale_results.json (rows for both homes). Run pv_scale_check.py next.

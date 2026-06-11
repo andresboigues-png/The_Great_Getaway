@@ -1,0 +1,59 @@
+{
+  "key": "feed-social",
+  "verdicts": [
+    {
+      "title": "Block primitive has no UI entry point — entire server-enforced safety feature is unreachable",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P1",
+      "reasoning": "grep confirms blockUser (api/feed.ts:31) has zero importers/callers; Profile.tsx renders only FollowButton for foreign profiles (line 720) and 'Log Out' for own (line 717) — no Block control, and the comments in Blocks.tsx:6 / Settings.tsx:347 reference a 'Block tap on a profile card' that does not exist, so the advertised safety primitive is genuinely unreachable from the app."
+    },
+    {
+      "title": "Explore feed block filter is one-directional — leaks blocked-by users' public-trip cards into the blocker-target's Explore",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "explore_feed (feed.py:456-458) filters only `t.user_id NOT IN (SELECT blocked_id ... blocker_id = ?)` whereas build_feed_context (feed_events.py:1117-1122) and fetch_share_payload (public.py:552-554) both filter BOTH directions, so a user who blocked the caller still has their (deliberately-public) trip cards surface in the caller's Explore, contradicting the inline 'block-aware Explore' claim at feed.py:430."
+    },
+    {
+      "title": "Comment count vs. comment list desync after a block (third-party posts)",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "_attach_engagement_counts computes comment_count via a plain COUNT(*) GROUP BY with no block filter (feed.py:181-186) while list_feed_comments DOES exclude blocked authors (feed.py:1141-1143), and the block sweep only deletes engagement on event_ids built from the BLOCKER'S OWN feed_posts (blocks.py:149-162), so a blocked user's comment on a third party's share survives and inflates the count above the rendered list."
+    },
+    {
+      "title": "Like count includes blocked users' likes on third-party shares",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Both the feed like-count (feed.py:163-168) and the toggle endpoint's count (feed.py:1019-1023) are plain COUNT(*) with no block filter, and the block sweep is scoped to the blocker's own posts (blocks.py:149-162); with no 'who-liked' list shown this is count inflation only, so P3 is correct."
+    },
+    {
+      "title": "Following a blocked user from Friends search shows a false 'Request sent!' success",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Chain holds end-to-end — search_friends only filters users who blocked the caller (friends.py:87, intentionally per its comment), _follow no-ops on a block edge returning False (friends.py:155-156), add_friend discards that return and always returns {status:'success'} (friends.py:207-209), and Friends.tsx:238-240 shows 'sent'; but it requires the caller to have blocked the target then re-search them, so the impact is a misleading toast on a narrow self-inflicted edge path → P3."
+    },
+    {
+      "title": "Follows have no per-account daily cap — open notification-spam fan-out channel",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "follow_user (follows.py:73) and add_friend (friends.py:187) carry only per-IP @limiter.limit (limiter keyed on get_remote_address, extensions.py:24) with no user_daily_count gate like feed_comment has (feed.py:1189), but the follow notification fires only on the FIRST-EVER follow per pair (follows.py:117-125), so toggling can't re-spam and the residual channel is weak — P3 is appropriate."
+    },
+    {
+      "title": "Explore tab is entirely hardcoded English (no i18n)",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "ExploreSection.tsx and ExploreCard.tsx import no i18n module (grep: 0 'i18n' hits) and use raw literals ('Finding trips to discover…' :49, 'No public trips yet' :62, 'All' :116, 'Show all countries' :158, 'by ...' ExploreCard:54), while sibling Feed.tsx/Friends.tsx have 44/43 t() calls — a real, consistent i18n gap → P3."
+    },
+    {
+      "title": "Feed bundle lines and several event verbs are hardcoded English (i18n gap)",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "bundleLine (render.ts:186-206) returns wholly hardcoded English with no t() (unlike eventLine right below it which uses t('feed.*')), the achievement fallback 'a new badge' (render.ts:329) and settled_up strings 'settled up with'/'on'/'a trip'/'someone' (render.ts:353-354) are literal, and action-button titles 'Bookmark'/'Unlike'/'Comments'/'Repost to your friends' (render.ts:441,463,472,481) are hardcoded → P3 i18n gap."
+    },
+    {
+      "title": "FollowButton, Blocks tab, and profile Log-Out labels are hardcoded English",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "FollowButton.tsx:85 returns literal 'Following'/'Follow' though its toast uses t() (line 59); Blocks.tsx hardcodes 'Unblock this user?' (:59), 'Unblock' (:63,169), 'Unknown user' (:140) while only _formatRelativeTime was routed through t() (:31-37, matching the file's own comment); Profile.tsx hardcodes 'Log Out' (line 717) → P3 i18n gap."
+    }
+  ]
+}

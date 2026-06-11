@@ -1,0 +1,78 @@
+{
+  "counts": {
+    "expenses": 54,
+    "settlements": 0,
+    "budgets": 2
+  },
+  "insights_total_eur": 4050.2505,
+  "by_category": {
+    "food": 1695.7129,
+    "accommodation": 1147.9752,
+    "activities": 533.4613,
+    "flights": 301.5871,
+    "shopping": 282.1519,
+    "transport": 89.3621
+  },
+  "category_count": 6,
+  "donut": {
+    "top7_plus_other_sum": 4050.2505,
+    "other_bucket": 0,
+    "rest_count": 0,
+    "matches_total": true
+  },
+  "by_currency": {
+    "VND": 1745.1849,
+    "EUR": 1500.5,
+    "THB": 557.2279,
+    "USD": 247.3377
+  },
+  "by_currency_sum": 4050.2505,
+  "by_currency_matches_total": true,
+  "food_budget_spent_eur": 1695.7129,
+  "overall_budget_spent_eur": 4050.2505,
+  "balances": {
+    "Alex": 2246.2092,
+    "Leo": -397.2636,
+    "Mia": -408.2461,
+    "Sara": -470.9257,
+    "Omar": -484.8594,
+    "Nina": -484.9145
+  },
+  "balance_sum": -0.0,
+  "balance_sum_zero": true,
+  "valid_day_count": 8,
+  "total_distinct_date_keys": 14,
+  "daily_average_eur": 506.2813,
+  "future_dates_excluded": [
+    "2026-06-02",
+    "2026-06-03",
+    "2026-06-04",
+    "2026-06-05",
+    "2026-06-06",
+    "2026-06-07"
+  ],
+  "CHECKS": {
+    "by_category_sum_eq_total": true,
+    "donut_other_captures_remainder": true,
+    "by_currency_sum_eq_total": true,
+    "balance_sum_zero": true
+  },
+  "budgets_vs_actual": [
+    {
+      "label": "Overall",
+      "categoryId": null,
+      "spent": 4050.25,
+      "target": 6000.0,
+      "pct": 67.5,
+      "tier": "ok"
+    },
+    {
+      "label": "Food",
+      "categoryId": "food",
+      "spent": 1695.71,
+      "target": 1500.0,
+      "pct": 113.0,
+      "tier": "over"
+    }
+  ]
+}

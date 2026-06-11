@@ -1,0 +1,59 @@
+{
+  "key": "expenses",
+  "verdicts": [
+    {
+      "title": "Batch import never persists auto-created categories (syncWithServer is an empty no-op) — imported expenses lose their category on reload",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "Verified: syncWithServer() POSTs JSON.stringify({}) (api.ts:80, a connectivity probe), upload.ts imports only {syncWithServer, upsertExpense} (line 11) never syncCategories, and the sole state:changed subscriber is saveState→localStorage (state.ts:438), so an import-created STATE.categories row is never sent server-side and is overwritten on the next /api/data pull (api.ts:236) → HistoryTab renders the 💰 fallback (HistoryTab.tsx:311); downgraded from P1 because the expense itself (amount/who/splits/categoryId string) is persisted by upsertExpense — only the category label/grouping is lost, and it's re-creatable."
+    },
+    {
+      "title": "Batch import never persists the companions it auto-adds — imported payers/splitters vanish on reload and become unselectable in the manual form",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "Verified: addTripCompanion mutates trip.companions in place and its docstring says 'caller is responsible for persisting via upsertTrip' (companions.ts:135-155), but runBatchImport/BatchUpload never call upsertTrip and syncWithServer sends nothing, so the next pull overwrites STATE.trips (api.ts:147-184) and ManualTab's 'Who paid' select (no who-fallback, ManualTab.tsx:531-540) can't select the imported payer; downgraded from P1 because expense who/splits are stored on the expense row and balances still compute — only the roster chips/dropdown degrade and are re-addable."
+    },
+    {
+      "title": "Batch import reports 'Imported N' optimistically; rows the server rejects (amount > 1e9, dup cross-trip id, archived, stale) are silently dropped",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "Verified: the client filter (upload.ts:374) only rejects non-finite/<=0/no-rate with no upper bound while the server caps at _MAX_MONEY=1e9→400 (validators.py:91,162), and runBatchImport does `void upsertExpense(expense)` (line 446) without awaiting/inspecting the result (and a non-2xx HTTP response doesn't even hit the outbox catch in core.ts), so amount>1e9 and archived-trip(409) rows are counted in 'added' yet vanish on the next pull; the 'dup cross-trip id' sub-claim is weak since generateId() ids never collide, but the core over-count is real."
+    },
+    {
+      "title": "Popular-format default split is computed against a roster that grows row-by-row, so equal-split percentages depend on import order",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "Verified: inside the per-row forEach, addTripCompanion runs first (upload.ts:390-392) then getTripCompanionNames(activeTrip) divides 100/length over the CURRENT accumulated roster (upload.ts:404-408), so early Tricount/Splitwise rows (which carry no splits column) are split across fewer people than later rows → order-dependent, wrong per-person balances; money-affecting so P2 stands."
+    },
+    {
+      "title": "Splitwise import hardcodes payer 'Me' and creates a literal 'Me' companion, mislabeling every imported row's payer",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "Verified: the splitwise branch sets who='Me' unconditionally (upload.ts:341) and addTripCompanion(activeTrip,'Me') plants it (line 390-392); the app's Splitwise layout [Date,Description,Category,Cost,Currency] (BatchUpload POPULAR_SAMPLES) genuinely has no payer column, so payer attribution is fabricated and balances are wrong whenever the user wasn't the sole payer — real correctness bug at P2."
+    },
+    {
+      "title": "No row-count cap or concurrency control on batch import — a large file fires thousands of parallel POSTs and janks the tab",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Verified: runBatchImport iterates parsedRows in a forEach with no size cap (upload.ts:314) firing `void upsertExpense` per row, apiFetch uses a raw fetch with no queue/throttle (core.ts:201-235), and BatchUpload's parse has no cap (BatchUpload.tsx:97) → N rows = N concurrent POSTs; downgraded to P3 because the jank claim is unproven without running and a typical Tricount/Splitwise export is tens-to-low-hundreds of rows (the actual data-loss teeth — server 120/min rate-limit on /api/expenses dropping overflow rows — is already captured by the optimistic-count finding)."
+    },
+    {
+      "title": "Batch import preview filters rows on the FIRST cell being truthy, silently dropping valid rows with an empty first column",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Verified: BatchUpload.tsx:97 keeps a row only if `r.length > 0 && r[0]`, but the meaningful column depends on the format/mapping (a custom format may map required fields to columns B+), so a row with a blank first cell but real mapped data is dropped before runBatchImport's per-row skip-reporting runs — real but minor edge (most rows have a non-empty first cell), P3 stands."
+    },
+    {
+      "title": "Import date parser silently discards any date with a 2-digit year, importing common CSV dates as undated 'Global'",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Verified: parseCellDate requires a 4-digit year token `parts.findIndex(p => /^\\d{4}$/.test(p)); if (yIdx === -1) return ''` (upload.ts:231-232) with no 2-digit-year expansion, so a '12/10/23' string date stores date='' (undated); minor because XLSX typed cells arrive as Date objects (cellDates:true) and only 2-digit-year string CSVs hit this, P3 stands."
+    },
+    {
+      "title": "History value-range filter is labeled '(€)' and filters on stored EUR euroValue, but the row's converted line shows the user's (non-EUR) home currency",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Verified: applyHistoryFilters ranges over e.euroValue (helpers.ts:134-137), the label is literal '(€)' (HistoryTab.tsx:255), yet the converted helper line uses formatHome(e.value, e.currency) (HistoryTab.tsx:302-303), so for a non-EUR home the filtered number and the displayed number are in different currencies; minor UI inconsistency (euroValue is the canonical stored value per the money invariant, so filtering on it isn't wrong — only the label/displayed-line pairing mismatches), P3."
+    }
+  ]
+}

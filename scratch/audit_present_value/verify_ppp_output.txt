@@ -1,0 +1,42 @@
+# PPP / model-coherence probe — 2026-06-03
+latest FX date 2026-06-02; home=EUR
+
+## TRY 1000 on 2012-06-15 (actual FX date 2012-06-15)
+   hist FX 1 TRY=0.436491 EUR -> spent home = 436.49 EUR
+   live FX 1 TRY=0.018692 EUR  (depreciation since: -95.7%)
+   foreign CPI factor (CPI_TRY[latest]/CPI[2012]) = 11.4102  (+1041.0%)
+   home   CPI factor (CPI_EUR[latest]/CPI[2012])    = 1.2953  (+29.5%)
+   --> APP 'worth today' (B: foreignCPI x liveFX) = 213.27 EUR
+   --> ALT 'worth today' (A: homeCPI x histFX)    = 565.37 EUR
+   --> B / A = 0.377  (app is -62.3% vs home-CPI model)
+   --> APP worth / spent = 0.489
+
+## TRY 1000 on 2018-06-15 (actual FX date 2018-06-15)
+   hist FX 1 TRY=0.182912 EUR -> spent home = 182.91 EUR
+   live FX 1 TRY=0.018692 EUR  (depreciation since: -89.8%)
+   foreign CPI factor (CPI_TRY[latest]/CPI[2018]) = 6.4992  (+549.9%)
+   home   CPI factor (CPI_EUR[latest]/CPI[2018])    = 1.2123  (+21.2%)
+   --> APP 'worth today' (B: foreignCPI x liveFX) = 121.48 EUR
+   --> ALT 'worth today' (A: homeCPI x histFX)    = 221.75 EUR
+   --> B / A = 0.548  (app is -45.2% vs home-CPI model)
+   --> APP worth / spent = 0.664
+
+## JPY 10000 on 2012-06-15 (actual FX date 2012-06-15)
+   hist FX 1 JPY=0.010077 EUR -> spent home = 100.77 EUR
+   live FX 1 JPY=0.005374 EUR  (depreciation since: -46.7%)
+   foreign CPI factor (CPI_JPY[latest]/CPI[2012]) = 1.1478  (+14.8%)
+   home   CPI factor (CPI_EUR[latest]/CPI[2012])    = 1.2953  (+29.5%)
+   --> APP 'worth today' (B: foreignCPI x liveFX) = 61.68 EUR
+   --> ALT 'worth today' (A: homeCPI x histFX)    = 130.52 EUR
+   --> B / A = 0.473  (app is -52.7% vs home-CPI model)
+   --> APP worth / spent = 0.612
+
+## USD 100 on 2010-06-15 (actual FX date 2010-06-15)
+   hist FX 1 USD=0.815794 EUR -> spent home = 81.58 EUR
+   live FX 1 USD=0.858443 EUR  (depreciation since: +5.2%)
+   foreign CPI factor (CPI_USD[latest]/CPI[2010]) = 1.4386  (+43.9%)
+   home   CPI factor (CPI_EUR[latest]/CPI[2010])    = 1.3487  (+34.9%)
+   --> APP 'worth today' (B: foreignCPI x liveFX) = 123.49 EUR
+   --> ALT 'worth today' (A: homeCPI x histFX)    = 110.02 EUR
+   --> B / A = 1.122  (app is +12.2% vs home-CPI model)
+   --> APP worth / spent = 1.514

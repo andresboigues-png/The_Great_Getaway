@@ -1,0 +1,35 @@
+{
+  "key": "media",
+  "verdicts": [
+    {
+      "title": "Warm-409 union-merge resurrects a media item the user just deleted (photo / document / checklist to-do / saved place)",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "Verified _mergeMediaField (media.ts:62-72) seeds out=[...serverItems] and only appends local-only keys, so on a real 409 where cur (media.py:806-811) still contains the item a peer didn't delete, the deleted item survives, is reflected into STATE (media.ts:151-158) and re-POSTed; but unlike the rootCause's 'every warm write' framing the 409 only fires on a genuine concurrent peer media write (stale clientMediaUpdatedAt, trips.py:778-786), so it is a narrow concurrent-delete loss, not an every-delete one -> P2 not P1."
+    },
+    {
+      "title": "Warm-409 union-merge silently discards a concurrent EDIT to an existing media item (checklist toggle, doc rename, photo day-reassign, place forManual/forAI toggle)",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "For an item present on both sides by stable id, _mergeMediaField starts from the server copy and skips the local edit (its key is already in `seen`), so a field-level edit or reorder is dropped on a 409; edits do route here via upsertTrip->persistTripMedia->_postTripMedia (api.ts:499; tripChecklistModal.ts:53; tripMediaModals.ts:661/678/886/955), but again only a real concurrent peer media write triggers the 409, making this a narrow concurrency loss -> P2."
+    },
+    {
+      "title": "HEIC→JPEG re-encode exception fallback writes raw HEIC bytes into a .jpg file → broken image served as image/jpeg",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "Confirmed filename/out_path are rewritten to .jpg at media.py:232-233 before the encode, there is no img.convert('RGB') before img.save(..., format='JPEG') at media.py:295 (so an RGBA/P-mode HEIC raises OSError), and the broad except at media.py:313-315 does file.save(out_path) writing original HEIC bytes under the .jpg name -> serve_upload infers image/jpeg from the extension; real but only for the alpha/palette HEIC subset, so P2 holds."
+    },
+    {
+      "title": "Per-item uploaded files are orphaned on disk on photo/doc removal, cover swap, and document 'Replace'",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "collect_trip_upload_paths/delete_upload_files (helpers.py:56) are wired only into whole-trip/whole-day delete; update_trip_media (trips.py:698-824) overwrites photos_json/documents_json with no old-array diff or file rm, cover swap overwrites trip.coverUrl with no cleanup (trip.ts:463), and document Replace overwrites url after upload (tripMediaModals.ts:856-858) — all leak files on disk; storage/lingering-access only, P3 confirmed."
+    },
+    {
+      "title": "Media POST does not validate/sanitize item URLs — arbitrary src/url (incl. javascript:) persisted into trip media",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "update_trip_media (trips.py:719-732) checks only list-ness + 512KB cap and never runs validate_upload_url (unlike expenses.py:104), and addTripPhoto/addTripDocument store the raw string (tripMedia.ts:113/95); esc() (dom-helpers.ts:104-112) entity-escapes but does NOT strip the javascript: scheme, so a planted document href=\"javascript:...\" (tripMediaModals.ts:155) is a real but browser-mitigated, click-gated vector (photo background-image url() is quote-escaped, no CSS breakout) -> P3."
+    }
+  ]
+}

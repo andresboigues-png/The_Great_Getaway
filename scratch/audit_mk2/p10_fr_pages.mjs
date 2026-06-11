@@ -1,0 +1,24 @@
+import { chromium } from '@playwright/test';
+const BASE='http://127.0.0.1:5110';
+const b=await chromium.launch();
+const ctx=await b.newContext({viewport:{width:1280,height:900},deviceScaleFactor:2});
+const p=await ctx.newPage();
+await p.goto(`${BASE}/`,{waitUntil:'domcontentloaded'});
+await p.evaluate(async()=>{await fetch('/api/auth/google',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:'test:test-user-1',name:'Alex Rivera'})});localStorage.setItem('gg_auth_token','x');});
+await p.evaluate(()=>{ location.hash='#settings'; });
+await p.reload({waitUntil:'networkidle'}); await p.waitForTimeout(1500);
+await p.getByText(/^General Settings/i).locator('xpath=ancestor::*[self::button or self::a or @role="button"][1]').first().click().catch(async()=>{await p.getByText(/Configure/i).first().click();});
+await p.waitForTimeout(900);
+await p.locator('.general-subtab').filter({hasText:/Language|Langue/i}).first().click();
+await p.waitForTimeout(500);
+await p.locator('.theme-option-card').filter({has:p.locator('.theme-option-card__body',{hasText:'Français'})}).first().click();
+await p.waitForTimeout(1500);
+console.log('lang', await p.evaluate(()=>document.documentElement.lang));
+const visit = async(hash, waitText)=>{
+  await p.evaluate(h=>{location.hash='#'+h;}, hash);
+  await p.waitForTimeout(1800);
+  await p.screenshot({path:`scratch/audit_mk2/shots/p10_fr2_${hash}.png`});
+};
+await visit('expenses'); await visit('ai'); await visit('todo'); await visit('settlement'); await visit('insights'); await visit('budgets'); await visit('feed'); await visit('friends'); await visit('collections'); await visit('profile');
+console.log('done');
+await b.close();

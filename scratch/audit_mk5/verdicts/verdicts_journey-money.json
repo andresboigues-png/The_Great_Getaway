@@ -1,0 +1,29 @@
+{
+  "key": "journey-money",
+  "verdicts": [
+    {
+      "title": "Batch-import companions are never persisted to the server, so the next /api/data poll silently deletes them (orphaning every imported expense's payer/split names)",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Root cause is real — runBatchImport mutates activeTrip.companions via addTripCompanion (upload.ts:391,396) but never calls upsertTrip, and syncWithServer now POSTs an empty body (api.ts:77-81), so on the next pull STATE.trips is replaced from the server (api.ts:183) and the import's roster additions are gone; BUT the 'orphaning payer/split names' impact is overstated because computeTripBalances/byCurrency rebuild the roster as a UNION of trip.companions AND each expense's persisted who+splits keys (balances.ts:161-170,240-243) and upsertExpense persists who+splits server-side (expenses.py:240-264), so settlements still compute correctly — only the saved chip-panel/Who-Paid roster transiently loses import-only names."
+    },
+    {
+      "title": "One-click 'Settle' on a no-FX-rate currency debt (ARS/EGP/VND…) fabricates a 1:1 euroValue, poisoning EUR balances, the cross-trip Global tab and Insights with a wildly inflated number",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P1",
+      "reasoning": "settleDebt always computes euroValue = convertCurrency(amount,currency,'EUR') (actions.ts:115), which for a no-rate code returns amount*1/1 = the raw foreign amount (_rateFor falls back to 1, currency.ts:71-78), and the Settle button is gated only on the in-flight 'settling' flag, never on hasRate (SettlementView.tsx:311-320 vs the hint-only hasRate at :302); the server allows 41 currencies incl. ARS/EGP/VND/CLP/COP/PEN (validators.py:68) while Frankfurter (fx_rates.py:58) supplies no rate for them, so compute_euro_value's cold path returns the bogus client hint verbatim (fx_rates.py:217-232) and the guard passes because euro_value is never None (settlements.py:222-228) — the 1:1 value then feeds applySettlementToBalances euroValue||amount (balances.ts:92) and computeGlobalBalances (balances.ts:587), corrupting EUR balances/Global/Insights."
+    },
+    {
+      "title": "History day-total and 'settled' badge use divergent EUR fallbacks for a non-EUR settlement with no euroValue (raw foreign amount vs €0)",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "settledStatsForTrip sums via settlementEurForTotal, which returns 0 for a non-EUR row with falsy euroValue (viewData.ts:20-24,75), whereas collectSettlementHistory builds euroValue = s.euroValue || s.amount || 0 (viewData.ts:174) and the History tab sums those into totalForDay (SettlementView.tsx:397) — a genuine two-way divergence, but P3 (not higher) because it is latent: the server always derives/overrides a real euroValue on every settlement, so a falsy-euroValue non-EUR row can't be produced through the current UI."
+    },
+    {
+      "title": "Batch import splits early rows across a smaller companion roster than later rows, because addTripCompanion grows the roster mid-loop",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Inside parsedRows.forEach (upload.ts:314) each row first calls addTripCompanion(activeTrip, who) (line 391) and then, only for rows with NO explicit splits column in the Tricount/Splitwise branch, computes the equal split from getTripCompanionNames(activeTrip) (lines 404-408) which reflects only companions seen so far, so early rows split across fewer people than later rows; with no pre-pass to seed the full roster (runBatchImport 283-314 confirms none) the claim holds, but severity is P3 — it only affects popular-format imports lacking a per-row splits column, is an intent-mismatch rather than data corruption, and is user-editable afterward."
+    }
+  ]
+}

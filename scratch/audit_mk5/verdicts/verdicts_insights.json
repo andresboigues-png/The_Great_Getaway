@@ -1,0 +1,29 @@
+{
+  "key": "insights",
+  "verdicts": [
+    {
+      "title": "Insights 'Worth today' silently wrong for ~30 live-only currencies (SEK/NOK/DKK/THB/TRY/PLN…) because Model-A vs Model-B hinges on a non-reactive, fire-and-forget FX-overlay race",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Mechanics are real: presentValue.ts:240 branches on hasRate(curUp), CONVERSION_RATES (constants.ts:103-121) holds only 17 codes so SEK/NOK/DKK/THB/TRY/PLN are live-overlay-only, setLiveFxRates (currency.ts:62-69) mutates a module-private object with no STATE_CHANGED, and the calc useMemo deps (Insights.tsx:389) + heroCalculating (Insights.tsx:563-565) never reference the overlay — BUT refreshFxRates() fires at app boot (main.ts:106) long before Insights mounts, and the CPI/rateCache fetches that DO retrigger the memo land afterward, so the race self-heals in practice; only an outright /api/fx-rates failure leaves SEK/NOK/etc. permanently on Model B (a bounded, intended home-CPI fallback) for the session, making the residual a narrow methodology mismatch rather than a wildly wrong figure."
+    },
+    {
+      "title": "'Add currency' control in the rates editor is mislabeled: button reuses the 'Add year' i18n key",
+      "verdict": "refuted",
+      "adjustedSeverity": "P3",
+      "reasoning": "False positive: en.ts:461 defines ratesAddYear as the neutral string 'Add' (not 'Add year'), so the add-currency button (RatesEditor.tsx:786) renders 'Add' correctly with its own descriptive aria-label ratesAddCurrencyLabel='Add currency' on the select (line 771) — the finding's claim that the value is 'Add year' and that no shared neutral 'Add' key exists is factually wrong; at worst the key NAME is misleading with zero user-facing or a11y bug."
+    },
+    {
+      "title": "Auto-fill FX suggestion for a PAST year on a non-EUR home mixes at-the-time EUR cost with today's EUR→home rate",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Real for non-EUR home: manualRates.ts:186 computes homeValue=convertFn(euroValue,'EUR',homeCur) using today's-only EUR→home rate then implied=homeValue/value (line 188), blending the at-the-time foreign value with a present-day home rate; it is gated to blanks-only prefill of years that actually have expenses (RatesEditor.tsx:407,413-420) and is a user-reviewable suggestion, so impact is minor."
+    },
+    {
+      "title": "Top-spender amount renders bare '0' (no currency symbol) when total display spend is zero",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Confirmed at Insights.tsx:1245 — the ternary emits literal '0' in the zero case while every sibling value renders targetSym+formatNumberForCurrency (e.g. lines 1257-1258); purely cosmetic and only triggers when totalDisplay is exactly 0 (a vanishingly rare all-zero-display trip)."
+    }
+  ]
+}

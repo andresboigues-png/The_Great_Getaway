@@ -1,0 +1,35 @@
+{
+  "key": "home",
+  "verdicts": [
+    {
+      "title": "Stored XSS on Home dashboard via unescaped trip name in the 'expenses recorded for {trip}' stat line",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P1",
+      "reasoning": "Verified end-to-end: t() does raw String(params[name]) with no HTML-escape (i18n.ts:266-267), HomeHeader feeds activeTrip.name raw into dangerouslySetInnerHTML (HomeHeader.tsx:194-200), the name is stored UNescaped at creation (modals/trip.ts:133 reads input .value verbatim — the Todo.tsx:455 comment claiming names are esc()'d at creation is false), and sibling sites DO escape (companions.ts:146/415, share.ts:411, tripChecklistModal.ts:94, trip-controls.ts:52), so this is a genuine inconsistency; a shared-trip planner setting a malicious name makes it cross-user (dom-helpers.ts:102 scopes esc to exactly that), justifying P1 over self-XSS — note Todo.tsx:457 carries the identical bug."
+    },
+    {
+      "title": "No map placeholder or error state when Google Maps fails to load — active-trip hero is a blank glass card",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Confirmed the failure path only console.warns (HeroMap.tsx:162-164) with no placeholder render and #homeHeroMap stays empty, and .cover-card--md (home.css:483) sets only height with no background; downgraded to P3 because the card still renders the gradient + inspirational quote overlay (HeroMap.tsx:919-924), so it is not literally blank, and it only triggers in the edge case where the Maps SDK never loads."
+    },
+    {
+      "title": "Personalized greeting silently always says 'traveler' — server never sends user.firstName",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Confirmed welcomeCard.ts:70 reads STATE.user.firstName and all three auth payloads send only name, never firstName (auth.py:67-83 /api/me, 185-187 dev-login, 262-272 Google), and STATE.user=data.user is assigned verbatim (auth.ts:58) — the only server firstName fields are on OTHER users in feed.py:523/public.py:635, a different object; downgraded to P3 as it is purely cosmetic and is just 1 of 4 random greeting templates."
+    },
+    {
+      "title": "Fresh-trip greeting re-rolls (text changes) on any background state change because the random pick runs in render",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Confirmed exactly as cited: pickGreeting is called in render (HomeHeader.tsx:64) and uses Math.random() per call (welcomeCard.ts:79), while useStore re-renders on every STATE_CHANGED via a bumped version counter (store.ts:48-74), so the H1 re-rolls on any state change while isFresh is true; bounded and cosmetic, P3 is right."
+    },
+    {
+      "title": "No-trip welcome slideshow shows a broken-image glyph (empty alt) when Unsplash is unreachable",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Confirmed welcomeCard.ts:36 emits the img with alt=\"\" and no onerror, the rotation just swaps imgEl.src with no error handling (slideshow.ts:230-235), and every source is a hardcoded images.unsplash.com URL (constants.ts:69-72 INSPIRATIONAL_PAIRS, mapped at slideshow.ts:93); cosmetic and only on Unsplash failure, P3 is right."
+    }
+  ]
+}

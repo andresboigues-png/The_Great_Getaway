@@ -1,0 +1,139 @@
+{
+  "members": {
+    "Alex": "test-user-1",
+    "Sara": "test-user-2",
+    "Mia": "test-user-3",
+    "Leo": "test-user-4",
+    "Nina": "test-user-5",
+    "Omar": "test-user-6"
+  },
+  "friend_setup": {
+    "Sara": [
+      200,
+      200
+    ],
+    "Mia": [
+      200,
+      200
+    ],
+    "Leo": [
+      200,
+      200
+    ],
+    "Nina": [
+      200,
+      200
+    ],
+    "Omar": [
+      200,
+      200
+    ]
+  },
+  "create_trip": {
+    "status": 200,
+    "body": {
+      "status": "ok",
+      "updatedAt": "2026-06-01 14:38:03.946"
+    }
+  },
+  "days": {
+    "count": 14,
+    "dates": [
+      "2026-05-25",
+      "2026-05-26",
+      "2026-05-27",
+      "2026-05-28",
+      "2026-05-29",
+      "2026-05-30",
+      "2026-05-31",
+      "2026-06-01",
+      "2026-06-02",
+      "2026-06-03",
+      "2026-06-04",
+      "2026-06-05",
+      "2026-06-06",
+      "2026-06-07"
+    ]
+  },
+  "invites": {
+    "Sara": {
+      "invite": 200,
+      "respond": 200,
+      "ibody": {
+        "status": "ok"
+      },
+      "rbody": {
+        "status": "ok"
+      }
+    },
+    "Mia": {
+      "invite": 200,
+      "respond": 200,
+      "ibody": {
+        "status": "ok"
+      },
+      "rbody": {
+        "status": "ok"
+      }
+    },
+    "Leo": {
+      "invite": 200,
+      "respond": 200,
+      "ibody": {
+        "status": "ok"
+      },
+      "rbody": {
+        "status": "ok"
+      }
+    },
+    "Nina": {
+      "invite": 200,
+      "respond": 200,
+      "ibody": {
+        "status": "ok"
+      },
+      "rbody": {
+        "status": "ok"
+      }
+    },
+    "Omar": {
+      "invite": 200,
+      "respond": 200,
+      "ibody": {
+        "status": "ok"
+      },
+      "rbody": {
+        "status": "ok"
+      }
+    }
+  },
+  "expense_post": {
+    "counts": {
+      "200": 54
+    },
+    "total": 54,
+    "errors": []
+  },
+  "budgets": {
+    "overall": {
+      "s": 200,
+      "b": {
+        "status": "ok",
+        "updatedAt": "2026-06-01 14:38:04.097"
+      }
+    },
+    "food": {
+      "s": 200,
+      "b": {
+        "status": "ok",
+        "updatedAt": "2026-06-01 14:38:04.100"
+      }
+    }
+  },
+  "data_summary": {
+    "trips": 3,
+    "expenses": 54,
+    "settlements": 1,
+    "budgets": 4
+  }
+}

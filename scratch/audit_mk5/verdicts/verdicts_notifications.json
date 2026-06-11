@@ -1,0 +1,53 @@
+{
+  "key": "notifications",
+  "verdicts": [
+    {
+      "title": "Account deletion / factory-reset fails to clean orphaned engagement notifications (wrong type names + wrong key column)",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "data.py:1432-1436 deletes with `type IN ('feed_liked','feed_commented','feed_reposted','feed_bookmarked')` AND `related_id IN (doomed_post_ids)`, but the only real engagement types are 'share_liked/commented/reposted' (feed.py:122-129) and they store the post in `post_id` with the actor in `related_id` (feed.py:133-135) — so the DELETE matches zero rows while the sibling paths (feed.py:806, trips.py:420) correctly use `WHERE post_id IN (...)`; downgraded to P2 because the frontend now falls back to FEED for a missing postId (notifications.ts:344-349) so the orphans clutter rather than hard-404."
+    },
+    {
+      "title": "Trip-invite notification is never cleared after Accept/Decline — bell badge stuck unread forever, re-click errors",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "respond_trip_invite (trips.py:960-1067) flips/deletes the invitee's trip_members row and only inserts a notification for the INVITER (trips.py:1061-1065) — it never deletes the invitee's own trip_invite row, and the frontend deliberately skips markNotificationRead for trip_invite (notifications.ts:287-290) while the modal handlers (share.ts:52-83, feed.ts:281-285) do no client-side mark/remove either; the trip_invite DELETEs at trips.py:404 and :1122 only fire on trip-delete / member-removal, not on the normal Accept/Decline path."
+    },
+    {
+      "title": "Self-leaving a trip sends the leaver a notification saying they removed themselves",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "remove_trip_member sets is_self_leave = (actor == target) at trips.py:1098 but only uses it to skip the planner gate (line 1099); the trip_member_removed INSERT at trips.py:1148-1152 is unconditional, addressed to `target` (= actor on self-leave) with message `f\"{actor_name} removed you from {trip_name}.\"` — no `if not is_self_leave:` guard, so the leaver gets a notification about removing themselves."
+    },
+    {
+      "title": "Notification titles/bodies for settled_up, settled_up_reverted and achievement_unlocked are hardcoded English for all locales",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "Server always inserts a non-null English title ('Settled up' settlements.py:436, 'Settlement reverted' :603, 'Achievement unlocked' achievements.py:829) so `n.title || notificationDefaultTitle()` (notifications.ts:241) never reaches the t() fallback (which also has no case for these), and localizeNotificationMessage (notifications.ts:122-154) has no handler for settled_up_reverted/achievement_unlocked while its settled_up regex (line 148) won't match the recorder-variant body (settlements.py:427-430); the i18n drift test only scans locale .ts files (LOCALES_DIR) so it can't see these Python strings."
+    },
+    {
+      "title": "Following someone via the Friends page emits a 'Friend Request' notification whose body says 'started following you'",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Friends.tsx:232 posts to /api/friends/add whose handler calls _follow(..., source='friend_request') (friends.py:207), and _follow sets title to 'New follower' only when source=='followed_you' else 'Friend Request' (friends.py:180) while the message is always 'started following you.' (friends.py:181) — vs the /api/follows/<id> path which uses type='followed_you'+'New follower' (follows.py:134); a cosmetic title/body mismatch via the legacy facade, no functional harm, hence P3."
+    },
+    {
+      "title": "settled_up / settled_up_reverted notification clicks dump the user on Home instead of the trip's Settlements",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "handleNotificationClick's switch (notifications.ts:294-355) has no case for settled_up/settled_up_reverted so both hit `default: navigate(PAGES.HOME)` (line 353), even though the docstring (lines 261-262) states related_id is the trip_id and a PAGES.SETTLEMENT route exists (constants.ts:21, router.ts:178) — the data to route correctly is present but unused; minor misdirection (still lands somewhere valid), so P3."
+    },
+    {
+      "title": "clearLocalState resets STATE.notifications but not STATE.notificationsTotalUnread (badge-count state diverges from documented full-reset invariant)",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "The cited function (actually named clearAuthToken, core.ts:82-157, not clearLocalState) sets STATE.notifications=[] plus 8 other fields at line 118 but never resets notificationsTotalUnread (grep finds zero refs to it in core.ts), while the explicit-logout path profile.ts:79-80 resets both — and the badge prefers notificationsTotalUnread (notifications.ts:47-49); real stale-state leak but largely masked by the is-signed-out body class hiding the bell when STATE.user is null, so P3 (note: the finding mislabels the function name)."
+    },
+    {
+      "title": "Unread notifications are never cleaned up — unbounded growth behind the LIMIT 50 window",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "The maintenance sweep deletes only `is_read = 1 AND created_at < -30 days` (main.py:786-789) with unread rows intentionally preserved (comment lines 781-782), while the read query caps at LIMIT 50 (notifications.py:55) — so unread rows beyond the most-recent 50 neither surface nor get reclaimed; a genuine slow-burn growth issue but the COUNT/LIMIT keep reads cheap, so P3."
+    }
+  ]
+}

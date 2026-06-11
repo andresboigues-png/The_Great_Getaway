@@ -1,0 +1,41 @@
+{
+  "key": "rates-editor",
+  "verdicts": [
+    {
+      "title": "EU-locale CSV import (semicolon delimiter + decimal comma) silently shatters every rate into garbage",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P1",
+      "reasoning": "parseCsv (RatesEditor.tsx:478) splits each line on /[,;\\t]/ BEFORE parseRatesGrid runs, so the locale-aware decimal-comma logic in manualRates.parseRateAmount never sees an intact `0,88` cell — a EU-locale Excel CSV (`USD;0,88;0,90`) is split into ['USD','0','88','0','90'] and mapped onto the wrong year columns; the .xlsx typed-cell path is immune; bounded to Insights display overrides per the money invariant but silently corrupts every imported rate for comma-decimal locales with no error shown."
+    },
+    {
+      "title": "Auto-fill and template pin a bogus 1:1 FX (1 unit = 1 EUR) for no-live-rate currencies (ARS/EGP/VND/TRY…)",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "computeAutoRate's no-expense fallback is convertFn(1,cur,home) (manualRates.ts:191) and convertCurrency→_rateFor returns CONVERSION_RATES[upper]||1 (currency.ts:77) — ARS/EGP/VND/TRY are confirmed absent from the 17-entry CONVERSION_RATES (constants.ts:104-121), so the result is 1, passes the rate>0 guard, and neither computeAutoRate nor the editor's autoHint/placeholder consults hasRate() the way presentValue.ts:240 does to route these to Model B, so a pinned 1 wrongly forces them into Model A; display-only and requires auto-fill/template round-trip."
+    },
+    {
+      "title": "Download template bakes auto values as if user-entered — incl. past-year FX = today's rate — so a round-trip silently freezes wrong overrides",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "currentValueForTemplate (RatesEditor.tsx:447) calls computeAutoRate for any blank cell with no per-year guard, unlike onAutoFill (RatesEditor.tsx:413-419) which deliberately skips past-year FX cells lacking expenses (PV4-2); applyParsedCells writes every imported value to draft and onSave→writeMerged (line 264-271) persists non-empty finite values as hard fx overrides, so a re-imported template freezes today's-rate baselines onto old years; display-only and needs an explicit template round-trip."
+    },
+    {
+      "title": "Deleting a year column or currency row clears the dirty flag, stranding other unsaved edits (Save disabled, silent loss on navigate)",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "removeYear (RatesEditor.tsx:354) and removeCurrency (line 374) unconditionally setDirty(false) after persisting only their own cleared cells, while Save is gated disabled={!dirty} (line 827) and cell edits persist ONLY via onSave (no onBlur/auto-save, confirmed by grep) — so an edit typed before a delete is stranded in draft and lost on unmount; the typed values remain visible in the inputs until navigate-away and any later keystroke re-enables Save, so the window is narrow but real and display-only."
+    },
+    {
+      "title": "Switching the FX↔Inflation Personalization tab discards unsaved rate edits with no confirmation",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "Personalization.tsx:181-182 renders the two editors as separate conditional `{tab===... ? <RatesEditor/> : null}` blocks, so switching tab unmounts the active RatesEditor and its local `draft` state (RatesEditor.tsx:127), which by design only persists on Save — nothing blocks or preserves the unsaved edits across the unmount; minor display-only loss requiring a deliberate tab switch with unsaved edits."
+    },
+    {
+      "title": "Importing a well-formed FX file that only contains the home-currency row shows a false 'couldn't read that file' error",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P3",
+      "reasoning": "applyParsedCells skips every isFx && currency===home cell (RatesEditor.tsx:488,498) so applied stays 0, and onImportFile treats applied===0 as a hard failure → setImportError(true) (lines 532-534), conflating 'nothing applicable' with 'unreadable'; genuine but very edge-case since the FX template excludes the home row (rowCurrencies filter, line 98) so a user must hand-craft a home-only file."
+    }
+  ]
+}

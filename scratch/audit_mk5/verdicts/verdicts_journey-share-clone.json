@@ -1,0 +1,23 @@
+{
+  "key": "journey-share-clone",
+  "verdicts": [
+    {
+      "title": "Share-token clone copies day-plan text even when share_show_plans=0, bypassing the public-page plan gate",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P1",
+      "reasoning": "fetch_share_payload gates the morning/afternoon/evening/tip SELECT + per-day attachment on bool(row['share_show_plans']) (public.py:591,615-621) with DB DEFAULT 0 (database.py:268), but clone_trip_from_share_token (trips.py:1554) calls _clone_trip_record with no privacy arg and _clone_trip_record unconditionally SELECTs+INSERTs morning/afternoon/evening/tip (trips.py:1385,1407-1425), so a recipient shown only the skeleton can clone to obtain the deliberately-withheld plan text."
+    },
+    {
+      "title": "Clone copies the owner's full markedPlaces wishlist, which the share page and public-trip read both strip from non-members",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P1",
+      "reasoning": "_clone_trip_attempt copies src['marked_places_json'] verbatim (trips.py:1309) while /api/public-trip sets trip['markedPlaces']=[] for non-members (public.py:203) and fetch_share_payload never includes markedPlaces at all; since _caller_can_see_trip grants cloning of any is_public trip without membership (trips.py:1458), the clone hands a non-member the entire wishlist both read surfaces withhold."
+    },
+    {
+      "title": "Cloned trip's cover image breaks when the source owner revokes the share or deletes the trip",
+      "verdict": "confirmed",
+      "adjustedSeverity": "P2",
+      "reasoning": "Clone copies the source owner's cover_url verbatim into a private row (is_public=0 hardcoded, no share_token; trips.py:1293,1319), so serve_upload's owner fast-path and the both-members JSON join both fail for the cloner (main.py:1327,1364-1378) and the cover survives only via the anonymous public-cover fallback that matches the SOURCE trip on is_public=1 OR share_token IS NOT NULL (main.py:1448-1456) — so revoke_share_link (share_token=NULL, trips.py:1233) or delete_trip (collect_trip_upload_paths includes the cover helpers.py:78-80, delete_upload_files rms it trips.py:455) 404s the clone's cover."
+    }
+  ]
+}
