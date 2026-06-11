@@ -188,6 +188,11 @@ def get_public_trip(trip_id):
         trip['isArchived'] = bool(trip.pop('is_archived', False))
         trip.pop('actions_hidden', None)
         trip.pop('user_id', None)
+        # Trip Hub notes are member-only internal planning text — they
+        # travel ONLY over the authenticated /api/data path. Strip here
+        # so the pass-through in serialize_trip_row never leaks them to a
+        # public viewer (the /share/<token> path never selects the column).
+        trip.pop('notes', None)
 
         # Audit fix (2026-05-26): non-member viewers must NOT see the
         # owner's private metadata. fetch_share_payload (the /share/

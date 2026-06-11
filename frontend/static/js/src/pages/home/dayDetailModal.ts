@@ -53,8 +53,11 @@ function _shortlistLineIndex(text: string, name: string): number {
 }
 
 /** What home tabs a Anchor quick-link can navigate to. Matches
- *  the activeHomeTab union in home.ts. */
-export type HomeTab = 'days' | 'companions' | 'documents' | 'photos';
+ *  the activeHomeTab union in home.ts. `hub` is the Trip Hub tab
+ *  (Wave 1) — trip-wide stuff promoted out of the Path-wheel anchor
+ *  card. `documents` / `photos` are modal-only sub-views (no tab
+ *  content of their own). */
+export type HomeTab = 'days' | 'hub' | 'companions' | 'documents' | 'photos';
 
 
 /** Options bag for openDayDetail. The `setActiveHomeTab`

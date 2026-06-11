@@ -520,24 +520,51 @@ def test_upsert_trip_cannot_touch_media(client, seed_user, auth_headers):
         "photos": [{"id": "keep-me"}],
         "checklist": [{"id": "keep-task"}],
     })
-    # Upsert the trip with a new name AND adversarial empty media arrays
+    # Upsert the trip with a new name, a Trip Hub notes value (Wave 1 —
+    # rides this same metadata path), AND adversarial empty media arrays
     # in the body (mimicking the cold-start []-placeholder that caused
     # the original P0).
     res = client.post("/api/trips", headers=auth_headers, json={
         "trip": {
             "id": trip_id, "name": "Renamed Trip", "country": "Test",
+            "notes": "Pack the passports",
             "photos": [], "documents": [], "markedPlaces": [], "checklist": [],
         },
     })
     assert res.status_code == 200
-    # Name changed via metadata path...
+    # Name + notes changed via metadata path...
     data = client.get("/api/data", headers=auth_headers).get_json()
     trip = next(t for t in data["trips"] if t["id"] == trip_id)
     assert trip["name"] == "Renamed Trip"
+    assert trip.get("notes") == "Pack the passports", "notes must persist via metadata path"
     # ...but media is UNTOUCHED — the []s in the upsert body were ignored.
+    # This is the core guarantee: a notes/name edit cannot reopen the
+    # R12-B4 media-loss class because the two write paths are separate.
     media = client.get(f"/api/trips/{trip_id}/media", headers=auth_headers).get_json()
     assert media["photos"] == [{"id": "keep-me"}], "upsert must not wipe photos"
     assert media["checklist"] == [{"id": "keep-task"}], "upsert must not wipe checklist"
+
+
+def test_trip_notes_member_only_stripped_from_public(client, seed_user, auth_headers):
+    """Wave 1 — Trip Hub notes are internal planning text: the owner reads
+    them over /api/data, but they must NEVER appear on the public-trip read
+    surface (the /share/<token> path never selects the column; the
+    /api/public-trip path strips it after the shared serializer)."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-notes-priv", public=True)
+    res = client.post("/api/trips", headers=auth_headers, json={
+        "trip": {
+            "id": trip_id, "name": "Test Trip", "country": "Test",
+            "isPublic": True, "notes": "Hotel card ends 1234",
+        },
+    })
+    assert res.status_code == 200
+    # Owner sees notes via the authenticated data path.
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in data["trips"] if t["id"] == trip_id)
+    assert trip.get("notes") == "Hotel card ends 1234"
+    # Anonymous public viewer must NOT — notes is absent from the payload.
+    pub = client.get(f"/api/public-trip/{trip_id}").get_json()
+    assert "notes" not in pub["trip"], "notes must not leak to public-trip viewers"
 
 
 def test_trip_invite_creates_pending(

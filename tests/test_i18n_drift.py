@@ -168,6 +168,16 @@ _INTENTIONAL_ENGLISH = {
     'expenses.dateLabel':           'fr: identical "Date"',
     'modals.newTripLabelDest':      'fr: identical "Destination"',
     'modals.pdfOptBudgets':         'fr: identical "Budgets"',
+    'modals.pdfOptPhotos':          'fr: identical "Photos"',
+
+    # ── Trip Hub tab (Wave 1) — FR Latin cognates ──────────────────
+    # 'Notes', 'Documents', 'Photos' are spelled identically in French
+    # (same lexicon as the dayView.* / archivedDetail.* entries above).
+    # The other tripHub.* values ARE translated (Camp de base, Jours,
+    # Pays, Dépensé, …); only these three coincide with English.
+    'tripHub.notesLabel':           'fr: identical "Notes"',
+    'tripHub.btnDocuments':         'fr: identical "Documents"',
+    'tripHub.btnPhotos':            'fr: identical "Photos"',
 
     # ── R11-B7: dayView labels (Latin cognate sweep) ───────────────
     # 'Photos', 'Documents', 'Document' all spelled identically in FR.

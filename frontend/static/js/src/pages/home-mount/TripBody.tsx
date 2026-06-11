@@ -56,10 +56,30 @@ import {
     editDayPin,
     saveDayPin,
     setActiveHomeTab,
+    activeHomeTab,
     editingDayId,
 } from './handlers.js';
+import { TripHubTab } from './TripHubTab.js';
 import type { Trip, TripDay } from '../../types';
 import { t, tn } from '../../i18n.js';
+
+
+// The three tabs that have real tab CONTENT in TripBody. `documents` /
+// `photos` are modal-only HomeTab values (openDayDetail's quick-links)
+// with no inline content, so they coerce to the Path tab here.
+type TripTab = 'days' | 'hub' | 'companions';
+
+/** Resolve the tab to show on (re)mount. The module-level activeHomeTab
+ *  survives the navigate('home') unmount/remount the day-pin + day-action
+ *  helpers trigger — critical now that the Trip Hub's pin-edit lives in
+ *  the 'hub' tab (without this, clicking "Edit home base pin" would drop
+ *  the user back on the Path tab after the remount). Modal-only values
+ *  fall back to the Path tab. */
+function initialTripTab(): TripTab {
+    return activeHomeTab === 'hub' || activeHomeTab === 'companions'
+        ? activeHomeTab
+        : 'days';
+}
 
 
 export interface TripBodyProps {
@@ -128,7 +148,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
     const daysContainerRef = useRef<HTMLDivElement | null>(null);
     const pathTabInnerRef = useRef<HTMLDivElement | null>(null);
 
-    const [activeTab, setActiveTab] = useState<HomeTab>('days');
+    const [activeTab, setActiveTab] = useState<HomeTab>(() => initialTripTab());
     // Weather forecast — fetched async after first paint. Stored
     // in a ref so the path-tab repaint closure reads the latest
     // value without driving its own re-render.
@@ -188,12 +208,18 @@ export function TripBody({ activeTrip }: TripBodyProps) {
 
         // ── Step day helpers ────────────────────────────────────
         const stepSelectedDay = (delta: number) => {
-            const sortedDays = [
-                ...(STATE.tripDays || []).filter((d) => d.tripId === activeTrip.id),
+            // Trip Hub (day 0) lives in its own tab now — step over
+            // numbered days only so prev/next/arrows/swipe never land on
+            // the anchor (which the Path wheel no longer renders).
+            const numbered = [
+                ...(STATE.tripDays || []).filter(
+                    (d) => d.tripId === activeTrip.id && (d.dayNumber || 0) > 0,
+                ),
             ].sort((a, b) => a.dayNumber - b.dayNumber);
-            const currentId = resolveSelectedDayId(activeTrip, sortedDays);
-            const idx = sortedDays.findIndex((d) => d.id === currentId);
-            const next = sortedDays[idx + delta];
+            if (!numbered.length) return;
+            const currentId = resolveSelectedDayId(activeTrip, numbered);
+            const idx = numbered.findIndex((d) => d.id === currentId);
+            const next = numbered[idx + delta];
             if (next) setSelectedDay(activeTrip.id, next.id);
         };
 
@@ -358,12 +384,18 @@ export function TripBody({ activeTrip }: TripBodyProps) {
         };
 
         const stepSelectedDay = (delta: number) => {
-            const sortedDays = [
-                ...(STATE.tripDays || []).filter((d) => d.tripId === activeTrip.id),
+            // Trip Hub (day 0) lives in its own tab now — step over
+            // numbered days only so prev/next/arrows/swipe never land on
+            // the anchor (which the Path wheel no longer renders).
+            const numbered = [
+                ...(STATE.tripDays || []).filter(
+                    (d) => d.tripId === activeTrip.id && (d.dayNumber || 0) > 0,
+                ),
             ].sort((a, b) => a.dayNumber - b.dayNumber);
-            const currentId = resolveSelectedDayId(activeTrip, sortedDays);
-            const idx = sortedDays.findIndex((d) => d.id === currentId);
-            const next = sortedDays[idx + delta];
+            if (!numbered.length) return;
+            const currentId = resolveSelectedDayId(activeTrip, numbered);
+            const idx = numbered.findIndex((d) => d.id === currentId);
+            const next = numbered[idx + delta];
             if (next) setSelectedDay(activeTrip.id, next.id);
         };
 
@@ -373,7 +405,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
     }, [activeTrip.id]);
 
     // ── Tab swap helpers ────────────────────────────────────────
-    const switchTab = (key: 'days' | 'companions') => {
+    const switchTab = (key: TripTab) => {
         setActiveTab(key);
         setActiveHomeTab(key);
     };
@@ -714,6 +746,29 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                         <span>{t('home.tabPath')}</span>
                     </button>
                     <button
+                        className={`trip-tabnav__tab${activeTab === 'hub' ? ' is-active' : ''}`}
+                        role="tab"
+                        aria-selected={activeTab === 'hub'}
+                        onClick={() => switchTab('hub')}
+                    >
+                        {/* 5-point star — matches the Trip Hub anchor identity
+                            used on the map marker + (formerly) the Path-wheel
+                            anchor card. */}
+                        <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            stroke="currentColor"
+                            strokeWidth="1.2"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                        >
+                            <polygon points="12 2 15 8.5 22 9.3 17 14.3 18.2 21.3 12 18 5.8 21.3 7 14.3 2 9.3 9 8.5" />
+                        </svg>
+                        <span>{t('home.tabHub')}</span>
+                    </button>
+                    <button
                         className={`trip-tabnav__tab${activeTab === 'companions' ? ' is-active' : ''}`}
                         role="tab"
                         aria-selected={activeTab === 'companions'}
@@ -739,6 +794,8 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                     </button>
                 </nav>
             </div>
+
+            <TripHubTab activeTrip={activeTrip} isActive={activeTab === 'hub'} />
 
             <CompanionsCard
                 activeTrip={activeTrip}

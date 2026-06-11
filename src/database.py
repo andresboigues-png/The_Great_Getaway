@@ -261,6 +261,12 @@ def init_db():
                     CHECK(trip_countries_json IS NULL
                           OR json_valid(trip_countries_json)),
                 cover_url TEXT,
+                -- Trip Hub free-text notes (member-only; surfaced in the
+                -- Trip Hub tab). Written via upsert_trip's metadata path,
+                -- stripped from public/share read surfaces. Plain TEXT —
+                -- no json_valid CHECK. Migration c7e2a9b4d106 adds it to
+                -- existing DBs.
+                notes TEXT,
                 actions_hidden INTEGER DEFAULT 0,
                 share_token TEXT,
                 share_views INTEGER DEFAULT 0,
@@ -1105,7 +1111,7 @@ _EXPECTED_COLUMNS = {
         "place_id", "lat", "lng", "viewport_json", "place_types",
         "companions_json", "marked_places_json", "documents_json",
         "photos_json", "checklist_json", "trip_countries_json",
-        "cover_url", "actions_hidden", "share_token", "share_views",
+        "cover_url", "notes", "actions_hidden", "share_token", "share_views",
         "share_show_cost", "share_show_plans", "created_at",
         # R3-Round 4: optimistic-concurrency primitive.
         "updated_at",

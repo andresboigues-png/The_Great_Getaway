@@ -197,8 +197,8 @@ def upsert_trip():
                                place_id, lat, lng, viewport_json, place_types, country_code,
                                companions_json, marked_places_json,
                                documents_json, photos_json, checklist_json,
-                               trip_countries_json, cover_url, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
+                               trip_countries_json, cover_url, notes, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
             ON CONFLICT(id) DO UPDATE SET
                 name=excluded.name,
                 country=excluded.country,
@@ -227,6 +227,11 @@ def upsert_trip():
                 -- trailing `?` is 1 when the key is absent (preserve), 0
                 -- when present (write the provided value, including null).
                 cover_url=CASE WHEN ? = 1 THEN cover_url ELSE excluded.cover_url END,
+                -- Trip Hub notes: COALESCE so a partial metadata payload that
+                -- omits `notes` preserves the stored value; an explicit
+                -- string (incl. '') overwrites. Same protect-on-absent
+                -- pattern as trip_countries_json / companions_json above.
+                notes=COALESCE(excluded.notes, notes),
                 updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
             -- R8-B4 atomic staleness gate. When client_updated_at
             -- is supplied AND non-null, the UPDATE only fires if
@@ -268,6 +273,9 @@ def upsert_trip():
               None,  # checklist_json
               countries_payload,
               t.get('coverUrl'),
+              # Trip Hub notes (metadata path). None when the key is absent →
+              # the COALESCE in the SET clause preserves the stored value.
+              t.get('notes'),
               # 4.8 audit TRIP-6: preserve-flag for the cover_url CASE
               # above — 1 = key absent (keep stored cover), 0 = key present
               # (write the provided value, incl. the Remove-cover null).

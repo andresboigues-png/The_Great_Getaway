@@ -167,6 +167,104 @@
     gap: 8px;
     align-items: center;
 }
+
+/* ── Trip Hub tab (Wave 1) — promoted out of the Path-wheel anchor
+   card into its own tab. Reuses .trip-companions-card as the shell
+   (white card + gradient header); the rules below style the Hub-
+   specific body sections: stats strip, home-base pin, notes, and
+   the trip-essentials button row. ─────────────────────────────── */
+.trip-hub__stats {
+    display: flex;
+    gap: 10px;
+    padding: 16px 22px;
+    border-bottom: 1px solid rgba(0, 45, 91, 0.06);
+}
+.trip-hub__stat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-align: center;
+    min-width: 0;
+}
+.trip-hub__stat-value {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--text-brand-navy);
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.trip-hub__stat-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+}
+.trip-hub__section {
+    padding: 16px 22px;
+    border-bottom: 1px solid rgba(0, 45, 91, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+}
+.trip-hub__section-head {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #005bb8;
+}
+.trip-hub__section-status {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.45;
+    white-space: pre-wrap;
+}
+.trip-hub__edit-hint {
+    margin: 0;
+    font-size: 0.82rem;
+    font-style: italic;
+    color: #005bb8;
+}
+.trip-hub__notes {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid rgba(0, 45, 91, 0.14);
+    border-radius: 12px;
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    color: var(--text-brand-navy);
+    resize: vertical;
+    background: rgba(0, 113, 227, 0.02);
+}
+.trip-hub__notes:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+    background: white;
+}
+.trip-hub__essentials {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 16px 22px;
+}
+.trip-hub__essentials .day-action-btn {
+    flex: 1;
+    min-width: 120px;
+}
 .trip-companions-card__empty {
     color: var(--text-secondary);
     font-size: 0.88rem;

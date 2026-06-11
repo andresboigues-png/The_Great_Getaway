@@ -1597,6 +1597,25 @@ export const en = {
         placeFallback: 'Place',
         searchLoadError: "Couldn't load this place.",
     },
+    tripHub: {
+        cardTitle: 'Trip Hub',
+        cardSubtitleFallback: 'Your trip',
+        statDays: 'Days',
+        statCountries: 'Countries',
+        statSpent: 'Spent',
+        homeBaseLabel: 'Home base',
+        homeBaseSet: 'Pinned on the map.',
+        homeBaseUnset: 'No location pinned yet.',
+        homeBaseEditing: 'Drag the pin or click the map, then Save on the map.',
+        homeBaseEdit: 'Edit home base pin',
+        homeBaseSetCta: 'Set home base pin',
+        notesLabel: 'Notes',
+        notesPlaceholder: 'Trip-wide notes, reminders, links…',
+        notesEmptyViewer: 'No notes yet.',
+        btnChecklist: 'Checklist',
+        btnDocuments: 'Documents',
+        btnPhotos: 'Photos',
+    },
     home: {
         // Pre-trip empty-state hero (welcomeCard.ts buildEmptyStateHtml).
         mapUnavailable: 'Map unavailable',
@@ -1630,6 +1649,7 @@ export const en = {
         },
         // Trip tab buttons (Path / Companions in the tab strip).
         tabPath: 'Path',
+        tabHub: 'Trip Hub',
         tabCompanions: 'Companions',
         // Map search input placeholder.
         searchMapPlaceholder: 'Search any place on the map…',

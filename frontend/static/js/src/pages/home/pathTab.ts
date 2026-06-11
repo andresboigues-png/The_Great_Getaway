@@ -279,68 +279,50 @@ function buildOptionsStack(
 export function buildPathTabHtml(ctx: PathTabContext): string {
     const { activeTrip, tripDays, tripIsEditable, editingDayId } = ctx;
     const sortedDays = [...tripDays].sort((a, b) => a.dayNumber - b.dayNumber);
-    const anchor = sortedDays.find(d => d.dayNumber === 0) || null;
+    // Trip Hub (anchor, day 0) now lives in its own tab — the Path wheel
+    // shows ONLY numbered days. resolveSelectedDayId is given the numbered
+    // set so a stale cached anchor selection resolves to a numbered day
+    // (or null when the trip has no numbered days yet).
     const numberedDays = sortedDays.filter(d => d.dayNumber > 0);
-    const selectedId = resolveSelectedDayId(activeTrip, sortedDays);
-    const selectedDay = sortedDays.find(d => d.id === selectedId) || null;
-    // Empty state — no days yet (shouldn't happen since Anchor is
-    // stamped on trip create, but defensive).
-    if (sortedDays.length === 0) {
+    const selectedId = resolveSelectedDayId(activeTrip, numberedDays);
+    const selectedDay = numberedDays.find(d => d.id === selectedId) || null;
+    // Empty state — the trip only has its Hub, no numbered days yet.
+    // Prompts the user to add their first day (the Hub itself is now
+    // reachable via the Trip Hub tab, not this wheel).
+    if (numberedDays.length === 0) {
         return `<div class="card glass" style="padding:28px; border-radius:18px; text-align:center; color:var(--text-secondary);">${esc(t('pathTab.emptyState'))}</div>`;
     }
     const totalDays = numberedDays.length;
-    const selectedIsAnchor = selectedDay?.dayNumber === 0;
-    // 2026-05-24: i18n — summary line under the chip strip. Three
-    // shapes (Hub focus, day focus, no selection) each get their own
-    // pluralised template.
-    const summaryText = selectedIsAnchor
-        ? tn('path.summaryHub', totalDays, { count: totalDays })
-        : (selectedDay
-            ? t('path.summaryDay', { day: selectedDay.dayNumber, total: totalDays })
-            : tn('path.summaryNone', totalDays, { count: totalDays }));
+    // 2026-05-24: i18n — summary line under the chip strip. Two shapes
+    // (day focus, no selection); the Hub-focus variant retired with the
+    // anchor's move to its own tab.
+    const summaryText = selectedDay
+        ? t('path.summaryDay', { day: selectedDay.dayNumber, total: totalDays })
+        : tn('path.summaryNone', totalDays, { count: totalDays });
     // Today's LOCAL date in YYYY-MM-DD — used to flag the day chip that
     // matches the user's actual calendar today. Shared with pathSelection
     // via localTodayIso so the two agree (BUG-32).
     const todayStr = localTodayIso();
-    // Chip strip — Anchor chip first, then numbered days, then a `+`
-    // chip (only for editable trips) that opens the Add-Day modal.
-    const chipsHtml = sortedDays.map(d => {
+    // Chip strip — numbered days, then a `+` chip (only for editable
+    // trips) that opens the Add-Day modal.
+    const chipsHtml = numberedDays.map(d => {
         const isSel = d.id === selectedId;
-        const isGen = d.dayNumber === 0;
-        const isToday = !isGen && d.date === todayStr;
-        const cls = `path-chip${isGen ? ' path-chip--anchor' : ''}${isToday ? ' path-chip--today' : ''}${isSel ? ' is-selected' : ''}`;
-        const tooltip = isGen
-            ? t('pathTab.chipHubTooltip')
-            : `${isToday ? t('pathTab.chipTodayPrefix') + ' · ' : ''}${t('tripMedia.dayBucketDay', { n: d.dayNumber })}${d.name ? ' — ' + d.name : ''}${d.date ? ' · ' + (formatDayDate(d.date) || d.date) : ''}`;
-        const inner = isGen
-            ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15 8.5 22 9.3 17 14.3 18.2 21.3 12 18 5.8 21.3 7 14.3 2 9.3 9 8.5"/></svg>`
-            : String(d.dayNumber);
-        return `<button type="button" class="${cls}" data-path-chip-day-id="${esc(d.id)}" title="${esc(tooltip)}" aria-label="${esc(tooltip)}" aria-pressed="${isSel}">${inner}</button>`;
+        const isToday = d.date === todayStr;
+        const cls = `path-chip${isToday ? ' path-chip--today' : ''}${isSel ? ' is-selected' : ''}`;
+        const tooltip = `${isToday ? t('pathTab.chipTodayPrefix') + ' · ' : ''}${t('tripMedia.dayBucketDay', { n: d.dayNumber })}${d.name ? ' — ' + d.name : ''}${d.date ? ' · ' + (formatDayDate(d.date) || d.date) : ''}`;
+        return `<button type="button" class="${cls}" data-path-chip-day-id="${esc(d.id)}" title="${esc(tooltip)}" aria-label="${esc(tooltip)}" aria-pressed="${isSel}">${String(d.dayNumber)}</button>`;
     }).join('');
     const addChip = tripIsEditable
         ? `<button type="button" class="path-chip path-chip--add" id="pathAddDayChip" title="${esc(t('pathTab.addNewDay'))}" aria-label="${esc(t('pathTab.addNewDay'))}">+</button>`
         : '';
-    // Prev/Next nav — disabled at the ends of the list.
-    const idx = sortedDays.findIndex(d => d.id === selectedId);
+    // Prev/Next nav — disabled at the ends of the numbered-day list.
+    const idx = numberedDays.findIndex(d => d.id === selectedId);
     const prevDisabled = idx <= 0;
-    const nextDisabled = idx < 0 || idx >= sortedDays.length - 1;
-    // Cards row — two columns side-by-side. Anchor column always
-    // renders (when Anchor exists); the selected-day column renders
-    // only when the selected day is a numbered day.
+    const nextDisabled = idx < 0 || idx >= numberedDays.length - 1;
+    // Cards row — a single selected-day column. (The anchor column is
+    // gone; the Trip Hub tab owns the anchor now.)
     const columns: string[] = [];
-    if (anchor) {
-        const anchorIsSelected = selectedDay?.id === anchor.id;
-        const anchorCollapsed = isPathCardCollapsed(anchor.id);
-        columns.push(`
-            <div class="path-column path-column--anchor${anchorCollapsed ? ' is-collapsed' : ''}">
-                <div class="path-card path-card--anchor${anchorIsSelected ? ' is-selected' : ''}" data-day-id="${esc(anchor.id)}">
-                    ${buildDayCardBody(anchor, { isAnchor: true, isSelected: anchorIsSelected }, activeTrip)}
-                </div>
-                ${buildOptionsStack(anchor, { isAnchor: true }, tripIsEditable, editingDayId)}
-            </div>
-        `);
-    }
-    if (selectedDay && selectedDay.dayNumber > 0) {
+    if (selectedDay) {
         const selCollapsed = isPathCardCollapsed(selectedDay.id);
         columns.push(`
             <div class="path-column path-column--selected${selCollapsed ? ' is-collapsed' : ''}">
@@ -351,13 +333,10 @@ export function buildPathTabHtml(ctx: PathTabContext): string {
             </div>
         `);
     }
-    // 2026-05-19: when only the Anchor column renders (no numbered
-    // day selected, or selected day IS the anchor), tag the row with
-    // `--solo-anchor` so CSS can stretch the anchor column to 100%
-    // width. Default 32% leaves a wide empty right gap that read as
-    // a broken layout.
-    const soloAnchor = columns.length === 1;
-    const rowClass = `path-cards-row${soloAnchor ? ' path-cards-row--solo-anchor' : ''}`;
+    // Single column now always stretches to full width — reuse the
+    // long-standing `--solo-anchor` stretch rule (kept its name to avoid
+    // churning the CSS; it just means "one column, fill the row").
+    const rowClass = `path-cards-row path-cards-row--solo-anchor`;
     return `
         <div class="path-strip">
             <button type="button" class="path-nav-btn" id="pathPrevBtn" title="${esc(t('pathTab.previousDay'))}" aria-label="${esc(t('pathTab.previousDay'))}" ${prevDisabled ? 'disabled' : ''}>

@@ -109,6 +109,11 @@ export interface Trip {
     activeFormatId?: string;
     /** 'popular' or 'custom' — which side of the format picker is active. */
     activeFormatType?: 'popular' | 'custom';
+    /** Trip-wide free-text notes, surfaced in the Trip Hub tab. Member-
+     *  only by construction: written via upsert_trip (metadata path,
+     *  NOT the media write-path) and stripped from every public/share
+     *  read surface server-side. NULL / '' = no notes. */
+    notes?: string | null;
     /** Trip start date (YYYY-MM-DD); set by AI planner / archived metadata. */
     dateFrom?: string;
     /** Trip end date (YYYY-MM-DD). */
