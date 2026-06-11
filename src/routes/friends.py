@@ -204,6 +204,13 @@ def add_friend():
         cursor = conn.cursor()
         if not ensure_user_exists(cursor, friend_id):
             return jsonify({"status": "error", "message": "Friend not found"}), 404
+        # DSGN-039: surface a distinct 'blocked' status when the caller has
+        # blocked the target. _follow() no-ops silently on a block edge
+        # (returns False, same as an already-following idempotent re-call),
+        # so without this check the endpoint always returns 'success' and the
+        # UI shows 'Request sent!' for a follow that was never created.
+        if is_blocked(cursor, user_id, friend_id):
+            return jsonify({"status": "blocked"})
         _follow(cursor, user_id, friend_id, source='friend_request')
         conn.commit()
     return jsonify({"status": "success"})

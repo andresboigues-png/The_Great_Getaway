@@ -1310,6 +1310,7 @@ export const en = {
         removeFriendTooltip: 'Unfollow',
         // Toasts.
         toastSelfRequest: "You can't follow yourself.",
+        toastBlockedCannotFollow: "You've blocked this user — unblock them to follow.",
         toastSendFailed: 'Failed to follow user.',
         toastSendFailedNetwork: 'Failed to follow — try again.',
         // Card fallback when name is missing.
@@ -2305,6 +2306,7 @@ export const en = {
         skippedRows: '{count} row(s) skipped (invalid amount or currency): {rows}.',
         // EXP-1: actionable line for rows in a currency with no exchange rate.
         noRateImport: '{count} row(s) use {currency}, which has no exchange rate — add them manually with a EUR amount.',
+        truncatedRows: 'File had {total} rows — only the first {limit} were imported. Split large files to import the rest.',
         errorParsing: 'Error parsing file. Check the format.',
         formatTricount: 'Tricount Export (CSV/XLSX)',
         formatSplitwise: 'Splitwise Export',

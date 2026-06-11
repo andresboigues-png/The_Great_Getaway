@@ -124,10 +124,14 @@ export function BatchUpload() {
             return;
         }
         try {
-            const { added, skipped, noRateCurrencies } = runBatchImport(parsed.rows, formatVal);
+            const { added, skipped, noRateCurrencies, truncatedCount } = runBatchImport(parsed.rows, formatVal);
             let text = t('upload.successImported', { count: added });
             if (skipped.length > 0) {
                 text = `${text} ${t('upload.skippedRows', { count: skipped.length, rows: skipped.join(', ') })}`;
+            }
+            // DSGN-037: warn when the file exceeded the 500-row cap.
+            if (truncatedCount > 0) {
+                text = `${text} ${t('upload.truncatedRows', { total: added + skipped.length + truncatedCount, limit: 500 })}`;
             }
             // EXP-1: surface the no-live-rate currencies as an ACTIONABLE
             // line so a Tricount/Splitwise export in ARS/EGP/VND/CLP/etc.

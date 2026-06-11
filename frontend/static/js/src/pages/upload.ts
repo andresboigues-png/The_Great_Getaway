@@ -300,16 +300,28 @@ function parseCellDate(cell: unknown): string {
  *  like data loss. The caller surfaces a specific "N rows use <CCY>, which
  *  has no exchange rate — add them manually with a EUR amount" message
  *  rather than a bare skipped-labels list. */
+/** DSGN-037: max rows processed per import. Keeps the synchronous
+ *  forEach + parallel upsertExpense fire from flooding the backend
+ *  (PythonAnywhere's 120/min /api/expenses rate limit would drop rows
+ *  beyond ~120 anyway). Files over this limit are silently truncated
+ *  and the caller receives `truncatedCount > 0` to surface a warning. */
+const MAX_IMPORT_ROWS = 500;
+
 export function runBatchImport(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SheetJS sheet_to_json rows: heterogeneous cells (string|number|Date) coerced at use; unknown[][] would break parseFloat(row[n]) without a runtime change
     parsedRows: any[][],
     formatVal: string,
-): { added: number; skipped: string[]; noRateCurrencies: Record<string, number> } {
+): { added: number; skipped: string[]; noRateCurrencies: Record<string, number>; truncatedCount: number } {
     const activeTripId = STATE.activeTripId!;
     const activeTrip = STATE.trips.find(t => t.id === activeTripId);
     if (activeTrip && !Array.isArray(activeTrip.companions)) activeTrip.companions = [];
     const isPopular = formatVal.startsWith('popular:');
     const popularFormat = formatVal.split(':')[1];
+
+    // DSGN-037: cap row count before the per-row loop to avoid a simultaneous
+    // flood of thousands of POST /api/expenses (one per row, no queue/throttle).
+    const truncatedCount = Math.max(0, parsedRows.length - MAX_IMPORT_ROWS);
+    if (truncatedCount > 0) parsedRows = parsedRows.slice(0, MAX_IMPORT_ROWS);
 
     let added = 0;
     let mappings: { variable: string; column: string }[] = [];
@@ -511,5 +523,5 @@ export function runBatchImport(
     // were likewise lost on reload before.
     void syncCategories();
     if (activeTrip) void upsertTrip(activeTrip);
-    return { added, skipped, noRateCurrencies };
+    return { added, skipped, noRateCurrencies, truncatedCount };
 }

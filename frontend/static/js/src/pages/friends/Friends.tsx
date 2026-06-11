@@ -239,6 +239,10 @@ export function Friends() {
                 setSearchQuery('');
                 setSearchStatus({ kind: 'sent' });
                 void updateNetwork();
+            } else if (data.status === 'blocked') {
+                // DSGN-039: caller has blocked the target — server no-ops
+                // the follow; surface an honest message rather than 'Request sent!'.
+                showLiquidAlert(t('friends.toastBlockedCannotFollow'));
             } else if (data.status === 'error') {
                 showLiquidAlert(data.message || t('friends.toastSendFailed'));
             }
