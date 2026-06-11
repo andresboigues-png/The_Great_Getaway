@@ -55,6 +55,7 @@ import {
     clearCollectionsFilters,
 } from './state.js';
 import { countryCodeToFlag } from '../../utils/place-names.js';
+import { openNewTripModal } from '../../modals.js';
 import type { Trip } from '../../types';
 
 
@@ -378,6 +379,13 @@ export function Collections() {
                             <div className="text-[4rem] mb-5">📚</div>
                             <h2>{t('collections.emptyNoTripsTitle')}</h2>
                             <p className="text-muted">{t('collections.emptyNoTripsBody')}</p>
+                            <button
+                                type="button"
+                                className="btn-primary mt-6"
+                                onClick={() => openNewTripModal()}
+                            >
+                                {t('todo.emptyNoTripCta')}
+                            </button>
                         </div>
                     </div>
                 ) : filteredTrips.length === 0 ? (
