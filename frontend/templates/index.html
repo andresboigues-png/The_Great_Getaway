@@ -240,21 +240,25 @@
              sections evenly. -->
         <div class="sidebar-middle">
 
-        <!-- Search — desktop sidebar entry. The top-banner search
-             icon is hidden on desktop (per-user request) so the
-             sidebar takes over as the search entry point. On mobile
-             the top-banner search icon stays put and this sidebar
-             item is hidden (would be redundant with the always-
-             visible top-bar icon). Sits in its own bare section so
-             the space-around math treats it as a peer of the
-             labelled sections below. -->
-        <div class="sidebar-section sidebar-item--desktop-only">
-            <a href="#" class="sidebar-item" data-page="search">
+        <!-- Discover — the top section: Search + Templates. Search keeps
+             its desktop-only visibility (on mobile the always-visible
+             top-bar search icon covers it); Templates shows everywhere.
+             Sits first so discovery is the top of the menu. -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-label" style="color: #5856d6;" data-i18n-key="sidebar.sectionDiscover">Discover</div>
+            <a href="#" class="sidebar-item sidebar-item--desktop-only" data-page="search">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="11" cy="11" r="7"></circle>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
                 <span data-i18n-key="nav.search">Search</span>
+            </a>
+            <a href="#" class="sidebar-item" data-page="templates">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <span data-i18n-key="nav.templates">Templates</span>
             </a>
         </div>
 
@@ -274,17 +278,6 @@
                     <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                 </svg>
                 <span data-i18n-key="sidebar.yourNetwork">Your network</span>
-            </a>
-        </div>
-
-        <div class="sidebar-section">
-            <div class="sidebar-section-label" style="color: #5856d6;" data-i18n-key="sidebar.sectionDiscover">Discover</div>
-            <a href="#" class="sidebar-item" data-page="templates">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
-                <span data-i18n-key="nav.templates">Templates</span>
             </a>
         </div>
 
@@ -587,6 +580,12 @@
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
         </a>
+        <a href="#" class="sidebar-rail__item" data-page="templates" aria-label="Templates" data-i18n-aria-label="nav.templates" title="Templates">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+        </a>
         <span class="sidebar-rail__dot" aria-hidden="true" style="--dot-color: #0071e3"></span>
         <a href="#" class="sidebar-rail__item" data-page="collections" aria-label="Collections" data-i18n-aria-label="nav.collections" title="Collections">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -599,13 +598,6 @@
                 <circle cx="9" cy="7" r="4" />
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
                 <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-        </a>
-        <span class="sidebar-rail__dot" aria-hidden="true" style="--dot-color: #5856d6"></span>
-        <a href="#" class="sidebar-rail__item" data-page="templates" aria-label="Templates" data-i18n-aria-label="nav.templates" title="Templates">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
             </svg>
         </a>
         <span class="sidebar-rail__dot" aria-hidden="true" style="--dot-color: #ff9500"></span>

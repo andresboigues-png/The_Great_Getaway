@@ -231,6 +231,12 @@
     line-height: 1.45;
     white-space: pre-wrap;
 }
+.trip-hub__edit-hint {
+    margin: 0;
+    font-size: 0.82rem;
+    font-style: italic;
+    color: #005bb8;
+}
 .trip-hub__notes {
     width: 100%;
     box-sizing: border-box;
