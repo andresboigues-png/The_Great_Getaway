@@ -1648,6 +1648,12 @@ export const en = {
         clear: 'Clear',
         emptyDays: 'Add days to your trip first to set accommodation.',
     },
+    dayPinPlace: {
+        title: 'Pin Day {n}',
+        prompt: "Search a place — its location becomes this day's pin.",
+        placeholder: 'Search for a place…',
+        mapsUnavailable: 'Maps unavailable — drop the pin on the map instead.',
+    },
     tripHub: {
         cardTitle: 'Trip Hub',
         cardSubtitleFallback: 'Your trip',
@@ -1749,6 +1755,8 @@ export const en = {
         btnSetAnchorPin: '📍 Set anchor pin',
         btnEditPin: '📍 Edit pin',
         btnAddPin: '📍 Add pin',
+        btnPinManual: 'Drop a pin',
+        btnPinPlace: 'Search a place',
         btnDocuments: '📎 Documents',
         btnPhotos: '📸 Photos',
         btnJournaling: '✍️ Journaling',

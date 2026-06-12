@@ -196,6 +196,30 @@ export const deleteDayPin = async (dayId: string): Promise<void> => {
     navigate('home', null, true);
 };
 
+/** Place a day's pin directly at chosen coordinates (the "search a place"
+ *  flow) — no map-click dance. Clears any in-flight manual pin-edit for the
+ *  day, persists, and repaints the home map so the new marker shows. */
+export const setDayPinFromPlace = async (
+    dayId: string,
+    lat: number,
+    lng: number,
+): Promise<void> => {
+    const day = STATE.tripDays.find((d) => d.id === dayId);
+    if (!day) return;
+    day.lat = lat;
+    day.lng = lng;
+    day.lon = lng;
+    if (editingDayId === dayId) {
+        editingDayId = null;
+        activeMapClickListener = null;
+        _pinEditOriginalCoords = null;
+    }
+    emit('state:changed');
+    await upsertDay(day);
+    showLiquidAlert(t('errors.dayPinSaved'));
+    navigate('home', null, true);
+};
+
 /** Ensure every trip with a known location has a Day 0 / Trip Anchor.
  *
  *  Idempotent — checks both `tripDays` (already in STATE) and a

@@ -1322,6 +1322,12 @@ export const pt: Translations = {
         clear: 'Remover',
         emptyDays: 'Adiciona dias à tua viagem primeiro para definir o alojamento.',
     },
+    dayPinPlace: {
+        title: 'Pin do dia {n}',
+        prompt: 'Procura um lugar — a sua localização torna-se o pin deste dia.',
+        placeholder: 'Procurar um lugar…',
+        mapsUnavailable: 'Mapa indisponível — coloca o pin no mapa.',
+    },
     tripHub: {
         cardTitle: 'Base da viagem',
         cardSubtitleFallback: 'A sua viagem',
@@ -1401,6 +1407,8 @@ export const pt: Translations = {
         btnSetAnchorPin: '📍 Definir pino do Centro',
         btnEditPin: '📍 Editar pino',
         btnAddPin: '📍 Adicionar pino',
+        btnPinManual: 'Colocar um pin',
+        btnPinPlace: 'Procurar um lugar',
         btnDocuments: '📎 Documentos',
         btnPhotos: '📸 Fotos',
         btnJournaling: '✍️ Diário',

@@ -250,11 +250,18 @@ function buildOptionsStack(
         // (No emoji prefix on these transient labels, so no icon swap.)
         buttons.push(`<button class="day-action-btn day-action-btn--success day-pin-save-btn" data-day-id="${esc(day.id)}">${esc(t('pathTab.btnSavePin'))}</button>`);
         buttons.push(`<button class="day-action-btn day-action-btn--danger-fill day-pin-delete-btn" data-day-id="${esc(day.id)}">${esc(t('pathTab.btnCancelPinEdit'))}</button>`);
-    } else {
-        const pinLabel = day.lat
-            ? (isAnchor ? t('pathTab.btnEditAnchorPin') : t('pathTab.btnEditPin'))
-            : (isAnchor ? t('pathTab.btnSetAnchorPin') : t('pathTab.btnAddPin'));
+    } else if (isAnchor) {
+        const pinLabel = day.lat ? t('pathTab.btnEditAnchorPin') : t('pathTab.btnSetAnchorPin');
         buttons.push(`<button class="day-action-btn day-action-btn--neutral day-pin-toggle-btn" data-day-id="${esc(day.id)}">${_btnContent('pin', pinLabel)}</button>`);
+    } else {
+        // Two ways to set a numbered day's pin, side by side: drop it on the
+        // map by hand, or search a place (its location becomes the pin).
+        buttons.push(
+            `<div class="path-pin-row">`
+            + `<button class="day-action-btn day-action-btn--neutral day-pin-toggle-btn" data-day-id="${esc(day.id)}">${_btnContent('pin', t('pathTab.btnPinManual'))}</button>`
+            + `<button class="day-action-btn day-action-btn--neutral day-pin-place-btn" data-day-id="${esc(day.id)}">${_btnContent('search', t('pathTab.btnPinPlace'))}</button>`
+            + `</div>`,
+        );
     }
     if (isAnchor) {
         // Documents + Photos used to be top-level trip tabs; moved here

@@ -38,6 +38,7 @@ import {
 import { openTripChecklistModal } from '../home/tripChecklistModal.js';
 import { openTripDocumentsModal, openTripPhotosModal } from '../home/tripMediaModals.js';
 import { openJournalingModal } from '../home/journalingModal.js';
+import { openDayPinPlaceModal } from '../home/dayPinPlaceModal.js';
 import { openDayDetail as _openDayDetailRaw, type HomeTab } from '../home/dayDetailModal.js';
 import { applySilenceBtnVisual } from '../home/shareModal.js';
 import { buildPathTabHtml, togglePathCardCollapsed } from '../home/pathTab.js';
@@ -326,6 +327,12 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                 const day = STATE.tripDays.find((d) => d.id === dayId);
                 if (day?.lat) editDayPin(dayId);
                 else addDayPin(dayId);
+                return;
+            }
+            // "Search a place" — set the day pin from a Places lookup.
+            const placePinBtn = target.closest('.day-pin-place-btn') as HTMLElement | null;
+            if (placePinBtn?.dataset.dayId) {
+                openDayPinPlaceModal(placePinBtn.dataset.dayId);
                 return;
             }
             const journalBtn = target.closest('.day-journaling-btn') as HTMLElement | null;

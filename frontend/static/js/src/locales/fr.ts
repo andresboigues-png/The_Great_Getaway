@@ -1323,6 +1323,12 @@ export const fr: Translations = {
         clear: 'Effacer',
         emptyDays: "Ajoutez d'abord des jours à votre voyage pour définir l'hébergement.",
     },
+    dayPinPlace: {
+        title: 'Repère du jour {n}',
+        prompt: 'Cherchez un lieu : sa position devient le repère de ce jour.',
+        placeholder: 'Rechercher un lieu…',
+        mapsUnavailable: 'Carte indisponible — placez le repère sur la carte.',
+    },
     tripHub: {
         cardTitle: 'Camp de base',
         cardSubtitleFallback: 'Votre voyage',
@@ -1402,6 +1408,8 @@ export const fr: Translations = {
         btnSetAnchorPin: "📍 Définir l'épingle du Centre",
         btnEditPin: "📍 Modifier l'épingle",
         btnAddPin: '📍 Ajouter une épingle',
+        btnPinManual: 'Placer un repère',
+        btnPinPlace: 'Chercher un lieu',
         btnDocuments: '📎 Documents',
         btnPhotos: '📸 Photos',
         btnJournaling: '✍️ Journal',
