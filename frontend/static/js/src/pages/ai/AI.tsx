@@ -47,6 +47,9 @@ import { TodoListPanel } from './TodoListPanel.js';
 import { AiMap } from './AiMap.js';
 import { useAiPlan } from './useAiPlan.js';
 import { useAiMap } from './useAiMap.js';
+import { navigate } from '../../router.js';
+import { setActiveHomeTab } from '../home-mount/handlers.js';
+import { requestAccommodationModalOnHome } from '../home/accommodationModal.js';
 
 
 // ── Top-level ──────────────────────────────────────────────────
@@ -116,6 +119,25 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                     }}
                 />
             </div>
+
+            {/* Accommodation nudge — the AI plan tailors itself to where
+                you're staying (see integrations.py). Links straight to the
+                Trip Hub accommodation manager. */}
+            {tripIsEditable ? (
+                <button
+                    type="button"
+                    className="ai-accommodation-banner"
+                    onClick={() => {
+                        setActiveHomeTab('hub');
+                        requestAccommodationModalOnHome();
+                        navigate('home');
+                    }}
+                >
+                    <span className="ai-accommodation-banner__icon" aria-hidden="true">🏨</span>
+                    <span className="ai-accommodation-banner__text">{t('ai.accommodationBanner')}</span>
+                    <span className="ai-accommodation-banner__arrow" aria-hidden="true">→</span>
+                </button>
+            ) : null}
 
             <div
                 className="ai-page-2col grid grid-cols-[380px_1fr] gap-6 mb-8"

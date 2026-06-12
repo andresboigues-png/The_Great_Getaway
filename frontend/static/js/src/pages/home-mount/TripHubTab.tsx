@@ -19,7 +19,7 @@
 // Viewers see read-only notes + the essentials buttons (the modals are
 // view-capable). Mirrors the Companions card's tab-content pattern.
 
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { STATE, emit } from '../../state.js';
 import { t } from '../../i18n.js';
 import { iconSvg } from '../../icons.js';
@@ -27,6 +27,7 @@ import { formatHome, shortPlaceName } from '../../utils.js';
 import { canEdit } from '../../permissions.js';
 import { upsertTrip } from '../../api.js';
 import { addDayPin, editDayPin, editingDayId } from './handlers.js';
+import { openAccommodationModal, consumePendingAccommodationOpen } from '../home/accommodationModal.js';
 import { openTripChecklistModal } from '../home/tripChecklistModal.js';
 import { openTripDocumentsModal, openTripPhotosModal } from '../home/tripMediaModals.js';
 import type { Trip, Expense } from '../../types';
@@ -40,6 +41,13 @@ export interface TripHubTabProps {
 
 export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
     const tripIsEditable = canEdit(activeTrip);
+
+    // Deep-link: the AI page "set your accommodation" banner sets a flag
+    // then navigates home — consume it on mount + open the manager.
+    useEffect(() => {
+        if (consumePendingAccommodationOpen()) openAccommodationModal(activeTrip);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Days belonging to this trip (fresh each render). The anchor is
     // day 0; planned days are dayNumber > 0.
@@ -93,24 +101,24 @@ export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
             data-home-tab="hub"
         >
             <div className="trip-companions-card">
-                {/* Header — star + title + destination, mirroring the
-                    Companions card header shape. */}
+                {/* Header — home-base icon + title + destination, mirroring
+                    the Companions card header shape. (The old gold star was
+                    retired per design feedback.) */}
                 <div className="trip-companions-card__header">
-                    <div
-                        className="trip-companions-card__icon"
-                        style={{ background: 'var(--gradient-anchor-deep)' }}
-                    >
+                    <div className="trip-companions-card__icon">
                         <svg
                             width="22"
                             height="22"
                             viewBox="0 0 24 24"
-                            fill="white"
+                            fill="none"
                             stroke="white"
-                            strokeWidth="1.5"
+                            strokeWidth="2"
+                            strokeLinecap="round"
                             strokeLinejoin="round"
                             aria-hidden="true"
                         >
-                            <polygon points="12 2 15 8.5 22 9.3 17 14.3 18.2 21.3 12 18 5.8 21.3 7 14.3 2 9.3 9 8.5" />
+                            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                            <polyline points="9 22 9 12 15 12 15 22" />
                         </svg>
                     </div>
                     <div className="trip-companions-card__heading">
@@ -181,6 +189,24 @@ export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
                             {activeTrip.notes || t('tripHub.notesEmptyViewer')}
                         </p>
                     )}
+                </div>
+
+                {/* Accommodation — dedicated entry point (the 2026-06
+                    redesign moved this out of the per-day modal). Opens the
+                    manager where you set where you're staying per day or
+                    across several days at once. */}
+                <div className="trip-hub__section">
+                    <div className="trip-hub__section-head">
+                        <span>🏨</span>
+                        <span>{t('tripHub.accommodationLabel')}</span>
+                    </div>
+                    <button
+                        type="button"
+                        className="btn-primary trip-hub__accommodation-btn"
+                        onClick={() => openAccommodationModal(activeTrip)}
+                    >
+                        {t('tripHub.btnAccommodation')}
+                    </button>
                 </div>
 
                 {/* Trip essentials — checklist / documents / photos. */}

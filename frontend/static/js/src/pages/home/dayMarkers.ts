@@ -23,6 +23,7 @@
 import { esc, formatDayDate } from '../../utils.js';
 import { streetViewUrl } from '../../googleMapsServices.js';
 import { t } from '../../i18n.js';
+import { buildAccommodationColorMap } from './accommodationColors.js';
 import type { Trip, TripDay } from '../../types';
 
 /** Inputs `paintDayMarkers` needs from renderHome. The caller owns
@@ -58,6 +59,11 @@ export interface DayMarkersContext {
 export function paintDayMarkers(ctx: DayMarkersContext): Record<string, google.maps.Marker> {
     const { map, activeTrip, days, editingDayId } = ctx;
     const markers: Record<string, google.maps.Marker> = {};
+    // 2026-06 redesign: tint each day's pin by which accommodation it's
+    // assigned to (days sharing a hotel share a colour). Position stays
+    // decoupled — this only changes fillColor. Days with no accommodation
+    // fall back to the default blue.
+    const accColors = buildAccommodationColorMap(days);
 
     // Shared InfoWindow — when the caller hands one in (home.ts does),
     // every marker type uses the same IW. This means: clicking a POI
@@ -123,7 +129,7 @@ export function paintDayMarkers(ctx: DayMarkersContext): Record<string, google.m
             icon: {
                 path: google.maps.SymbolPath.CIRCLE,
                 fillOpacity: 1,
-                fillColor: isEditing ? '#ff3b30' : '#007aff',
+                fillColor: isEditing ? '#ff3b30' : (accColors[day.id] || '#007aff'),
                 strokeColor: 'white',
                 strokeWeight: 3,
                 scale: isEditing ? 22 : 18,

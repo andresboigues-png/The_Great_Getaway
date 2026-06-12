@@ -729,20 +729,21 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                         aria-selected={activeTab === 'hub'}
                         onClick={() => switchTab('hub')}
                     >
-                        {/* 5-point star — matches the Trip Hub anchor identity
-                            used on the map marker + (formerly) the Path-wheel
-                            anchor card. Hub is the left-most (primary) tab. */}
+                        {/* Home-base (house) icon — the gold star was retired
+                            per design feedback. Hub is the left-most tab. */}
                         <svg
                             width="14"
                             height="14"
                             viewBox="0 0 24 24"
-                            fill="currentColor"
+                            fill="none"
                             stroke="currentColor"
-                            strokeWidth="1.2"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
                             strokeLinejoin="round"
                             aria-hidden="true"
                         >
-                            <polygon points="12 2 15 8.5 22 9.3 17 14.3 18.2 21.3 12 18 5.8 21.3 7 14.3 2 9.3 9 8.5" />
+                            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                            <polyline points="9 22 9 12 15 12 15 22" />
                         </svg>
                         <span>{t('home.tabHub')}</span>
                     </button>

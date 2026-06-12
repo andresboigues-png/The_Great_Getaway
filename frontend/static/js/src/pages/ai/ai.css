@@ -369,3 +369,40 @@
     gap: 10px;
     margin-bottom: 6px;
 }
+
+/* Accommodation nudge banner (2026-06) — links the AI page to the Trip
+   Hub accommodation manager. The plan tailors to where you're staying. */
+.ai-accommodation-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    margin: 0 0 20px;
+    padding: 14px 18px;
+    border: 1px solid rgba(88, 86, 214, 0.22);
+    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(88, 86, 214, 0.10), rgba(0, 113, 227, 0.06));
+    cursor: pointer;
+    text-align: left;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.ai-accommodation-banner:hover {
+    transform: translateY(-1px);
+    border-color: rgba(88, 86, 214, 0.4);
+    box-shadow: 0 8px 22px rgba(88, 86, 214, 0.14);
+}
+.ai-accommodation-banner__icon { font-size: 1.4rem; line-height: 1; flex-shrink: 0; }
+.ai-accommodation-banner__text {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-brand-navy);
+    line-height: 1.4;
+}
+.ai-accommodation-banner__arrow {
+    flex-shrink: 0;
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: #5856d6;
+}

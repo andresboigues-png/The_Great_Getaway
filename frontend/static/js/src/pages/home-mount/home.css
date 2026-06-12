@@ -255,6 +255,10 @@
     border-color: var(--accent-blue);
     background: white;
 }
+.trip-hub__accommodation-btn {
+    width: 100%;
+    max-width: none;
+}
 .trip-hub__essentials {
     display: flex;
     flex-wrap: wrap;

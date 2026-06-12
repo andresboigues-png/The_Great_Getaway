@@ -1071,6 +1071,7 @@ export const en = {
         usageByoSectionTitle: 'Bring your own Gemini key',
         // Page subtitle (with destination interpolated).
         subtitlePlanning: 'Planning your trip to <strong>{country}</strong>',
+        accommodationBanner: "Already know where you'll be staying? Set it up for a more tailored plan.",
         // Section labels.
         sectionTravelDates: '📅 Travel Dates',
         sectionRequirements: '📝 Requirements',
@@ -1629,6 +1630,17 @@ export const en = {
         dayCount: { one: '{count} day', other: '{count} days' },
         useThis: 'Use this template',
     },
+    accommodation: {
+        modalTitle: 'Accommodation',
+        modalSubtitle: "Set where you're staying. Pick a place, then tick the days it covers.",
+        searchPlaceholder: 'Search for a hotel or address…',
+        pickHint: 'Pick a place to apply',
+        applyBtnIdle: 'Apply',
+        applyBtn: { one: 'Apply to {count} day', other: 'Apply to {count} days' },
+        notSet: 'Not set',
+        clear: 'Clear',
+        emptyDays: 'Add days to your trip first to set accommodation.',
+    },
     tripHub: {
         cardTitle: 'Trip Hub',
         cardSubtitleFallback: 'Your trip',
@@ -1647,6 +1659,8 @@ export const en = {
         btnChecklist: 'Checklist',
         btnDocuments: 'Documents',
         btnPhotos: 'Photos',
+        accommodationLabel: 'Accommodation',
+        btnAccommodation: 'Manage accommodation',
     },
     home: {
         // Pre-trip empty-state hero (welcomeCard.ts buildEmptyStateHtml).

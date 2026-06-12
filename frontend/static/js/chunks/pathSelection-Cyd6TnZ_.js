@@ -1,0 +1,57 @@
+import{A as e,Tn as t,cn as n,gn as r,in as i,j as a,on as o,sn as s,un as c}from"../app.bundle.js";var l=(e,t)=>`<span style="display:inline-flex;align-items:center;gap:6px;justify-content:center">${i(e)}${s(o(t))}</span>`,u=`home_path_card_collapsed_day_ids`;function d(){try{let e=localStorage.getItem(u);if(!e)return new Set;let t=JSON.parse(e);return new Set(Array.isArray(t)?t:[])}catch{return new Set}}function f(e){try{localStorage.setItem(u,JSON.stringify([...e]))}catch{}}function p(e){let t=d();return t.has(e)?(t.delete(e),f(t),!1):(t.add(e),f(t),!0)}function m(e){return d().has(e)}function h(e,t){let n=d(),r=n.has(e);t&&!r?(n.add(e),f(n)):!t&&r&&(n.delete(e),f(n))}function g(t,a,c){let{isAnchor:l,isSelected:u}=a,d=l?`<div style="background: var(--gradient-anchor-deep); color: white; width: 48px; height: 48px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; flex-shrink:0; box-shadow: 0 8px 18px rgba(212,160,23,0.28);">
+               <!-- 2026-05-21: replaced the anchor glyph with a 5-point
+                    star to match the Trip Anchor → Trip Hub rename. -->
+               <svg width="26" height="26" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true">
+                   <polygon points="12 2 15 8.5 22 9.3 17 14.3 18.2 21.3 12 18 5.8 21.3 7 14.3 2 9.3 9 8.5"/>
+               </svg>
+           </div>`:`<div style="background: var(--gradient-title); color: white; width: 48px; height: 48px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink:0; box-shadow: 0 8px 18px rgba(0,113,227,0.15);">
+               <span style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase; opacity: 0.85; letter-spacing: 0.05em; line-height:1;">${s(e(`pathTab.dayBadgeLabel`))}</span>
+               <span style="font-size: 1.25rem; font-weight: 800; line-height: 1.05;">${t.dayNumber}</span>
+           </div>`,f=l?e(`pathTab.hubTitle`):s(t.name||e(`tripMedia.dayBucketDay`,{n:t.dayNumber})),p=[];if(l){p.push(c&&c.country?s(r(c.country)):s(e(`pathTab.hubSubtitleFallback`)));let n=(c.documents||[]).filter(e=>e.dayId===t.id),a=(c.photos||[]).filter(e=>e.dayId===t.id),o=n.length+(t.tickets||[]).length,l=a.length+(t.photos||[]).length;l&&p.push(`<span style="display:inline-flex; align-items:center; gap:4px; background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">${i(`photo`,{size:13})}${l}</span>`),o&&p.push(`<span style="display:inline-flex; align-items:center; gap:4px; background:rgba(88,86,214,0.12); color:#5856d6; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">${i(`document`,{size:13})}${o}</span>`)}else p.push(`<button type="button" class="day-card__date-btn" data-day-id="${s(t.id)}" aria-label="${s(e(`pathTab.setDatePlaceholder`))}" style="display:inline-flex; align-items:center; gap:5px; background:none; border:none; padding:0; margin:0; font:inherit; color:inherit; cursor:pointer;">${i(`calendar`,{size:14})}${n(t.date)||e(`pathTab.setDatePlaceholder`)}</button>`),t.lat?p.push(`<span style="color: #005bb8;">${s(e(`pathTab.locationSet`))}</span>`):p.push(`<span class="day-card__pin-hint" style="display:inline-flex; align-items:center; gap:4px;">${i(`pinned`,{size:13})}${s(o(e(`pathTab.pinThisDay`)))}</span>`),t.date&&p.push(`<span class="day-card__weather" data-weather-date="${s(t.date)}"></span>`);let m=u&&t.notes&&!l?`
+        <div style="margin-top: 12px; padding: 12px 14px; background: rgba(0,113,227,0.04); border-radius: 14px; border-left: 3px solid var(--accent-blue);">
+            <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #005bb8; margin-bottom: 4px; letter-spacing: 0.05em;">${s(e(`pathTab.journalPreviewLabel`))}</div>
+            <p style="margin: 0; font-size: 0.9rem; line-height: 1.45; color: #002d5b; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${s(t.notes)}</p>
+        </div>
+    `:``,h=`
+        <button type="button" class="path-card-collapse-btn" data-day-id="${s(t.id)}"
+            aria-label="${s(e(`pathTab.toggleOptionsAria`,{title:f}))}" title="${s(e(`pathTab.toggleOptionsTitle`))}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 15 12 9 18 15"></polyline>
+            </svg>
+        </button>
+    `;return`
+        <div style="display:flex; align-items:center; gap:14px;">
+            ${d}
+            <div style="flex:1; min-width:0;">
+                <h3 style="margin:0; font-size:${l?`1.05rem`:`1.25rem`}; font-weight:800; color:var(--text-brand-navy); letter-spacing:-0.02em; line-height:1.2; ${l?`overflow:hidden; text-overflow:ellipsis; white-space:nowrap;`:``}">${f}</h3>
+                <div style="font-size:0.82rem; color:var(--text-secondary); font-weight:600; margin-top:4px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                    ${p.map(e=>`<span>${e}</span>`).join(`<span style="opacity:0.4;">·</span>`)}
+                </div>
+            </div>
+            ${h}
+        </div>
+        ${m}
+    `}function _(t,n,r,i){if(!t||!r)return``;let{isAnchor:a}=n,o=[];if(a?o.push(`<button class="path-primary-btn path-primary-btn--anchor path-checklist-btn" data-day-id="${s(t.id)}">${l(`checklist`,e(`pathTab.btnChecklist`))}</button>`):o.push(`<button class="path-primary-btn day-detail-btn" data-day-id="${s(t.id)}">${l(`plan`,e(`pathTab.btnOpenFullPlan`))}</button>`),i===t.id)o.push(`<button class="day-action-btn day-action-btn--success day-pin-save-btn" data-day-id="${s(t.id)}">${s(e(`pathTab.btnSavePin`))}</button>`),o.push(`<button class="day-action-btn day-action-btn--danger-fill day-pin-delete-btn" data-day-id="${s(t.id)}">${s(e(`pathTab.btnCancelPinEdit`))}</button>`);else{let n=t.lat?e(a?`pathTab.btnEditAnchorPin`:`pathTab.btnEditPin`):e(a?`pathTab.btnSetAnchorPin`:`pathTab.btnAddPin`);o.push(`<button class="day-action-btn day-action-btn--neutral day-pin-toggle-btn" data-day-id="${s(t.id)}">${l(`pin`,n)}</button>`)}return a?(o.push(`<button class="day-action-btn day-action-btn--neutral path-documents-btn" data-day-id="${s(t.id)}">${l(`document`,e(`pathTab.btnDocuments`))}</button>`),o.push(`<button class="day-action-btn day-action-btn--neutral path-photos-btn" data-day-id="${s(t.id)}">${l(`photo`,e(`pathTab.btnPhotos`))}</button>`)):(o.push(`<button class="day-action-btn day-action-btn--neutral day-journaling-btn" data-day-id="${s(t.id)}">${l(`journal`,e(`pathTab.btnJournaling`))}</button>`),o.push(`<button class="day-action-btn day-action-btn--danger day-delete-btn" data-day-id="${s(t.id)}">${l(`trash`,e(`pathTab.btnDeleteDay`))}</button>`)),`<div class="path-options-stack">${o.join(``)}</div>`}function v(t){let{activeTrip:r,tripDays:i,tripIsEditable:o,editingDayId:l}=t,u=[...i].sort((e,t)=>e.dayNumber-t.dayNumber).filter(e=>e.dayNumber>0),d=T(r,u),f=u.find(e=>e.id===d)||null;if(u.length===0)return`<div class="card glass" style="padding:28px; border-radius:18px; text-align:center; color:var(--text-secondary);">${s(e(`pathTab.emptyState`))}</div>`;let p=u.length,h=f?e(`path.summaryDay`,{day:f.dayNumber,total:p}):a(`path.summaryNone`,p,{count:p}),v=c(),y=u.map(t=>{let r=t.id===d,i=t.date===v,a=`path-chip${i?` path-chip--today`:``}${r?` is-selected`:``}`,o=`${i?e(`pathTab.chipTodayPrefix`)+` · `:``}${e(`tripMedia.dayBucketDay`,{n:t.dayNumber})}${t.name?` — `+t.name:``}${t.date?` · `+(n(t.date)||t.date):``}`;return`<button type="button" class="${a}" data-path-chip-day-id="${s(t.id)}" title="${s(o)}" aria-label="${s(o)}" aria-pressed="${r}">${String(t.dayNumber)}</button>`}).join(``),b=o?`<button type="button" class="path-chip path-chip--add" id="pathAddDayChip" title="${s(e(`pathTab.addNewDay`))}" aria-label="${s(e(`pathTab.addNewDay`))}">+</button>`:``,x=u.findIndex(e=>e.id===d),S=x<=0,C=x<0||x>=u.length-1,w=[];if(f){let e=m(f.id);w.push(`
+            <div class="path-column path-column--selected${e?` is-collapsed`:``}">
+                <div class="path-card path-card--selected" data-day-id="${s(f.id)}">
+                    ${g(f,{isAnchor:!1,isSelected:!0},r)}
+                </div>
+                ${_(f,{isAnchor:!1},o,l)}
+            </div>
+        `)}return`
+        <div class="path-strip">
+            <button type="button" class="path-nav-btn" id="pathPrevBtn" title="${s(e(`pathTab.previousDay`))}" aria-label="${s(e(`pathTab.previousDay`))}" ${S?`disabled`:``}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
+            <div class="path-chips" role="group" aria-label="${s(e(`pathTab.tripDaysGroupAria`))}">
+                ${y}
+                ${b}
+            </div>
+            <button type="button" class="path-nav-btn" id="pathNextBtn" title="${s(e(`pathTab.nextDay`))}" aria-label="${s(e(`pathTab.nextDay`))}" ${C?`disabled`:``}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+        </div>
+        <div class="path-summary">${s(h)}</div>
+        <div class="path-cards-row path-cards-row--solo-anchor">${w.join(``)}</div>
+    `}var y={};try{let e=localStorage.getItem(`home_path_selected_day_by_trip`);e&&(y=JSON.parse(e)||{})}catch{y={}}var b={repaintPathTab:null,onSelectedDayChange:null};function x(e){`repaintPathTab`in e&&(b.repaintPathTab=e.repaintPathTab??null),`onSelectedDayChange`in e&&(b.onSelectedDayChange=e.onSelectedDayChange??null)}function S(e){return y[e]}function C(e){if(e in y){delete y[e];try{localStorage.setItem(`home_path_selected_day_by_trip`,JSON.stringify(y))}catch{}}}function w(e,n){if(!e||!n||y[e]===n)return;y[e]=n;try{localStorage.setItem(`home_path_selected_day_by_trip`,JSON.stringify(y))}catch{}if(typeof window<`u`&&typeof window.matchMedia==`function`&&window.matchMedia(`(max-width: 720px)`).matches){let r=(t.tripDays||[]).filter(t=>t.tripId===e),i=r.find(e=>e.id===n),a=r.find(e=>Number(e.dayNumber)===0);i&&Number(i.dayNumber)>0&&(a&&h(a.id,!0),h(i.id,!1))}if(typeof b.repaintPathTab==`function`&&b.repaintPathTab(),typeof b.onSelectedDayChange==`function`)try{b.onSelectedDayChange()}catch(e){console.warn(`[GG] onSelectedDayChange threw — likely stale home closure:`,e)}let r=window.activeMap;if(!r)return;let i=(t.tripDays||[]).find(e=>e.id===n);if(!i)return;let a=typeof i.lat==`number`?i.lat:null,o=typeof i.lng==`number`?i.lng:typeof i.lon==`number`?i.lon:null;try{if(a!=null&&o!=null)r.panTo({lat:a,lng:o}),typeof r.getZoom==`function`&&r.getZoom()<13&&r.setZoom(13);else if(i.dayNumber===0){let n=(t.trips||[]).find(t=>t.id===e);n&&typeof n.lat==`number`&&typeof n.lng==`number`&&r.panTo({lat:n.lat,lng:n.lng})}}catch{}}function T(e,t){if(!e||!t.length)return null;let n=y[e.id];if(n&&t.some(e=>e.id===n))return n;let r=c(),i=t.find(e=>e.dayNumber>0&&e.date===r);if(i)return i.id;let a=t.find(e=>e.dayNumber>0);return a?a.id:t[0].id}export{w as a,T as i,S as n,v as o,x as r,p as s,C as t};
+//# sourceMappingURL=pathSelection-Cyd6TnZ_.js.map
