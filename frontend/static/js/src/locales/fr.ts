@@ -1409,7 +1409,7 @@ export const fr: Translations = {
         btnEditPin: "📍 Modifier l'épingle",
         btnAddPin: '📍 Ajouter une épingle',
         btnPinManual: 'Placer un repère',
-        btnPinPlace: 'Chercher un lieu',
+        btnPinPlace: 'Épingler un lieu',
         btnDocuments: '📎 Documents',
         btnPhotos: '📸 Photos',
         btnJournaling: '✍️ Journal',

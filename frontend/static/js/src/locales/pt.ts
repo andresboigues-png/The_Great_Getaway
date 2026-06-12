@@ -1408,7 +1408,7 @@ export const pt: Translations = {
         btnEditPin: '📍 Editar pino',
         btnAddPin: '📍 Adicionar pino',
         btnPinManual: 'Colocar um pin',
-        btnPinPlace: 'Procurar um lugar',
+        btnPinPlace: 'Fixar um lugar',
         btnDocuments: '📎 Documentos',
         btnPhotos: '📸 Fotos',
         btnJournaling: '✍️ Diário',

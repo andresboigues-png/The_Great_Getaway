@@ -1404,7 +1404,7 @@ export const es: Translations = {
         btnEditPin: '📍 Editar pin',
         btnAddPin: '📍 Añadir pin',
         btnPinManual: 'Poner un pin',
-        btnPinPlace: 'Buscar un lugar',
+        btnPinPlace: 'Fijar un lugar',
         btnDocuments: '📎 Documentos',
         btnPhotos: '📸 Fotos',
         btnJournaling: '✍️ Diario',

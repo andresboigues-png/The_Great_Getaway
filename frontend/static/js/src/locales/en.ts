@@ -1756,7 +1756,7 @@ export const en = {
         btnEditPin: '📍 Edit pin',
         btnAddPin: '📍 Add pin',
         btnPinManual: 'Drop a pin',
-        btnPinPlace: 'Search a place',
+        btnPinPlace: 'Pin a place',
         btnDocuments: '📎 Documents',
         btnPhotos: '📸 Photos',
         btnJournaling: '✍️ Journaling',

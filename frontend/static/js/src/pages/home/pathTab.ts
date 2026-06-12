@@ -259,7 +259,7 @@ function buildOptionsStack(
         buttons.push(
             `<div class="path-pin-row">`
             + `<button class="day-action-btn day-action-btn--neutral day-pin-toggle-btn" data-day-id="${esc(day.id)}">${_btnContent('pin', t('pathTab.btnPinManual'))}</button>`
-            + `<button class="day-action-btn day-action-btn--neutral day-pin-place-btn" data-day-id="${esc(day.id)}">${_btnContent('search', t('pathTab.btnPinPlace'))}</button>`
+            + `<button class="day-action-btn day-action-btn--neutral day-pin-place-btn" data-day-id="${esc(day.id)}">${_btnContent('pin', t('pathTab.btnPinPlace'))}</button>`
             + `</div>`,
         );
     }
