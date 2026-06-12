@@ -325,6 +325,7 @@ def _template_summary(row) -> dict:
         "includePlans": bool(row["include_plans"]),
         "includePlaces": bool(row["include_places"]),
         "includeChecklist": bool(row["include_checklist"]),
+        "isPublic": bool(row["is_public"]),
         "useCount": row["use_count"] or 0,
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
@@ -343,7 +344,7 @@ def list_templates():
             return jsonify({"error": "Forbidden"}), 403
         cursor.execute(
             "SELECT id, code, name, source_trip_id, include_plans, "
-            "       include_places, include_checklist, use_count, "
+            "       include_places, include_checklist, is_public, use_count, "
             "       created_at, updated_at "
             "FROM trip_templates WHERE owner_id = ? ORDER BY created_at DESC",
             (user_id,),
@@ -373,6 +374,7 @@ def list_public_templates():
             "       u.picture AS creator_picture "
             "FROM trip_templates t "
             "JOIN users u ON u.id = t.owner_id "
+            "WHERE t.is_public = 1 "
             "ORDER BY t.created_at DESC"
         )
         rows = cursor.fetchall()
@@ -410,6 +412,7 @@ def create_template():
     include_plans = 1 if body.get("includePlans", True) else 0
     include_places = 1 if body.get("includePlaces", True) else 0
     include_checklist = 1 if body.get("includeChecklist", True) else 0
+    is_public = 1 if body.get("isPublic", True) else 0
 
     if not name:
         return jsonify({"error": "Name required"}), 400
@@ -450,17 +453,17 @@ def create_template():
         cursor.execute(
             "INSERT INTO trip_templates "
             "(id, code, owner_id, name, source_trip_id, include_plans, "
-            " include_places, include_checklist, snapshot_json, use_count) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
+            " include_places, include_checklist, is_public, snapshot_json, use_count) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
             (
                 tmpl_id, new_code, user_id, name, source_trip_id,
-                include_plans, include_places, include_checklist, snapshot_json,
+                include_plans, include_places, include_checklist, is_public, snapshot_json,
             ),
         )
         conn.commit()
         cursor.execute(
             "SELECT id, code, name, source_trip_id, include_plans, "
-            "include_places, include_checklist, use_count, created_at, updated_at "
+            "include_places, include_checklist, is_public, use_count, created_at, updated_at "
             "FROM trip_templates WHERE id = ?",
             (tmpl_id,),
         )
@@ -483,7 +486,7 @@ def update_template(template_id):
             return jsonify({"error": "Forbidden"}), 403
         cursor.execute(
             "SELECT id, owner_id, source_trip_id, include_plans, "
-            "include_places, include_checklist, name "
+            "include_places, include_checklist, is_public, name "
             "FROM trip_templates WHERE id = ?",
             (template_id,),
         )
@@ -496,6 +499,7 @@ def update_template(template_id):
         include_plans = 1 if body.get("includePlans", bool(existing["include_plans"])) else 0
         include_places = 1 if body.get("includePlaces", bool(existing["include_places"])) else 0
         include_checklist = 1 if body.get("includeChecklist", bool(existing["include_checklist"])) else 0
+        is_public = 1 if body.get("isPublic", bool(existing["is_public"])) else 0
 
         if not source_trip_id:
             return jsonify({"error": "Source trip required"}), 400
@@ -513,17 +517,18 @@ def update_template(template_id):
         cursor.execute(
             "UPDATE trip_templates SET name = ?, source_trip_id = ?, "
             "include_plans = ?, include_places = ?, include_checklist = ?, "
+            "is_public = ?, "
             "snapshot_json = ?, updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
             "WHERE id = ? AND owner_id = ?",
             (
                 name, source_trip_id, include_plans, include_places,
-                include_checklist, json.dumps(snap), template_id, user_id,
+                include_checklist, is_public, json.dumps(snap), template_id, user_id,
             ),
         )
         conn.commit()
         cursor.execute(
             "SELECT id, code, name, source_trip_id, include_plans, "
-            "include_places, include_checklist, use_count, created_at, updated_at "
+            "include_places, include_checklist, is_public, use_count, created_at, updated_at "
             "FROM trip_templates WHERE id = ?",
             (template_id,),
         )

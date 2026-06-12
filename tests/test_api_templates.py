@@ -186,6 +186,53 @@ def test_public_templates_browsable_by_any_user(
         assert sentinel not in blob
 
 
+def test_template_defaults_public(client, seed_user, auth_headers):
+    """A template created without an explicit isPublic defaults to public —
+    preserves the pre-toggle 'everything is listed on Discover' behaviour."""
+    _make_creator(seed_user)
+    _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src-def")
+    tpl = client.post("/api/templates", headers=auth_headers, json={
+        "name": "Default", "sourceTripId": "src-def",
+    }).get_json()["template"]
+    assert tpl["isPublic"] is True
+
+
+def test_public_feed_excludes_unlisted_templates(client, seed_user, auth_headers):
+    """An unlisted (isPublic=false) template is still reachable by code but
+    does NOT appear on the Discover feed; a public sibling does."""
+    _make_creator(seed_user)
+    _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src-pub")
+    _create_trip(client, auth_headers, trip_id="src-unl", name="Hidden")
+    pub = client.post("/api/templates", headers=auth_headers, json={
+        "name": "Listed", "sourceTripId": "src-pub", "isPublic": True,
+    }).get_json()["template"]
+    unl = client.post("/api/templates", headers=auth_headers, json={
+        "name": "HiddenTpl", "sourceTripId": "src-unl", "isPublic": False,
+    }).get_json()["template"]
+    assert pub["isPublic"] is True
+    assert unl["isPublic"] is False
+    feed = client.get("/api/templates/public", headers=auth_headers).get_json()["templates"]
+    names = {x["name"] for x in feed}
+    assert "Listed" in names
+    assert "HiddenTpl" not in names
+
+
+def test_template_update_can_unlist(client, seed_user, auth_headers):
+    """Toggling isPublic=false on update drops the template from the feed."""
+    _make_creator(seed_user)
+    _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src-tog")
+    tpl = client.post("/api/templates", headers=auth_headers, json={
+        "name": "Toggler", "sourceTripId": "src-tog",
+    }).get_json()["template"]
+    assert tpl["isPublic"] is True
+    upd = client.put(f"/api/templates/{tpl['id']}", headers=auth_headers, json={
+        "sourceTripId": "src-tog", "isPublic": False,
+    }).get_json()["template"]
+    assert upd["isPublic"] is False
+    feed = client.get("/api/templates/public", headers=auth_headers).get_json()["templates"]
+    assert "Toggler" not in {x["name"] for x in feed}
+
+
 def test_snapshot_toggles_off_omit_sections(client, seed_user, auth_headers):
     _make_creator(seed_user)
     _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src2")

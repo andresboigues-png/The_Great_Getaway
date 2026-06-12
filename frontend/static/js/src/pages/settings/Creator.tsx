@@ -39,6 +39,7 @@ export function Creator() {
     const [inclPlans, setInclPlans] = useState(true);
     const [inclPlaces, setInclPlaces] = useState(true);
     const [inclChecklist, setInclChecklist] = useState(true);
+    const [isPublic, setIsPublic] = useState(true);
     const [saving, setSaving] = useState(false);
 
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -63,6 +64,7 @@ export function Creator() {
         setInclPlans(true);
         setInclPlaces(true);
         setInclChecklist(true);
+        setIsPublic(true);
     };
 
     const startEdit = (tmpl: TemplateSummary) => {
@@ -72,6 +74,7 @@ export function Creator() {
         setInclPlans(tmpl.includePlans);
         setInclPlaces(tmpl.includePlaces);
         setInclChecklist(tmpl.includeChecklist);
+        setIsPublic(tmpl.isPublic);
         setConfirmDeleteId(null);
     };
 
@@ -86,6 +89,7 @@ export function Creator() {
             includePlans: inclPlans,
             includePlaces: inclPlaces,
             includeChecklist: inclChecklist,
+            isPublic,
         };
         const result = editingId
             ? await updateTemplate(editingId, input)
@@ -188,6 +192,14 @@ export function Creator() {
                             </label>
                         </div>
 
+                        <label className="flex items-center gap-2 text-[0.9rem] cursor-pointer">
+                            <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />
+                            <span>
+                                {t('settings.creatorListOnDiscover')}
+                                <span className="block text-secondary text-[0.78rem]">{t('settings.creatorListOnDiscoverHint')}</span>
+                            </span>
+                        </label>
+
                         <div className="flex gap-2 flex-wrap">
                             <button
                                 type="button"
@@ -219,7 +231,12 @@ export function Creator() {
                         {templates.map((tmpl) => (
                             <div key={tmpl.id} className="tmpl-row">
                                 <div className="tmpl-row__main">
-                                    <div className="tmpl-row__name">{tmpl.name}</div>
+                                    <div className="tmpl-row__name">
+                                        {tmpl.name}
+                                        {!tmpl.isPublic ? (
+                                            <span className="tmpl-row__badge">{t('settings.creatorUnlisted')}</span>
+                                        ) : null}
+                                    </div>
                                     <div className="tmpl-row__meta">
                                         {includesSummary(tmpl)} · {t('settings.creatorUsedN', { n: tmpl.useCount })}
                                     </div>

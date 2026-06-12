@@ -100,6 +100,21 @@ export const openDayView = (day: TripDay): void => {
                         <h4 class="text-tag">${t('dayView.personalNotes')}</h4>
                         ${day.notes ? `<p class="dvm-plan-text">${esc(day.notes)}</p>` : `<p class="dvm-italic-muted">${t('dayView.noNotes')}</p>`}
                     </div>
+                    ${day.accommodation ? `
+                    <!-- Accommodation (Wave 2) — read-only mirror of the
+                         editable modal's card, so viewers see where the trip
+                         is staying this day. Only numbered days have it. -->
+                    <div style="background: rgba(88,86,214,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(88,86,214,0.12);">
+                        <h4 class="text-tag">${t('dayDetail.accommodationHeading')}</h4>
+                        <div style="display:flex; align-items:flex-start; gap:10px; margin-top:6px;">
+                            <span style="font-size:1.1rem; line-height:1.3;">🏨</span>
+                            <div style="flex:1; min-width:0;">
+                                <div style="font-weight:700; color:#002d5b; line-height:1.3; word-break:break-word;">${esc(day.accommodation)}</div>
+                                ${day.accommodationAddress ? `<div style="font-size:0.78rem; color:var(--text-secondary); margin-top:2px;">${esc(day.accommodationAddress)}</div>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    ` : ''}
                     <!-- Photos + Documents always render. For Trip
                          Anchor these surface the trip-wide bucket
                          (passport, multi-day hotel, return flight…);

@@ -13,6 +13,8 @@ export interface TemplateSummary {
     includePlans: boolean;
     includePlaces: boolean;
     includeChecklist: boolean;
+    /** Listed on the public Discover feed (true) vs unlisted / code-only. */
+    isPublic: boolean;
     useCount: number;
     createdAt: string | null;
     updatedAt: string | null;
@@ -24,6 +26,7 @@ export interface TemplateInput {
     includePlans: boolean;
     includePlaces: boolean;
     includeChecklist: boolean;
+    isPublic: boolean;
 }
 
 export interface TemplatePreviewDay {

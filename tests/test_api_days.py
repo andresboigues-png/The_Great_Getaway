@@ -144,6 +144,27 @@ def test_day_accommodation_not_exposed_on_public_trip(client, seed_user, auth_he
     assert "accommodationAddress" not in days[0]
 
 
+def test_day_notes_and_tip_stripped_from_public_trip(client, seed_user, auth_headers):
+    """Per-day personal notes + the free-text tip are the planner's own
+    jottings — stripped from the public-trip read for non-members. Only the
+    plan text (the shareable itinerary) survives."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-pub-notes", public=True)
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {"id": "day-n", "tripId": trip_id, "dayNumber": 1, "name": "Day 1",
+                "notes": "PERSONALNOTE", "tip": "PRIVATETIP",
+                "plan": {"morning": "Visit the park", "afternoon": "", "evening": ""}},
+    })
+    pub = client.get(f"/api/public-trip/{trip_id}").get_json()
+    day = pub["trip"]["tripDays"][0]
+    assert "notes" not in day, "personal notes must not leak publicly"
+    assert "tip" not in day, "free-text tip must not leak publicly"
+    blob = __import__("json").dumps(pub)
+    assert "PERSONALNOTE" not in blob
+    assert "PRIVATETIP" not in blob
+    # The shareable itinerary (plan text) is still present.
+    assert day["plan"]["morning"] == "Visit the park"
+
+
 def test_delete_day_happy_path(client, seed_user, auth_headers):
     """Planner can delete a numbered day; row is gone after."""
     client.post("/api/trips", headers=auth_headers, json={

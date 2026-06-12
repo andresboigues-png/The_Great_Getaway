@@ -322,6 +322,10 @@ def init_db():
                 snapshot_json TEXT
                     CHECK(snapshot_json IS NULL OR json_valid(snapshot_json)),
                 use_count INTEGER DEFAULT 0,
+                -- Per-template Discover visibility. 1 = listed on the public
+                -- Discover feed (default); 0 = unlisted / code-only. Migration
+                -- a3f1c9d27e84 adds this to existing DBs (existing rows → 1).
+                is_public INTEGER DEFAULT 1,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE

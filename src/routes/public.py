@@ -245,6 +245,15 @@ def get_public_trip(trip_id):
             day.pop('accommodation', None)
             day.pop('accommodation_place_id', None)
             day.pop('accommodation_address', None)
+            # Per-day personal `notes` (journaling) + the free-text `tip` are
+            # the planner's own jottings — strip them for NON-members, the
+            # same privacy contract as photos/documents below. The plan text
+            # (morning/afternoon/evening) stays: that's the shareable
+            # itinerary this page exists to show. Members read notes/tip via
+            # the authenticated /api/data path.
+            if not is_member:
+                day.pop('notes', None)
+                day.pop('tip', None)
             day['plan'] = {
                 'morning': unwrap_legacy_plan_text(day.pop('morning', '')),
                 'afternoon': unwrap_legacy_plan_text(day.pop('afternoon', '')),

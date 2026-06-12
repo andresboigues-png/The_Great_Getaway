@@ -6232,6 +6232,21 @@ main#app-container.nav-anim-backward {
    it reads as a tappable chip and pops off the dark glass backdrop (it was
    previously low-contrast blue text that looked like a subtitle). The border
    + shadow keep it defined on light backgrounds too. */
+/* "Unlisted" badge next to a template name in the creator list (Wave 3
+   deferral B — per-template Discover visibility). */
+.tmpl-row__badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: rgba(0, 45, 91, 0.08);
+    color: var(--text-secondary);
+    font-size: 0.66rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    vertical-align: middle;
+}
 .tmpl-code-pill {
     display: inline-flex;
     align-items: center;
