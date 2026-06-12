@@ -4,20 +4,16 @@
 // the Path-tab wheel. It's now promoted to its own tab — the home for
 // everything trip-WIDE rather than day-specific:
 //
-//   - Home base pin   — the anchor's lat/lng (the trip's gravity center,
-//                       drives the map + POI search). Set / edit reuses
-//                       the same addDayPin / editDayPin flow the Path
-//                       wheel used; the HeroMap floating Save/✕ toolbar
-//                       (visible whenever editingDayId is set) commits it.
-//   - Notes           — NEW trip-wide free-text field (trip.notes). Saved
+//   - Stats           — days planned · countries · nominal total spent.
+//   - Notes           — trip-wide free-text field (trip.notes). Saved
 //                       via upsertTrip (metadata path) on blur.
+//   - Accommodation   — opens the per-day / multi-day accommodation manager.
 //   - Trip essentials — Checklist / Documents / Photos, opening the same
 //                       trip-wide modals the Anchor card's option stack did.
-//   - Stats           — days planned · countries · nominal total spent.
 //
-// Permissions: pin + notes editing gate on canEdit (planner/owner).
-// Viewers see read-only notes + the essentials buttons (the modals are
-// view-capable). Mirrors the Companions card's tab-content pattern.
+// Permissions: notes editing gates on canEdit (planner/owner). Viewers
+// see read-only notes + the essentials buttons (the modals are view-
+// capable). Mirrors the Companions card's tab-content pattern.
 
 import { useEffect, useRef } from 'react';
 import { STATE, emit } from '../../state.js';
@@ -26,7 +22,6 @@ import { iconSvg } from '../../icons.js';
 import { formatHome, shortPlaceName } from '../../utils.js';
 import { canEdit } from '../../permissions.js';
 import { upsertTrip } from '../../api.js';
-import { addDayPin, editDayPin, editingDayId } from './handlers.js';
 import { openAccommodationModal, consumePendingAccommodationOpen } from '../home/accommodationModal.js';
 import { openTripChecklistModal } from '../home/tripChecklistModal.js';
 import { openTripDocumentsModal, openTripPhotosModal } from '../home/tripMediaModals.js';
@@ -49,10 +44,9 @@ export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Days belonging to this trip (fresh each render). The anchor is
-    // day 0; planned days are dayNumber > 0.
+    // Days belonging to this trip (fresh each render). Planned days are
+    // dayNumber > 0 (the day-0 anchor is excluded from the count).
     const tripDays = (STATE.tripDays || []).filter((d) => d.tripId === activeTrip.id);
-    const anchor = tripDays.find((d) => Number(d.dayNumber) === 0) || null;
     const plannedDayCount = tripDays.filter((d) => (d.dayNumber || 0) > 0).length;
 
     // Countries visited — the §4.3 multi-country array, falling back to
@@ -69,9 +63,6 @@ export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
         .filter((e: Expense) => e.tripId === activeTrip.id && !e.isSettlement)
         .reduce((sum: number, e: Expense) => sum + (e.euroValue || 0), 0);
 
-    const hasPin = !!(anchor && typeof anchor.lat === 'number');
-    const isEditingAnchor = !!(anchor && editingDayId === anchor.id);
-
     const destination = activeTrip.country ? shortPlaceName(activeTrip.country) : '';
 
     // ── Notes save — on blur, only when the value actually changed.
@@ -87,12 +78,6 @@ export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
         activeTrip.notes = next;
         emit('state:changed');
         void upsertTrip(activeTrip);
-    };
-
-    const onPinClick = () => {
-        if (!anchor) return;
-        if (hasPin) editDayPin(anchor.id);
-        else addDayPin(anchor.id);
     };
 
     return (
@@ -143,30 +128,6 @@ export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
                         <span className="trip-hub__stat-value">{formatHome(totalSpent)}</span>
                         <span className="trip-hub__stat-label">{t('tripHub.statSpent')}</span>
                     </div>
-                </div>
-
-                {/* Home base pin. */}
-                <div className="trip-hub__section">
-                    <div className="trip-hub__section-head">
-                        <span dangerouslySetInnerHTML={{ __html: iconSvg('pin', { size: 16 }) }} />
-                        <span>{t('tripHub.homeBaseLabel')}</span>
-                    </div>
-                    <p className="trip-hub__section-status">
-                        {hasPin ? t('tripHub.homeBaseSet') : t('tripHub.homeBaseUnset')}
-                    </p>
-                    {tripIsEditable && anchor ? (
-                        isEditingAnchor ? (
-                            <p className="trip-hub__edit-hint">{t('tripHub.homeBaseEditing')}</p>
-                        ) : (
-                            <button
-                                type="button"
-                                className="day-action-btn day-action-btn--neutral"
-                                onClick={onPinClick}
-                            >
-                                {hasPin ? t('tripHub.homeBaseEdit') : t('tripHub.homeBaseSetCta')}
-                            </button>
-                        )
-                    ) : null}
                 </div>
 
                 {/* Notes. */}
