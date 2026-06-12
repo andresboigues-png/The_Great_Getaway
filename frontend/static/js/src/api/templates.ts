@@ -148,10 +148,13 @@ export async function previewTemplate(code: string): Promise<TemplatePreview | n
  *  other failures. */
 export async function createTripFromTemplateCode(
     code: string,
+    startDate?: string,
 ): Promise<{ ok: boolean; tripId?: string; status: number }> {
     try {
         const res = await apiFetch(`/api/templates/${encodeURIComponent(code)}/create`, {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(startDate ? { startDate } : {}),
         });
         if (!res.ok) return { ok: false, status: res.status };
         const body = await res.json();

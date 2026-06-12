@@ -1616,12 +1616,16 @@
 }
 .path-column--anchor { flex: 0 0 32%; }
 .path-column--selected { flex: 1 1 auto; }
-/* 2026-05-19: when no numbered day is selected and the Anchor is
-   the only column in the row, stretch it to fill the full width
-   instead of sitting at 32% with a wide empty right gap. The
-   `--solo-anchor` modifier is added by buildPathTabHtml() when
-   columns.length === 1. */
-.path-cards-row--solo-anchor .path-column--anchor { flex: 1 1 100%; }
+/* 2026-06: the Path wheel now renders a SINGLE selected-day column (the
+   anchor moved to its own Trip Hub tab). Cap its width + centre it so the
+   day card matches the Trip Hub / Companions cards (max-width 560px,
+   centred) instead of spanning the whole page. */
+.path-cards-row--solo-anchor { justify-content: center; }
+.path-cards-row--solo-anchor .path-column--selected {
+    flex: 0 1 auto;
+    width: 100%;
+    max-width: 560px;
+}
 @media (max-width: 720px) {
     .path-cards-row { flex-direction: column; }
     /* Both columns stretch full-width on mobile so the Anchor card

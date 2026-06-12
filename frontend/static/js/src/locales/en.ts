@@ -1628,7 +1628,10 @@ export const en = {
         albumCount: { one: '{count} template', other: '{count} templates' },
         unknownCreator: 'Unknown creator',
         dayCount: { one: '{count} day', other: '{count} days' },
-        useThis: 'Use this template',
+        useThis: 'Use this template for a new trip',
+        startDateTitle: 'When does your trip start?',
+        startDatePrompt: "Templates come with a set number of days — pick your first day and we'll date the rest.",
+        startDateConfirm: 'Create trip',
     },
     accommodation: {
         modalTitle: 'Accommodation',

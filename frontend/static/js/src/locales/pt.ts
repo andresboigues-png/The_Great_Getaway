@@ -1303,7 +1303,10 @@ export const pt: Translations = {
         albumCount: { one: '{count} modelo', other: '{count} modelos' },
         unknownCreator: 'Criador desconhecido',
         dayCount: { one: '{count} dia', other: '{count} dias' },
-        useThis: 'Usar este modelo',
+        useThis: 'Usar este modelo para uma nova viagem',
+        startDateTitle: 'Quando começa a tua viagem?',
+        startDatePrompt: 'Os modelos vêm com um número fixo de dias — escolhe o primeiro dia e datamos o resto.',
+        startDateConfirm: 'Criar viagem',
     },
     accommodation: {
         modalTitle: 'Alojamento',

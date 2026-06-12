@@ -233,6 +233,58 @@ def test_template_update_can_unlist(client, seed_user, auth_headers):
     assert "Toggler" not in {x["name"] for x in feed}
 
 
+def test_create_from_template_dates_days_from_start(client, seed_user, auth_headers):
+    """A template carries a fixed day range, so create-from-template takes
+    just a startDate and auto-dates the numbered days: day N → start + N-1."""
+    _make_creator(seed_user)
+    _create_trip(client, auth_headers, trip_id="dated-src", name="Trip")
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        for n in (1, 2, 3):
+            c.execute(
+                "INSERT INTO trip_days (id, trip_id, day_number, name) VALUES (?, ?, ?, ?)",
+                (f"dd{n}", "dated-src", n, f"Day {n}"),
+            )
+        conn.commit()
+    code = client.post("/api/templates", headers=auth_headers, json={
+        "name": "Dated", "sourceTripId": "dated-src", "includePlans": True,
+    }).get_json()["template"]["code"]
+    res = client.post(f"/api/templates/{code}/create", headers=auth_headers, json={
+        "startDate": "2026-07-10",
+    })
+    assert res.status_code == 200
+    new_trip_id = res.get_json()["tripId"]
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    days = sorted(
+        (d for d in data["tripDays"] if d["tripId"] == new_trip_id),
+        key=lambda d: d["dayNumber"],
+    )
+    assert [d["date"] for d in days] == ["2026-07-10", "2026-07-11", "2026-07-12"]
+
+
+def test_create_from_template_without_start_leaves_dates_blank(client, seed_user, auth_headers):
+    """No startDate (legacy / bodyless) → days stay undated, as before."""
+    _make_creator(seed_user)
+    _create_trip(client, auth_headers, trip_id="undated-src", name="Trip")
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO trip_days (id, trip_id, day_number, name) VALUES (?, ?, ?, ?)",
+            ("ud1", "undated-src", 1, "Day 1"),
+        )
+        conn.commit()
+    code = client.post("/api/templates", headers=auth_headers, json={
+        "name": "Undated", "sourceTripId": "undated-src", "includePlans": True,
+    }).get_json()["template"]["code"]
+    res = client.post(f"/api/templates/{code}/create", headers=auth_headers)
+    assert res.status_code == 200
+    new_trip_id = res.get_json()["tripId"]
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    day = next(d for d in data["tripDays"] if d["tripId"] == new_trip_id)
+    assert not day["date"]
+
+
 def test_snapshot_toggles_off_omit_sections(client, seed_user, auth_headers):
     _make_creator(seed_user)
     _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src2")

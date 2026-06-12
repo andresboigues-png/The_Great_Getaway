@@ -215,17 +215,30 @@ def _snapshot_too_big(snap) -> bool:
 
 
 # ── Instantiation (snapshot → new owned trip) ────────────────────────
-def _instantiate_template(cursor, snap, includes, new_owner_id):
+def _instantiate_template(cursor, snap, includes, new_owner_id, start_date=None):
     """Build a brand-new trip owned by new_owner_id from a frozen snapshot.
-    Mirrors _clone_trip_record: new ids everywhere, owner member row, days
-    with dates blanked. Writes marked_places_json / checklist_json directly
-    in the INSERT (media-write-invariant-safe — this is a server INSERT, not
-    an upsert_trip). Returns the new trip id, or None on repeated id
-    collision."""
+    Mirrors _clone_trip_record: new ids everywhere, owner member row. Writes
+    marked_places_json / checklist_json directly in the INSERT (media-write-
+    invariant-safe — this is a server INSERT, not an upsert_trip).
+
+    `start_date` (YYYY-MM-DD) auto-dates the numbered days: day N gets
+    start_date + (N-1) days. A template carries a fixed day RANGE, so the
+    caller only supplies the first day and the rest follow. Absent / invalid
+    → blank dates (the legacy behaviour). Returns the new trip id, or None on
+    repeated id collision."""
     import sqlite3
+    from datetime import date as _date, timedelta as _timedelta
 
     include_places = includes.get("places", True)
     include_checklist = includes.get("checklist", True)
+
+    # Parse the start date once; numbered days derive their date from it.
+    base_date = None
+    if start_date:
+        try:
+            base_date = _date.fromisoformat(str(start_date)[:10])
+        except (TypeError, ValueError):
+            base_date = None
 
     marked = _clean_marked_places(snap.get("markedPlaces")) if include_places else None
     checklist = snap.get("checklist") if include_checklist else None
@@ -278,12 +291,17 @@ def _instantiate_template(cursor, snap, includes, new_owner_id):
 
     ensure_owner_member_row(cursor, new_trip_id, new_owner_id)
 
-    # Days — only present when the template included plans. Dates blanked so
-    # the new owner's chosen start auto-assigns (same rule as clone TR2).
+    # Days — only present when the template included plans. Numbered days are
+    # auto-dated from start_date (day N → start + N-1); the anchor (day 0) and
+    # the no-start-date case stay blank.
     for d in (snap.get("days") or []):
         if not isinstance(d, dict):
             continue
         plan = d.get("plan") or {}
+        day_num = d.get("dayNumber")
+        day_date = None
+        if base_date is not None and isinstance(day_num, int) and day_num > 0:
+            day_date = (base_date + _timedelta(days=day_num - 1)).isoformat()
         for _attempt in range(5):
             day_id = _new_id()
             try:
@@ -292,12 +310,13 @@ def _instantiate_template(cursor, snap, includes, new_owner_id):
                     INSERT INTO trip_days (
                         id, trip_id, day_number, date, name,
                         morning, afternoon, evening, tip, lat, lng
-                    ) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         day_id,
                         new_trip_id,
-                        d.get("dayNumber"),
+                        day_num,
+                        day_date,
                         d.get("name"),
                         plan.get("morning"),
                         plan.get("afternoon"),
@@ -630,6 +649,10 @@ def create_from_template(code):
     norm = _normalize_code(code)
     if not norm:
         return jsonify({"error": "Not found"}), 404
+    # Optional start date — the frontend prompts for it (templates carry a
+    # fixed day range, so the first day is all that's needed). Validated +
+    # applied in _instantiate_template; an absent/bad value just blanks dates.
+    start_date = (json_body() or {}).get("startDate")
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -647,7 +670,7 @@ def create_from_template(code):
             "places": bool(row["include_places"]),
             "checklist": bool(row["include_checklist"]),
         }
-        new_trip_id = _instantiate_template(cursor, snap, includes, user_id)
+        new_trip_id = _instantiate_template(cursor, snap, includes, user_id, start_date)
         if not new_trip_id:
             return jsonify({"error": "Could not create trip"}), 500
         cursor.execute(

@@ -1299,7 +1299,10 @@ export const es: Translations = {
         albumCount: { one: '{count} plantilla', other: '{count} plantillas' },
         unknownCreator: 'Creador desconocido',
         dayCount: { one: '{count} día', other: '{count} días' },
-        useThis: 'Usar esta plantilla',
+        useThis: 'Usar esta plantilla para un nuevo viaje',
+        startDateTitle: '¿Cuándo empieza tu viaje?',
+        startDatePrompt: 'Las plantillas vienen con un número fijo de días: elige el primer día y fechamos el resto.',
+        startDateConfirm: 'Crear viaje',
     },
     accommodation: {
         modalTitle: 'Alojamiento',
