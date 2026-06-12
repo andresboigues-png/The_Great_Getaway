@@ -37,6 +37,7 @@ export {
     q,
     esc,
     formatDayDate,
+    formatDateRange,
     localTodayIso,
 } from './utils/dom-helpers.js';
 

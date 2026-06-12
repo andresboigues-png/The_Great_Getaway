@@ -74,6 +74,10 @@ export const en = {
         typeToConfirm: 'Type "{token}" to confirm',
         inputPlaceholder: 'Type here…',
     },
+    dates: {
+        // Separator in a date range ("Apr 6 to Apr 12").
+        rangeTo: 'to',
+    },
     nav: {
         home: 'Home',
         feed: 'Feed',

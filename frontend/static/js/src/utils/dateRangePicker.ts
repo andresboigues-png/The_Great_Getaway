@@ -32,6 +32,7 @@ import { Spanish } from 'flatpickr/dist/l10n/es.js';
 import { French } from 'flatpickr/dist/l10n/fr.js';
 import { Portuguese } from 'flatpickr/dist/l10n/pt.js';
 import { getIntlLocale } from '../i18n.js';
+import { formatDateRange } from './dom-helpers.js';
 
 interface MountOptions {
     /** The visible single-line input the user clicks to open the calendar. */
@@ -98,6 +99,12 @@ export function mountDateRangePicker(opts: MountOptions): { destroy: () => void 
     } else if (initialStart) {
         baseConfig.defaultDate = [initialStart];
     }
+    // Paint the visible input with the Apple-style range ("Apr 6 to Apr 12")
+    // instead of flatpickr's raw Y-m-d. Reads the mirrors so single-end +
+    // both-ends + empty all render correctly.
+    const paintVisible = () => {
+        visibleInput.value = formatDateRange(startMirror.value || null, endMirror.value || null);
+    };
     const fp = flatpickr(visibleInput, {
         ...baseConfig,
         onChange: (selectedDates: Date[]) => {
@@ -120,8 +127,15 @@ export function mountDateRangePicker(opts: MountOptions): { destroy: () => void 
             startMirror.dispatchEvent(new Event('input', { bubbles: true }));
             endMirror.dispatchEvent(new Event('input', { bubbles: true }));
             onChange?.(startMirror.value, endMirror.value);
+            paintVisible();
         },
+        // flatpickr rewrites the input with its own Y-m-d format on close;
+        // re-apply ours afterwards.
+        onClose: () => paintVisible(),
     });
+    // Edit prefill: flatpickr wrote Y-m-d text for defaultDate on init —
+    // override it with the Apple-style range straight away.
+    paintVisible();
 
     return {
         destroy: () => {

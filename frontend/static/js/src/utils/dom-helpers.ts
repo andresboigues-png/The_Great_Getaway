@@ -7,7 +7,7 @@
 //   - generateId: crypto-grade 9-char ID
 //   - formatDayDate: locale-aware "Apr 6" / "Apr 6, 2025"
 
-import { formatDateShort, getIntlLocale } from '../i18n.js';
+import { formatDateShort, getIntlLocale, t } from '../i18n.js';
 
 /** Module-level dedupe — if the same message fires multiple times
  *  in quick succession (a 401 cascade, a button double-click), we
@@ -166,4 +166,51 @@ export function formatDayDate(dateStr: string | null | undefined): string {
     } catch {
         return `${formatDateShort(date)}, ${year}`;
     }
+}
+
+/**
+ * Apple-style date RANGE display (e.g. "Apr 6 to Apr 12"). Locale-aware
+ * month names + year glue via Intl; the year is shown only when it adds
+ * information:
+ *   - same year, current year → "Apr 6 to Apr 12"          (no year)
+ *   - same year, NOT current  → "Apr 6 to Apr 12, 2027"    (year once, at end)
+ *   - spanning two years      → "Dec 28, 2025 to Jan 3, 2026"
+ * A single date (no end, or start === end) falls back to formatDayDate.
+ * UTC parsing matches formatDayDate (avoids DST midnight shifts). Empty
+ * string when there's no start date.
+ */
+export function formatDateRange(
+    startStr: string | null | undefined,
+    endStr: string | null | undefined,
+): string {
+    if (!startStr) return '';
+    if (!endStr || endStr === startStr) return formatDayDate(startStr);
+    const start = new Date(startStr + 'T00:00:00Z');
+    const end = new Date(endStr + 'T00:00:00Z');
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return '';
+    const sep = ` ${t('dates.rangeTo')} `;
+    const monthDayYear = (d: Date): string => {
+        try {
+            return new Intl.DateTimeFormat(getIntlLocale(), {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                timeZone: 'UTC',
+            }).format(d);
+        } catch {
+            return `${formatDateShort(d)}, ${d.getUTCFullYear()}`;
+        }
+    };
+    const sy = start.getUTCFullYear();
+    const ey = end.getUTCFullYear();
+    if (sy !== ey) {
+        // Spanning two years — show the year on both ends.
+        return `${monthDayYear(start)}${sep}${monthDayYear(end)}`;
+    }
+    if (sy === new Date().getUTCFullYear()) {
+        // Same, current year — drop the year entirely.
+        return `${formatDateShort(start)}${sep}${formatDateShort(end)}`;
+    }
+    // Same, non-current year — show the year once, at the end.
+    return `${formatDateShort(start)}${sep}${monthDayYear(end)}`;
 }

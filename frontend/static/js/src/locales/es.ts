@@ -60,6 +60,9 @@ export const es: Translations = {
         typeToConfirm: 'Escribe "{token}" para confirmar',
         inputPlaceholder: 'Escribe aquí…',
     },
+    dates: {
+        rangeTo: 'a',
+    },
     nav: {
         home: 'Inicio',
         feed: 'Feed',

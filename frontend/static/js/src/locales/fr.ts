@@ -65,6 +65,9 @@ export const fr: Translations = {
         typeToConfirm: 'Tape "{token}" pour confirmer',
         inputPlaceholder: 'Tape ici…',
     },
+    dates: {
+        rangeTo: 'au',
+    },
     nav: {
         home: 'Accueil',
         feed: 'Fil',
