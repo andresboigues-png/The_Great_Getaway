@@ -1659,7 +1659,6 @@ export const es: Translations = {
         accommodationHint: 'Elige un lugar y se convierte en el pin de este día en el mapa.',
         accommodationChange: 'Cambiar',
         accommodationClear: 'Quitar',
-        shortlistAllPill: 'Todos',
         shortlistFilterPlaceholder: 'Filtrar…',
         shortlistHeading: 'De tu lista de tareas',
         shortlistInstructions: 'Toca AM / PM / Noche para soltar en el cuadro correspondiente — toca de nuevo para quitar. ✓ muestra dónde está ahora.',

@@ -1664,7 +1664,6 @@ export const fr: Translations = {
         accommodationHint: 'Choisissez un lieu : il devient le repère de ce jour sur la carte.',
         accommodationChange: 'Modifier',
         accommodationClear: 'Effacer',
-        shortlistAllPill: 'Tous',
         shortlistFilterPlaceholder: 'Filtrer…',
         shortlistHeading: 'De ta liste de tâches',
         shortlistInstructions: 'Touche AM / PM / Soir pour déposer dans la zone correspondante — touche à nouveau pour retirer. ✓ indique où il est actuellement.',

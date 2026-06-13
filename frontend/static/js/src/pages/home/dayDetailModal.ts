@@ -196,20 +196,23 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         _shortlistIconCounts.set(k, (_shortlistIconCounts.get(k) || 0) + 1);
     }
     const _shortlistIcons = [..._shortlistIconCounts.keys()];
-    const _renderShortlistFilterPill = (icon: string, label: string, count: number, isAllPill: boolean): string => `
-        <button type="button" class="day-shortlist-filter-pill${isAllPill ? ' is-active' : ''}"
-            data-shortlist-filter-icon="${esc(isAllPill ? '' : icon)}" aria-pressed="${isAllPill}"
+    const _renderShortlistFilterPill = (icon: string, label: string, count: number): string => `
+        <button type="button" class="day-shortlist-filter-pill"
+            data-shortlist-filter-icon="${esc(icon)}" aria-pressed="false"
             style="display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border-radius:999px; border:1.5px solid rgba(0,45,91,0.12); background:white; color:#002d5b; font-size:0.74rem; font-weight:700; cursor:pointer; white-space:nowrap; flex-shrink:0;">
             <span style="font-size:0.95rem; line-height:1;">${esc(icon)}</span>
             <span>${esc(label)}</span>
             <span style="font-size:0.62rem; font-weight:800; padding:1px 6px; border-radius:999px; background:rgba(0,45,91,0.06); color:var(--text-secondary); min-width:14px; text-align:center;">${count}</span>
         </button>
     `;
+    // Category toggle pills. No "All" pill: an empty selection already shows
+    // everything, tapping an active category clears it, and the total lives
+    // in the header count chip — so a dedicated "All" pill was redundant.
+    // Only render the row with 2+ categories (a single category can't filter).
     const filterPillsHtml = _shortlistIcons.length > 1 ? `
         <div id="dayShortlistFilterPills" class="day-shortlist-filter-pills"
             style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; align-items:center;">
-            ${_renderShortlistFilterPill('✨', t('dayDetail.shortlistAllPill'), allShortlist.length, true)}
-            ${_shortlistIcons.map(i => _renderShortlistFilterPill(i, ICON_TO_LABEL[i] || t('poi.other'), _shortlistIconCounts.get(i) || 0, false)).join('')}
+            ${_shortlistIcons.map(i => _renderShortlistFilterPill(i, ICON_TO_LABEL[i] || t('poi.other'), _shortlistIconCounts.get(i) || 0)).join('')}
         </div>
     ` : '';
     const shortlistSectionHtml = `
@@ -1030,19 +1033,15 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     if (filterInput) {
         filterInput.addEventListener('input', applyShortlistFilters);
     }
-    // Wire the filter pills. The "All" pill (no data-shortlist-filter-
-    // icon, or empty value) clears the set; others toggle their icon
-    // in/out. Active state is class-based (`.is-active`) for visual
-    // feedback. We re-paint the pill row's active flags on every
-    // toggle so the user can see the current selection.
+    // Wire the category filter pills. Each toggles its icon in/out of the
+    // active set; an empty set shows everything (no "All" pill needed).
+    // Active state is class-based (`.is-active`) + inline styles, repainted
+    // on every toggle so the current selection stays visible.
     const filterPillButtons = root.querySelectorAll('.day-shortlist-filter-pill') as NodeListOf<HTMLButtonElement>;
     const repaintPillStates = () => {
         filterPillButtons.forEach((btn) => {
             const icon = btn.dataset.shortlistFilterIcon || '';
-            const isAllPill = !icon;
-            const isActive = isAllPill
-                ? activeCategoryFilters.size === 0
-                : activeCategoryFilters.has(icon);
+            const isActive = activeCategoryFilters.has(icon);
             btn.classList.toggle('is-active', isActive);
             btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
             // Inline style swap to match the pill aesthetic — same
@@ -1060,10 +1059,8 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     filterPillButtons.forEach((btn) => {
         btn.addEventListener('click', () => {
             const icon = btn.dataset.shortlistFilterIcon || '';
-            if (!icon) {
-                // "All" pill clears the filter set.
-                activeCategoryFilters.clear();
-            } else if (activeCategoryFilters.has(icon)) {
+            if (!icon) return;
+            if (activeCategoryFilters.has(icon)) {
                 activeCategoryFilters.delete(icon);
             } else {
                 activeCategoryFilters.add(icon);

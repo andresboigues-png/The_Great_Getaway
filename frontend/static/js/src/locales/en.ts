@@ -2074,7 +2074,6 @@ export const en = {
         accommodationChange: 'Change',
         accommodationClear: 'Clear',
         // Shortlist (to-do list) section.
-        shortlistAllPill: 'All',
         shortlistFilterPlaceholder: 'Filter…',
         shortlistHeading: 'From your to-do list',
         shortlistInstructions: 'Tap AM / PM / Eve to drop into the matching textarea — tap again to remove it. ✓ shows where it currently lives.',
