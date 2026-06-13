@@ -168,7 +168,15 @@ function buildDayCardBody(
         // via the day's option buttons + shown on the map; they're decoupled
         // from accommodation.)
         if (day.accommodation) {
-            subtitleParts.push(`<span style="color: #005bb8; display:inline-flex; align-items:center; gap:4px;">🛏️ ${esc(day.accommodation)}</span>`);
+            // Link to the accommodation's Google Maps place page when we have
+            // a placeId (set via the Places picker); fall back to plain text
+            // for free-text/legacy entries with no placeId.
+            const accUrl = day.accommodationPlaceId
+                ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(day.accommodationPlaceId)}`
+                : null;
+            subtitleParts.push(accUrl
+                ? `<a class="day-card__accom-link" href="${esc(accUrl)}" target="_blank" rel="noopener noreferrer" title="${esc(t('todo.openInMapsTitle', { place: day.accommodation }))}" style="color:#005bb8; display:inline-flex; align-items:center; gap:4px; text-decoration:none;">🛏️ <span style="text-decoration:underline;">${esc(day.accommodation)}</span><span aria-hidden="true" style="font-size:0.7rem; opacity:0.7;">↗</span></a>`
+                : `<span style="color: #005bb8; display:inline-flex; align-items:center; gap:4px;">🛏️ ${esc(day.accommodation)}</span>`);
         } else {
             subtitleParts.push(`<span class="day-card__pin-hint" style="display:inline-flex; align-items:center; gap:4px; opacity:0.6;">🛏️ ${esc(t('pathTab.stayNotSet'))}</span>`);
         }

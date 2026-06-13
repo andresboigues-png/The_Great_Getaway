@@ -374,6 +374,9 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                 setSelectedDay(activeTrip.id, chip.dataset.pathChipDayId);
                 return;
             }
+            // Accommodation link opens its Maps place page in a new tab — let
+            // the <a> handle it; don't also re-select the card.
+            if (target.closest('.day-card__accom-link')) return;
             // Card body click — selects that card.
             const pathCard = target.closest(
                 '.path-card[data-day-id]',
