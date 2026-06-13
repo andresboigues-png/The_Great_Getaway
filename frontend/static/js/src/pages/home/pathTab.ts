@@ -129,10 +129,10 @@ export interface PathTabContext {
  *  had. */
 function buildDayCardBody(
     day: TripDay,
-    flags: { isAnchor: boolean; isSelected: boolean },
+    flags: { isAnchor: boolean },
     activeTrip: Trip,
 ): string {
-    const { isAnchor, isSelected } = flags;
+    const { isAnchor } = flags;
     const badge = isAnchor
         ? `<div style="background: var(--gradient-anchor-deep); color: white; width: 48px; height: 48px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; flex-shrink:0; box-shadow: 0 8px 18px rgba(212,160,23,0.28);">
                <!-- 2026-05-21: replaced the anchor glyph with a 5-point
@@ -180,14 +180,6 @@ function buildDayCardBody(
             subtitleParts.push(`<span class="day-card__weather" data-weather-date="${esc(day.date)}"></span>`);
         }
     }
-    // Notes preview only on the bigger (selected) card — Anchor is
-    // condensed by design, no preview body.
-    const notesPreview = (isSelected && day.notes && !isAnchor) ? `
-        <div style="margin-top: 12px; padding: 12px 14px; background: rgba(0,113,227,0.04); border-radius: 14px; border-left: 3px solid var(--accent-blue);">
-            <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #005bb8; margin-bottom: 4px; letter-spacing: 0.05em;">${esc(t('pathTab.journalPreviewLabel'))}</div>
-            <p style="margin: 0; font-size: 0.9rem; line-height: 1.45; color: #002d5b; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${esc(day.notes)}</p>
-        </div>
-    ` : '';
     // Chevron button — clicking this collapses / expands the options
     // stack below this day card. Aria-label includes the day name so
     // screen-readers announce it as "Toggle options for Day 3" (etc.).
@@ -218,7 +210,6 @@ function buildDayCardBody(
             </div>
             ${chevronBtn}
         </div>
-        ${notesPreview}
     `;
 }
 
@@ -279,8 +270,8 @@ function buildOptionsStack(
         buttons.push(`<button class="day-action-btn day-action-btn--neutral path-documents-btn" data-day-id="${esc(day.id)}">${_btnContent('document', t('pathTab.btnDocuments'))}</button>`);
         buttons.push(`<button class="day-action-btn day-action-btn--neutral path-photos-btn" data-day-id="${esc(day.id)}">${_btnContent('photo', t('pathTab.btnPhotos'))}</button>`);
     } else {
-        // Numbered-day-only options. Journaling + Delete.
-        buttons.push(`<button class="day-action-btn day-action-btn--neutral day-journaling-btn" data-day-id="${esc(day.id)}">${_btnContent('journal', t('pathTab.btnJournaling'))}</button>`);
+        // Numbered-day-only options. (Per-day journaling retired — notes are
+        // trip-wide now, edited from the day's Notes bookmark / the Trip Hub.)
         buttons.push(`<button class="day-action-btn day-action-btn--danger day-delete-btn" data-day-id="${esc(day.id)}">${_btnContent('trash', t('pathTab.btnDeleteDay'))}</button>`);
     }
     return `<div class="path-options-stack">${buttons.join('')}</div>`;
@@ -342,7 +333,7 @@ export function buildPathTabHtml(ctx: PathTabContext): string {
         columns.push(`
             <div class="path-column path-column--selected${selCollapsed ? ' is-collapsed' : ''}">
                 <div class="path-card path-card--selected" data-day-id="${esc(selectedDay.id)}">
-                    ${buildDayCardBody(selectedDay, { isAnchor: false, isSelected: true }, activeTrip)}
+                    ${buildDayCardBody(selectedDay, { isAnchor: false }, activeTrip)}
                 </div>
                 ${buildOptionsStack(selectedDay, { isAnchor: false }, tripIsEditable, editingDayId)}
             </div>

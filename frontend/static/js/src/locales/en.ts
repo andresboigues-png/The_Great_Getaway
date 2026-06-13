@@ -1738,7 +1738,6 @@ export const en = {
         hubSubtitleFallback: 'Where the trip begins',
         setDatePlaceholder: 'Set date',
         stayNotSet: 'No stay set',
-        journalPreviewLabel: 'Journal preview',
         toggleOptionsAria: 'Toggle options for {title}',
         toggleOptionsTitle: 'Hide / show options',
         // Options-stack buttons. Primary slot varies by card type
@@ -1755,7 +1754,6 @@ export const en = {
         btnPinPlace: 'Pin a place',
         btnDocuments: '📎 Documents',
         btnPhotos: '📸 Photos',
-        btnJournaling: '✍️ Journaling',
         btnDeleteDay: '🗑️ Delete day',
         // Empty state when no days exist (defensive — anchor is
         // auto-stamped on trip create).
@@ -2054,7 +2052,7 @@ export const en = {
         quickDocuments: '📎 Documents',
         quickPhotos: '📸 Photos',
         // Anchor body: trip notes & journal.
-        anchorNotesHeading: 'Trip notes & journal',
+        anchorNotesHeading: 'Trip notes',
         anchorNotesPlaceholder: 'What this trip is about, highlights, things to remember…',
         // Day plan tabs.
         tabMorning: 'Morning',
@@ -2065,7 +2063,7 @@ export const en = {
         eveningPlaceholder: 'Evening plans…',
         tablistLabel: 'Day plan time slots',
         // Personal notes section (numbered days).
-        personalNotesHeading: 'Personal Notes',
+        personalNotesHeading: 'Trip notes',
         personalNotesPlaceholder: 'Private thoughts about this day...',
         accommodationHeading: "Where you're staying",
         accommodationPlaceholder: 'Search for a hotel or address…',
@@ -2289,13 +2287,6 @@ export const en = {
         addDayConfirmBtn: 'Confirm',
         addDayCancelBtn: 'Cancel',
         addDayErrorServerSave: "Day created locally — server save failed (HTTP {status}). Won't appear on other devices until it syncs — try again or refresh.",
-        // ── Day journaling modal ──
-        journalTitle: 'Day {n} Journaling',
-        journalSubtitle: 'Capture your memories and stories from {place}',
-        journalPlaceholder: 'What happened today? How did you feel?',
-        journalSaveBtn: 'Save Story',
-        journalCloseBtn: 'Close',
-        journalSavedToast: 'Memories saved!',
         // ── Trip invite modal ──
         inviteTitle: 'Trip invitation',
         inviteBody: 'Accept and the trip appears in your active list. Planners can edit; Relaxers can only watch.',

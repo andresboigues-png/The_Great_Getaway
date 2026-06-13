@@ -286,7 +286,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         ${anchorQuickLinksHtml}
         <div class="subcard-soft" style="display:flex; flex-direction:column;">
             <h4 class="text-tag" style="--accent: 212,160,23;">${esc(t('dayDetail.anchorNotesHeading'))}</h4>
-            <textarea id="detailNotes" class="plain-textarea" placeholder="${esc(t('dayDetail.anchorNotesPlaceholder'))}" style="min-height: 320px;">${esc(day.notes || '')}</textarea>
+            <textarea id="detailNotes" class="plain-textarea" placeholder="${esc(t('dayDetail.anchorNotesPlaceholder'))}" style="min-height: 320px;">${esc((trip && trip.notes) || '')}</textarea>
         </div>
     `;
 
@@ -511,7 +511,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     const numberedDayNotesHtml = `
         <div style="background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
             <h4 class="text-tag">${esc(t('dayDetail.personalNotesHeading'))}</h4>
-            <textarea id="detailNotes" class="plain-textarea plain-textarea--no-resize" style="height: 200px;" placeholder="${esc(t('dayDetail.personalNotesPlaceholder'))}">${esc(day.notes || '')}</textarea>
+            <textarea id="detailNotes" class="plain-textarea plain-textarea--no-resize" style="height: 200px;" placeholder="${esc(t('dayDetail.personalNotesPlaceholder'))}">${esc((trip && trip.notes) || '')}</textarea>
         </div>
     `;
 
@@ -734,7 +734,8 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             const evening = (root.querySelector('textarea.plan-input[data-time="evening"]') as HTMLTextAreaElement).value;
             day.plan = { morning, afternoon, evening };
         }
-        day.notes = notesTextarea?.value ?? '';
+        // Notes are trip-wide now (shared with the Trip Hub) — persisted on
+        // their own debounce via upsertTrip, NOT here. See queueNotesSave.
     };
 
     // Cache the translated `Saved ✓` form so the decay-to-neutral check
@@ -784,6 +785,41 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         saveTimer = setTimeout(() => { saveTimer = null; void persistNow(); }, 700);
     };
 
+    // Notes are trip-wide (shared with the Trip Hub). They persist on their
+    // OWN debounce via upsertTrip (metadata path) — independent of the per-day
+    // plan autosave (upsertDay) so a plan keystroke never triggers a trip
+    // write and vice-versa.
+    let notesTimer: ReturnType<typeof setTimeout> | null = null;
+    let notesPending = false;
+    const persistNotesNow = async () => {
+        if (notesTimer) { clearTimeout(notesTimer); notesTimer = null; }
+        if (!trip) return;
+        trip.notes = notesTextarea?.value ?? '';
+        emit('state:changed');
+        notesPending = true;
+        flashStatus(t('dayDetail.statusSaving'));
+        try {
+            await upsertTrip(trip);
+            flashStatus(SAVED_STATUS_TEXT, '#1a6b3c');
+            setTimeout(() => {
+                if (statusEl.textContent === SAVED_STATUS_TEXT) flashStatus(t('dayDetail.statusAuto'));
+            }, 1400);
+        } catch (e) {
+            console.error('Trip notes auto-save failed:', e);
+            flashStatus(t('dayDetail.statusFailed'), '#ff3b30');
+        } finally {
+            notesPending = false;
+        }
+    };
+    const queueNotesSave = () => {
+        if (!trip) return;
+        trip.notes = notesTextarea?.value ?? '';
+        emit('state:changed');
+        flashStatus(t('dayDetail.statusEditing'));
+        if (notesTimer) clearTimeout(notesTimer);
+        notesTimer = setTimeout(() => { notesTimer = null; void persistNotesNow(); }, 700);
+    };
+
     // Now that persistNow exists, wire the modal-close flush.
     // Esc / backdrop click → Modal.js calls onClose → we flush.
     // We also capture textarea values into `day` synchronously
@@ -799,6 +835,11 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             // Server round-trip continues; if it fails we log
             // but UI is gone.
             persistNow().catch(err => console.error('Day flush-on-close failed:', err));
+        }
+        // Trip-wide notes ride a separate debounce — flush them too so a
+        // close mid-typing doesn't drop the last keystrokes.
+        if (notesTimer || notesPending) {
+            persistNotesNow().catch(err => console.error('Trip notes flush-on-close failed:', err));
         }
     };
 
@@ -937,7 +978,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             refreshPlanTabCounts();
         });
     });
-    notesTextarea?.addEventListener('input', () => { queueSave(); });
+    notesTextarea?.addEventListener('input', () => { queueNotesSave(); });
 
 
     // Wire shortlist "Add to AM/PM/Eve" buttons. The button is

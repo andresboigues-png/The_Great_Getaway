@@ -8,7 +8,7 @@
 // HeroMap.tsx + TripBody.tsx + handlers.ts), plus the existing
 // pages/home/* helpers (slideshow, weather, pathTab, dayMarkers,
 // todoMarkers, routePolyline, mapSearch, lightbox, shareModal,
-// tripChecklistModal, journalingModal, tripMediaModals,
+// tripChecklistModal, tripMediaModals,
 // dayViewModal, dayDetailModal, pathSelection, poiCategories,
 // gettingStartedGuide, welcomeCard) untouched by this commit.
 //

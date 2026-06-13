@@ -171,10 +171,10 @@ export function Search() {
         // ── Trip hits ───────────────────────────────────────────────
         const tripHits: TripHit[] = [];
         for (const t of trips) {
-            if (matches(t.name, t.country)) tripHits.push({ kind: 'trip', trip: t, archived: false });
+            if (matches(t.name, t.country, t.notes)) tripHits.push({ kind: 'trip', trip: t, archived: false });
         }
         for (const t of archivedTrips) {
-            if (matches(t.name, t.country)) tripHits.push({ kind: 'trip', trip: t, archived: true });
+            if (matches(t.name, t.country, t.notes)) tripHits.push({ kind: 'trip', trip: t, archived: true });
         }
 
         // ── Day hits ────────────────────────────────────────────────
