@@ -30,7 +30,7 @@ import type { MarkedPlace } from '../../types';
 import { canEdit } from '../../permissions.js';
 import { showModal } from '../../components/Modal.js';
 import { esc, q, formatDayDate, shortPlaceName, showLiquidAlert } from '../../utils.js';
-import { t } from '../../i18n.js';
+import { t, formatHourLabel } from '../../i18n.js';
 import { navigate } from '../../router.js';
 import { openTripChecklistModal } from './tripChecklistModal.js';
 import { openDayView } from './dayViewModal.js';
@@ -363,15 +363,22 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
      *      three keeps them top-of-mind without requiring them to
      *      click through to the AI page to assign.
      *  The textarea below remains the user's free-form notes. */
+    // Map a user-picked hour (0–23) to the coarse pane it belongs in, so a
+    // to-do with `preferredHour` still lands in the right morning/afternoon/
+    // evening pane even though the user no longer picks the slot directly.
+    const _hourToSlot = (hour: number): 'morning' | 'afternoon' | 'evening' =>
+        hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
     const _renderPlacesForSlot = (slot: string): string => {
         if (!trip) return '';
-        const places = (trip.markedPlaces || []).filter(
-            (p) =>
-                p
-                && p.forManual
-                && p.dayId === day.id
-                && (p.timeOfDay === slot || !p.timeOfDay),
-        );
+        const places = (trip.markedPlaces || []).filter((p) => {
+            if (!p || !p.forManual || p.dayId !== day.id) return false;
+            // The user's specific hour wins for slotting; fall back to the
+            // AI-assigned coarse slot; null = "anytime" → show in every pane.
+            const placeSlot = p.preferredHour != null
+                ? _hourToSlot(p.preferredHour)
+                : p.timeOfDay;
+            return placeSlot === slot || !placeSlot;
+        });
         if (places.length === 0) return '';
         const cardsHtml = places.map((p) => {
             const photoHtml = p.photoUrl
@@ -380,13 +387,14 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             const ratingHtml = (typeof p.rating === 'number')
                 ? `<span class="day-plan-place__rating">★ ${p.rating.toFixed(1)}</span>`
                 : '';
-            // "Anytime" chip for items without a specific timeOfDay
-            // (manual adds). Distinguishes them from AI-slotted items
-            // so the user knows they're not strictly morning/PM/eve;
-            // the AI page can promote them to a specific slot later.
-            const anytimeHtml = !p.timeOfDay
-                ? `<span class="day-plan-place__anytime" title="${esc(t('dayDetail.chipAnytimeTitle'))}">${esc(t('dayDetail.chipAnytime'))}</span>`
-                : '';
+            // Time chip: show the user's picked hour when set (e.g. "2:00 PM"
+            // / "14:00"); otherwise an "Anytime" marker for items not yet
+            // committed to a slot (manual adds). Reuses the same pill styling.
+            const timeChipHtml = p.preferredHour != null
+                ? `<span class="day-plan-place__anytime" title="${esc(t('dayDetail.chipAtTimeTitle', { time: formatHourLabel(p.preferredHour) }))}">${esc(formatHourLabel(p.preferredHour))}</span>`
+                : !p.timeOfDay
+                    ? `<span class="day-plan-place__anytime" title="${esc(t('dayDetail.chipAnytimeTitle'))}">${esc(t('dayDetail.chipAnytime'))}</span>`
+                    : '';
             const whyHtml = p.why
                 ? `<div class="day-plan-place__why">${esc(p.why)}</div>`
                 : '';
@@ -407,7 +415,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                     <div class="day-plan-place__body">
                         <div class="day-plan-place__head">
                             <span class="day-plan-place__name">${esc(p.verifiedName || p.name || 'Place')}</span>
-                            ${anytimeHtml}
+                            ${timeChipHtml}
                             ${ratingHtml}
                         </div>
                         ${whyHtml}

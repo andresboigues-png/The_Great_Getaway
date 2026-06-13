@@ -312,7 +312,12 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                 .map((p) => {
                     const d = p.dayId ? dayNumberOf(p.dayId) : null;
                     const dayPart = d ? `, on Day ${d}` : '';
-                    const timePart = p.timeOfDay ? `, ${p.timeOfDay}` : '';
+                    // Prefer the user's specific hour (a finer signal) over
+                    // the coarse morning/afternoon/evening slot. 24h "HH:00"
+                    // is unambiguous for the model regardless of UI locale.
+                    const timePart = p.preferredHour != null
+                        ? `, around ${String(p.preferredHour).padStart(2, '0')}:00`
+                        : (p.timeOfDay ? `, ${p.timeOfDay}` : '');
                     const addrPart = p.address ? ` (${p.address})` : '';
                     return `- ${p.name}${addrPart}${dayPart}${timePart}`;
                 })

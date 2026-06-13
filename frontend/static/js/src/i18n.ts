@@ -441,3 +441,19 @@ export function formatDateShort(date: Date): string {
         return date.toISOString().slice(0, 10);
     }
 }
+
+/** Format an on-the-hour local time (0–23) as a short, locale-aware label.
+ *  Used by the to-do "preferred hour" picker (replacing the old
+ *  morning/afternoon/evening buckets) and the day-detail time chip.
+ *  Example: '2:00 PM' (en-US) / '14:00' (es-ES / fr-FR / pt-PT). The hour
+ *  is a bare local clock hour, so no timezone handling is needed. */
+export function formatHourLabel(hour: number): string {
+    try {
+        return new Intl.DateTimeFormat(getIntlLocale(), {
+            hour: 'numeric',
+            minute: '2-digit',
+        }).format(new Date(2000, 0, 1, hour, 0, 0));
+    } catch {
+        return `${String(hour).padStart(2, '0')}:00`;
+    }
+}

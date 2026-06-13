@@ -16,8 +16,9 @@ import { navigate } from '../../router.js';
 import {
     getMarkedPlaces,
     setMarkedPlaceAssignment,
+    setMarkedPlacePreferredHour,
 } from '../../markedPlaces.js';
-import { t, tn } from '../../i18n.js';
+import { t, tn, formatHourLabel } from '../../i18n.js';
 import { stripEmoji, iconSvg } from '../../icons.js';
 import type { Trip, TripDay, MarkedPlace } from '../../types';
 // Shared category helpers — same source-of-truth as Todo.tsx so the
@@ -331,11 +332,12 @@ function MarkedCard({
         emit('state:changed');
         void upsertTrip(activeTrip);
     };
-    const onTimeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        // The <select> options are exactly '' / morning / afternoon /
-        // evening, so this cast is safe; `|| null` maps '' → null.
-        const timeOfDay = (e.target.value as 'morning' | 'afternoon' | 'evening' | '') || null;
-        setMarkedPlaceAssignment(activeTrip, place.placeId!, place.dayId || null, timeOfDay);
+    const onHourChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        // Options are '' (Any time) or '0'..'23'. Empty → null (no
+        // preference); otherwise the chosen 24h clock hour.
+        const raw = e.target.value;
+        const hour = raw === '' ? null : Number(raw);
+        setMarkedPlacePreferredHour(activeTrip, place.placeId!, hour);
         emit('state:changed');
         void upsertTrip(activeTrip);
     };
@@ -432,13 +434,15 @@ function MarkedCard({
                     </select>
                     <select
                         className="marked-time-select flex-1 min-w-0 max-w-full py-1.5 px-2 rounded-lg border border-[rgba(0,0,0,0.1)] text-[0.78rem] bg-card"
-                        value={place.timeOfDay || ''}
-                        onChange={onTimeChange}
+                        value={place.preferredHour != null ? String(place.preferredHour) : ''}
+                        onChange={onHourChange}
                     >
                         <option value="">{t('ai.timeOptionAny')}</option>
-                        <option value="morning">{t('ai.timeOptionMorning')}</option>
-                        <option value="afternoon">{t('ai.timeOptionAfternoon')}</option>
-                        <option value="evening">{t('ai.timeOptionEvening')}</option>
+                        {Array.from({ length: 24 }, (_unused, h) => (
+                            <option key={h} value={String(h)}>
+                                {formatHourLabel(h)}
+                            </option>
+                        ))}
                     </select>
                 </div>
             ) : (

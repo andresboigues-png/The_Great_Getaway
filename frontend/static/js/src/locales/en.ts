@@ -1164,9 +1164,6 @@ export const en = {
         dayOptionAny: 'Any day',
         dayOptionDay: 'Day {num}',
         timeOptionAny: 'Any time',
-        timeOptionMorning: '🌅 Morning',
-        timeOptionAfternoon: '☀️ Afternoon',
-        timeOptionEvening: '🌙 Evening',
         // ── BYO-key help modal ──
         keyHelpModalTitle: '✦ Get a Gemini API key',
         keyHelpModalIntro: "Free for personal use, takes about a minute. The key lives only on your device — pasting it here saves it in this browser, and we send it on each AI generation request alongside the prompt. We don't store it on our servers.",
@@ -2097,6 +2094,7 @@ export const en = {
         // Place card chips.
         chipAnytime: 'Anytime',
         chipAnytimeTitle: 'Pinned to this day, no specific time-of-day yet',
+        chipAtTimeTitle: 'Planned around {time}',
         slotPinnedCountOne: '{icon} {count} place pinned to this slot',
         slotPinnedCountOther: '{icon} {count} places pinned to this slot',
         // Trip checklist section (within day detail).

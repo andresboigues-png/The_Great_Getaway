@@ -338,8 +338,18 @@ export interface MarkedPlace {
      *  to-do marker filter — Anchor selected → show all, specific
      *  day selected → show only this day's). Null = no day assigned. */
     dayId?: string | null;
-    /** Optional time-of-day slot the AI assigned this place to. */
+    /** Coarse time-of-day slot — set by the AI planner when it places this
+     *  item (morning/afternoon/evening), and used to bucket the place into
+     *  the home day-detail panes. The USER no longer sets this directly; they
+     *  pick a specific hour via `preferredHour` (see below). */
     timeOfDay?: 'morning' | 'afternoon' | 'evening' | null;
+    /** Optional specific hour (0–23, local) the user wants this to-do
+     *  considered at. Fed to the AI prompt as a concrete time hint and used
+     *  to derive the day-detail display slot. Null = no preference ("Any
+     *  time"). Replaces the old morning/afternoon/evening picker, which was
+     *  too coarse. The AI output keeps writing the coarse `timeOfDay`; this
+     *  field is the user's finer-grained input. */
+    preferredHour?: number | null;
     /** ISO timestamp when added. */
     addedAt?: string;
 

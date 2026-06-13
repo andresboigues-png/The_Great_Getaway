@@ -71,6 +71,25 @@ export function setMarkedPlaceAssignment(
     entry.timeOfDay = timeOfDay || null;
 }
 
+/** Set (or clear) the user's preferred hour (0–23, local clock) for a to-do
+ *  place. This is the finer-grained replacement for the old
+ *  morning/afternoon/evening picker: it feeds the AI prompt as a concrete
+ *  time hint and drives the day-detail display slot. Pass null (or an
+ *  out-of-range value) to clear it ("Any time"). Deliberately leaves
+ *  `timeOfDay` — the coarse slot the AI assigns — untouched. */
+export function setMarkedPlacePreferredHour(
+    trip: MaybeTrip,
+    placeId: string,
+    hour: number | null,
+): void {
+    if (!trip || !Array.isArray(trip.markedPlaces)) return;
+    const entry = trip.markedPlaces.find((p) => p.placeId === placeId);
+    if (!entry) return;
+    entry.preferredHour = (typeof hour === 'number' && hour >= 0 && hour <= 23)
+        ? hour
+        : null;
+}
+
 /** Toggle a place's membership in the To-do list — the unified surface
  *  (Path → To do list tab on Home + the AI planner's pre-ticked list).
  *
@@ -124,6 +143,7 @@ export function toggleTodoListMembership(
         // until the user assigns one via the AI page.
         dayId: currentDayId || null,
         timeOfDay: null,
+        preferredHour: null,
         // Phase G slice 2: when the InfoWindow's place came from a
         // Places search (it always does — POI pills + free-form
         // search both go through PlacesService), it already has a
@@ -315,6 +335,7 @@ export function addOrUpdatePlaceFromVerified(
         forManual: true,
         dayId: dayId || null,
         timeOfDay: timeOfDay || null,
+        preferredHour: null,
         verified: true,
         // Provenance — see dropAITaggedPlaces for the cleanup contract.
         source: 'ai',
