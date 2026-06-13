@@ -2541,6 +2541,44 @@ body.is-signed-out .trip-controls-popover {
 }
 .btn-primary-pill:focus-visible { outline: 2px solid white; outline-offset: 2px; }
 
+/* Icon-only variant — shows just a glyph (e.g. "+"); the full label
+   reveals as a tooltip on hover/focus, sliding down + fading (mirrors the
+   day-detail bookmark animation). Used by the navbar New-trip button so it
+   no longer dominates the bar with a long localized label. */
+.btn-primary-pill--icon {
+    position: relative;
+    padding: 5px 13px;
+}
+.btn-primary-pill--icon .np-icon {
+    font-size: 1.2rem;
+    font-weight: 800;
+    line-height: 1;
+    display: inline-block;
+}
+.btn-primary-pill--icon .np-label {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    background: var(--accent-blue);
+    color: #fff;
+    font-size: 0.74rem;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 8px;
+    white-space: nowrap;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    z-index: 50;
+}
+.btn-primary-pill--icon:hover .np-label,
+.btn-primary-pill--icon:focus-visible .np-label {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
 /* Inverse of .btn-primary-pill — white interior, blue border + text.
    Used by the trip selector next to "+ New Trip" so the two read as
    a matched pair (same shape, opposite palette). The background-image

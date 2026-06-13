@@ -80,7 +80,7 @@ export const es: Translations = {
         profile: 'Perfil',
         settlement: 'Liquidación',
         search: 'Buscar',
-        newTrip: '+ Nuevo viaje',
+        newTrip: 'Nuevo viaje',
         notifications: 'Notificaciones',
         markAllRead: 'Marcar todo como leído',
         notificationsEmpty: 'Sin notificaciones nuevas',

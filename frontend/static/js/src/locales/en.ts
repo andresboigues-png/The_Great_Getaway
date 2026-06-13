@@ -99,7 +99,7 @@ export const en = {
         settlement: 'Settlement',
         search: 'Search',
         // Buttons in the navbar / sidebar.
-        newTrip: '+ New Trip',
+        newTrip: 'New Trip',
         notifications: 'Notifications',
         markAllRead: 'Mark all read',
         notificationsEmpty: 'No new notifications',

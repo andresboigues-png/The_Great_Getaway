@@ -512,7 +512,10 @@
         <!-- Trip controls — desktop only. On mobile these move into the
              top of the burger drawer (#newTripBtnSidebar etc.). -->
         <div class="nav-trips nav-trips--desktop-only" style="display: flex; align-items: center; gap: 8px;">
-            <button class="btn-primary-pill" id="newTripBtn" data-i18n-key="nav.newTrip">+ New Trip</button>
+            <button class="btn-primary-pill btn-primary-pill--icon" id="newTripBtn" data-i18n-aria-label="nav.newTrip" aria-label="New trip">
+                <span class="np-icon" aria-hidden="true">+</span>
+                <span class="np-label" data-i18n-key="nav.newTrip">New Trip</span>
+            </button>
             <select id="tripSelector" class="btn-primary-pill--inverse" aria-label="Select active trip" style="min-width: 160px;">
                 <option value="">Select a Trip...</option>
             </select>
@@ -542,7 +545,7 @@
          dismissable popover wired in nav-chrome.ts). -->
     <div id="tripControlsPopover" class="trip-controls-popover" role="dialog" aria-modal="false" aria-label="Trip controls" style="display: none;">
         <div class="sidebar-trip-controls">
-            <button class="btn-primary-pill sidebar-trip-controls__new" id="newTripBtnSidebar" data-i18n-key="nav.newTrip">+ New Trip</button>
+            <button class="btn-primary-pill sidebar-trip-controls__new" id="newTripBtnSidebar"><span aria-hidden="true">+</span> <span data-i18n-key="nav.newTrip">New Trip</span></button>
             <select id="tripSelectorSidebar" class="btn-primary-pill--inverse sidebar-trip-controls__selector" aria-label="Select active trip">
                 <option value="">Select a Trip...</option>
             </select>
