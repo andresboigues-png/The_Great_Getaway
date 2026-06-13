@@ -149,8 +149,9 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // tall column — a 20-item list ate 80% of the modal vertical
     // space and pushed the AM/PM/Eve textareas above out of
     // view. Now:
-    //   - 2-column auto-fit grid (modal is ~700px content-wide,
-    //     fits two ~330px rows comfortably)
+    //   - single column (one place per row) — the 2-up grid truncated
+    //     each place's name + address to "Geor…" / "121 Baker…"; one
+    //     per line gives the full width back for readability (per user)
     //   - max-height + scroll so the section never exceeds
     //     ~380px no matter how many rows
     //   - count chip in header so the user sees the total at a
@@ -226,7 +227,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             ${allShortlist.length > 0 ? `
                 <p style="margin:0 0 12px; font-size:0.74rem; color:var(--text-secondary); line-height:1.4;">${esc(t('dayDetail.shortlistInstructions'))}</p>
                 <div id="dayShortlistRows" class="day-shortlist-rows"
-                    style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:8px; max-height: 360px; overflow-y: auto; padding-right: 4px;">
+                    style="display:grid; grid-template-columns: 1fr; gap:8px; max-height: 360px; overflow-y: auto; padding-right: 4px;">
                     ${allShortlist.map(shortlistRowHtml).join('')}
                 </div>
                 <div id="dayShortlistEmpty" style="display:none; padding: 16px 8px; text-align:center; color:var(--text-secondary); font-size:0.84rem;">${esc(t('dayDetail.shortlistNoMatches'))}</div>
@@ -505,18 +506,47 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         `;
     })();
 
-    // Numbered-day right column — Personal Notes on top, Trip
-    // checklist below. The Done button used to live here too
-    // but looked stranded "in the middle of the others" (per
-    // user); it moved to a proper footer below the columns so
-    // it reads as the primary close action, not just another
-    // panel.
-    const numberedDayRightHtml = `
+    // Personal-notes panel — extracted so it can live inside the
+    // collapsible drawer below (was the top of the old right column).
+    const numberedDayNotesHtml = `
         <div style="background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
             <h4 class="text-tag">${esc(t('dayDetail.personalNotesHeading'))}</h4>
             <textarea id="detailNotes" class="plain-textarea plain-textarea--no-resize" style="height: 200px;" placeholder="${esc(t('dayDetail.personalNotesPlaceholder'))}">${esc(day.notes || '')}</textarea>
         </div>
-        ${checklistPanelHtml}
+    `;
+
+    // Numbered-day side drawer — Notes + Checklist used to occupy a
+    // permanent right column that ate ~half the modal, squeezing the plan.
+    // Per user request they're now collapsible "bookmarks": a thin rail of
+    // vertical tabs sits at the modal's right edge; clicking a tab slides
+    // its panel open and clicking it again closes it, so by DEFAULT the
+    // full width goes to the actual plan. The notes textarea (#detailNotes)
+    // and the checklist controls keep their existing ids/classes, so the
+    // autosave + checklist wiring further down binds to them unchanged —
+    // they're only relocated in the DOM, not renamed. The leading 📝 in the
+    // checklist heading is stripped here since the tab carries its own icon.
+    const _checklistTabLabel = t('dayDetail.checklistHeading').replace(/^\s*📝\s*/, '');
+    const numberedDayDrawerHtml = `
+        <div class="day-detail-drawer" data-open="">
+            <div class="day-detail-drawer__content">
+                <div class="day-detail-drawer__view" data-view="notes">
+                    ${numberedDayNotesHtml}
+                </div>
+                <div class="day-detail-drawer__view" data-view="checklist">
+                    ${checklistPanelHtml}
+                </div>
+            </div>
+            <div class="day-detail-drawer__rail">
+                <button type="button" class="day-detail-drawer__tab" data-drawer="notes" aria-pressed="false" aria-expanded="false" title="${esc(t('dayDetail.personalNotesHeading'))}">
+                    <span class="day-detail-drawer__tab-icon" aria-hidden="true">📝</span>
+                    <span class="day-detail-drawer__tab-text">${esc(t('dayDetail.personalNotesHeading'))}</span>
+                </button>
+                <button type="button" class="day-detail-drawer__tab" data-drawer="checklist" aria-pressed="false" aria-expanded="false" title="${esc(_checklistTabLabel)}">
+                    <span class="day-detail-drawer__tab-icon" aria-hidden="true">✅</span>
+                    <span class="day-detail-drawer__tab-text">${esc(_checklistTabLabel)}</span>
+                </button>
+            </div>
+        </div>
     `;
 
     // Footer — single Done button + autosave status, full modal
@@ -533,9 +563,9 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // Body section structure:
     //  - Anchor: single-column body (used to be 2-col with
     //    right column = Done button only; awkward).
-    //  - Numbered: 2-column grid (left = AM/PM/Eve, right =
-    //    Notes + Checklist), then the To-do list section
-    //    spanning full width.
+    //  - Numbered: the plan (AM/PM/Eve) takes the full width; Notes +
+    //    Checklist live in a collapsible bookmark drawer pinned to the
+    //    right edge. Then the To-do list section spans full width below.
     //  - Both: shared footer below with Done + autosave status.
     const bodyHtml = isAnchor
         ? `
@@ -545,12 +575,10 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         `
         : `
             <div class="day-detail-body day-detail-body--numbered">
-                <div class="day-detail-body__left">
+                <div class="day-detail-body__main">
                     ${numberedDayLeftHtml}
                 </div>
-                <div class="day-detail-body__right">
-                    ${numberedDayRightHtml}
-                </div>
+                ${numberedDayDrawerHtml}
             </div>
             ${shortlistSectionHtml}
         `;
@@ -643,6 +671,32 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 close();
                 openTripChecklistModal(trip);
             };
+        }
+    }
+
+    // Bookmark drawer — slide the Notes / Checklist panels in and out.
+    // Clicking a tab opens its panel (switching if another was already
+    // open); clicking the open tab again closes the drawer. Pure view
+    // state, no persistence — the panels start collapsed so the plan owns
+    // the full width until the user asks for notes/checklist.
+    if (!isAnchor) {
+        const drawer = (root.querySelector('.day-detail-drawer') as HTMLElement | null);
+        if (drawer) {
+            const tabs = Array.from(
+                drawer.querySelectorAll('.day-detail-drawer__tab'),
+            ) as HTMLButtonElement[];
+            tabs.forEach((tab) => {
+                tab.onclick = () => {
+                    const which = tab.dataset.drawer || '';
+                    const willOpen = drawer.dataset.open !== which;
+                    drawer.dataset.open = willOpen ? which : '';
+                    tabs.forEach((other) => {
+                        const active = willOpen && other.dataset.drawer === which;
+                        other.setAttribute('aria-pressed', active ? 'true' : 'false');
+                        other.setAttribute('aria-expanded', active ? 'true' : 'false');
+                    });
+                };
+            });
         }
     }
 
