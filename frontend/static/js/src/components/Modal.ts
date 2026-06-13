@@ -81,7 +81,7 @@ function _wireModulePopListener(): void {
  * @param {boolean} [opts.closeOnBackdrop]
  * @param {boolean} [opts.closeOnEscape]
  * @param {() => void} [opts.onClose]
- * @returns {{ root: HTMLElement, close: () => void }}
+ * @returns {{ root: HTMLElement, close: () => void, closeForNavigation: () => void }}
  */
 export function showModal(opts: {
     variant?: ModalVariant;
@@ -96,7 +96,7 @@ export function showModal(opts: {
      *  viewer, popovers). Pre-fix headingless modals announced as
      *  bare "dialog" with no name. */
     ariaLabel?: string;
-}): { root: HTMLElement; close: () => void } {
+}): { root: HTMLElement; close: () => void; closeForNavigation: () => void } {
     const {
         variant = 'glass',
         cardClass: explicitCardClass,
@@ -170,7 +170,7 @@ export function showModal(opts: {
     // close (✕, action button, backdrop, Esc): we pop our own sentinel
     // and flag the resulting popstate so it isn't mistaken for a
     // back-press against the modal beneath us.
-    const _doClose = (viaBackButton: boolean) => {
+    const _doClose = (viaBackButton: boolean, skipHistoryBack = false) => {
         if (closed) return;
         closed = true;
         document.removeEventListener('keydown', onKeyDown, true);
@@ -179,7 +179,17 @@ export function showModal(opts: {
             // popstate can't re-enter us.
             const idx = _modalBackClosers.lastIndexOf(backCloser);
             if (idx !== -1) _modalBackClosers.splice(idx, 1);
-            if (!viaBackButton) {
+            // skipHistoryBack: the caller is navigating to a new route as
+            // part of this close (see closeForNavigation). A normal close
+            // fires window.history.back() to pop our sentinel, but that's
+            // ASYNC — its popstate reverts the hash to this modal's origin
+            // page AFTER navigate() set the new hash, and window.onhashchange
+            // then re-navigates to the origin, dropping the intended page.
+            // So we leave navigate() to own history: we still unhook the
+            // back-closer (above), just don't pop. The buried sentinel is
+            // harmless — back from the new page lands on the origin page,
+            // which is the correct destination anyway.
+            if (!viaBackButton && !skipHistoryBack) {
                 _expectedSentinelPops += 1;
                 try { window.history.back(); }
                 catch { _expectedSentinelPops -= 1; }
@@ -207,6 +217,12 @@ export function showModal(opts: {
     // the event object in as `viaBackButton` and accidentally skip the
     // sentinel pop, which would leave a stale history entry.
     const close = () => _doClose(false);
+    // Close variant for "close this modal AND navigate to another route in
+    // the same handler." Skips the async history.back() that would clobber
+    // the destination hash (see skipHistoryBack note in _doClose). Callers
+    // MUST call navigate() right after — the sentinel is only swept up by
+    // that navigation's own history entry.
+    const closeForNavigation = () => _doClose(false, true);
     // The stack stores the back-button variant so the module popstate
     // listener can close the top modal without double-popping history.
     const backCloser = () => _doClose(true);
@@ -262,5 +278,5 @@ export function showModal(opts: {
         first?.focus();
     });
 
-    return { root: overlay, close };
+    return { root: overlay, close, closeForNavigation };
 }

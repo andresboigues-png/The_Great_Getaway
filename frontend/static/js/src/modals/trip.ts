@@ -28,7 +28,7 @@ import {
 } from './_shared.js';
 
 export const openNewTripModal = () => {
-    const { root, close } = showModal({
+    const { root, close, closeForNavigation } = showModal({
         variant: 'glass',
         cardStyle: 'width: 420px;',
         innerHTML: `
@@ -88,8 +88,15 @@ export const openNewTripModal = () => {
     // the shared createFromTemplateAndOpen path). The manual-code entry now
     // lives on that page's "Have a code?" accordion, so direct /t/<code>
     // share links + typed codes still work — just no longer from here.
+    //
+    // closeForNavigation (not close): a plain close() fires an async
+    // history.back() to pop the modal's sentinel; that back reverts the hash
+    // to this modal's origin page AFTER navigate('templates') set it, so
+    // window.onhashchange re-navigates to the origin and the templates page
+    // never mounts. closeForNavigation tears down the overlay without the
+    // history.back(), leaving navigate() to own the hash.
     (q(root, '#browseTemplatesBtn') as HTMLButtonElement).onclick = () => {
-        close();
+        closeForNavigation();
         navigate('templates');
     };
 
