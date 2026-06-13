@@ -26,6 +26,7 @@
 
 import { STATE, emit } from '../../state.js';
 import { upsertDay, upsertTrip } from '../../api.js';
+import { setMarkedPlaceAssignment, setMarkedPlacePreferredHour } from '../../markedPlaces.js';
 import type { MarkedPlace } from '../../types';
 import { canEdit } from '../../permissions.js';
 import { showModal } from '../../components/Modal.js';
@@ -36,21 +37,6 @@ import { openTripChecklistModal } from './tripChecklistModal.js';
 import { openDayView } from './dayViewModal.js';
 import { iconSvg } from '../../icons.js';
 
-
-/** BUG-083: a shortlisted place is "in" a plan slot ONLY when its canonical
- *  appended line — "- {name}" — is present as a WHOLE line (trimmed,
- *  case-insensitive), NOT when the bare name appears as a substring anywhere.
- *  Pre-fix a short name ('Bar') matched any line that merely contained it
- *  ('Barcelona Cathedral'), lighting the ✓ and — on toggle-off — splicing
- *  that unrelated user-written line. Returns the matching line index, or -1. */
-function _shortlistLineIndex(text: string, name: string): number {
-    const want = `- ${name.trim().toLowerCase()}`;
-    const bare = name.trim().toLowerCase();
-    return (text || '').split('\n').findIndex((l) => {
-        const tl = l.trim().toLowerCase();
-        return tl === want || tl === bare;
-    });
-}
 
 /** What home tabs a Anchor quick-link can navigate to. Matches
  *  the activeHomeTab union in home.ts. `hub` is the Trip Hub tab
@@ -342,7 +328,8 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     const _slots = ['morning', 'afternoon', 'evening'];
     const _initialSlot = 'morning';
     const _renderTab = (slot: string) => {
-        const count = _countLines((day.plan as Record<string, string> | undefined)?.[slot]);
+        const count = _placesForSlot(slot).length
+            + _countLines((day.plan as Record<string, string> | undefined)?.[slot]);
         const isActive = slot === _initialSlot;
         return `
             <button type="button" class="day-plan-tab day-plan-tab--icon-only${isActive ? ' is-active' : ''}" data-plan-tab="${slot}"
@@ -372,9 +359,9 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // evening pane even though the user no longer picks the slot directly.
     const _hourToSlot = (hour: number): 'morning' | 'afternoon' | 'evening' =>
         hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
-    const _renderPlacesForSlot = (slot: string): string => {
-        if (!trip) return '';
-        const places = (trip.markedPlaces || []).filter((p) => {
+    const _placesForSlot = (slot: string): MarkedPlace[] => {
+        if (!trip) return [];
+        return (trip.markedPlaces || []).filter((p) => {
             if (!p || !p.forManual || p.dayId !== day.id) return false;
             // The user's specific hour wins for slotting; fall back to the
             // AI-assigned coarse slot; null = "anytime" → show in every pane.
@@ -383,6 +370,9 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 : p.timeOfDay;
             return placeSlot === slot || !placeSlot;
         });
+    };
+    const _renderPlacesForSlot = (slot: string): string => {
+        const places = _placesForSlot(slot);
         if (places.length === 0) return '';
         const cardsHtml = places.map((p) => {
             const photoHtml = p.photoUrl
@@ -413,19 +403,26 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             const hrefAttr = href
                 ? ` href="${esc(href)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(p.verifiedName || p.name)} on Google Maps"`
                 : '';
+            // Remove control — un-slots the place from this day (works for
+            // BOTH manual + AI-added cards). Sibling of the <a> (not a child)
+            // so clicking ✕ doesn't also follow the Maps link.
+            const removeBtn = `<button type="button" class="day-plan-place-remove" data-place-id="${esc(p.placeId || '')}" title="${esc(t('dayDetail.removeFromDay'))}" aria-label="${esc(t('dayDetail.removeFromDay'))}">✕</button>`;
             return `
-                <${wrapTag} class="day-plan-place"${hrefAttr}>
-                    ${photoHtml}
-                    <div class="day-plan-place__body">
-                        <div class="day-plan-place__head">
-                            <span class="day-plan-place__name">${esc(p.verifiedName || p.name || 'Place')}</span>
-                            ${timeChipHtml}
-                            ${ratingHtml}
+                <div class="day-plan-place-wrap" data-place-id="${esc(p.placeId || '')}">
+                    <${wrapTag} class="day-plan-place"${hrefAttr}>
+                        ${photoHtml}
+                        <div class="day-plan-place__body">
+                            <div class="day-plan-place__head">
+                                <span class="day-plan-place__name">${esc(p.verifiedName || p.name || 'Place')}</span>
+                                ${timeChipHtml}
+                                ${ratingHtml}
+                            </div>
+                            ${whyHtml}
+                            ${factHtml}
                         </div>
-                        ${whyHtml}
-                        ${factHtml}
-                    </div>
-                </${wrapTag}>
+                    </${wrapTag}>
+                    ${removeBtn}
+                </div>
             `;
         }).join('');
         // Pluralised count label — the singular/plural divergence is
@@ -806,17 +803,17 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     };
 
     // ── Live ✓ indicators on shortlist buttons ────────────────
-    // Refresh after each typing event / each shortlist click so
-    // the marker reflects what's actually in the textareas right
-    // now. Match by case-insensitive substring of the place
-    // name; this is forgiving to user edits ("had dinner at La
-    // Brasa" still counts).
+    // A place is "in" a slot when it's assigned to THIS day and its
+    // effective slot (preferred hour → coarse slot, else timeOfDay)
+    // matches the button's time. Refreshed after every add/remove so
+    // the ✓ tracks the real slot assignment, not textarea text.
+    const _placeSlotForDay = (place: MarkedPlace): string | null => {
+        if (place.dayId !== day.id) return null;
+        return place.preferredHour != null
+            ? _hourToSlot(place.preferredHour)
+            : (place.timeOfDay ?? null);
+    };
     const refreshShortlistButtons = () => {
-        const planVals: Record<string, string> = {
-            morning: ((root.querySelector('textarea.plan-input[data-time="morning"]') as HTMLTextAreaElement)?.value || '').toLowerCase(),
-            afternoon: ((root.querySelector('textarea.plan-input[data-time="afternoon"]') as HTMLTextAreaElement)?.value || '').toLowerCase(),
-            evening: ((root.querySelector('textarea.plan-input[data-time="evening"]') as HTMLTextAreaElement)?.value || '').toLowerCase(),
-        };
         root.querySelectorAll('.day-shortlist-add-btn').forEach(b => {
             const btn = (b as HTMLButtonElement);
             const pid = btn.dataset.placeId;
@@ -824,7 +821,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             if (!pid || !time) return;
             const place = allShortlist.find((p) => p.placeId === pid);
             if (!place || !place.name) return;
-            const isThere = _shortlistLineIndex(planVals[time] ?? '', place.name) >= 0;
+            const isThere = _placeSlotForDay(place) === time;
             // DSGN-007: rebuild the canonical label from the LOCALIZED
             // shortlist-button keys (same ones the initial render uses),
             // then prefix with ✓ if present. Pre-fix this overwrote the
@@ -864,6 +861,22 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // at once.
     refreshShortlistButtons();
 
+    // Re-render the place cards inside each slot pane in place (after an
+    // assign/remove). _renderPlacesForSlot reads trip.markedPlaces live, so
+    // this reflects the current assignment. The cards block sits before the
+    // slot's free-text textarea.
+    const rerenderAllSlotPlaces = () => {
+        _slots.forEach((slot) => {
+            const pane = root.querySelector(`.day-plan-pane[data-plan-pane="${slot}"]`);
+            if (!pane) return;
+            pane.querySelector('.day-plan-places')?.remove();
+            const html = _renderPlacesForSlot(slot);
+            if (html) {
+                pane.querySelector('textarea.plan-input')?.insertAdjacentHTML('beforebegin', html);
+            }
+        });
+    };
+
     // Update the per-tab count chip ("Morning 3" / "Afternoon 0"
     // / …) so it stays in sync with the textarea content.
     // Called on every input event AND on every shortlist toggle
@@ -874,7 +887,8 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             const slot = (el as HTMLElement).dataset.planTabCount;
             const ta = (root.querySelector(`textarea.plan-input[data-time="${slot}"]`) as HTMLTextAreaElement | null);
             const value = ta?.value || '';
-            const count = value.split('\n').filter(l => l.trim().length > 0).length;
+            const count = (slot ? _placesForSlot(slot).length : 0)
+                + value.split('\n').filter(l => l.trim().length > 0).length;
             el.textContent = count > 0 ? String(count) : '';
         });
     };
@@ -937,60 +951,56 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // right away.
     root.addEventListener('click', (ev) => {
         const target = (ev.target as HTMLElement | null);
-        const btn = target?.closest('.day-shortlist-add-btn');
+        if (!target || !trip) return;
+
+        // Remove a slotted place card → un-assign it from this day. Works for
+        // BOTH manual + AI-added cards; the place stays in the to-do shortlist.
+        const removeEl = target.closest('.day-plan-place-remove');
+        if (removeEl) {
+            ev.preventDefault();
+            const pid = (removeEl as HTMLElement).dataset.placeId;
+            if (!pid) return;
+            setMarkedPlaceAssignment(trip, pid, null, null);
+            setMarkedPlacePreferredHour(trip, pid, null);
+            emit('state:changed');
+            void upsertTrip(trip);
+            rerenderAllSlotPlaces();
+            refreshShortlistButtons();
+            refreshPlanTabCounts();
+            return;
+        }
+
+        // Add/move a to-do place to a slot. Unlike the old behaviour (which
+        // appended a "- name" line to the textarea), this ASSIGNS the place to
+        // THIS day + slot so it renders as a real card via _renderPlacesForSlot
+        // — the same representation as AI-planned places. Clicking the slot a
+        // place is already in toggles it back off (removed from the day).
+        const btn = target.closest('.day-shortlist-add-btn');
         if (!btn) return;
         const pid = (btn as HTMLElement).dataset.placeId;
         const time = (btn as HTMLElement).dataset.time;
-        if (!pid || !time || !trip) return;
+        if (!pid || !time) return;
         const place = allShortlist.find((p) => p.placeId === pid);
-        if (!place || !place.name) return;
-        const ta = (root.querySelector(`textarea.plan-input[data-time="${time}"]`) as HTMLTextAreaElement | null);
-        if (!ta) return;
-        // BUG-083: match the EXACT canonical "- {name}" line, not a bare
-        // substring of the name.
-        const matchIdx = _shortlistLineIndex(ta.value, place.name);
-        const isThere = matchIdx >= 0;
-        if (isThere) {
-            // Remove mode — strip the canonical "- {name}" line. Whole-line
-            // match means a short name can't splice an unrelated line the
-            // user wrote. Splice once to preserve any intentional duplicates.
-            const lines = ta.value.split('\n');
-            lines.splice(matchIdx, 1);
-            // Collapse leading/trailing empties + any blank-line
-            // gap the splice left behind, but keep meaningful
-            // blank lines between sentences if the user added
-            // them mid-text.
-            const next = lines.join('\n').replace(/\n{3,}/g, '\n\n').replace(/^\n+|\n+$/g, '');
-            ta.value = next;
+        if (!place) return;
+        const alreadyHere = _placeSlotForDay(place) === time;
+        if (alreadyHere) {
+            setMarkedPlaceAssignment(trip, pid, null, null);
+            setMarkedPlacePreferredHour(trip, pid, null);
         } else {
-            // Add mode — append on its own line. Trim trailing
-            // space so we don't accumulate empty lines between
-            // adds.
-            const line = `- ${place.name}`;
-            ta.value = ta.value.trim().length > 0 ? `${ta.value.trim()}\n${line}` : line;
+            // Assign to this day + coarse slot; clear any fine preferred-hour
+            // so the slot the user just tapped is unambiguous.
+            setMarkedPlaceAssignment(trip, pid, day.id, time as 'morning' | 'afternoon' | 'evening');
+            setMarkedPlacePreferredHour(trip, pid, null);
+            switchPlanTab(time);
         }
-        // Visual confirmation pulse — a tiny scale bounce on
-        // the button so the user has explicit feedback that the
-        // click landed (otherwise removing a line you can't see
-        // in a collapsed textarea reads as "nothing happened").
-        // The textarea also gets a brief outline flash to draw
-        // the eye to where the change occurred.
+        // Confirmation pulse on the button.
         (btn as HTMLButtonElement).animate(
             [{ transform: 'scale(1)' }, { transform: 'scale(1.18)' }, { transform: 'scale(1)' }],
             { duration: 220, easing: 'ease-out' },
         );
-        const taPrevOutline = ta.style.boxShadow;
-        ta.style.boxShadow = isThere
-            ? '0 0 0 2px rgba(255,59,48,0.35)'
-            : '0 0 0 2px rgba(0,113,227,0.35)';
-        setTimeout(() => { ta.style.boxShadow = taPrevOutline; }, 280);
-        // Reveal the tab the change landed in. Without this, a
-        // toggle on a hidden slot would visibly do nothing (the
-        // line gets added/removed in the right textarea, but
-        // the user is staring at a different tab and sees no
-        // change).
-        switchPlanTab(time);
-        void persistNow();
+        emit('state:changed');
+        void upsertTrip(trip);
+        rerenderAllSlotPlaces();
         refreshShortlistButtons();
         refreshPlanTabCounts();
     });

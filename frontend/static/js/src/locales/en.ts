@@ -2093,6 +2093,7 @@ export const en = {
         chipAnytime: 'Anytime',
         chipAnytimeTitle: 'Pinned to this day, no specific time-of-day yet',
         chipAtTimeTitle: 'Planned around {time}',
+        removeFromDay: 'Remove from this day',
         slotPinnedCountOne: '{icon} {count} place pinned to this slot',
         slotPinnedCountOther: '{icon} {count} places pinned to this slot',
         // Trip checklist section (within day detail).

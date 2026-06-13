@@ -1675,6 +1675,7 @@ export const es: Translations = {
         chipAnytime: 'A cualquier hora',
         chipAnytimeTitle: 'Anclado a este día, sin hora específica aún',
         chipAtTimeTitle: 'Planeado hacia las {time}',
+        removeFromDay: 'Quitar de este día',
         slotPinnedCountOne: '{icon} {count} lugar anclado a esta franja',
         slotPinnedCountOther: '{icon} {count} lugares anclados a esta franja',
         checklistHeading: '📝 Lista del viaje',

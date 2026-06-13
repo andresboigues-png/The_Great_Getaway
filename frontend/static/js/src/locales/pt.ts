@@ -1679,6 +1679,7 @@ export const pt: Translations = {
         chipAnytime: 'A qualquer hora',
         chipAnytimeTitle: 'Marcado para este dia, sem hora específica',
         chipAtTimeTitle: 'Planeado por volta das {time}',
+        removeFromDay: 'Remover deste dia',
         slotPinnedCountOne: '{icon} {count} lugar marcado neste período',
         slotPinnedCountOther: '{icon} {count} lugares marcados neste período',
         checklistHeading: '📝 Lista da viagem',

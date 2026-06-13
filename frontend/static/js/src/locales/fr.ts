@@ -1680,6 +1680,7 @@ export const fr: Translations = {
         chipAnytime: 'À tout moment',
         chipAnytimeTitle: "Épinglé à ce jour, sans heure précise pour l'instant",
         chipAtTimeTitle: "Prévu vers {time}",
+        removeFromDay: "Retirer de ce jour",
         slotPinnedCountOne: '{icon} {count} lieu épinglé à ce créneau',
         slotPinnedCountOther: '{icon} {count} lieux épinglés à ce créneau',
         checklistHeading: '📝 Liste de voyage',
