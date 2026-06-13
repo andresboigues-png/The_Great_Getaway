@@ -1239,39 +1239,59 @@
     gap: var(--space-3);
     flex-shrink: 0;
 }
+/* Icon-only GG-blue chips with a white glyph; the label is hidden until
+   hover/focus, when it slides in from the right (mirroring the drawer's
+   own slide). The label is absolute so revealing it overlays the plan
+   rather than widening the rail — no layout shift. */
 .day-detail-drawer__tab {
+    position: relative;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 6px;
-    padding: 14px 8px;
-    background: rgba(0, 45, 91, 0.04);
-    border: 1px solid rgba(0, 45, 91, 0.1);
-    border-radius: 14px;
-    color: var(--text-secondary);
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    background: var(--accent-blue);
+    border: 0;
+    border-radius: 12px;
+    color: #fff;
     cursor: pointer;
-    font-weight: 700;
-    transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+    box-shadow: 0 2px 8px rgba(0, 113, 227, 0.25);
+    transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 .day-detail-drawer__tab:hover {
-    background: rgba(0, 113, 227, 0.08);
-    color: var(--accent-blue);
+    background: #0a84ff;
+    transform: translateX(-2px);
 }
 .day-detail-drawer__tab[aria-pressed='true'] {
-    background: var(--accent-blue);
-    color: #fff;
-    border-color: var(--accent-blue);
+    background: #0051a8;
+    box-shadow: 0 2px 10px rgba(0, 81, 168, 0.4);
 }
 .day-detail-drawer__tab-icon {
-    font-size: 1.05rem;
-    line-height: 1;
+    display: inline-flex;
+    color: #fff;
 }
 .day-detail-drawer__tab-text {
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-    font-size: 0.8rem;
-    letter-spacing: 0.01em;
+    position: absolute;
+    right: calc(100% + 8px);
+    top: 50%;
+    transform: translateY(-50%) translateX(6px);
+    padding: 6px 10px;
+    background: var(--accent-blue);
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 700;
     white-space: nowrap;
+    border-radius: 8px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.day-detail-drawer__tab:hover .day-detail-drawer__tab-text,
+.day-detail-drawer__tab:focus-visible .day-detail-drawer__tab-text {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
 }
 
 /* Mobile: convert the day-detail modal to a bottom-sheet. The
@@ -1342,12 +1362,23 @@
     }
     .day-detail-drawer__tab {
         flex: 1;
-        flex-direction: row;
-        justify-content: center;
-        padding: 10px;
+        width: auto;
+        height: auto;
+        gap: 8px;
+        padding: 12px;
     }
+    .day-detail-drawer__tab:hover {
+        transform: none;
+    }
+    /* No hover on touch — show the label inline beside the icon. */
     .day-detail-drawer__tab-text {
-        writing-mode: horizontal-tb;
+        position: static;
+        transform: none;
+        opacity: 1;
+        padding: 0;
+        background: transparent;
+        box-shadow: none;
+        pointer-events: auto;
         font-size: 0.85rem;
     }
     /* Collapse by show/hide (the width animation doesn't suit a

@@ -537,12 +537,12 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 </div>
             </div>
             <div class="day-detail-drawer__rail">
-                <button type="button" class="day-detail-drawer__tab" data-drawer="notes" aria-pressed="false" aria-expanded="false" title="${esc(t('dayDetail.personalNotesHeading'))}">
-                    <span class="day-detail-drawer__tab-icon" aria-hidden="true">📝</span>
+                <button type="button" class="day-detail-drawer__tab" data-drawer="notes" aria-pressed="false" aria-expanded="false">
+                    <span class="day-detail-drawer__tab-icon" aria-hidden="true">${iconSvg('journal', { size: 19 })}</span>
                     <span class="day-detail-drawer__tab-text">${esc(t('dayDetail.personalNotesHeading'))}</span>
                 </button>
-                <button type="button" class="day-detail-drawer__tab" data-drawer="checklist" aria-pressed="false" aria-expanded="false" title="${esc(_checklistTabLabel)}">
-                    <span class="day-detail-drawer__tab-icon" aria-hidden="true">✅</span>
+                <button type="button" class="day-detail-drawer__tab" data-drawer="checklist" aria-pressed="false" aria-expanded="false">
+                    <span class="day-detail-drawer__tab-icon" aria-hidden="true">${iconSvg('checklist', { size: 19 })}</span>
                     <span class="day-detail-drawer__tab-text">${esc(_checklistTabLabel)}</span>
                 </button>
             </div>
