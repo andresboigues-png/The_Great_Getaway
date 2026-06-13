@@ -82,15 +82,17 @@ export const openTripDocumentsModal = (trip: Trip): void => {
             if (!id) return null;
             const day = (STATE.tripDays || []).find(d => d.id === id);
             if (!day) return null;
-            return Number(day.dayNumber) === 0 ? '⭐ Hub' : `Day ${day.dayNumber}`;
+            return Number(day.dayNumber) === 0
+                ? t('tripMedia.dayBucketAnchorShort')
+                : `${t('tripMedia.dayBucketDay', { n: day.dayNumber })}${day.date ? ' · ' + (formatDayDate(day.date) || '') : ''}`;
         };
         const isAnchorDoc = (id: string | null | undefined) => !!id && id === anchorDay?.id;
         const dayChip = (id: string | null | undefined) => {
-            if (isAnchorDoc(id)) return `<span style="background:rgba(212,160,23,0.14); color:#8b6e0c; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⭐ Hub</span>`;
+            if (isAnchorDoc(id)) return `<span style="background:rgba(212,160,23,0.14); color:#8b6e0c; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(t('tripMedia.dayBucketAnchorShort'))}</span>`;
             const lbl = dayLabel(id);
             return lbl
                 ? `<span style="background:rgba(0,113,227,0.08); color:#005bb8; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(lbl)}</span>`
-                : `<span style="background:rgba(0,0,0,0.05); color:rgba(0,0,0,0.45); padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">Unsorted</span>`;
+                : `<span style="background:rgba(0,0,0,0.05); color:rgba(0,0,0,0.45); padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(t('tripMedia.docsBucketUnsorted'))}</span>`;
         };
         const groups: Map<string, ReturnType<typeof getAllTripDocuments>> = new Map();
         docs.forEach(d => {
@@ -293,7 +295,9 @@ export const openTripPhotosModal = (trip: Trip): void => {
             if (!id) return null;
             const day = (STATE.tripDays || []).find(d => d.id === id);
             if (!day) return null;
-            return Number(day.dayNumber) === 0 ? t('tripMedia.dayBucketAnchorShort') : t('tripMedia.dayBucketDay', { n: day.dayNumber });
+            return Number(day.dayNumber) === 0
+                ? t('tripMedia.dayBucketAnchorShort')
+                : `${t('tripMedia.dayBucketDay', { n: day.dayNumber })}${day.date ? ' · ' + (formatDayDate(day.date) || '') : ''}`;
         };
         const isAnchorPhoto = (id: string | null | undefined) => !!id && id === anchorDayForPhotos?.id;
         const headerRow = `

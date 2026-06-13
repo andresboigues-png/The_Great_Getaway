@@ -25,8 +25,13 @@
 // to do it.
 
 import { STATE, emit } from '../../state.js';
-import { upsertDay, upsertTrip } from '../../api.js';
+import { upsertDay, upsertTrip, uploadMedia } from '../../api.js';
 import { setMarkedPlaceAssignment, setMarkedPlacePreferredHour } from '../../markedPlaces.js';
+import {
+    getPhotosForDay, getDocumentsForDay,
+    addTripPhoto, addTripDocument,
+    removeTripPhoto, removeTripDocument,
+} from '../../tripMedia.js';
 import type { MarkedPlace } from '../../types';
 import { canEdit } from '../../permissions.js';
 import { showModal } from '../../components/Modal.js';
@@ -526,6 +531,26 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // they're only relocated in the DOM, not renamed. The leading 📝 in the
     // checklist heading is stripped here since the tab carries its own icon.
     const _checklistTabLabel = t('dayDetail.checklistHeading').replace(/^\s*📝\s*/, '');
+    // Per-day Photos + Documents drawer panels (Phase B). Uploading from a day
+    // auto-tags that day (dayId = day.id), so the item carries its day label in
+    // the trip-wide media views. The item lists are filled imperatively by
+    // renderDayPhotos()/renderDayDocs() below and re-rendered on add/remove.
+    const numberedDayPhotosHtml = `
+        <div class="day-media" data-media-kind="photos">
+            <h4 class="text-tag">${esc(t('dayDetail.photosHeading'))}</h4>
+            <div class="day-media__items" id="dayPhotoItems"></div>
+            <button type="button" class="day-media__add" data-media-add="photos-file">${iconSvg('photo', { size: 15 })}<span>${esc(t('dayDetail.uploadPhotos'))}</span></button>
+            <input type="file" accept="image/*" multiple id="dayPhotoFileInput" style="display:none">
+        </div>
+    `;
+    const numberedDayDocsHtml = `
+        <div class="day-media" data-media-kind="documents">
+            <h4 class="text-tag">${esc(t('dayDetail.documentsHeading'))}</h4>
+            <div class="day-media__items" id="dayDocItems"></div>
+            <button type="button" class="day-media__add" data-media-add="docs-file">${iconSvg('document', { size: 15 })}<span>${esc(t('dayDetail.uploadDocument'))}</span></button>
+            <input type="file" id="dayDocFileInput" style="display:none">
+        </div>
+    `;
     const numberedDayDrawerHtml = `
         <div class="day-detail-drawer" data-open="">
             <div class="day-detail-drawer__content">
@@ -534,6 +559,12 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 </div>
                 <div class="day-detail-drawer__view" data-view="checklist">
                     ${checklistPanelHtml}
+                </div>
+                <div class="day-detail-drawer__view" data-view="photos">
+                    ${numberedDayPhotosHtml}
+                </div>
+                <div class="day-detail-drawer__view" data-view="documents">
+                    ${numberedDayDocsHtml}
                 </div>
             </div>
             <div class="day-detail-drawer__rail">
@@ -544,6 +575,14 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 <button type="button" class="day-detail-drawer__tab" data-drawer="checklist" aria-pressed="false" aria-expanded="false">
                     <span class="day-detail-drawer__tab-icon" aria-hidden="true">${iconSvg('checklist', { size: 19 })}</span>
                     <span class="day-detail-drawer__tab-text">${esc(_checklistTabLabel)}</span>
+                </button>
+                <button type="button" class="day-detail-drawer__tab" data-drawer="photos" aria-pressed="false" aria-expanded="false">
+                    <span class="day-detail-drawer__tab-icon" aria-hidden="true">${iconSvg('photo', { size: 19 })}</span>
+                    <span class="day-detail-drawer__tab-text">${esc(t('dayDetail.photosHeading'))}</span>
+                </button>
+                <button type="button" class="day-detail-drawer__tab" data-drawer="documents" aria-pressed="false" aria-expanded="false">
+                    <span class="day-detail-drawer__tab-icon" aria-hidden="true">${iconSvg('document', { size: 19 })}</span>
+                    <span class="day-detail-drawer__tab-text">${esc(t('dayDetail.documentsHeading'))}</span>
                 </button>
             </div>
         </div>
@@ -698,6 +737,90 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 };
             });
         }
+    }
+
+    // ── Per-day Photos + Documents (drawer bookmarks) ──────────
+    // Render this day's media into the drawer panels; uploading from here
+    // auto-tags the day (dayId = day.id) so the item carries its day label in
+    // the trip-wide media views. Persists via upsertTrip (the media write
+    // path); re-renders the affected list on every add/remove.
+    if (!isAnchor && trip) {
+        const dayTrip = trip;
+        const photoHost = root.querySelector('#dayPhotoItems') as HTMLElement | null;
+        const docHost = root.querySelector('#dayDocItems') as HTMLElement | null;
+        const removeTitle = esc(t('dayDetail.removeFromDay'));
+        const renderDayPhotos = () => {
+            if (!photoHost) return;
+            const photos = getPhotosForDay(dayTrip, day.id);
+            photoHost.innerHTML = photos.length === 0
+                ? `<p class="day-media__empty">${esc(t('dayDetail.photosEmpty'))}</p>`
+                : photos.map((p) => `<div class="day-media__thumb"><img src="${esc(p.src)}" alt="" referrerpolicy="no-referrer" loading="lazy"><button type="button" class="day-media__remove" data-remove-photo="${esc(p.id || '')}" title="${removeTitle}" aria-label="${removeTitle}">✕</button></div>`).join('');
+        };
+        const renderDayDocs = () => {
+            if (!docHost) return;
+            const docs = getDocumentsForDay(dayTrip, day.id);
+            docHost.innerHTML = docs.length === 0
+                ? `<p class="day-media__empty">${esc(t('dayDetail.documentsEmpty'))}</p>`
+                : docs.map((d) => `<div class="day-media__doc"><a href="${esc(d.url)}" target="_blank" rel="noopener noreferrer">${esc(d.name || d.url)}</a><button type="button" class="day-media__remove" data-remove-doc="${esc(d.id || '')}" title="${removeTitle}" aria-label="${removeTitle}">✕</button></div>`).join('');
+        };
+        renderDayPhotos();
+        renderDayDocs();
+
+        const photoInput = root.querySelector('#dayPhotoFileInput') as HTMLInputElement | null;
+        const docInput = root.querySelector('#dayDocFileInput') as HTMLInputElement | null;
+        root.querySelectorAll('[data-media-add]').forEach((b) => {
+            (b as HTMLButtonElement).onclick = () => {
+                const kind = (b as HTMLElement).dataset.mediaAdd;
+                if (kind === 'photos-file') photoInput?.click();
+                else if (kind === 'docs-file') docInput?.click();
+            };
+        });
+        // Async work runs inside a void-returning sync listener so we don't
+        // hand a Promise to addEventListener (no-misused-promises).
+        const onPhotoFilesPicked = async () => {
+            const files = Array.from(photoInput?.files || []);
+            if (photoInput) photoInput.value = '';
+            for (const f of files) {
+                const res = await uploadMedia(f);
+                if (res.url) addTripPhoto(dayTrip, { src: res.url, dayId: day.id });
+                else if (res.error) showLiquidAlert(res.error);
+            }
+            emit('state:changed');
+            void upsertTrip(dayTrip);
+            renderDayPhotos();
+        };
+        photoInput?.addEventListener('change', () => { void onPhotoFilesPicked(); });
+        const onDocFilesPicked = async () => {
+            const files = Array.from(docInput?.files || []);
+            if (docInput) docInput.value = '';
+            for (const f of files) {
+                const res = await uploadMedia(f);
+                if (res.url) addTripDocument(dayTrip, { name: res.name || (f as File).name || 'Document', url: res.url, dayId: day.id });
+                else if (res.error) showLiquidAlert(res.error);
+            }
+            emit('state:changed');
+            void upsertTrip(dayTrip);
+            renderDayDocs();
+        };
+        docInput?.addEventListener('change', () => { void onDocFilesPicked(); });
+        root.addEventListener('click', (ev) => {
+            const tgt = ev.target as HTMLElement | null;
+            const rp = tgt?.closest('[data-remove-photo]') as HTMLElement | null;
+            if (rp) {
+                removeTripPhoto(dayTrip, rp.dataset.removePhoto || '');
+                emit('state:changed');
+                void upsertTrip(dayTrip);
+                renderDayPhotos();
+                return;
+            }
+            const rd = tgt?.closest('[data-remove-doc]') as HTMLElement | null;
+            if (rd) {
+                removeTripDocument(dayTrip, rd.dataset.removeDoc || '');
+                emit('state:changed');
+                void upsertTrip(dayTrip);
+                renderDayDocs();
+            }
+        });
     }
 
     // ── Auto-save plumbing ────────────────────────────────────

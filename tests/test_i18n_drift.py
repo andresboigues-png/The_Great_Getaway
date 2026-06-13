@@ -60,6 +60,8 @@ _INTENTIONAL_ENGLISH = {
     'collections.publicLabel':  'fr: "Public" identical',
     'poi.restaurants':          'fr: identical (same word)',
     'poi.pharmacies':           'fr: identical (same word)',
+    'dayDetail.photosHeading':    'fr: "Photos" identical (same word)',
+    'dayDetail.documentsHeading': 'fr: "Documents" identical (same word)',
     'settings.ratesTabInflation': 'fr: identical loanword "Inflation"',
     'settings.ratesAutoHint':     'universal "auto ≈ {n}" hint (like ratesAutoPlaceholder)',
 
