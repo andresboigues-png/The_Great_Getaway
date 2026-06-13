@@ -162,8 +162,16 @@ function buildDayCardBody(
         // existing day's date anywhere. Now it's a button that opens a date
         // picker (wired in TripBody.tsx → openDayDatePicker).
         subtitleParts.push(`<button type="button" class="day-card__date-btn" data-day-id="${esc(day.id)}" aria-label="${esc(t('pathTab.setDatePlaceholder'))}" style="display:inline-flex; align-items:center; gap:5px; background:none; border:none; padding:0; margin:0; font:inherit; color:inherit; cursor:pointer;">${iconSvg('calendar', { size: 14 })}${formatDayDate(day.date) || t('pathTab.setDatePlaceholder')}</button>`);
-        if (day.lat) subtitleParts.push(`<span style="color: #005bb8;">${esc(t('pathTab.locationSet'))}</span>`);
-        else subtitleParts.push(`<span class="day-card__pin-hint" style="display:inline-flex; align-items:center; gap:4px;">${iconSvg('pinned', { size: 13 })}${esc(stripLeadingEmoji(t('pathTab.pinThisDay')))}</span>`);
+        // Where you're staying (accommodation) drives this slot now, not the
+        // raw map pin — per user, the day should surface the place they're
+        // staying at if set, else a muted "not set". (Pins/POIs are still set
+        // via the day's option buttons + shown on the map; they're decoupled
+        // from accommodation.)
+        if (day.accommodation) {
+            subtitleParts.push(`<span style="color: #005bb8; display:inline-flex; align-items:center; gap:4px;">🛏️ ${esc(day.accommodation)}</span>`);
+        } else {
+            subtitleParts.push(`<span class="day-card__pin-hint" style="display:inline-flex; align-items:center; gap:4px; opacity:0.6;">🛏️ ${esc(t('pathTab.stayNotSet'))}</span>`);
+        }
         // Weather slot — populated async by applyWeatherChips() after
         // the trip's forecast lands. Empty by default so days that have
         // no forecast (past dates, beyond the API's 10-day window) just
