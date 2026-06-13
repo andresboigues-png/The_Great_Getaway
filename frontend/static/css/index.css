@@ -2528,6 +2528,10 @@ body.is-signed-out .trip-controls-popover {
     box-shadow: 0 4px 12px rgba(0, 113, 227, 0.25);
     font-size: var(--font-base);
     cursor: pointer;
+    /* Never wrap a CTA pill to two lines — longer localized labels (e.g.
+       PT "Nova viagem") used to wrap inside the squeezed navbar grid
+       column, doubling the button's height. Keep it a single-line pill. */
+    white-space: nowrap;
     transition: background-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
 }
 .btn-primary-pill:hover , .btn-primary-pill:active , .btn-primary-pill:focus-visible {
