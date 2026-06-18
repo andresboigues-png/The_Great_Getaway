@@ -19,7 +19,7 @@ vi.mock('../api.js', () => ({
     upsertTrip: vi.fn(),
 }));
 
-import { runBatchImport } from './upload.js';
+import { runBatchImport, cellToText } from './upload.js';
 import { syncCategories, upsertTrip, upsertExpense } from '../api.js';
 import { STATE } from '../state.js';
 import type { Trip } from '../types';
@@ -378,5 +378,30 @@ describe('runBatchImport — persistence + over-cap skip (Audit MK5 P2)', () => 
         expect(res.skipped).toContain('Whale');
         expect(STATE.expenses).toHaveLength(1);
         expect(vi.mocked(upsertExpense)).toHaveBeenCalledTimes(1); // the whale never reached the server
+    });
+});
+
+describe('cellToText (preview cell coercion)', () => {
+    it('renders a JS Date as YYYY-MM-DD instead of throwing React #31', () => {
+        // SheetJS cellDates:true hands back Date objects; the preview used to
+        // render them raw → "Objects are not valid as a React child" (#31),
+        // crashing the whole upload page on any typed date column.
+        expect(cellToText(new Date(2026, 4, 30))).toBe('2026-05-30');
+    });
+
+    it('coerces null / undefined / empty to an empty string', () => {
+        expect(cellToText(null)).toBe('');
+        expect(cellToText(undefined)).toBe('');
+        expect(cellToText('')).toBe('');
+    });
+
+    it('passes through strings and stringifies numbers (incl. 0)', () => {
+        expect(cellToText('Dinner')).toBe('Dinner');
+        expect(cellToText(45.5)).toBe('45.5');
+        expect(cellToText(0)).toBe('0'); // the old `cell || ''` blanked legit zeros
+    });
+
+    it('returns an empty string for an invalid Date', () => {
+        expect(cellToText(new Date('not a date'))).toBe('');
     });
 });

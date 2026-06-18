@@ -14,7 +14,7 @@
 // Safe to import from anywhere; unit-testable in isolation if we
 // ever add a jest harness for the expenses surface.
 
-import { getIntlLocale, t } from '../../i18n.js';
+import { t, formatShortMonthDay } from '../../i18n.js';
 import type { Expense } from '../../types';
 
 
@@ -60,31 +60,16 @@ export function defaultHistoryFilters(): HistoryFilters {
  *  lexicographic); only rendering switches to the friendlier format.
  *  Empty/invalid input returns the localized "Global" label — used
  *  for legacy expenses with no date attached. */
-export function formatAppleDate(dateStr: string | null | undefined): string {
+export function formatAppleDate(dateStr: string | null | undefined, includeYear = true): string {
     if (!dateStr) return t('expenses.globalGroup');
     const date = new Date(dateStr + 'T00:00:00Z');
     if (isNaN(date.getTime())) return t('expenses.globalGroup');
-    // R3-Round 3 fix: route through Intl.DateTimeFormat with the
-    // active app locale instead of the hardcoded DD-MM-YYYY shape.
-    // Pre-fix US users saw "25-03-2024" (interpreted as March-25 or
-    // 25-March depending on assumption) instead of "3/25/2024".
-    // Numeric+2digit gives 25/3/24 (pt), 3/25/24 (en-US), 25.03.2024
-    // (de). Storage stays YYYY-MM-DD via the ISO date parse above
-    // so sort/range comparisons remain lexicographic.
-    try {
-        return new Intl.DateTimeFormat(getIntlLocale(), {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-        }).format(date);
-    } catch {
-        // Last-resort fallback if Intl rejects the locale tag — keeps
-        // the original DD-MM-YYYY shape so the field renders SOMETHING.
-        const dd = String(date.getUTCDate()).padStart(2, '0');
-        const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
-        const yyyy = date.getUTCFullYear();
-        return `${dd}-${mm}-${yyyy}`;
-    }
+    // Apple-style "Apr 6" / "6 abr" — composed in i18n.formatShortMonthDay so the
+    // named month survives locales (pt-PT) whose short pattern collapses to a
+    // numeric "29/12". The year shows only when includeYear (the history list
+    // passes false for a single-year trip). Storage stays YYYY-MM-DD so
+    // sort/range comparisons remain lexicographic.
+    return formatShortMonthDay(date, includeYear);
 }
 
 

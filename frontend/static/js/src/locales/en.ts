@@ -903,8 +903,16 @@ export const en = {
         currencySelectorAriaLabel: 'Display currency for insights',
         // Currency story (home-currency hint + multi-currency breakdown).
         heroHomeCurrencyHint: 'Shown in {currency} — changes with your profile home currency.',
+        changeHomeCurrency: 'Change →',
         pvPricier: 'This trip would cost about {pct}% more to do today than the {then} you paid.',
         pvCheaper: 'This trip would cost about {pct}% less to do today than the {then} you paid.',
+        // The two levers behind the headline, shown so the figure is auditable.
+        pvBreakdownFx: 'At today’s exchange rates, that’s {amount} ({pct}).',
+        pvBreakdownInflation: 'After inflation since then, {amount} ({pct}).',
+        pvBreakdownInflationOnly: 'That’s inflation since then ({pct}).',
+        // Per-currency worth-today labels (the value + colour are added in the view).
+        pvFxLabel: 'FX',
+        pvInflLabel: 'inflation',
         seeCurrencyBreakdown: 'See currency breakdown →',
         hideCurrencyBreakdown: 'Hide currency breakdown',
         currencyBreakdownTitle: 'Spent by currency',
@@ -931,6 +939,25 @@ export const en = {
         // Summary metrics.
         avgDaily: 'Avg. Daily Spend',
         avgDailySuffix: '/ day',
+        avgDailyOverDays: 'over {days} days',
+        filterPayer: 'Filter by payer',
+        filterCategory: 'Filter by category',
+        allPayers: 'All payers',
+        allCategories: 'All categories',
+        spendersTitle: 'Spenders',
+        sortBy: 'Sort by',
+        sortAmountDesc: 'Highest spend',
+        sortAmountAsc: 'Lowest spend',
+        sortCountDesc: 'Most transactions',
+        sortNameAsc: 'Name (A–Z)',
+        expensesPer: 'Expenses per',
+        dimCategory: 'Category',
+        dimCountry: 'Country',
+        dimCurrency: 'Currency',
+        dimWho: 'Person',
+        metricSpent: 'Spent',
+        metricCount: 'Transactions',
+        perEmpty: 'No data for this grouping yet.',
         singlePeak: 'Biggest expense',
         // Rankings.
         topSpenders: 'Top Spenders',
@@ -1381,6 +1408,12 @@ export const en = {
             other: 'Removes the {count} expenses imported in your most recent upload. This cannot be undone.',
         },
         undoBatchBtn: 'Undo batch',
+        deleteAllBtn: 'Delete all',
+        deleteAllTitle: 'Delete all expenses?',
+        deleteAllMessage: {
+            one: 'Permanently deletes the only expense on this trip and recalculates everyone’s balances. This cannot be undone.',
+            other: 'Permanently deletes all {count} expenses on this trip and recalculates everyone’s balances. This cannot be undone.',
+        },
         // Empty states.
         noExpensesYet: 'No expenses for this trip yet',
         // Date-group fallback for expenses without a date.

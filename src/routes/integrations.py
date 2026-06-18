@@ -53,15 +53,30 @@ bp = Blueprint("integrations", __name__)
 # exhausted / total). The bar is intentionally shared/global since
 # every user pulls from the same key pool.
 
-# 24h matches Gemini's daily-quota reset window. A per-minute rate
-# hit will also cool the key for 24h here (we can't easily tell them
-# apart from the error message). That's pessimistic but it's the
-# safe default — re-trying a known-bad key burns latency on every
-# generation; under-using a still-good key just means we move to
-# the next one slightly sooner.
-_KEY_COOLDOWN_SECONDS = 24 * 3600
+# A key that returns a quota / rate-limit error is "cooled" — skipped
+# in rotation until its cooldown expires. We deliberately split the two
+# failure modes Gemini lumps under one 429 (RESOURCE_EXHAUSTED):
+#
+#   * Per-MINUTE rate limit (RPM): transient — the key is healthy again
+#     within ~a minute. Cooling it for a full day (the old behaviour)
+#     stranded a perfectly good key after a short burst, which is exactly
+#     what made every host key read "exhausted" in local dev after a
+#     handful of rapid generations.
+#   * Per-DAY quota: genuinely spent until Google's daily reset.
+#
+# Gemini's 429 body doesn't reliably name the metric, so when we can't
+# tell them apart we err toward the SHORT cooldown: re-probing a still
+# dead key costs one wasted request per window (cheap, fast response),
+# whereas over-cooling a live key strands a pool slot for hours. Both
+# windows are env-overridable so prod can tune them without a deploy.
+_KEY_COOLDOWN_SECONDS = int(os.getenv("GEMINI_KEY_COOLDOWN_SECONDS", str(5 * 60)))
+_KEY_COOLDOWN_DAILY_SECONDS = int(
+    os.getenv("GEMINI_KEY_COOLDOWN_DAILY_SECONDS", str(60 * 60))
+)
 _HOST_KEY_SLOTS = 6  # GEMINI_API_KEY + _2 through _6
-_exhausted_keys: dict[int, float] = {}  # key_slot (1..N) → timestamp
+# slot (1..N) → epoch when the cooldown EXPIRES (not when it was set),
+# so each entry carries its own per-minute vs per-day window.
+_exhausted_keys: dict[int, float] = {}
 
 
 def _host_key_for_slot(slot: int) -> str:
@@ -74,24 +89,33 @@ def _host_key_for_slot(slot: int) -> str:
 
 
 def _is_key_cooled(slot: int) -> bool:
-    """True if `slot` is currently marked exhausted AND the
-    cooldown hasn't expired. Side-effect: clears stale entries so
-    the dict doesn't grow unbounded across long-running processes."""
-    ts = _exhausted_keys.get(slot)
-    if ts is None:
+    """True if `slot` is currently cooled (its cooldown hasn't expired
+    yet). Side-effect: clears stale entries so the dict doesn't grow
+    unbounded across long-running processes."""
+    expiry = _exhausted_keys.get(slot)
+    if expiry is None:
         return False
-    if time.time() - ts >= _KEY_COOLDOWN_SECONDS:
+    if time.time() >= expiry:
         del _exhausted_keys[slot]
         return False
     return True
 
 
-def _mark_key_exhausted(slot: int) -> None:
-    """Stamp a key as exhausted at the current time. Cleared
-    automatically by `_is_key_cooled` once the 24h window passes."""
-    _exhausted_keys[slot] = time.time()
+def _is_per_day_quota_error(err_msg: str) -> bool:
+    """True when a quota error names a PER-DAY metric (vs a per-minute
+    RPM burst). Drives the longer cooldown. Defaults to False — when
+    Gemini doesn't say, we treat it as transient so a brief burst can't
+    strand a live key for hours."""
+    s = err_msg.lower()
+    return "per day" in s or "perday" in s or "per-day" in s or "daily" in s
+
+
+def _mark_key_exhausted(slot: int, cooldown_seconds: int = _KEY_COOLDOWN_SECONDS) -> None:
+    """Cool `slot` for `cooldown_seconds` from now. Cleared automatically
+    by `_is_key_cooled` once the window passes."""
+    _exhausted_keys[slot] = time.time() + cooldown_seconds
     logger.warning(
-        "gemini host key slot %d marked exhausted (24h cooldown)", slot,
+        "gemini host key slot %d cooled for %ds", slot, cooldown_seconds,
     )
 
 
@@ -925,7 +949,14 @@ def generate_itinerary():
                 # hit the same quota wall.
                 if _looks_like_quota_error(last_error):
                     if slot != 0:
-                        _mark_key_exhausted(slot)
+                        # Per-minute RPM bursts recover in ~a minute; only a
+                        # genuine per-day exhaustion warrants the long cooldown.
+                        _mark_key_exhausted(
+                            slot,
+                            _KEY_COOLDOWN_DAILY_SECONDS
+                            if _is_per_day_quota_error(last_error)
+                            else _KEY_COOLDOWN_SECONDS,
+                        )
                     logger.warning(
                         "Gemini slot %d quota hit on model %s: %s",
                         slot, model, last_error,

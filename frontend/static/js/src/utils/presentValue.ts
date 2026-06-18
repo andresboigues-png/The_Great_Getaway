@@ -127,13 +127,19 @@ export interface PvContext {
     hasRate: (code: string) => boolean;
 }
 
-/** The two legs computed for every expense, both in HOME currency. */
+/** The legs computed for every expense, all in HOME currency. */
 export interface PvResult {
     /** Cost AT THE TIME of the expense (historical FX, no inflation). */
     spentValue: number;
     /** Cost to do it TODAY (Model A: current FX × the currency's own CPI; or
      *  the bounded home-CPI fallback for currencies with no FX). */
     todayValue: number;
+    /** The "today" leg BEFORE the inflation step — i.e. today's FX conversion
+     *  only. Lets Insights attribute the headline "X% more/less today" to two
+     *  honest, reconcilable levers: an FX step (todayValueNoInflation /
+     *  spentValue) and an inflation step (todayValue / todayValueNoInflation).
+     *  Their euro deltas sum EXACTLY to (todayValue − spentValue). */
+    todayValueNoInflation: number;
 }
 
 /** Build a per-expense present-value calculator bound to one `ctx`. The auto
@@ -230,19 +236,28 @@ export function makePresentValueCalc(ctx: PvContext): (e: PvExpenseInput) => PvR
         //     cost (euroValue) grown by HOME inflation (bounded + consistent
         //     with the also-euroValue-based "Spent" leg).
         let todayValue: number;
+        // Same "today" leg WITHOUT the inflation step — today's FX conversion
+        // only. Insights uses it to split the headline "X% more/less today" into
+        // FX vs inflation: spent → ×(today FX / then FX) → todayValueNoInflation
+        // → ×CPI → todayValue. Captured per-branch so each model keeps its own
+        // pre-inflation base (the branches differ only in how they reach it).
+        let todayValueNoInflation: number;
         const ov = tripOverrides[curUp];
         // IA-1: only trust an override whose numbers are actually finite — a
         // corrupt localStorage entry would otherwise poison the total with NaN.
         const ovValid = ov && Number.isFinite(ov.fxToHome) && Number.isFinite(ov.inflationPct);
         const manualNowFx = ovValid ? null : manualFxFor(curUp, currentYear);
         if (ovValid) {
-            todayValue = e.value * ov.fxToHome * Math.max(0, 1 + ov.inflationPct / 100);
+            todayValueNoInflation = e.value * ov.fxToHome;
+            todayValue = todayValueNoInflation * Math.max(0, 1 + ov.inflationPct / 100);
         } else if (manualNowFx != null) {
             // Manual current-year FX pinned (also the escape hatch that lets a
             // no-FX currency use Model A with its own inflation).
-            todayValue = e.value * manualNowFx * inflationFactorFor(curUp, e.date || '');
+            todayValueNoInflation = e.value * manualNowFx;
+            todayValue = todayValueNoInflation * inflationFactorFor(curUp, e.date || '');
         } else if (curUp === targetCurr || hasRate(curUp)) {
-            todayValue = convert(e.value, e.currency || 'EUR', targetCurr) * inflationFactorFor(curUp, e.date || '');
+            todayValueNoInflation = convert(e.value, e.currency || 'EUR', targetCurr);
+            todayValue = todayValueNoInflation * inflationFactorFor(curUp, e.date || '');
         } else {
             // No FX for this currency → Model B (home-CPI on the frozen euroValue).
             // PV4-1: if the user EXPLICITLY pinned an inflation % for this
@@ -256,9 +271,10 @@ export function makePresentValueCalc(ctx: PvContext): (e: PvExpenseInput) => PvR
             const euroVal = e.euroValue ?? convert(e.value, e.currency || 'EUR', 'EUR');
             const homeVal = targetCurr === 'EUR' ? euroVal : convert(euroVal, 'EUR', targetCurr);
             const factorCur = hasManualInflation(curUp, e.date || '') ? curUp : targetCurr;
-            todayValue = homeVal * inflationFactorFor(factorCur, e.date || '');
+            todayValueNoInflation = homeVal;
+            todayValue = todayValueNoInflation * inflationFactorFor(factorCur, e.date || '');
         }
 
-        return { spentValue: spentHome, todayValue };
+        return { spentValue: spentHome, todayValue, todayValueNoInflation };
     };
 }

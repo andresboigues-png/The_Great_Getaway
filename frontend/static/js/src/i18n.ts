@@ -358,6 +358,26 @@ export function getIntlLocale(): string {
     return INTL_LOCALE_TAGS[getLocale()];
 }
 
+/** Apple-style short date — abbreviated month + day ("Apr 6" / "6 abr").
+ *  Composed from a MONTH-ONLY Intl format on purpose: some locales (notably
+ *  pt-PT) render {month:'short', day:'numeric'} as a NUMERIC "29/12", whereas
+ *  the month-only format always keeps the name ("dez."). en reads month-first
+ *  ("Apr 6"); es/fr/pt read day-first ("6 abr"). The year is appended only when
+ *  includeYear — callers pass false when every visible date shares one year. */
+export function formatShortMonthDay(date: Date, includeYear = false): string {
+    let month: string;
+    try {
+        month = new Intl.DateTimeFormat(getIntlLocale(), { month: 'short', timeZone: 'UTC' }).format(date);
+    } catch {
+        month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][date.getUTCMonth()] || '';
+    }
+    const day = date.getUTCDate();
+    const md = getLocale() === 'en' ? `${month} ${day}` : `${day} ${month}`;
+    if (!includeYear) return md;
+    const y = date.getUTCFullYear();
+    return getLocale() === 'en' ? `${md}, ${y}` : `${md} ${y}`;
+}
+
 /** Format a number as a currency in the active locale. Used by
  *  utils.formatHome's UI-facing path (the displayed home-currency
  *  totals). The existing call sites pass `from` for the input

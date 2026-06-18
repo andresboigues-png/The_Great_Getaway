@@ -77,6 +77,10 @@ export function HistoryTab() {
                   ),
               );
 
+    // Total expenses on this trip (filter-independent — "Delete all" wipes the
+    // whole trip, not just the currently filtered view).
+    const tripExpenseCount = expenses.filter((e) => e.tripId === activeTripId).length;
+
     // "Undo last batch" appears only when the most recent bulk
     // import is for the currently active trip.
     const canUndoBatch =
@@ -99,6 +103,16 @@ export function HistoryTab() {
         [expenses, activeTripId, filters],
     );
 
+    // Show the year on row dates ONLY when the visible expenses span more than
+    // one calendar year — otherwise "Apr 6" is enough and the column stays clean.
+    const multiYear = useMemo(() => {
+        const years = new Set<string>();
+        for (const e of filtered) {
+            if (e.date && /^\d{4}-/.test(e.date)) years.add(e.date.slice(0, 4));
+        }
+        return years.size > 1;
+    }, [filtered]);
+
     const onUndoBatch = () => {
         const batch = STATE.lastImportBatch;
         if (!batch || !Array.isArray(batch.expenseIds) || batch.expenseIds.length === 0) return;
@@ -116,6 +130,33 @@ export function HistoryTab() {
                 // delete resurrects on the next full pull until reload).
                 try {
                     await Promise.all([...ids].map(async (id) => { await deleteExpenseOnServer(id); }));
+                } catch { /* outbox retries */ }
+                navigate('expenses');
+            },
+        });
+    };
+
+    // "Delete all" — wipes every expense on the active trip (filter-independent).
+    // Mirrors the undo-batch flow: optimistic STATE prune + emit, then await all
+    // server DELETEs (so a nav-abort can't cancel them mid-flight), then refresh.
+    const onDeleteAll = () => {
+        const tripExpenses = STATE.expenses.filter((e) => e.tripId === activeTripId);
+        if (tripExpenses.length === 0) return;
+        showConfirmModal({
+            title: t('expenses.deleteAllTitle'),
+            message: tn('expenses.deleteAllMessage', tripExpenses.length),
+            confirmText: t('expenses.deleteAllBtn'),
+            onConfirm: async () => {
+                const ids = tripExpenses.map((e) => e.id);
+                const idSet = new Set(ids);
+                STATE.expenses = STATE.expenses.filter((e) => !idSet.has(e.id));
+                // The undo-last-batch chip may reference rows we just removed.
+                if (STATE.lastImportBatch && STATE.lastImportBatch.tripId === activeTripId) {
+                    STATE.lastImportBatch = null;
+                }
+                emit('state:changed');
+                try {
+                    await Promise.all(ids.map(async (id) => { await deleteExpenseOnServer(id); }));
                 } catch { /* outbox retries */ }
                 navigate('expenses');
             },
@@ -162,6 +203,16 @@ export function HistoryTab() {
                                     onClick={onUndoBatch}
                                 >
                                     ↶ {t('expenses.undoBatchBtn')} ({lastImportBatch.expenseIds.length})
+                                </button>
+                            ) : null}
+                            {showRowActions && tripExpenseCount > 0 ? (
+                                <button
+                                    type="button"
+                                    className="btn-chip-danger"
+                                    title={t('expenses.deleteAllTitle')}
+                                    onClick={onDeleteAll}
+                                >
+                                    🗑 {t('expenses.deleteAllBtn')} ({tripExpenseCount})
                                 </button>
                             ) : null}
                             <button type="button" className="btn-chip-danger" onClick={clearFilters}>
@@ -316,7 +367,7 @@ export function HistoryTab() {
                                     <div>
                                         <strong className="expense-row__title">{e.label || t('expenses.noLabelPlaceholder')}</strong>
                                         <div className="expense-row__meta">
-                                            <span>{formatAppleDate(e.date)}</span>
+                                            <span>{formatAppleDate(e.date, multiYear)}</span>
                                             <span className="expense-row__meta-dot"></span>
                                             <span>{e.country || t('expenses.globalGroup')}</span>
                                             <span className="expense-row__meta-dot"></span>

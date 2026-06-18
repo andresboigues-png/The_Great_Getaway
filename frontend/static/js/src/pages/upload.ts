@@ -276,6 +276,24 @@ function parseCellDate(cell: unknown): string {
     return '';
 }
 
+/**
+ * Coerce a raw SheetJS cell to a plain display string for the preview
+ * table. `cellDates: true` (BatchUpload) hands back JS Date objects for
+ * typed date cells; rendering a Date straight into JSX throws React
+ * error #31 ("Objects are not valid as a React child"), which crashed
+ * the entire upload page the moment a file carried a typed date column.
+ * Dates → YYYY-MM-DD; null/undefined → ''; everything else → String().
+ */
+export function cellToText(cell: unknown): string {
+    if (cell === null || cell === undefined) return '';
+    if (cell instanceof Date) {
+        return isNaN(cell.getTime())
+            ? ''
+            : `${cell.getFullYear()}-${_pad2(cell.getMonth() + 1)}-${_pad2(cell.getDate())}`;
+    }
+    return String(cell);
+}
+
 /** Run the batch import: turn already-parsed spreadsheet rows into
  *  expenses on the active trip.
  *

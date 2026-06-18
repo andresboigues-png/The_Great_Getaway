@@ -16,7 +16,7 @@
 // re-renders. No need to call navigate('insights') after the mutation
 // the way the imperative version did.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../../react/store.js';
 import { useActiveTrip } from '../../react/TripContext.js';
 import { useNavigate } from '../../react/useNavigate.js';
@@ -27,7 +27,7 @@ import { fetchHistoricalRates, fetchCpiSeries } from '../../api.js';
 import { getTripFxOverrides } from '../../utils/fxOverrides.js';
 import { requestPersonalizationTab } from '../../utils/persTab.js';
 import { makeInflationFactor, makePresentValueCalc } from '../../utils/presentValue.js';
-import { getIntlLocale, formatNumber, formatNumberForCurrency } from '../../i18n.js';
+import { getIntlLocale, formatNumber, formatNumberForCurrency, formatShortMonthDay } from '../../i18n.js';
 import { getHomeCurrency, currencySymbol } from '../../utils.js';
 import { computeTripBalances } from '../settlement/balances.js';
 import { budgetStatus, budgetTitle } from '../budgets/helpers.js';
@@ -79,6 +79,8 @@ interface ConvertedExpense {
      *  spentValue = at-the-time home cost; todayValue = cost to do it today. */
     spentValue: number;
     todayValue: number;
+    /** today's-FX leg before inflation — drives the hero's FX-vs-inflation split. */
+    todayValueNoInflation: number;
 }
 
 /** True when the date keys span more than one calendar year — used to
@@ -100,16 +102,64 @@ function datesSpanMultipleYears(isoKeys: string[]): boolean {
 function timelineDateLabel(isoKey: string, includeYear: boolean): string {
     const dt = new Date(isoKey + 'T00:00:00Z');
     if (Number.isNaN(dt.getTime())) return isoKey;
-    try {
-        return new Intl.DateTimeFormat(getIntlLocale(), {
-            month: 'short',
-            day: 'numeric',
-            ...(includeYear ? { year: 'numeric' } : {}),
-            timeZone: 'UTC',
-        }).format(dt);
-    } catch {
-        return isoKey;
-    }
+    return formatShortMonthDay(dt, includeYear);
+}
+
+// Donut/legend slice colours (distinct hues; the list dot mirrors the slice).
+const DASH_PALETTE = ['#0071e3', '#34c759', '#ff9500', '#af52de', '#ff2d55', '#5ac8fa', '#ffcc00', '#ff6482', '#30b0c7', '#a2845e', '#bf5af2', '#ff9f0a'];
+
+/** iOS-style segmented control: a white "lens" slides + resizes under the
+ *  active segment. Segments are CONTENT-sized (so unequal-length labels never
+ *  overflow), and the lens is MEASURED off the active button so it always fits
+ *  the text exactly. Re-measures on selection change and on container resize. */
+function SegmentedControl<T extends string>({ options, value, onChange, ariaLabel }: {
+    options: ReadonlyArray<{ value: T; label: string }>;
+    value: T;
+    onChange: (v: T) => void;
+    ariaLabel?: string;
+}) {
+    const ref = useRef<HTMLDivElement | null>(null);
+    const [lens, setLens] = useState<{ left: number; width: number } | null>(null);
+    useLayoutEffect(() => {
+        const measure = () => {
+            const el = ref.current?.querySelector<HTMLElement>('[data-active="true"]');
+            if (el) setLens({ left: el.offsetLeft, width: el.offsetWidth });
+        };
+        measure();
+        const node = ref.current;
+        if (!node || typeof ResizeObserver === 'undefined') return;
+        const ro = new ResizeObserver(measure);
+        ro.observe(node);
+        return () => ro.disconnect();
+    }, [value, options]);
+    return (
+        <div ref={ref} role="tablist" aria-label={ariaLabel} className="relative inline-flex p-1 rounded-full max-w-full" style={{ background: 'rgba(0,0,0,0.06)' }}>
+            {lens ? (
+                <div aria-hidden="true" style={{ position: 'absolute', top: 4, bottom: 4, left: lens.left, width: lens.width, background: '#ffffff', borderRadius: 999, boxShadow: '0 1px 4px rgba(0,0,0,0.16)', transition: 'left 0.32s cubic-bezier(0.34, 1.3, 0.5, 1), width 0.32s cubic-bezier(0.34, 1.3, 0.5, 1)' }} />
+            ) : null}
+            {options.map((o) => {
+                const active = o.value === value;
+                return (
+                    <button
+                        key={o.value}
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        data-active={active}
+                        onClick={() => onChange(o.value)}
+                        className="relative rounded-full whitespace-nowrap"
+                        style={{
+                            zIndex: 1, border: 0, outline: 'none', background: 'transparent', cursor: 'pointer',
+                            padding: '6px 15px', fontSize: '0.8rem', fontWeight: active ? 700 : 500,
+                            color: active ? 'var(--text-brand-navy)' : 'var(--text-secondary)', transition: 'color 0.2s',
+                        }}
+                    >
+                        {o.label}
+                    </button>
+                );
+            })}
+        </div>
+    );
 }
 
 // MAX_INFLATION_FACTOR + makeInflationFactor now live in utils/presentValue
@@ -150,6 +200,16 @@ export function Insights() {
     // then visibly jumps. We show a "calculating…" placeholder until this is
     // true so the headline never displays a number that's about to move.
     const [ratesSettled, setRatesSettled] = useState(false);
+
+    // ── Dashboard controls (sort / filter / dimension toggles) ────────────
+    // Spenders dashboard: how to order the people list.
+    const [spenderSort, setSpenderSort] = useState<'amount_desc' | 'amount_asc' | 'count_desc' | 'name_asc'>('amount_desc');
+    // Avg-per-day dashboard: narrow the average to one payer / category.
+    const [avgWho, setAvgWho] = useState<string>('all');
+    const [avgCat, setAvgCat] = useState<string>('all');
+    // "Expenses per…" dashboard: which dimension to group by + which metric.
+    const [perDim, setPerDim] = useState<'category' | 'country' | 'currency'>('category');
+    const [perMetric, setPerMetric] = useState<'value' | 'count'>('value');
 
     // ── Empty states are rendered AFTER all hooks (see the guarded returns
     //    just before the main return below). react-hooks/rules-of-hooks: hooks
@@ -235,16 +295,17 @@ export function Insights() {
         totalDisplay,
         totalSpent,
         totalToday,
+        totalTodayNoInfl,
         totalCount,
         highestExpense,
-        sortedSpenders,
-        sortedCats,
-        catTotals,
+        convertedExps,
         dateTotals,
-        sortedCountries,
         currencyHomeTotals,
         currencyOwnTotals,
         currencyDateTotals,
+        currencySpentTotals,
+        currencyTodayTotals,
+        currencyTodayNoInflTotals,
     } = useMemo(() => {
         // F2 — per-currency manual overrides for "Value today". When the
         // user has set their own inflation %/exchange-rate for a currency,
@@ -272,15 +333,18 @@ export function Insights() {
         });
 
         const convertedExps: ConvertedExpense[] = tripExps.map((e: Expense) => {
-            const { spentValue, todayValue } = pvCalc(e);
+            const { spentValue, todayValue, todayValueNoInflation } = pvCalc(e);
             const displayValue = mode === 'today' ? todayValue : spentValue;
-            return { ...e, displayValue, spentValue, todayValue };
+            return { ...e, displayValue, spentValue, todayValue, todayValueNoInflation };
         });
 
         const totalDisplay = convertedExps.reduce((sum, e) => sum + e.displayValue, 0);
         // Both legs summed so the hero can show "X% pricier / cheaper to do today".
         const totalSpent = convertedExps.reduce((sum, e) => sum + e.spentValue, 0);
         const totalToday = convertedExps.reduce((sum, e) => sum + e.todayValue, 0);
+        // Same sum WITHOUT inflation (today's FX only) — the midpoint of the
+        // spent → FX → inflation bridge the hero breakdown shows.
+        const totalTodayNoInfl = convertedExps.reduce((sum, e) => sum + e.todayValueNoInflation, 0);
         const totalCount = convertedExps.length;
 
         let highestExpense: ConvertedExpense | null = null;
@@ -294,18 +358,7 @@ export function Insights() {
             );
         }
 
-        const spenderTotals: Record<string, number> = {};
-        const catTotals: Record<string, number> = {};
         const dateTotals: Record<string, number> = {};
-        // §4.3: per-country expense aggregation. Each expense already
-        // carries a `country` field (set by the user on the manual-
-        // entry form's country picker). We DON'T derive country from
-        // the trip's `countries` array — the array tells us WHICH
-        // countries the trip touched, not WHICH country each expense
-        // belongs to. Using e.country directly preserves "I spent X
-        // on this side-trip to Spain" semantics rather than smearing
-        // by trip-level country mix.
-        const countryTotals: Record<string, number> = {};
         // Per-original-currency aggregates for the currency breakdown:
         //  - home-equivalent total (donut share + list "≈ home" column)
         //  - own-currency total (list "what you actually spent" column)
@@ -313,86 +366,43 @@ export function Insights() {
         const currencyHomeTotals: Record<string, number> = {};
         const currencyOwnTotals: Record<string, number> = {};
         const currencyDateTotals: Record<string, Record<string, number>> = {};
-        // IA-8 (MK3 audit): collapse category keys that resolve to the SAME
-        // category before aggregating, so the donut + ranking don't render
-        // two slices for e.g. "food" and "Food" (both later resolved to
-        // "🍔 Food" by findCategory, double-counting the slice/label). Key by
-        // the canonical id — matched by id, then case-insensitive name —
-        // falling back to a trimmed-lowercase form so case-only variants of
-        // an UNmatched id (imports / legacy slugs) still merge into one key.
-        const canonicalCatId = (catId: string): string => {
-            const raw = String(catId ?? '');
-            const match =
-                categories.find((c: Category) => c.id === raw) ||
-                categories.find((c: Category) => c.name.toLowerCase() === raw.toLowerCase());
-            return match ? match.id : raw.trim().toLowerCase();
-        };
+        // Per-currency "worth today" legs, so the breakdown can show each
+        // currency's OWN FX move + inflation (not just the blended headline).
+        const currencySpentTotals: Record<string, number> = {};
+        const currencyTodayTotals: Record<string, number> = {};
+        const currencyTodayNoInflTotals: Record<string, number> = {};
         convertedExps.forEach((e) => {
-            const catKey = canonicalCatId(e.categoryId);
-            catTotals[catKey] = (catTotals[catKey] || 0) + e.displayValue;
-            spenderTotals[e.who] = (spenderTotals[e.who] || 0) + e.displayValue;
             const d = e.date || t('insights.unknownDate');
             dateTotals[d] = (dateTotals[d] || 0) + e.displayValue;
             const cur = (e.currency || 'EUR').toUpperCase();
             currencyHomeTotals[cur] = (currencyHomeTotals[cur] || 0) + e.displayValue;
             currencyOwnTotals[cur] = (currencyOwnTotals[cur] || 0) + e.value;
+            currencySpentTotals[cur] = (currencySpentTotals[cur] || 0) + e.spentValue;
+            currencyTodayTotals[cur] = (currencyTodayTotals[cur] || 0) + e.todayValue;
+            currencyTodayNoInflTotals[cur] = (currencyTodayNoInflTotals[cur] || 0) + e.todayValueNoInflation;
             if (!currencyDateTotals[cur]) currencyDateTotals[cur] = {};
             currencyDateTotals[cur][d] = (currencyDateTotals[cur][d] || 0) + e.displayValue;
-            // Expenses without a `country` (legacy data, batch upload
-            // without country tagging) bucket under a sentinel key so
-            // they're visible in the breakdown but distinguishable
-            // from real geographies. Falsy-checked rather than empty-
-            // string to also catch null/undefined from legacy rows.
-            const countryKey = e.country || '';
-            if (countryKey) {
-                countryTotals[countryKey] = (countryTotals[countryKey] || 0) + e.displayValue;
-            }
         });
-
-        const sortedSpenders = Object.entries(spenderTotals)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10);
-
-        // Category counts use raw tripExps (unconverted) — same as legacy.
-        const catCounts: Record<string, number> = {};
-        tripExps.forEach((e: Expense) => {
-            const catKey = canonicalCatId(e.categoryId);
-            catCounts[catKey] = (catCounts[catKey] || 0) + 1;
-        });
-        const sortedCats = Object.entries(catCounts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10);
-
-        // §4.3: sorted-by-spend so the biggest country leads. Slice
-        // limit matches the spender/category lists for visual rhythm —
-        // a trip with 11+ distinct countries is extraordinary, but the
-        // cap means even an outlier doesn't blow out the card height.
-        const sortedCountries = Object.entries(countryTotals)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10);
 
         return {
             totalDisplay,
             totalSpent,
             totalToday,
+            totalTodayNoInfl,
             totalCount,
             highestExpense,
-            sortedSpenders,
-            sortedCats,
-            catTotals,
+            convertedExps,
             dateTotals,
-            sortedCountries,
             currencyHomeTotals,
             currencyOwnTotals,
             currencyDateTotals,
+            currencySpentTotals,
+            currencyTodayTotals,
+            currencyTodayNoInflTotals,
         };
     }, [tripExps, mode, targetCurr, rateCache, cpiCache, fxOverridesByTrip, manualRates, activeTripId, categories]);
 
     // (no-expenses empty state moved below the hooks — see main return)
-
-    const topEntry = sortedSpenders[0];
-    const topSpender = topEntry ? topEntry[0] : 'N/A';
-    const topSpenderAmount = topEntry ? topEntry[1] : 0;
 
     // Resolve a category by id, falling back to a case-insensitive NAME
     // match — so name-string categoryIds from imports / legacy / external
@@ -420,42 +430,78 @@ export function Insights() {
         return { id: raw, name: raw.charAt(0).toUpperCase() + raw.slice(1), icon: '🏷️', color: _palette[h % _palette.length]! };
     };
 
-    // Pie data — matched to category lookups for color/label display.
-    const pieLabels: string[] = [];
-    const pieData: number[] = [];
-    const pieColors: string[] = [];
-    // Cap the donut at the top categories + an aggregated "Other" slice —
-    // a 50-slice ring with an overflowing legend is unreadable (audit).
-    const _catSorted = Object.keys(catTotals)
-        .map((catId) => ({ catId, total: catTotals[catId] ?? 0 }))
-        .sort((a, b) => b.total - a.total);
-    const _CAT_TOP_N = 7;
-    _catSorted.slice(0, _CAT_TOP_N).forEach(({ catId, total }) => {
-        const cat = findCategory(catId);  // T3-1: always resolves (synthetic fallback)
-        pieLabels.push(`${cat.icon} ${cat.name}`);
-        pieColors.push(cat.color);
-        pieData.push(total);
-    });
-    const _catRest = _catSorted.slice(_CAT_TOP_N);
-    if (_catRest.length > 0) {
-        pieLabels.push(t('insights.otherCategories'));
-        pieColors.push('#8e8e93');
-        pieData.push(_catRest.reduce((s, c) => s + c.total, 0));
-    }
+    // ── Spenders dashboard: per-person spend + count, ordered by the chosen sort.
+    const spenderRows = useMemo(() => {
+        const m: Record<string, { value: number; count: number }> = {};
+        for (const e of convertedExps) {
+            const who = e.who || '—';
+            if (!m[who]) m[who] = { value: 0, count: 0 };
+            m[who]!.value += e.displayValue;
+            m[who]!.count += 1;
+        }
+        const rows = Object.entries(m).map(([name, v]) => ({ name, value: v.value, count: v.count }));
+        rows.sort((a, b) => {
+            if (spenderSort === 'amount_asc') return a.value - b.value;
+            if (spenderSort === 'count_desc') return b.count - a.count || b.value - a.value;
+            if (spenderSort === 'name_asc') return a.name.localeCompare(b.name);
+            return b.value - a.value;
+        });
+        return rows;
+    }, [convertedExps, spenderSort]);
 
-    // Daily-average denominator: count only real trip days (a valid date
-    // <= today). Empty-date + far-future buckets shouldn't dilute it (audit).
-    const _todayIso = new Date().toISOString().slice(0, 10);
-    // Integration audit D3: the daily average must divide spend and days over
-    // the SAME window. Pre-fix the numerator was ALL spend (incl. future-dated
-    // expenses) while the denominator was past-valid-days only, overstating
-    // €/day (e.g. €506 shown vs €411 actual). Sum dateTotals across exactly
-    // the days the denominator counts.
-    const _validDayKeys = Object.keys(dateTotals).filter(
-        (d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= _todayIso,
+    // ── Avg-per-day dashboard: average over the days that actually had spend,
+    // past + dated only (same window as before), now narrowable by payer/category.
+    const avgDailyData = useMemo(() => {
+        const todayIso = new Date().toISOString().slice(0, 10);
+        const byDay: Record<string, number> = {};
+        let total = 0;
+        for (const e of convertedExps) {
+            if (avgWho !== 'all' && (e.who || '—') !== avgWho) continue;
+            if (avgCat !== 'all' && findCategory(e.categoryId).id !== avgCat) continue;
+            if (!e.date || !/^\d{4}-\d{2}-\d{2}$/.test(e.date) || e.date > todayIso) continue;
+            byDay[e.date] = (byDay[e.date] || 0) + e.displayValue;
+            total += e.displayValue;
+        }
+        const days = Object.keys(byDay).length;
+        return { avg: total / (days || 1), days };
+    }, [convertedExps, avgWho, avgCat]);
+
+    // ── "Expenses per…" dashboard: group by the chosen dimension; each group
+    // carries value AND count so the metric pill can switch between them.
+    const perRows = useMemo(() => {
+        const m: Record<string, { label: string; value: number; count: number; color: string }> = {};
+        for (const e of convertedExps) {
+            let key: string;
+            let label: string;
+            let color = '#0071e3';
+            if (perDim === 'country') { key = e.country || ''; label = key; if (!key) continue; }
+            else if (perDim === 'currency') { key = (e.currency || 'EUR').toUpperCase(); label = key; }
+            else { const c = findCategory(e.categoryId); key = c.id || c.name; label = `${c.icon} ${c.name}`; color = c.color; }
+            if (!m[key]) m[key] = { label, value: 0, count: 0, color };
+            m[key]!.value += e.displayValue;
+            m[key]!.count += 1;
+        }
+        const all = Object.values(m);
+        const totalVal = all.reduce((sm, r) => sm + r.value, 0);
+        const totalCnt = all.reduce((sm, r) => sm + r.count, 0);
+        all.sort((a, b) => (perMetric === 'count' ? b.count - a.count || b.value - a.value : b.value - a.value));
+        return { rows: all.slice(0, 14), totalVal, totalCnt };
+    }, [convertedExps, perDim, perMetric]);
+
+    // Filter-dropdown option lists (payers + categories actually present).
+    const payerOptions = useMemo(
+        () => Array.from(new Set(convertedExps.map((e) => e.who || '—'))).sort(),
+        [convertedExps],
     );
-    const validDayCount = _validDayKeys.length || 1;
-    const pastValidSpend = _validDayKeys.reduce((s, d) => s + (dateTotals[d] || 0), 0);
+    const catOptions = useMemo(() => {
+        const m = new Map<string, string>();
+        for (const e of convertedExps) {
+            const c = findCategory(e.categoryId);
+            const id = c.id || c.name;
+            if (!m.has(id)) m.set(id, `${c.icon} ${c.name}`);
+        }
+        return Array.from(m.entries()).map(([id, label]) => ({ id, label }));
+    }, [convertedExps]);
 
     // Net balances (who owes whom) — reuses the settlement engine (splits +
     // settlements), shown in the home currency. Hidden when everyone's even.
@@ -525,13 +571,23 @@ export function Insights() {
     const currencyColor = (i: number) => CURRENCY_PALETTE[i % CURRENCY_PALETTE.length] ?? CURRENCY_OTHER_COLOR;
     // Full per-currency list (sorted by home-equiv spend desc) — powers the
     // breakdown LIST, which stays readable at any currency count.
-    const currencyRows = spendCurrencies.map((c, i) => ({
-        code: c,
-        color: currencyColor(i),
-        ownAmount: currencyOwnTotals[c] ?? 0,
-        homeAmount: currencyHomeTotals[c] ?? 0,
-        pct: currencyGrandTotal > 0 ? ((currencyHomeTotals[c] ?? 0) / currencyGrandTotal) * 100 : 0,
-    }));
+    const currencyRows = spendCurrencies.map((c, i) => {
+        const spentC = currencySpentTotals[c] ?? 0;
+        const todayNoInflC = currencyTodayNoInflTotals[c] ?? 0;
+        const todayC = currencyTodayTotals[c] ?? 0;
+        return {
+            code: c,
+            color: currencyColor(i),
+            ownAmount: currencyOwnTotals[c] ?? 0,
+            homeAmount: currencyHomeTotals[c] ?? 0,
+            pct: currencyGrandTotal > 0 ? ((currencyHomeTotals[c] ?? 0) / currencyGrandTotal) * 100 : 0,
+            // This currency's OWN "worth today" split: FX move (today's rate vs
+            // the rate at the time), then inflation on top. Kept as floats —
+            // sgnPct rounds to 1 decimal so a sub-1% move still shows.
+            fxPct: spentC > 0 ? ((todayNoInflC - spentC) / spentC) * 100 : 0,
+            inflPct: todayNoInflC > 0 ? ((todayC - todayNoInflC) / todayNoInflC) * 100 : 0,
+        };
+    });
     // PV-UX1/UX2: the per-currency DONUT + stacked chart cap at the top N
     // currencies + a single aggregated "Other" — a 16-slice donut / 16-series
     // stack is unreadable (and the palette would wrap). `members` lists the codes
@@ -572,36 +628,38 @@ export function Insights() {
     const pvDelta = totalSpent > 0 ? (totalToday - totalSpent) / totalSpent : 0;
     const pvPct = Math.round(Math.abs(pvDelta) * 100);
     const showPvCompare = !heroCalculating && totalSpent > 0 && pvPct >= 1;
+    // Split that headline into its two levers so the user can see it isn't a
+    // made-up number: an FX step (today's rates vs the rates back then) and an
+    // inflation step (CPI since). The euro amounts form an exact bridge —
+    // totalSpent → totalTodayNoInfl (FX) → totalToday (inflation) — and the two
+    // signed % deltas multiply back to the headline ratio.
+    // 1-decimal so a small-but-real move (a currency that drifted, say, −0.5%
+    // since the trip) isn't rounded away to a misleading "0%". Normalises −0.0
+    // back to 0.0 so a tiny negative doesn't render as "-0.0%".
+    const sgnPct = (p: number) => {
+        const r = Math.round(p * 10) / 10 || 0;
+        return `${r >= 0 ? '+' : ''}${r.toFixed(1)}%`;
+    };
+    // Direction + colour for a worth-today move: pricier reads amber, cheaper
+    // green, flat grey — same cue as the hero's "more/less expensive today".
+    const mv = (pct: number) => {
+        const r = Math.round(pct * 10) / 10 || 0;
+        const text = `${Math.abs(r).toFixed(1)}%`;
+        if (r > 0) return { color: '#a85d00', arrow: '↑ ', text };
+        if (r < 0) return { color: '#1a6b3c', arrow: '↓ ', text };
+        return { color: 'var(--text-secondary)', arrow: '', text };
+    };
+    const fxPctNum = (totalSpent > 0 ? (totalTodayNoInfl - totalSpent) / totalSpent : 0) * 100;
+    const inflPctNum = (totalTodayNoInfl > 0 ? (totalToday - totalTodayNoInfl) / totalTodayNoInfl : 0) * 100;
+    const fxPctSigned = sgnPct(fxPctNum);
+    const inflPctSigned = sgnPct(inflPctNum);
 
     // ── Chart.js side-effects ─────────────────────────────────────────────
-    const pieCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const timeCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const currencyPieRef = useRef<HTMLCanvasElement | null>(null);
     const currencyTimeRef = useRef<HTMLCanvasElement | null>(null);
-
-    useEffect(() => {
-        if (!pieCanvasRef.current || pieData.length === 0) return;
-        const chart = new Chart(pieCanvasRef.current, {
-            type: 'doughnut',
-            data: {
-                labels: pieLabels,
-                datasets: [{ data: pieData, backgroundColor: pieColors, borderWidth: 0 }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'right' },
-                    tooltip: {
-                        callbacks: {
-                            label: (ctx: PieTooltipCtx) => `${ctx.label}: ${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}`,
-                        },
-                    },
-                },
-            },
-        });
-        return () => chart.destroy();
-    }, [pieData.join('|'), pieLabels.join('|'), pieColors.join('|'), targetCurr, targetSym]);
+    const spenderPieRef = useRef<HTMLCanvasElement | null>(null);
+    const perPieRef = useRef<HTMLCanvasElement | null>(null);
 
     useEffect(() => {
         if (!timeCanvasRef.current || tripExps.length === 0) return;
@@ -626,24 +684,54 @@ export function Insights() {
                         label: targetCurr + ' ' + t(mode === 'today' ? 'insights.rateModeToday' : 'insights.rateModeAtTrip'),
                         data: points,
                         borderColor: '#0071e3',
-                        backgroundColor: 'rgba(0, 113, 227, 0.1)',
+                        // Soft vertical gradient under the line — strongest at the
+                        // line, fading to nothing at the axis (built off the live
+                        // chartArea so it scales with the canvas).
+                        backgroundColor: (context: { chart: { ctx: CanvasRenderingContext2D; chartArea?: { top: number; bottom: number } } }) => {
+                            const { ctx, chartArea } = context.chart;
+                            if (!chartArea) return 'rgba(0,113,227,0.12)';
+                            const g = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                            g.addColorStop(0, 'rgba(0,113,227,0.28)');
+                            g.addColorStop(0.85, 'rgba(0,113,227,0.02)');
+                            g.addColorStop(1, 'rgba(0,113,227,0)');
+                            return g;
+                        },
                         fill: true,
-                        // Straight segments between real data points — a
-                        // spline would imply spend on dates that had none,
-                        // misleading once points are far apart in time.
-                        tension: 0,
-                        pointRadius: 4,
-                        pointBackgroundColor: '#0071e3',
-                        borderWidth: 3,
+                        // Gentle MONOTONE smoothing — prettier than hard segments
+                        // but it never overshoots, so no false peak/dip is invented
+                        // between two real data points (the reason we avoided a
+                        // plain spline before).
+                        cubicInterpolationMode: 'monotone',
+                        borderWidth: 2.5,
+                        borderCapStyle: 'round',
+                        borderJoinStyle: 'round',
+                        // Clean line by default; a crisp white-cored dot appears on
+                        // hover at the focused point.
+                        pointRadius: 0,
+                        pointHitRadius: 16,
+                        pointHoverRadius: 6,
+                        pointHoverBackgroundColor: '#ffffff',
+                        pointHoverBorderColor: '#0071e3',
+                        pointHoverBorderWidth: 3,
                     },
                 ],
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                // Hover anywhere along the x to surface the nearest day.
+                interaction: { mode: 'index', intersect: false },
                 plugins: {
                     legend: { display: false },
                     tooltip: {
+                        displayColors: false,
+                        backgroundColor: 'rgba(17,24,39,0.92)',
+                        padding: 10,
+                        cornerRadius: 10,
+                        titleColor: '#ffffff',
+                        bodyColor: 'rgba(255,255,255,0.82)',
+                        titleFont: { size: 13, weight: '700' },
+                        bodyFont: { size: 13 },
                         callbacks: {
                             title: (items: XYTooltipCtx[]) => {
                                 const v = items && items[0] ? Number(items[0].parsed.x) : NaN;
@@ -656,15 +744,17 @@ export function Insights() {
                 },
                 scales: {
                     x: {
-                        // Numeric time axis (no Chart.js date-adapter on the
-                        // CDN build): x values are epoch-ms; ticks are
-                        // formatted back to date labels.
+                        // Numeric time axis (x = epoch-ms); ticks reformat to dates.
                         type: 'linear',
                         grid: { display: false },
+                        border: { display: false },
                         ticks: {
                             maxRotation: 0,
                             autoSkip: true,
                             maxTicksLimit: 7,
+                            color: 'rgba(60,60,67,0.5)',
+                            font: { size: 11 },
+                            padding: 8,
                             callback: (value: number | string) => {
                                 const v = Number(value);
                                 if (!Number.isFinite(v)) return '';
@@ -674,9 +764,13 @@ export function Insights() {
                     },
                     y: {
                         beginAtZero: true,
-                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        grid: { color: 'rgba(0,0,0,0.05)', drawTicks: false },
+                        border: { display: false },
                         ticks: {
                             maxTicksLimit: 5,
+                            color: 'rgba(60,60,67,0.5)',
+                            font: { size: 11 },
+                            padding: 10,
                             callback: (value: number | string) => targetSym + formatNumber(Number(value), 0),
                         },
                     },
@@ -685,6 +779,29 @@ export function Insights() {
         });
         return () => chart.destroy();
     }, [dateTotals, targetCurr, targetSym, mode, tripExps.length]);
+
+    // Spenders share donut — per-person spend. The list beside it is the legend.
+    useEffect(() => {
+        if (!spenderPieRef.current || spenderRows.length < 2) return;
+        const chart = new Chart(spenderPieRef.current, {
+            type: 'doughnut',
+            data: { labels: spenderRows.map((r) => r.name), datasets: [{ data: spenderRows.map((r) => r.value), backgroundColor: spenderRows.map((_, i) => DASH_PALETTE[i % DASH_PALETTE.length] ?? '#0071e3'), borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { display: false }, tooltip: { displayColors: false, backgroundColor: 'rgba(17,24,39,0.92)', padding: 10, cornerRadius: 10, titleColor: '#ffffff', bodyColor: 'rgba(255,255,255,0.82)', titleFont: { size: 13, weight: '700' }, bodyFont: { size: 13 }, callbacks: { title: (items: PieTooltipCtx[]) => items[0]?.label ?? '', label: (ctx: PieTooltipCtx) => `${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}` } } } },
+        });
+        return () => chart.destroy();
+    }, [targetCurr, targetSym, spenderRows.map((r) => `${r.name}:${r.value.toFixed(2)}`).join('|')]);
+
+    // "Expenses per…" share donut — slices follow the active metric (spent / count).
+    useEffect(() => {
+        if (!perPieRef.current || perRows.rows.length < 2) return;
+        const isCount = perMetric === 'count';
+        const chart = new Chart(perPieRef.current, {
+            type: 'doughnut',
+            data: { labels: perRows.rows.map((r) => r.label), datasets: [{ data: perRows.rows.map((r) => (isCount ? r.count : r.value)), backgroundColor: perRows.rows.map((_, i) => DASH_PALETTE[i % DASH_PALETTE.length] ?? '#0071e3'), borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { display: false }, tooltip: { displayColors: false, backgroundColor: 'rgba(17,24,39,0.92)', padding: 10, cornerRadius: 10, titleColor: '#ffffff', bodyColor: 'rgba(255,255,255,0.82)', titleFont: { size: 13, weight: '700' }, bodyFont: { size: 13 }, callbacks: { title: (items: PieTooltipCtx[]) => items[0]?.label ?? '', label: (ctx: PieTooltipCtx) => (isCount ? `${ctx.parsed} ${t('insights.transactionsAbbrev')}` : `${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}`) } } } },
+        });
+        return () => chart.destroy();
+    }, [targetCurr, targetSym, perMetric, perRows.rows.map((r) => `${r.label}:${(perMetric === 'count' ? r.count : r.value).toFixed(2)}`).join('|')]);
 
     // Currency-share donut — share of spend (home-equivalent) by the
     // ORIGINAL currency it was logged in. Only built when the breakdown
@@ -709,8 +826,17 @@ export function Insights() {
                 plugins: {
                     legend: { position: 'right' },
                     tooltip: {
+                        displayColors: false,
+                        backgroundColor: 'rgba(17,24,39,0.92)',
+                        padding: 10,
+                        cornerRadius: 10,
+                        titleColor: '#ffffff',
+                        bodyColor: 'rgba(255,255,255,0.82)',
+                        titleFont: { size: 13, weight: '700' },
+                        bodyFont: { size: 13 },
                         callbacks: {
-                            label: (ctx: PieTooltipCtx) => `${ctx.label}: ${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}`,
+                            title: (items: PieTooltipCtx[]) => items[0]?.label ?? '',
+                            label: (ctx: PieTooltipCtx) => `${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}`,
                         },
                     },
                 },
@@ -1068,7 +1194,15 @@ export function Insights() {
                         }}
                     />
                     <p className="hero-stat-card__sub" style={{ opacity: 0.7, marginTop: '4px' }}>
-                        {t('insights.heroHomeCurrencyHint', { currency: targetCurr })}
+                        {t('insights.heroHomeCurrencyHint', { currency: targetCurr })}{' '}
+                        <button
+                            type="button"
+                            onClick={() => navigate('profile')}
+                            className="link-underline text-accent-blue"
+                            style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontSize: 'inherit', fontWeight: 700 }}
+                        >
+                            {t('insights.changeHomeCurrency')}
+                        </button>
                     </p>
                     {/* "More expensive / cheaper to do today" — the headline answer
                         to "did the trip get pricier or cheaper since then". */}
@@ -1079,6 +1213,21 @@ export function Insights() {
                                 then: targetSym + formatNumberForCurrency(totalSpent, targetCurr),
                             })}
                         </p>
+                    ) : null}
+                    {/* PV transparency: the two levers (FX + inflation) behind the
+                        headline, so the figure is auditable rather than magic. The
+                        euro amounts bridge spent → today's-FX → +inflation. */}
+                    {showPvCompare ? (
+                        <div className="text-secondary text-[0.78rem] leading-snug mt-1" style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                            {hasForeignSpend ? (
+                                <>
+                                    <span>{t('insights.pvBreakdownFx', { pct: fxPctSigned, amount: targetSym + formatNumberForCurrency(totalTodayNoInfl, targetCurr) })}</span>
+                                    <span>{t('insights.pvBreakdownInflation', { pct: inflPctSigned, amount: targetSym + formatNumberForCurrency(totalToday, targetCurr) })}</span>
+                                </>
+                            ) : (
+                                <span>{t('insights.pvBreakdownInflationOnly', { pct: inflPctSigned })}</span>
+                            )}
+                        </div>
                     ) : null}
                     {hasForeignSpend ? (
                         <button
@@ -1110,23 +1259,42 @@ export function Insights() {
                                 </div>
                             ) : null}
                             <div className="flex flex-col gap-2">
-                                {currencyRows.map((r) => (
-                                    <div className="flex items-center gap-2" key={r.code}>
-                                        <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: r.color, flexShrink: 0 }} />
-                                        <span className="font-extrabold" style={{ minWidth: '46px' }}>{r.code}</span>
-                                        {/* Original-currency amount (what you paid) — only for
-                                            FOREIGN currencies; for the home-currency row it would
-                                            be the same currency as the home figure on the right,
-                                            which read as a contradiction (two numbers, one currency). */}
-                                        {r.code !== homeCurr ? (
-                                            <span className="text-secondary text-[0.85rem]">{(CURRENCY_SYMBOLS[r.code] || '') + formatNumberForCurrency(r.ownAmount, r.code)}</span>
-                                        ) : null}
-                                        {/* Home-currency value. Foreign rows get a "≈" so it
-                                            reads as a conversion, not a second price. */}
-                                        <span className="ml-auto font-extrabold" style={{ color: 'var(--text-brand-navy)' }}>{r.code !== homeCurr ? '≈ ' : ''}{targetSym}{formatNumberForCurrency(r.homeAmount, targetCurr)}</span>
-                                        <span className="text-secondary text-[0.78rem]" style={{ minWidth: '40px', textAlign: 'right' }}>{formatNumber(r.pct, 0)}%</span>
-                                    </div>
-                                ))}
+                                {currencyRows.map((r, idx) => {
+                                    const isForeign = r.code !== homeCurr;
+                                    const fx = mv(r.fxPct);
+                                    const infl = mv(r.inflPct);
+                                    return (
+                                        <div
+                                            key={r.code}
+                                            className="flex flex-col gap-1 py-3"
+                                            style={idx < currencyRows.length - 1 ? { borderBottom: '1px solid var(--border-subtle)' } : undefined}
+                                        >
+                                            {/* Currency + its home value — the headline of the row. */}
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span className="flex items-center gap-2.5">
+                                                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: r.color, flexShrink: 0 }} />
+                                                    <span className="font-extrabold" style={{ fontSize: '0.95rem', letterSpacing: '0.01em' }}>{r.code}</span>
+                                                </span>
+                                                <span className="font-extrabold whitespace-nowrap" style={{ color: 'var(--text-brand-navy)', fontSize: '1.02rem' }}>
+                                                    {isForeign ? '≈ ' : ''}{targetSym}{formatNumberForCurrency(r.homeAmount, targetCurr)}
+                                                </span>
+                                            </div>
+                                            {/* Muted detail: what you paid + trip share | this currency's OWN
+                                                worth-today move (FX then inflation), colour-coded. */}
+                                            <div className="flex items-center justify-between gap-3" style={{ paddingLeft: '20px' }}>
+                                                <span className="text-secondary whitespace-nowrap" style={{ fontSize: '0.76rem' }}>
+                                                    {isForeign ? `${CURRENCY_SYMBOLS[r.code] || ''}${formatNumberForCurrency(r.ownAmount, r.code)} · ` : ''}{formatNumber(r.pct, 0)}%
+                                                </span>
+                                                <span className="flex items-center gap-3 whitespace-nowrap" style={{ fontSize: '0.76rem', fontWeight: 600 }}>
+                                                    {isForeign ? (
+                                                        <span style={{ color: fx.color }}>{fx.arrow}{t('insights.pvFxLabel')} {fx.text}</span>
+                                                    ) : null}
+                                                    <span style={{ color: infl.color }}>{infl.arrow}{t('insights.pvInflLabel')} {infl.text}</span>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>
@@ -1204,16 +1372,41 @@ export function Insights() {
                 className="grid-2 grid-cols-2 mb-8"
             >
                 <div className="card glass">
-                    <h2 className="card-title metric-label">{t('insights.avgDaily')}</h2>
+                    <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                        <h2 className="card-title metric-label m-0">{t('insights.avgDaily')}</h2>
+                        <div className="flex gap-1.5 flex-wrap">
+                            <select
+                                className="glass-input"
+                                style={{ width: 'auto', padding: '4px 8px', fontSize: '0.76rem' }}
+                                value={avgWho}
+                                onChange={(e) => setAvgWho(e.target.value)}
+                                aria-label={t('insights.filterPayer')}
+                            >
+                                <option value="all">{t('insights.allPayers')}</option>
+                                {payerOptions.map((pp) => <option key={pp} value={pp}>{pp}</option>)}
+                            </select>
+                            <select
+                                className="glass-input"
+                                style={{ width: 'auto', padding: '4px 8px', fontSize: '0.76rem' }}
+                                value={avgCat}
+                                onChange={(e) => setAvgCat(e.target.value)}
+                                aria-label={t('insights.filterCategory')}
+                            >
+                                <option value="all">{t('insights.allCategories')}</option>
+                                {catOptions.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                            </select>
+                        </div>
+                    </div>
                     <h1 className="metric-value">
                         {targetSym}
-                        {formatNumberForCurrency(pastValidSpend / validDayCount, targetCurr)}
+                        {formatNumberForCurrency(avgDailyData.avg, targetCurr)}
                         <small
                             className="text-[length:var(--font-lg)] font-normal text-secondary ml-2"
                         >
                             {t('insights.avgDailySuffix')}
                         </small>
                     </h1>
+                    <p className="metric-label mt-1">{t('insights.avgDailyOverDays', { days: String(avgDailyData.days) })}</p>
                 </div>
                 {highestExpense && (
                     <div className="card glass">
@@ -1231,138 +1424,125 @@ export function Insights() {
                 )}
             </div>
 
-            {/* Rankings Grid */}
-            <div className="grid-2 mb-8">
-                <div className="card glass in-card-pad-28">
-                    <h2 className="card-title">{t('insights.topSpenders')}</h2>
-                    <div className="mb-5">
-                        <h1 className="m-0 text-[2rem] text-primary">
-                            {topSpender}
-                        </h1>
-                        <span
-                            className="text-accent-blue font-bold text-[1.1rem]"
-                        >
-                            {/* DSGN-053: format the zero case as e.g. €0.00 too — not a bare '0' — so it matches every other money figure on the page. */}
-                            {targetSym + formatNumberForCurrency(topSpenderAmount, targetCurr)}
-                        </span>
-                    </div>
-                    <div
-                        className="mt-5 flex flex-col gap-1"
-                    >
-                        {sortedSpenders.slice(1).map(([who, amount], index) => (
-                            <div className="ranking-row" key={who}>
-                                <span className="ranking-row__label">
-                                    {index + 2}. {who}
-                                </span>
-                                <span className="ranking-row__value">
-                                    {targetSym}
-                                    {formatNumberForCurrency(amount, targetCurr)}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
+            {/* Spenders dashboard — per-person spend, sortable, with a share donut. */}
+            <div className="card glass in-card-pad-28 mb-8">
+                <div className="flex items-center justify-between gap-2 flex-wrap mb-4">
+                    <h2 className="card-title m-0">{t('insights.spendersTitle')}</h2>
+                    <SegmentedControl
+                        ariaLabel={t('insights.sortBy')}
+                        value={spenderSort}
+                        onChange={setSpenderSort}
+                        options={[
+                            { value: 'amount_desc', label: t('insights.sortAmountDesc') },
+                            { value: 'amount_asc', label: t('insights.sortAmountAsc') },
+                            { value: 'count_desc', label: t('insights.sortCountDesc') },
+                            { value: 'name_asc', label: t('insights.sortNameAsc') },
+                        ]}
+                    />
                 </div>
-
-                <div className="card glass in-card-pad-28">
-                    <h2 className="card-title">{t('insights.categoryBreakdown')}</h2>
-                    <div
-                        className="relative h-[200px] w-full mb-5"
-                    >
-                        <canvas id="categoryChart" ref={pieCanvasRef}></canvas>
-                    </div>
-                    <div
-                        className="mt-5 flex flex-col gap-1"
-                    >
-                        {sortedCats.slice(1).map(([catId, count], index) => {
-                            const cat = findCategory(catId);
-                            return (
-                                <div className="ranking-row" key={catId}>
-                                    <span className="ranking-row__label">
-                                        {index + 2}. {cat.icon} {cat.name}
-                                    </span>
-                                    <span className="ranking-row__value">{count} {t('insights.transactionsAbbrev')}</span>
-                                </div>
-                            );
-                        })}
+                <div className={spenderRows.length >= 2 ? 'grid-2 grid-cols-2 gap-6 items-center' : ''}>
+                    {spenderRows.length >= 2 ? (
+                        <div className="relative h-[220px] w-full"><canvas ref={spenderPieRef}></canvas></div>
+                    ) : null}
+                    <div className="flex flex-col gap-1">
+                        {(() => {
+                            const maxV = spenderRows.reduce((m, x) => Math.max(m, x.value), 0);
+                            return spenderRows.map((r, index) => {
+                                const barPct = maxV > 0 ? (r.value / maxV) * 100 : 0;
+                                const sharePct = totalDisplay > 0 ? (r.value / totalDisplay) * 100 : 0;
+                                return (
+                                    <div
+                                        key={r.name}
+                                        className="flex flex-col gap-1 py-1.5"
+                                        style={index < spenderRows.length - 1 ? { borderBottom: '1px solid var(--border-subtle)' } : undefined}
+                                    >
+                                        <div className="flex items-baseline justify-between gap-3">
+                                            <span className="font-bold text-primary wrap-anywhere min-w-0 flex items-center gap-2">
+                                                <span className="inline-block rounded-full" style={{ width: 10, height: 10, flexShrink: 0, background: DASH_PALETTE[index % DASH_PALETTE.length] ?? '#0071e3' }} />
+                                                {r.name}
+                                            </span>
+                                            <span className="font-extrabold text-accent-blue tabular-nums whitespace-nowrap">
+                                                {targetSym}{formatNumberForCurrency(r.value, targetCurr)}
+                                                <span className="ml-2 text-secondary font-semibold text-[0.78rem]">{r.count} {t('insights.transactionsAbbrev')} · {formatNumber(sharePct, 0)}%</span>
+                                            </span>
+                                        </div>
+                                        <div className="relative h-1.5 rounded-full bg-[rgba(0,113,227,0.08)] overflow-hidden" aria-hidden="true">
+                                            <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: `${Math.min(100, Math.max(0, barPct))}%`, background: 'linear-gradient(90deg, #0071e3, #5856d6)', borderRadius: 999, transition: 'width 0.3s ease' }} />
+                                        </div>
+                                    </div>
+                                );
+                            });
+                        })()}
                     </div>
                 </div>
             </div>
 
-            {/* §4.3 — Per-country breakdown. Conditional render: a
-                single-country trip would just show "{country}: 100%",
-                redundant with the existing Category card. ≥2 distinct
-                countries unlocks this card. Each row: country name +
-                amount + a percentage bar so the visual rhythm matches
-                the legend-style ranking-row pattern used elsewhere on
-                the page. */}
-            {sortedCountries.length >= 2 && (
-                <div className="card glass mb-8 p-7">
-                    <div
-                        className="flex justify-between items-center mb-4"
-                    >
-                        <h2 className="card-title m-0">
-                            {t('insights.byCountryTitle')}
-                        </h2>
-                        <div className="text-secondary text-[0.85rem]">
-                            {t('insights.byCountrySubtitle')}
+            {/* "Expenses per…" dashboard — dimension + metric, with a share donut + %. */}
+            <div className="card glass mb-8 p-7">
+                <div className="flex justify-between items-center gap-3 flex-wrap mb-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="card-title m-0">{t('insights.expensesPer')}</h2>
+                        <SegmentedControl
+                            ariaLabel={t('insights.expensesPer')}
+                            value={perDim}
+                            onChange={setPerDim}
+                            options={[
+                                { value: 'category', label: t('insights.dimCategory') },
+                                { value: 'country', label: t('insights.dimCountry') },
+                                { value: 'currency', label: t('insights.dimCurrency') },
+                            ]}
+                        />
+                    </div>
+                    <SegmentedControl
+                        ariaLabel={t('insights.metricSpent')}
+                        value={perMetric}
+                        onChange={setPerMetric}
+                        options={[
+                            { value: 'value', label: t('insights.metricSpent') },
+                            { value: 'count', label: t('insights.metricCount') },
+                        ]}
+                    />
+                </div>
+                {perRows.rows.length === 0 ? (
+                    <p className="text-secondary text-[0.85rem]">{t('insights.perEmpty')}</p>
+                ) : (
+                    <div className={perRows.rows.length >= 2 ? 'grid-2 grid-cols-2 gap-6 items-center' : ''}>
+                        {perRows.rows.length >= 2 ? (
+                            <div className="relative h-[240px] w-full"><canvas ref={perPieRef}></canvas></div>
+                        ) : null}
+                        <div className="flex flex-col gap-[10px]">
+                            {(() => {
+                                const denom = perMetric === 'count' ? perRows.totalCnt : perRows.totalVal;
+                                const maxV = perRows.rows.reduce((m, r) => Math.max(m, perMetric === 'count' ? r.count : r.value), 0);
+                                return perRows.rows.map((r, index) => {
+                                    const metricVal = perMetric === 'count' ? r.count : r.value;
+                                    const barPct = maxV > 0 ? (metricVal / maxV) * 100 : 0;
+                                    const sharePct = denom > 0 ? (metricVal / denom) * 100 : 0;
+                                    return (
+                                        <div key={r.label} className="flex flex-col gap-1">
+                                            <div className="flex justify-between items-baseline gap-3">
+                                                <span className="font-bold text-[0.95rem] text-primary wrap-anywhere min-w-0 flex items-center gap-2">
+                                                    <span className="inline-block rounded-full" style={{ width: 10, height: 10, flexShrink: 0, background: DASH_PALETTE[index % DASH_PALETTE.length] ?? '#0071e3' }} />
+                                                    {r.label}
+                                                </span>
+                                                <span className="font-extrabold text-accent-blue tabular-nums whitespace-nowrap">
+                                                    {perMetric === 'count'
+                                                        ? `${r.count} ${t('insights.transactionsAbbrev')}`
+                                                        : `${targetSym}${formatNumberForCurrency(r.value, targetCurr)}`}
+                                                    <span className="ml-2 text-secondary font-semibold text-[0.8rem]">{formatNumber(sharePct, 0)}%</span>
+                                                </span>
+                                            </div>
+                                            <div className="relative h-1.5 rounded-full bg-[rgba(0,113,227,0.08)] overflow-hidden" aria-hidden="true">
+                                                <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: `${Math.min(100, Math.max(0, barPct))}%`, background: 'linear-gradient(90deg, #0071e3, #5856d6)', borderRadius: 999, transition: 'width 0.3s ease' }} />
+                                            </div>
+                                        </div>
+                                    );
+                                });
+                            })()}
                         </div>
                     </div>
-                    <div className="flex flex-col gap-[10px]">
-                        {sortedCountries.map(([country, amount]) => {
-                            const pct = totalDisplay > 0 ? (amount / totalDisplay) * 100 : 0;
-                            return (
-                                <div
-                                    key={country}
-                                    className="flex flex-col gap-1"
-                                >
-                                    <div
-                                        className="flex justify-between items-baseline gap-3"
-                                    >
-                                        <span
-                                            className="font-bold text-[0.95rem] text-primary wrap-anywhere min-w-0"
-                                        >
-                                            {country}
-                                        </span>
-                                        <span
-                                            className="font-extrabold text-accent-blue tabular-nums whitespace-nowrap"
-                                        >
-                                            {targetSym}
-                                            {formatNumberForCurrency(amount, targetCurr)}
-                                            <span
-                                                className="ml-2 text-secondary font-semibold text-[0.8rem]"
-                                            >
-                                                {formatNumber(pct, 0)}%
-                                            </span>
-                                        </span>
-                                    </div>
-                                    {/* Percentage bar — bg track + filled
-                                        portion. inline styles to keep the
-                                        whole card self-contained (no new
-                                        CSS file for one bar pattern). */}
-                                    <div
-                                        className="relative h-1.5 rounded-full bg-[rgba(0,113,227,0.08)] overflow-hidden"
-                                        aria-hidden="true"
-                                    >
-                                        <div
-                                            style={{
-                                                position: 'absolute',
-                                                top: 0,
-                                                left: 0,
-                                                bottom: 0,
-                                                width: `${Math.min(100, Math.max(0, pct))}%`,
-                                                background:
-                                                    'linear-gradient(90deg, #0071e3, #5856d6)',
-                                                borderRadius: 999,
-                                                transition: 'width 0.3s ease',
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
+                )}
+            </div>
 
             {/* Timeline Section (Full Width) */}
             <div className="card glass mb-0 p-8">

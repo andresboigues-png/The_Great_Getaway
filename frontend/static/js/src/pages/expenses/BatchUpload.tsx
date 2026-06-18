@@ -17,11 +17,11 @@
 import { useState } from 'react';
 import { STATE, emit } from '../../state.js';
 import { useStore } from '../../react/store.js';
-import { runBatchImport } from '../upload.js';
+import { runBatchImport, cellToText } from '../upload.js';
 import { t } from '../../i18n.js';
 import { showLiquidAlert } from '../../utils.js';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SheetJS sheet_to_json yields heterogeneous cells (string|number|Date); typing as unknown[][] would break the preview's `cell || ''` render + runBatchImport's parseFloat without a runtime change
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SheetJS sheet_to_json yields heterogeneous cells (string|number|Date); typing as unknown[][] would break the preview's cellToText coercion + runBatchImport's parseFloat without a runtime change
 type SheetRows = { header: any[]; rows: any[][] };
 
 const POPULARS = [
@@ -229,7 +229,12 @@ export function BatchUpload() {
 
                 <div className="callout-tinted" style={{ marginBottom: '15px', ['--accent' as string]: '52,199,89' }}>
                     <p className="callout-tinted__label">{t('upload.splitsCalloutLabel')}</p>
-                    <p className="callout-tinted__body">{t('upload.splitsCalloutBody')}</p>
+                    {/* The copy intentionally contains <code> spans (e.g. <code>splits</code>,
+                        <code>Alice:50,Bob:50</code>). Rendered as a plain JSX child React escapes
+                        them, so the literal tags showed on screen. Render as HTML — the string is a
+                        static translation (no user input), matching the ~13 other i18n keys that use
+                        this pattern. */}
+                    <p className="callout-tinted__body" dangerouslySetInnerHTML={{ __html: t('upload.splitsCalloutBody') }} />
                 </div>
 
                 <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" className="glass-input" style={{ marginBottom: '15px', width: '100%' }} onChange={onFile} />
@@ -240,11 +245,11 @@ export function BatchUpload() {
                         <div style={{ overflowX: 'auto' }}>
                             <table className="liquid-table">
                                 <thead>
-                                    <tr>{parsed.header.map((h, i) => <th key={i}>{h || ''}</th>)}</tr>
+                                    <tr>{parsed.header.map((h, i) => <th key={i}>{cellToText(h)}</th>)}</tr>
                                 </thead>
                                 <tbody>
                                     {parsed.rows.slice(0, 3).map((row, ri) => (
-                                        <tr key={ri}>{parsed.header.map((_, i) => <td key={i}>{row[i] || ''}</td>)}</tr>
+                                        <tr key={ri}>{parsed.header.map((_, i) => <td key={i}>{cellToText(row[i])}</td>)}</tr>
                                     ))}
                                 </tbody>
                             </table>

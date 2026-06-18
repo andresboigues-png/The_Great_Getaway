@@ -945,6 +945,46 @@ function BioBlock({
         }
     };
 
+    // Home currency applies IMMEDIATELY on change — it's a setting, not a form
+    // field. Previously it only persisted via the "Save profile" button (hidden
+    // until a field went dirty), so a user who just picked a currency saw it
+    // silently not stick and Insights stayed on the EUR default. Auto-save fixes
+    // that: POST → update STATE.user → emit so every surface re-reads the new
+    // home currency. On failure we revert the dropdown so it never lies.
+    const onHomeCurrencyChange = async () => {
+        if (!STATE.user) return;
+        const code = homeCurrencyRef.current?.value || null;
+        const old = STATE.user.homeCurrency || null;
+        if (code === old) return;
+        const revert = () => {
+            if (homeCurrencyRef.current) homeCurrencyRef.current.value = old || getHomeCurrency();
+        };
+        try {
+            const res = await apiFetch('/api/profile/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ homeCurrency: code }),
+            });
+            if (!res.ok) {
+                showLiquidAlert(t('profile.saveFailed', { status: res.status }));
+                revert();
+                return;
+            }
+            STATE.user.homeCurrency = code;
+            // PV-6: manual FX + per-trip overrides are stored against the OLD home
+            // currency (foreign→home), so reset them on a home change — exactly as
+            // the full save does. Call BOTH before OR-ing (no short-circuit).
+            const a = clearAllManualFx();
+            const b = clearAllFxOverrides();
+            emit('state:changed');
+            showLiquidAlert(a || b ? t('profile.updatedRatesReset') : t('profile.updated'));
+        } catch (e) {
+            console.error('Home currency update failed:', e);
+            showLiquidAlert(t('profile.saveNetwork'));
+            revert();
+        }
+    };
+
     return (
         <div className="profile-bio-block">
             <div
@@ -1056,7 +1096,7 @@ function BioBlock({
                                 className="brand-select pf-pill-sm"
                                 aria-label={t('profile.homeCurrencyAria')}
                                 defaultValue={getHomeCurrency()}
-                                onChange={() => setDirty(true)}
+                                onChange={() => void onHomeCurrencyChange()}
                             >
                                 {Object.keys(CONVERSION_RATES).map((code) => (
                                     <option key={code} value={code}>

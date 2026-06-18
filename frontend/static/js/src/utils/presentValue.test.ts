@@ -276,3 +276,41 @@ describe('makePresentValueCalc — precedence & robustness', () => {
         expect(r.todayValue).toBeCloseTo(90, 5); // falls through to auto (convert only, CPI 1)
     });
 });
+
+describe('makePresentValueCalc — todayValueNoInflation (FX / inflation split)', () => {
+    it('home-currency expense: no-inflation leg == nominal (all the move is inflation)', () => {
+        const calc = makeCtx({ cpiCache: { EUR: { 2020: 100, 2024: 120 } }, currentYear: 2024 });
+        const r = makePresentValueCalc(calc)({ value: 100, currency: 'EUR', date: '2020-06-01' });
+        expect(r.todayValueNoInflation).toBeCloseTo(100, 5); // today FX = 1, no inflation
+        expect(r.todayValue).toBeCloseTo(120, 5);            // × 1.2 CPI
+    });
+
+    it('Model A foreign: no-inflation leg is today FX only; ×CPI gives todayValue', () => {
+        const calc = makeCtx({ cpiCache: { USD: { 2018: 100, 2026: 110 } } });
+        const r = makePresentValueCalc(calc)({ value: 100, currency: 'USD', date: '2018-06-01' });
+        expect(r.todayValueNoInflation).toBeCloseTo(90, 5); // 100 USD × 0.9 today FX
+        expect(r.todayValue).toBeCloseTo(99, 5);            // × 1.1 USD CPI
+    });
+
+    it('the legs are a clean multiplicative bridge: spent × FX × CPI', () => {
+        const calc = makeCtx({
+            rateCache: { '2018-06-01_USD_EUR': 0.8 },    // historical FX 0.8
+            cpiCache: { USD: { 2018: 100, 2026: 110 } }, // +10% inflation
+        });
+        const r = makePresentValueCalc(calc)({ value: 100, currency: 'USD', date: '2018-06-01' });
+        expect(r.spentValue).toBeCloseTo(80, 5);            // 100 × 0.8 (then)
+        expect(r.todayValueNoInflation).toBeCloseTo(90, 5); // 100 × 0.9 (now FX)
+        expect(r.todayValue).toBeCloseTo(99, 5);            // × 1.1 CPI
+        const fxStep = r.todayValueNoInflation / r.spentValue;   // 1.125
+        const inflStep = r.todayValue / r.todayValueNoInflation; // 1.1
+        expect(fxStep * inflStep).toBeCloseTo(r.todayValue / r.spentValue, 5);
+    });
+
+    it('Model B (no-FX currency): no-inflation leg == the home value before CPI', () => {
+        const calc = makeCtx({ cpiCache: { EUR: { 2018: 100, 2026: 130 } } });
+        // ARS absent from the FX table → Model B (home-CPI on the frozen euroValue).
+        const r = makePresentValueCalc(calc)({ value: 5000, currency: 'ARS', date: '2018-06-01', euroValue: 200 });
+        expect(r.todayValueNoInflation).toBeCloseTo(200, 5); // home value, no inflation
+        expect(r.todayValue).toBeCloseTo(260, 5);            // 200 × 1.3 home CPI
+    });
+});
