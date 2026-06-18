@@ -30,7 +30,7 @@ import { showLiquidAlert, esc } from '../../utils.js';
 import { setTripActionsHidden, upsertDay } from '../../api.js';
 import {
     openEditTripModal,
-    openPdfExportModal,
+    openDownloadChooserModal,
     openCompanionPickerModal,
     openTripMembersModal,
     openAddDayModal,
@@ -584,9 +584,9 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                     <button
                         id="downloadTripPdfBtn"
                         className="icon-btn-square"
-                        title={t('tripActions.downloadPdf')}
-                        aria-label={t('tripActions.downloadPdf')}
-                        onClick={() => openPdfExportModal(activeTrip)}
+                        title={t('tripActions.download')}
+                        aria-label={t('tripActions.download')}
+                        onClick={() => openDownloadChooserModal(activeTrip)}
                         style={{ ['--accent' as string]: '52,199,89' }}
                     >
                         <svg

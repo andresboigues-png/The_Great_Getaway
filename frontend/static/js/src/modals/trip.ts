@@ -19,6 +19,7 @@ import { iconSvg } from '../icons.js';
 import { normalizeDayNumbers } from '../utils/tripDays.js';
 import { showConfirmModal } from '../utils.js';
 import { mountDateRangePicker } from '../utils/dateRangePicker.js';
+import { importTripFromFile } from './tripExport.js';
 import type { Trip } from '../types';
 import {
     type PickedPlace,
@@ -33,9 +34,13 @@ export const openNewTripModal = () => {
         cardStyle: 'width: 420px;',
         innerHTML: `
             <h2 class="card-title mdl-title-hero">${esc(t('modals.newTripTitle'))}</h2>
-            <div class="w-full mb-3" style="text-align:center;">
+            <div class="w-full mb-3" style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
                 <button type="button" id="browseTemplatesBtn" class="tmpl-code-pill">${iconSvg('tag', { size: 14 })}<span>${esc(t('modals.tmplBrowse'))}</span></button>
+                <button type="button" id="importTripBtn" class="tmpl-code-pill"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span id="importTripBtnLabel">${esc(t('modals.newTripImport'))}</span></button>
             </div>
+            <input type="file" id="importTripFileInput" accept=".zip,application/zip" style="display:none">
+            <!-- spacer keeps the title/pills from crowding the form -->
+            <div style="height:2px;"></div>
             <form id="newTripForm" class="mdl-col-center">
                 <div class="w-full mb-4">
                     <label class="form-label" for="tripName">${esc(t('modals.newTripLabelName'))}</label>
@@ -99,6 +104,36 @@ export const openNewTripModal = () => {
         closeForNavigation();
         navigate('templates');
     };
+
+    // "Import a trip file" — recreate a trip from a .ggtrip.zip backup
+    // (produced by the home-page Download → ZIP option). The hidden file
+    // input is triggered by the pill; on pick we POST to /api/trips/import,
+    // refresh state, select the new trip, then leave the modal for the home
+    // view (closeForNavigation, not close — same reasoning as the templates
+    // pill: let navigate() own the hash).
+    const importBtn = q(root, '#importTripBtn') as HTMLButtonElement | null;
+    const importInput = q(root, '#importTripFileInput') as HTMLInputElement | null;
+    const importLabel = q(root, '#importTripBtnLabel') as HTMLSpanElement | null;
+    if (importBtn && importInput) {
+        importBtn.onclick = () => importInput.click();
+        importInput.onchange = async () => {
+            const file = importInput.files && importInput.files[0];
+            if (!file) return;
+            importBtn.disabled = true;
+            if (importLabel) importLabel.textContent = t('modals.importTripStatus');
+            const result = await importTripFromFile(file);
+            if (!result.ok) {
+                showLiquidAlert(result.error || t('modals.importTripError'));
+                importBtn.disabled = false;
+                if (importLabel) importLabel.textContent = t('modals.newTripImport');
+                importInput.value = '';
+                return;
+            }
+            // State already pulled + the imported trip selected.
+            closeForNavigation();
+            navigate('home');
+        };
+    }
 
     (q(root, '#cancelTripBtn') as HTMLButtonElement).onclick = () => close();
     (q(root, '#newTripForm') as HTMLFormElement).onsubmit = async (e) => {

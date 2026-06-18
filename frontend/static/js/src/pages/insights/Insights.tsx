@@ -133,10 +133,8 @@ function SegmentedControl<T extends string>({ options, value, onChange, ariaLabe
         return () => ro.disconnect();
     }, [value, options]);
     return (
-        <div ref={ref} role="tablist" aria-label={ariaLabel} className="relative inline-flex p-1 rounded-full max-w-full" style={{ background: 'rgba(0,0,0,0.06)' }}>
-            {lens ? (
-                <div aria-hidden="true" style={{ position: 'absolute', top: 4, bottom: 4, left: lens.left, width: lens.width, background: '#ffffff', borderRadius: 999, boxShadow: '0 1px 4px rgba(0,0,0,0.16)', transition: 'left 0.32s cubic-bezier(0.34, 1.3, 0.5, 1), width 0.32s cubic-bezier(0.34, 1.3, 0.5, 1)' }} />
-            ) : null}
+        <div ref={ref} role="tablist" aria-label={ariaLabel} className="seg-control">
+            {lens ? <div aria-hidden="true" className="seg-lens" style={{ left: lens.left, width: lens.width }} /> : null}
             {options.map((o) => {
                 const active = o.value === value;
                 return (
@@ -147,12 +145,8 @@ function SegmentedControl<T extends string>({ options, value, onChange, ariaLabe
                         aria-selected={active}
                         data-active={active}
                         onClick={() => onChange(o.value)}
-                        className="relative rounded-full whitespace-nowrap"
-                        style={{
-                            zIndex: 1, border: 0, outline: 'none', background: 'transparent', cursor: 'pointer',
-                            padding: '6px 15px', fontSize: '0.8rem', fontWeight: active ? 700 : 500,
-                            color: active ? 'var(--text-brand-navy)' : 'var(--text-secondary)', transition: 'color 0.2s',
-                        }}
+                        className="seg-btn"
+                        style={{ fontWeight: active ? 700 : 500, color: active ? 'var(--text-brand-navy)' : 'var(--text-secondary)' }}
                     >
                         {o.label}
                     </button>
@@ -653,6 +647,9 @@ export function Insights() {
     const inflPctNum = (totalTodayNoInfl > 0 ? (totalToday - totalTodayNoInfl) / totalTodayNoInfl : 0) * 100;
     const fxPctSigned = sgnPct(fxPctNum);
     const inflPctSigned = sgnPct(inflPctNum);
+    // Dated timeline points — drives the chart's mobile min-width so each day
+    // gets room to breathe (the card scrolls horizontally when they don't fit).
+    const timelinePointCount = Object.keys(dateTotals).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).length;
 
     // ── Chart.js side-effects ─────────────────────────────────────────────
     const timeCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1377,7 +1374,7 @@ export function Insights() {
                         <div className="flex gap-1.5 flex-wrap">
                             <select
                                 className="glass-input"
-                                style={{ width: 'auto', padding: '4px 8px', fontSize: '0.76rem' }}
+                                style={{ width: 'auto', maxWidth: '100%', padding: '4px 8px', fontSize: '0.76rem' }}
                                 value={avgWho}
                                 onChange={(e) => setAvgWho(e.target.value)}
                                 aria-label={t('insights.filterPayer')}
@@ -1387,7 +1384,7 @@ export function Insights() {
                             </select>
                             <select
                                 className="glass-input"
-                                style={{ width: 'auto', padding: '4px 8px', fontSize: '0.76rem' }}
+                                style={{ width: 'auto', maxWidth: '100%', padding: '4px 8px', fontSize: '0.76rem' }}
                                 value={avgCat}
                                 onChange={(e) => setAvgCat(e.target.value)}
                                 aria-label={t('insights.filterCategory')}
@@ -1556,8 +1553,16 @@ export function Insights() {
                         {t('insights.timelineSubtitle')}
                     </div>
                 </div>
-                <div className="relative h-[350px] w-full">
-                    <canvas id="timelineChart" ref={timeCanvasRef}></canvas>
+                {/* On phones the daily points don't fit a narrow width, so the
+                    plot gets a min per-point width and the card scrolls sideways
+                    (stays fit-to-width on desktop — see .timeline-inner in index.css). */}
+                <div className="timeline-scroll">
+                    <div
+                        className="timeline-inner relative h-[350px]"
+                        style={{ ['--timeline-min' as string]: `${timelinePointCount * 40}px` }}
+                    >
+                        <canvas id="timelineChart" ref={timeCanvasRef}></canvas>
+                    </div>
                 </div>
             </div>
         </div>

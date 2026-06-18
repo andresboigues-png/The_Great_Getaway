@@ -63,6 +63,8 @@ _INTENTIONAL_ENGLISH = {
     'dayDetail.photosHeading':    'fr: "Photos" identical (same word)',
     'dayDetail.documentsHeading': 'fr: "Documents" identical (same word)',
     'settings.ratesTabInflation': 'fr: identical loanword "Inflation"',
+    'insights.pvInflLabel':       'fr: "inflation" identical (same word)',
+    'insights.metricCount':       'fr: "Transactions" identical (same word)',
     'settings.ratesAutoHint':     'universal "auto ≈ {n}" hint (like ratesAutoPlaceholder)',
 
     # ── "Email" is universal ───────────────────────────────────────

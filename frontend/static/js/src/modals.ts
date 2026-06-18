@@ -16,4 +16,5 @@ export { openCompanionPickerModal, openTripMembersModal } from './modals/compani
 export * from './modals/trip.js';
 export * from './modals/day.js';
 export * from './modals/pdf.js';
+export * from './modals/tripExport.js';
 export * from './modals/share.js';
