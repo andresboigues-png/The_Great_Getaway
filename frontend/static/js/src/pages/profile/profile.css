@@ -48,9 +48,14 @@
     letter-spacing: -0.01em;
     color: white;
     line-height: 1.2;
+    /* countryKey is often a full formatted address ("Atlanta, Geórgia,
+       Estados Unidos") — wrap to up to 2 lines instead of truncating to a
+       useless "Atlanta, Geórgia, Esta…" on a single line. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
 }
 .profile-iw__count {
     font-size: 0.68rem;

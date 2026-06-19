@@ -97,10 +97,16 @@ export const openCompanionPickerModal = (tripId: string) => {
     const buildRow = (c: import('../types').Companion) => {
         const isLocked = referencedNames.has(c.name.toLocaleLowerCase());
         const linkedUserId = c.linkedUserId;
+        const isSelf = !!linkedUserId && linkedUserId === myId;
         const member = linkedUserId ? membersByUserId.get(linkedUserId) : null;
 
         let badge = '';
-        if (member) {
+        if (isSelf) {
+            // Companion linked to the owner's OWN account (e.g. an imported
+            // name the owner marked as themselves). Distinct "You" pill so it
+            // doesn't read as just another planner.
+            badge = `<span class="companion-link-pill companion-link-pill--linked" title="${esc(t('companions.pillYouText'))}">${esc(t('companions.pillYouText'))}</span>`;
+        } else if (member) {
             badge = `<span class="companion-link-pill companion-link-pill--linked" title="${esc(t('companions.pillLinkedTitle'))}">${esc(roleLabel(member.role))}</span>`;
         } else if (linkedUserId) {
             badge = `<span class="companion-link-pill companion-link-pill--pending" title="${esc(t('companions.pillPendingTitle'))}">${esc(t('companions.pillPendingText'))}</span>`;
@@ -108,9 +114,15 @@ export const openCompanionPickerModal = (tripId: string) => {
             badge = `<span class="companion-link-pill companion-link-pill--companion">${esc(t('companions.pillUnlinkedText'))}</span>`;
         }
 
-        const linkAction = !linkedUserId
-            ? `<button type="button" class="btn-link-action picker-link-btn" data-name="${esc(c.name)}">${esc(t('companions.rowLinkBtn'))}</button>`
-            : '';
+        // Unlinked → "Link" (opens the picker, which now includes a
+        // "This is me" row); self-linked → "Unlink" (clear the link, keep the
+        // name); friend-linked → no inline action (remove via ✕ kicks member).
+        let linkAction = '';
+        if (!linkedUserId) {
+            linkAction = `<button type="button" class="btn-link-action picker-link-btn" data-name="${esc(c.name)}">${esc(t('companions.rowLinkBtn'))}</button>`;
+        } else if (isSelf) {
+            linkAction = `<button type="button" class="btn-link-action picker-unlink-btn" data-name="${esc(c.name)}">${esc(t('companions.rowUnlinkBtn'))}</button>`;
+        }
 
         const removeBtn = isLocked
             ? `<span class="companion-row__lock" title="${esc(t('companions.rowLockTitle'))}" style="display:inline-flex; align-items:center;">${iconSvg('lock', { size: 14 })}</span>`
@@ -174,7 +186,7 @@ export const openCompanionPickerModal = (tripId: string) => {
                  on this trip. Pick one + role → adds to trip + invites. -->
             <div id="companionPickerFriendSheet" class="companion-picker-friend-sheet" hidden>
                 <div class="companion-picker-friend-sheet__header">
-                    <strong>${esc(t('companions.friendSheetTitle'))}</strong>
+                    <strong id="companionPickerFriendSheetTitle">${esc(t('companions.friendSheetTitle'))}</strong>
                     <button type="button" id="companionPickerFriendCancel" class="btn-x-bare" title="${esc(t('companions.rowCloseTitle'))}">✕</button>
                 </div>
                 <div id="companionPickerFriendList" class="companion-picker-friend-sheet__list">
@@ -191,6 +203,7 @@ export const openCompanionPickerModal = (tripId: string) => {
     const listEl = (q(root, '#companionPickerList') as HTMLElement);
     const friendSheet = (q(root, '#companionPickerFriendSheet') as HTMLElement);
     const friendListEl = (q(root, '#companionPickerFriendList') as HTMLElement);
+    const friendSheetTitleEl = (q(root, '#companionPickerFriendSheetTitle') as HTMLElement | null);
     const addInput = (q(root, '#companionPickerAddInput') as HTMLInputElement);
 
     const refreshList = () => { listEl.innerHTML = renderRows(); };
@@ -198,19 +211,35 @@ export const openCompanionPickerModal = (tripId: string) => {
     /** Build the friend candidate rows. Excludes friends who are already
      *  on the trip via a linked companion entry, plus the user themselves. */
     const buildFriendList = () => {
+        const linkTarget = friendSheet.dataset.linkTargetName;
         const onTripUserIds = new Set(
             (trip.companions || [])
                 .map(c => c.linkedUserId)
                 .filter(Boolean)
         );
         const candidates = cachedFriends.filter(f => f.id !== myId && !onTripUserIds.has(f.id));
-        if (candidates.length === 0) {
+        // "This is me" row — shown only when LINKING an existing companion
+        // (a fresh "Add a friend" shouldn't re-add the owner). Lets the owner
+        // mark an imported name (e.g. "Andi") as themselves with NO invite.
+        // Allowed even if another row is already self-linked: the server
+        // dedupes companions by name, so two names can resolve to the owner,
+        // and the home chips collapse them into the single owner chip.
+        const selfRow = (linkTarget && myId)
+            ? `
+            <div class="companion-row friend-pick-row picker-self-row">
+                ${STATE.user?.picture ? `<img src="${esc(STATE.user.picture)}" alt="" referrerpolicy="no-referrer" style="width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; object-fit: cover;">` : ''}
+                <span class="companion-row__name">${esc(STATE.user?.name || t('companions.pillYouText'))}</span>
+                <span style="flex:1; font-size: var(--font-xs); color: rgba(0,0,0,0.45);">${esc(t('companions.pillYouText'))}</span>
+                <button type="button" class="btn-link-action picker-link-self-btn">${esc(t('companions.linkMeBtn'))}</button>
+            </div>`
+            : '';
+        if (candidates.length === 0 && !selfRow) {
             friendListEl.innerHTML = `<p style="text-align:center; color: rgba(0,0,0,0.55); padding: var(--space-4); margin: 0;">
                 ${esc(t('companions.friendSheetEmpty'))}
             </p>`;
             return;
         }
-        friendListEl.innerHTML = candidates.map(f => `
+        friendListEl.innerHTML = selfRow + candidates.map(f => `
             <div class="companion-row friend-pick-row picker-friend-row" data-friend-id="${esc(f.id)}" data-friend-name="${esc(f.name)}">
                 <img src="${esc(f.picture)}" alt="" referrerpolicy="no-referrer" style="width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; object-fit: cover;">
                 <span class="companion-row__name">${esc(f.name)}</span>
@@ -242,6 +271,8 @@ export const openCompanionPickerModal = (tripId: string) => {
     };
 
     (q(root, '#companionPickerAddFriendBtn') as HTMLButtonElement).onclick = async () => {
+        delete friendSheet.dataset.linkTargetName;  // ADD mode, not link-existing
+        if (friendSheetTitleEl) friendSheetTitleEl.textContent = t('companions.friendSheetTitle');
         friendSheet.hidden = false;
         if (cachedFriends.length === 0) cachedFriends = await fetchAcceptedFriends();
         buildFriendList();
@@ -331,13 +362,46 @@ export const openCompanionPickerModal = (tripId: string) => {
             return;
         }
 
-        // Promote an unlinked entry → friend picker scoped to "link this name".
+        // Unlink a SELF-linked companion — clears the link but keeps the name
+        // as a plain companion. Self-only: friend links are removed via the ✕
+        // (which also kicks the trip member); this just drops the "me" tag.
+        const unlinkBtn = (target.closest('.picker-unlink-btn') as HTMLElement | null);
+        if (unlinkBtn?.dataset.name) {
+            const c = findTripCompanion(trip, unlinkBtn.dataset.name);
+            if (c) delete c.linkedUserId;
+            emit('state:changed');
+            void upsertTrip(trip);
+            refreshList();
+            return;
+        }
+
+        // Promote an unlinked entry → link picker scoped to "link this name"
+        // (offers a "This is me" row + friends).
         const linkBtn = (target.closest('.picker-link-btn') as HTMLElement | null);
         if (linkBtn?.dataset.name) {
             friendSheet.hidden = false;
             friendSheet.dataset.linkTargetName = linkBtn.dataset.name;
+            if (friendSheetTitleEl) friendSheetTitleEl.textContent = t('companions.linkSheetTitle');
             if (cachedFriends.length === 0) cachedFriends = await fetchAcceptedFriends();
             buildFriendList();
+            return;
+        }
+
+        // "This is me" → link the targeted companion to the OWNER'S OWN
+        // account. No invite (the owner is already a member) and no
+        // trip_members write — purely a local link the upsert persists.
+        const linkSelfBtn = (target.closest('.picker-link-self-btn') as HTMLElement | null);
+        if (linkSelfBtn) {
+            const linkTarget = friendSheet.dataset.linkTargetName;
+            if (linkTarget && myId) {
+                const c = findTripCompanion(trip, linkTarget);
+                if (c) c.linkedUserId = myId;
+                delete friendSheet.dataset.linkTargetName;
+                emit('state:changed');
+                void upsertTrip(trip);
+                friendSheet.hidden = true;
+                refreshList();
+            }
             return;
         }
 

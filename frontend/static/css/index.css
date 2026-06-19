@@ -2351,10 +2351,17 @@ body.is-signed-out .trip-controls-popover {
     /* Was `overflow: hidden !important` which clipped tall content
        (e.g. the to-do InfoWindow's photo + why + fact + CTA). Per-
        user feedback the CTA was getting cut off — switching to
-       `auto` lets the content scroll inside the InfoWindow when it
-       exceeds the available height, without losing the rounded-corner
-       clip on the outer container. */
-    overflow: auto !important;
+       vertical scroll lets the content scroll inside the InfoWindow
+       when it exceeds the available height, without losing the
+       rounded-corner clip on the outer container.
+       2026-06-18: split the axes. Plain `overflow: auto` also enabled
+       HORIZONTAL scroll, and on real devices Google computes the IW
+       content box a sub-pixel narrower than our `min-width: 240px`
+       content (DPI rounding differs from desktop devtools), so a
+       spurious horizontal scrollbar appeared under the bubble. Pin
+       overflow-x:hidden so only vertical scroll is ever possible. */
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
     padding: 0 !important;
     max-height: calc(70vh - 8px) !important;
 }

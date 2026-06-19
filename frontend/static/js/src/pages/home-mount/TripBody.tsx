@@ -508,7 +508,12 @@ export function TripBody({ activeTrip }: TripBodyProps) {
     return (
         <div ref={daysContainerRef} className="mt-10">
             <div className="flex flex-col mb-6">
-                <div className="flex items-center gap-3">
+                {/* Mobile: title gets its own full-width line and the action
+                    buttons (change/switcher, edit, download, mute) wrap to the
+                    line below — otherwise a long name like "Sao Miguel 26" is
+                    squeezed into an ugly 3-line word-wrap between the buttons.
+                    Desktop (sm+) stays a single inline row (flex-nowrap). */}
+                <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap">
                     {/* 2026-05-21: mobile-only circular-arrow trip
                         switcher to the LEFT of the trip name. Replaces
                         the navbar compass (now hidden on mobile). Opens
@@ -540,6 +545,11 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                     </button>
                     <button
                         id="resetMapViewBtn"
+                        // order-first pulls the title ahead of the mobile
+                        // switcher (which precedes it in the DOM); w-full forces
+                        // it onto its own line so the buttons wrap below. Both
+                        // revert at sm+ so desktop keeps the inline row.
+                        className="order-first w-full text-left sm:w-auto"
                         title={t('tripActions.resetMapView')}
                         onClick={onResetMapView}
                     >

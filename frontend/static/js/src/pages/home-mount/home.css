@@ -1738,6 +1738,14 @@
 }
 .companion-picker-add-section__friend-btn:active { transform: scale(0.97); }
 .companion-picker-add-section .companion-picker-add-form { flex: 1; }
+/* Narrow phones (~380px): the friend button + inline name-form can't sit
+   side-by-side without overflowing, so stack them — friend button full-width
+   on its own row, the "add companion" form full-width below it. */
+@media (max-width: 480px) {
+    .companion-picker-add-section { flex-wrap: wrap; }
+    .companion-picker-add-section__friend-btn { width: 100%; justify-content: center; }
+    .companion-picker-add-section .companion-picker-add-form { flex: 1 1 100%; }
+}
 
 /* Friend-picker sheet — slides in below the add-section when the user
    clicks "Add a friend" (or the inline "Link to friend" on an unlinked

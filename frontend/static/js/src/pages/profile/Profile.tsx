@@ -734,7 +734,7 @@ function ProfileInfoSection({
                             aria-label={t('profile.blockBtnLabel')}
                             onClick={() => {
                                 showConfirmModal({
-                                    title: t('profile.blockConfirmTitle'),
+                                    title: t('profile.blockConfirmTitle', { name: user.name }),
                                     message: t('profile.blockConfirmBody', { name: user.name }),
                                     confirmText: t('profile.blockConfirmBtn'),
                                     onConfirm: () => {
