@@ -37,6 +37,7 @@ import {
 } from '../../modals.js';
 import { openTripChecklistModal } from '../home/tripChecklistModal.js';
 import { openTripDocumentsModal, openTripPhotosModal } from '../home/tripMediaModals.js';
+import { openAccommodationModal } from '../home/accommodationModal.js';
 import { openDayPinPlaceModal } from '../home/dayPinPlaceModal.js';
 import { openDayDetail as _openDayDetailRaw, type HomeTab } from '../home/dayDetailModal.js';
 import { applySilenceBtnVisual } from '../home/shareModal.js';
@@ -332,6 +333,13 @@ export function TripBody({ activeTrip }: TripBodyProps) {
             const placePinBtn = target.closest('.day-pin-place-btn') as HTMLElement | null;
             if (placePinBtn?.dataset.dayId) {
                 openDayPinPlaceModal(placePinBtn.dataset.dayId);
+                return;
+            }
+            // "No accommodation" hint → open the accommodation manager focused
+            // on this day (pre-ticks it; Places + free-text address picker).
+            const accomSetBtn = target.closest('.day-card__accom-set') as HTMLElement | null;
+            if (accomSetBtn?.dataset.dayId) {
+                openAccommodationModal(activeTrip, { preselectDayId: accomSetBtn.dataset.dayId });
                 return;
             }
             if (target.closest('.path-checklist-btn')) {

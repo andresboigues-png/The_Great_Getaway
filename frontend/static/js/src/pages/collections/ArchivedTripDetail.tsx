@@ -323,7 +323,7 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                 </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px', margin: '8px 4px 14px' }}>
+            <div className="ad-journey-head" style={{ display: 'flex', alignItems: 'baseline', gap: '12px', margin: '8px 4px 14px' }}>
                 <h2 className="ad-hero-title">{t('archivedDetail.journeyTitle')}</h2>
                 <span className="ad-text-muted-sm">{t('archivedDetail.journeySubtitle')}</span>
             </div>
@@ -336,6 +336,37 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                     const dayDocsFromTrip = tripDocs.filter((d) => d.dayId === day.id);
                     const totalDayDocs = dayDocsFromDay.length + dayDocsFromTrip.length;
                     const isStartingPoint = Number(day.dayNumber) === 0;
+                    // Completed trips: the day-0 anchor used to render as a
+                    // read-only "Trip Hub" card (empty morning/afternoon/evening
+                    // slots — useless once the trip is done). Replace it with a
+                    // "Documents & Photos" card that jumps to the trip's saved
+                    // media sections below.
+                    if (isStartingPoint) {
+                        const scrollToMedia = () => document.getElementById('ad-media-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        return (
+                            <div
+                                key={day.id}
+                                className="archived-day-block"
+                                role="button"
+                                tabIndex={0}
+                                aria-label={t('archivedDetail.mediaCardTitle')}
+                                onClick={scrollToMedia}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); scrollToMedia(); } }}
+                                style={{ position: 'relative', cursor: 'pointer', minHeight: '170px', borderRadius: '24px', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: 'white', border: '1.5px solid rgba(0,113,227,0.18)', color: '#002d5b', boxShadow: '0 10px 30px rgba(0,0,0,0.06)' }}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <span style={{ background: 'rgba(52,199,89,0.95)', color: 'white', padding: '4px 12px', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t('archivedDetail.mediaCardBadge')}</span>
+                                </div>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#002d5b', lineHeight: 1.15 }}>{t('archivedDetail.mediaCardTitle')}</h3>
+                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }}>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(88,86,214,0.08)', color: '#5856d6', padding: '3px 10px', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 700 }}><Icon name="document" size={12} />{totalDocs}</span>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(0,113,227,0.08)', color: 'var(--accent-blue)', padding: '3px 10px', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 700 }}><Icon name="photo" size={12} />{totalPhotos}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    }
                     const photoBg = dayPhotosFromDay[0] || dayPhotosFromTrip[0]?.src || null;
                     const hasBg = !!photoBg;
                     const dayAria = day.name
@@ -374,6 +405,8 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                 })}
             </div>
 
+            {/* Scroll target for the "Documents & Photos" card above. */}
+            <div id="ad-media-anchor" style={{ scrollMarginTop: '12px' }} />
             {allDocs.length > 0 ? (
                 <>
                     <div className="ad-section-header-row">

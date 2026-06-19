@@ -178,7 +178,7 @@ function buildDayCardBody(
                 ? `<a class="day-card__accom-link" href="${esc(accUrl)}" target="_blank" rel="noopener noreferrer" title="${esc(t('todo.openInMapsTitle', { place: day.accommodation }))}" style="color:#005bb8; display:inline-flex; align-items:center; gap:4px; text-decoration:none;">🛏️ <span style="text-decoration:underline;">${esc(day.accommodation)}</span><span aria-hidden="true" style="font-size:0.7rem; opacity:0.7;">↗</span></a>`
                 : `<span style="color: #005bb8; display:inline-flex; align-items:center; gap:4px;">🛏️ ${esc(day.accommodation)}</span>`);
         } else {
-            subtitleParts.push(`<span class="day-card__pin-hint" style="display:inline-flex; align-items:center; gap:4px; opacity:0.6;">🛏️ ${esc(t('pathTab.stayNotSet'))}</span>`);
+            subtitleParts.push(`<button type="button" class="day-card__accom-set" data-day-id="${esc(day.id)}" style="display:inline-flex; align-items:center; gap:4px; background:none; border:none; padding:0; margin:0; font:inherit; color:#005bb8; cursor:pointer;">🛏️ <span style="text-decoration:underline;">${esc(t('pathTab.stayNotSet'))}</span></button>`);
         }
         // Weather slot — populated async by applyWeatherChips() after
         // the trip's forecast lands. Empty by default so days that have

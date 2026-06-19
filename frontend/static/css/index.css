@@ -5866,6 +5866,13 @@ main#app-container.nav-anim-backward {
         font-size: 2.1rem !important;
         line-height: 1.05 !important;
     }
+    /* Stack the journey-section header (title + subtitle) so the title isn't
+       crushed into a word-by-word wrap beside the subtitle. */
+    .ad-journey-head {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 2px !important;
+    }
 }
 
 /* ── §0.4 follow-up — Feed / Insights / Collections / Friends / dayViewModal

@@ -1930,6 +1930,8 @@ export const es: Translations = {
         dayAriaWithName: 'Ver Día {n} — {name}',
         dayBadgeHub: '⭐ Centro',
         dayTitleHub: 'Centro del Viaje',
+        mediaCardBadge: 'Guardado',
+        mediaCardTitle: 'Documentos y fotos',
         dayBucketUnsorted: 'Sin ordenar',
         docsTitle: 'Documentos',
         docsSubtitle: '{count} guardados · haz clic para abrir',

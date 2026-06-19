@@ -1934,6 +1934,8 @@ export const pt: Translations = {
         dayAriaWithName: 'Ver Dia {n} — {name}',
         dayBadgeHub: '⭐ Centro',
         dayTitleHub: 'Centro da Viagem',
+        mediaCardBadge: 'Guardado',
+        mediaCardTitle: 'Documentos e fotos',
         dayBucketUnsorted: 'Sem ordenar',
         docsTitle: 'Documentos',
         docsSubtitle: '{count} guardados · clica para abrir',

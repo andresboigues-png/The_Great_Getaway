@@ -38,7 +38,7 @@ export function consumePendingAccommodationOpen(): boolean {
 }
 
 
-export const openAccommodationModal = (trip: Trip): void => {
+export const openAccommodationModal = (trip: Trip, opts?: { preselectDayId?: string }): void => {
     if (!trip) return;
     const editable = canEdit(trip);
 
@@ -223,4 +223,15 @@ export const openAccommodationModal = (trip: Trip): void => {
     }
 
     paintList();
+    // Preselect a day (opened from a path day's "no accommodation" hint): tick
+    // its checkbox + fire `change` so the existing listener enables Apply, and
+    // focus the search so the user can type the place straight away.
+    if (editable && opts?.preselectDayId) {
+        const cb = root.querySelector(`#accDayList .acc-day-check[data-day-id="${opts.preselectDayId}"]`) as HTMLInputElement | null;
+        if (cb) {
+            cb.checked = true;
+            cb.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        (root.querySelector('#accSearchInput') as HTMLInputElement | null)?.focus();
+    }
 };

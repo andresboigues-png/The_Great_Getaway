@@ -2380,6 +2380,8 @@ export const en = {
         dayAriaWithName: 'View Day {n} — {name}',
         dayBadgeHub: '⭐ Hub',
         dayTitleHub: 'Trip Hub',
+        mediaCardBadge: 'Saved',
+        mediaCardTitle: 'Documents & Photos',
         dayBucketUnsorted: 'Unsorted',
         docsTitle: 'Documents',
         docsSubtitle: '{count} saved · click any to open',

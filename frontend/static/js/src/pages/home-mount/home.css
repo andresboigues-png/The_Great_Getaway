@@ -105,9 +105,12 @@
 }
 .hover-reveal-label {
     position: absolute;
-    top: calc(100% + 8px);
+    /* ABOVE the button: these controls sit directly on top of the map search
+       bar, so a tooltip below would cover it / render behind it. Above is the
+       trip-stats line — transient hover over text is fine. */
+    bottom: calc(100% + 8px);
     left: 50%;
-    transform: translateX(-50%) translateY(-4px);
+    transform: translateX(-50%) translateY(4px);
     background: var(--text-brand-navy, #002d5b);
     color: #fff;
     font-size: 0.72rem;
