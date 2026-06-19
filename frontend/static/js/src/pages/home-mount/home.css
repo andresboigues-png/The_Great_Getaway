@@ -46,10 +46,13 @@
     box-shadow: 0 4px 14px rgba(0, 45, 91, 0.06);
 }
 .trip-tabnav__tab {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 9px 22px;
+    /* Icon-only tabs: the text label is now a hover-reveal tooltip
+       (.trip-tabnav__label), so the pill hugs the icon. */
+    padding: 9px 16px;
     border: 0;
     background: transparent;
     border-radius: 999px;
@@ -61,10 +64,69 @@
     transition: background 0.2s ease, color 0.2s ease,
                 box-shadow 0.2s ease, transform 0.18s ease;
 }
+/* Hover-reveal label — same treatment as the "New trip" nav button: the
+   text sits below the icon, hidden until hover (mouse only, so touch
+   screens stay clean icon-only and aren't bloated). */
+.trip-tabnav__label {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    background: var(--text-brand-navy, #002d5b);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 8px;
+    white-space: nowrap;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    z-index: 50;
+}
+@media (hover: hover) and (pointer: fine) {
+    .trip-tabnav__tab:hover .trip-tabnav__label,
+    .trip-tabnav__tab:focus-visible .trip-tabnav__label {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
 .trip-tabnav__tab svg {
     flex-shrink: 0;
     opacity: 0.75;
     transition: opacity 0.2s ease, transform 0.2s ease;
+}
+/* Generic icon-button hover-reveal label — used by the home-map action
+   buttons (Find places nearby / Maps / Share). Same mouse-only tooltip as the
+   tab labels above, so touch screens stay clean icon-only (no bloat). */
+.hover-reveal-host {
+    position: relative;
+}
+.hover-reveal-label {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    background: var(--text-brand-navy, #002d5b);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 8px;
+    white-space: nowrap;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    z-index: 60;
+}
+@media (hover: hover) and (pointer: fine) {
+    .hover-reveal-host:hover .hover-reveal-label,
+    .hover-reveal-host:focus-visible .hover-reveal-label {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
 }
 .trip-tabnav__tab:hover:not(.is-active),
 .trip-tabnav__tab:active:not(.is-active),

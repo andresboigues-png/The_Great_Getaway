@@ -30,6 +30,12 @@ export const ICON_PATHS: Record<string, string> = {
     // map-pin — set/edit anchor pin
     pin:
         '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+    // list-ordered (1·2·3 numbered steps) — "quick guide" / getting-started
+    // (was sharing the compass icon with Discover, which read as a duplicate).
+    guide:
+        '<line x1="10" x2="21" y1="6" y2="6"/><line x1="10" x2="21" y1="12" y2="12"/>' +
+        '<line x1="10" x2="21" y1="18" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/>' +
+        '<path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/>',
     // paperclip — documents
     document:
         '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',

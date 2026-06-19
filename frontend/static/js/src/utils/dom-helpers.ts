@@ -7,7 +7,7 @@
 //   - generateId: crypto-grade 9-char ID
 //   - formatDayDate: locale-aware "Apr 6" / "Apr 6, 2025"
 
-import { formatDateShort, getIntlLocale, t } from '../i18n.js';
+import { formatDateShort, formatShortMonthDay, t } from '../i18n.js';
 
 /** Module-level dedupe — if the same message fires multiple times
  *  in quick succession (a 401 cascade, a button double-click), we
@@ -149,23 +149,10 @@ export function formatDayDate(dateStr: string | null | undefined): string {
     if (!dateStr) return '';
     const date = new Date(dateStr + 'T00:00:00Z');
     if (isNaN(date.getTime())) return '';
-    const year = date.getUTCFullYear();
-    const currentYear = new Date().getUTCFullYear();
-    if (year === currentYear) {
-        return formatDateShort(date);
-    }
-    // Different year — let Intl include it so the locale's own
-    // year-glue convention applies (en-US: "Apr 6, 2025"; pt-PT:
-    // "6 abr. de 2025").
-    try {
-        return new Intl.DateTimeFormat(getIntlLocale(), {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-        }).format(date);
-    } catch {
-        return `${formatDateShort(date)}, ${year}`;
-    }
+    const includeYear = date.getUTCFullYear() !== new Date().getUTCFullYear();
+    // formatShortMonthDay composes month + day separately so pt-PT renders
+    // "6 abr." instead of the numeric "6/4" a raw Intl pattern collapses to.
+    return formatShortMonthDay(date, includeYear);
 }
 
 /**
@@ -189,18 +176,9 @@ export function formatDateRange(
     const end = new Date(endStr + 'T00:00:00Z');
     if (isNaN(start.getTime()) || isNaN(end.getTime())) return '';
     const sep = ` ${t('dates.rangeTo')} `;
-    const monthDayYear = (d: Date): string => {
-        try {
-            return new Intl.DateTimeFormat(getIntlLocale(), {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-                timeZone: 'UTC',
-            }).format(d);
-        } catch {
-            return `${formatDateShort(d)}, ${d.getUTCFullYear()}`;
-        }
-    };
+    // formatShortMonthDay(d, true) → "Apr 6, 2025" / "6 abr. 2025"; avoids the
+    // pt-PT numeric collapse a raw Intl {month,day,year} pattern produces.
+    const monthDayYear = (d: Date): string => formatShortMonthDay(d, true);
     const sy = start.getUTCFullYear();
     const ey = end.getUTCFullYear();
     if (sy !== ey) {

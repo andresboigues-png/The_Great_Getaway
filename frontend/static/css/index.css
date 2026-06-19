@@ -5837,10 +5837,15 @@ main#app-container.nav-anim-backward {
     z-index: 2;
 }
 @media (max-width: 640px) {
+    /* Tighten the hero on phones — the 48px/52px desktop padding ate most of
+       a 375px viewport. (Overrides the component's inline padding/radius.) */
+    .archived-hero {
+        padding: 24px 20px !important;
+        border-radius: 28px !important;
+    }
     .archived-hero__actions {
         position: static;
-        margin-top: 18px;
-        margin-bottom: -18px;
+        margin: 0 0 18px;
         flex-wrap: wrap;
         justify-content: flex-start;
         gap: 8px;
@@ -5850,6 +5855,16 @@ main#app-container.nav-anim-backward {
     .archived-hero__actions .restore-trip-btn {
         padding: 8px 14px;
         font-size: 0.78rem;
+    }
+    /* Free the headline from the desktop "reserve 260px for the floating
+       actions" clamp, and shrink the title so a name like "Atlanta WQ 2026"
+       fits on one or two lines instead of breaking word-by-word into three. */
+    .ad-hero-headline {
+        max-width: 100% !important;
+    }
+    .ad-hero-name {
+        font-size: 2.1rem !important;
+        line-height: 1.05 !important;
     }
 }
 

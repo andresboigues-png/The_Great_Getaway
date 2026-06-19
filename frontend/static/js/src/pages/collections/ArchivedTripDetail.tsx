@@ -288,12 +288,12 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                     ) : null}
                 </div>
 
-                <div style={{ position: 'relative', zIndex: 1, maxWidth: 'calc(100% - 260px)' }}>
+                <div className="ad-hero-headline" style={{ position: 'relative', zIndex: 1, maxWidth: 'calc(100% - 260px)' }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: CHIP_BG, border: CHIP_BORDER, padding: '6px 14px', borderRadius: '999px', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', marginBottom: '18px' }}>
                         <span style={{ fontSize: '0.85rem', lineHeight: 1 }}>📚</span>
                         <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.18em', color: HERO_TEXT }}>{t('archivedDetail.heroTag')}</span>
                     </div>
-                    <h1 style={{ fontSize: '3.2rem', margin: 0, letterSpacing: '-0.04em', color: HERO_TEXT, fontWeight: 800, lineHeight: 1, textShadow: '0 2px 24px rgba(0,0,0,0.2)' }}>{trip.name}</h1>
+                    <h1 className="ad-hero-name" style={{ fontSize: '3.2rem', margin: 0, letterSpacing: '-0.04em', color: HERO_TEXT, fontWeight: 800, lineHeight: 1, textShadow: '0 2px 24px rgba(0,0,0,0.2)' }}>{trip.name}</h1>
                     {trip.country ? (
                         <div style={{ marginTop: '10px', fontSize: '1rem', color: HERO_SECONDARY, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="pin" size={16} />{trip.country}</div>
                     ) : null}

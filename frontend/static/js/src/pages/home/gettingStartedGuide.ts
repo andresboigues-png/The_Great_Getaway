@@ -173,7 +173,7 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
         showBtnContainer.style.marginTop = '40px';
         showBtnContainer.innerHTML = `
             <button class="btn-glass-light" style="display:inline-flex; align-items:center; gap:6px;">
-                ${iconSvg('compass', { size: 16 })}${esc(t('home.showQuickAccessBtn'))}
+                ${iconSvg('guide', { size: 16 })}${esc(t('home.showQuickAccessBtn'))}
             </button>
         `;
         const showBtn = (showBtnContainer.querySelector('button') as HTMLButtonElement | null);
@@ -204,7 +204,7 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
         <div class="card glass" style="padding: 32px; border-radius: 28px; border: 1.5px solid ${allDone ? 'var(--border-subtle)' : 'rgba(0, 122, 255, 0.25)'}; background: var(--card-bg); position: relative;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <div style="background: ${allDone ? 'var(--text-brand-navy)' : 'var(--accent-blue)'}; color: white; width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">${allDone ? iconSvg('zap', { size: 18 }) : iconSvg('compass', { size: 18 })}</div>
+                    <div style="background: ${allDone ? 'var(--text-brand-navy)' : 'var(--accent-blue)'}; color: white; width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">${allDone ? iconSvg('zap', { size: 18 }) : iconSvg('guide', { size: 18 })}</div>
                     <h2 style="margin: 0; font-size: 1.5rem; letter-spacing: -0.02em; color: var(--text-brand-navy);">${esc(allDone ? t('home.quickAccessTitle') : t('home.gettingStartedTitle'))}</h2>
                 </div>
                 <div style="display: flex; align-items: center; gap: 12px;">

@@ -225,7 +225,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                 <button
                     type="button"
                     id="homePoiToggleBtn"
-                    className={`map-poi-toggle-bar${poiPillsVisible ? ' is-expanded' : ''}`}
+                    className={`hover-reveal-host map-poi-toggle-bar${poiPillsVisible ? ' is-expanded' : ''}`}
                     aria-expanded={poiPillsVisible}
                     aria-controls="homeMapPoiToggles"
                     aria-label={t('home.poiToggleLabel')}
@@ -245,7 +245,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                         <circle cx="12" cy="12" r="9"></circle>
                         <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
                     </svg>
-                    <span className="map-poi-toggle-bar__label hide-on-mobile-collapsed">{t('home.poiToggleLabel')}</span>
+                    <span className="hover-reveal-label">{t('home.poiToggleLabel')}</span>
                     <svg
                         className="map-poi-toggle-bar__chevron"
                         width="13"
@@ -270,7 +270,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                         id="homeOpenMapsBtn"
                         title={t('home.mapsBtnTitle')}
                         aria-label={t('home.mapsBtnTitle')}
-                        className="inline-flex items-center gap-2 py-2 px-3.5 rounded-full bg-card border border-[var(--border-subtle)] shadow-[0_4px_12px_rgba(0,45,91,0.10)] no-underline text-primary font-bold text-[0.85rem] leading-none"
+                        className="hover-reveal-host relative inline-flex items-center justify-center p-2.5 rounded-full bg-card border border-[var(--border-subtle)] shadow-[0_4px_12px_rgba(0,45,91,0.10)] no-underline text-primary"
                     >
                         <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
                             <path
@@ -279,7 +279,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                             />
                             <circle cx="12" cy="10" r="3" fill="#ffffff" />
                         </svg>
-                        <span className="hide-on-mobile-collapsed">{t('home.mapsBtnLabel')}</span>
+                        <span className="hover-reveal-label">{t('home.mapsBtnLabel')}</span>
                     </a>
                 ) : null}
 
@@ -289,7 +289,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                     title={t('home.shareBtnTitle')}
                     aria-label={t('home.shareBtnTitle')}
                     onClick={onShareClick}
-                    className="inline-flex items-center gap-2 py-2 px-3.5 rounded-full bg-[#0071e3] border-0 text-white cursor-pointer font-bold text-[0.85rem] leading-none shadow-[0_4px_12px_rgba(0,113,227,0.30)]"
+                    className="hover-reveal-host relative inline-flex items-center justify-center p-2.5 rounded-full bg-[#0071e3] border-0 text-white cursor-pointer shadow-[0_4px_12px_rgba(0,113,227,0.30)]"
                 >
                     <svg
                         width="14"
@@ -308,7 +308,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                         <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
                         <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                     </svg>
-                    <span className="hide-on-mobile-collapsed">{t('home.shareBtnLabel')}</span>
+                    <span className="hover-reveal-label">{t('home.shareBtnLabel')}</span>
                 </button>
             </div>
         </>

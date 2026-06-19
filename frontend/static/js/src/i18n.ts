@@ -450,16 +450,10 @@ export function formatNumberForCurrency(amount: number, currency: string): strin
  *  UTC keeps the calendar-day identity stable regardless of where
  *  the user is opening the trip from. */
 export function formatDateShort(date: Date): string {
-    try {
-        return new Intl.DateTimeFormat(getIntlLocale(), {
-            month: 'short',
-            day: 'numeric',
-            timeZone: 'UTC',
-        }).format(date);
-    } catch {
-        // Fallback to ISO date string slice if Intl is unavailable.
-        return date.toISOString().slice(0, 10);
-    }
+    // Delegate to formatShortMonthDay — a raw Intl {month:'short',day} pattern
+    // collapses to numeric "6/4" in some locales (pt-PT); composing the month
+    // and day separately always yields "Apr 6" / "6 abr.".
+    return formatShortMonthDay(date);
 }
 
 /** Format an on-the-hour local time (0–23) as a short, locale-aware label.
