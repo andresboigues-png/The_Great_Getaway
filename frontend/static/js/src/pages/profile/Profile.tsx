@@ -548,7 +548,7 @@ function ProfilePicSection({
             // URL on the next state-change emit.
             STATE.user.picture = uploaded.url;
             emit('state:changed');
-            showLiquidAlert(t('profile.photoUploaded'));
+            showLiquidAlert(t('profile.photoUploaded'), 'success');
         } catch (err) {
             console.error('profile/update picture failed:', err);
             showLiquidAlert(t('profile.photoSaveNetwork'));
@@ -741,7 +741,7 @@ function ProfileInfoSection({
                                         void (async () => {
                                             const ok = await blockUser(targetUserId);
                                             if (ok) {
-                                                showLiquidAlert(t('profile.blockedToast', { name: user.name }));
+                                                showLiquidAlert(t('profile.blockedToast', { name: user.name }), 'info');
                                                 navigate('friends');
                                             } else {
                                                 showLiquidAlert(t('profile.blockFailed'));

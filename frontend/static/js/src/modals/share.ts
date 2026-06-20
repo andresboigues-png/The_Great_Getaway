@@ -69,7 +69,7 @@ export const openTripInviteResponseModal = (notification: { related_id?: string 
             STATE.activeTripId = tripId;
             emit('state:changed');
         }
-        showLiquidAlert(t('modals.inviteSuccessJoined'));
+        showLiquidAlert(t('modals.inviteSuccessJoined'), 'success');
         navigate('home');
     };
     (q(root, '#tripInviteDeclineBtn') as HTMLButtonElement).onclick = async () => {
@@ -77,7 +77,7 @@ export const openTripInviteResponseModal = (notification: { related_id?: string 
         if (!result || !result.ok) {
             showLiquidAlert(t('modals.inviteErrorNotActive'));
         } else {
-            showLiquidAlert(t('modals.inviteToastDeclined'));
+            showLiquidAlert(t('modals.inviteToastDeclined'), 'info');
         }
         close();
     };
@@ -210,7 +210,7 @@ export const openShareTripModal = (trip: Trip) => {
             const url = buildShareUrl(currentToken);
             try {
                 await navigator.clipboard.writeText(url);
-                showLiquidAlert(t('share.linkCopied'));
+                showLiquidAlert(t('share.linkCopied'), 'success');
             } catch {
                 // Older browsers / non-secure contexts: fall back to the
                 // legacy execCommand path.
@@ -220,7 +220,7 @@ export const openShareTripModal = (trip: Trip) => {
                 ta.select();
                 try { document.execCommand('copy'); } catch { /* ignored */ }
                 document.body.removeChild(ta);
-                showLiquidAlert(t('share.linkCopied'));
+                showLiquidAlert(t('share.linkCopied'), 'success');
             }
             return;
         }

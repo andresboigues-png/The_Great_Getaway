@@ -787,7 +787,7 @@ export const openAddTripDocumentModal = (trip: Trip): void => {
         emit('state:changed');
         await upsertTrip(trip);
         close();
-        showLiquidAlert(t('tripMedia.addDocToastAdded'));
+        showLiquidAlert(t('tripMedia.addDocToastAdded'), 'success');
         navigate('home');
     };
 };
@@ -896,7 +896,7 @@ export const openEditTripDocumentModal = (trip: Trip, docId: string): void => {
                 if (day) await upsertDay(day);
             }
             close();
-            showLiquidAlert(t('tripMedia.editDocToastUpdated'));
+            showLiquidAlert(t('tripMedia.editDocToastUpdated'), 'success');
             navigate('home');
         } catch (err) {
             statusEl.textContent = t('tripMedia.editDocErrorSaveWithMsg', { error: (err as Error).message });
@@ -958,7 +958,7 @@ export const openAddTripPhotoUrlModal = (trip: Trip): void => {
         emit('state:changed');
         await upsertTrip(trip);
         close();
-        showLiquidAlert(t('tripMedia.addPhotoToastAdded'));
+        showLiquidAlert(t('tripMedia.addPhotoToastAdded'), 'success');
         navigate('home');
     };
 };

@@ -594,7 +594,7 @@ export function Feed() {
                 } catch (e) {
                     console.error('refresh after unshare failed:', e);
                 }
-                showLiquidAlert(t('feed.toastRemovedFromFeed'));
+                showLiquidAlert(t('feed.toastRemovedFromFeed'), 'info');
             })(); },
         });
     };

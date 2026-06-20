@@ -110,7 +110,7 @@ export async function createFromTemplateAndOpen(code: string): Promise<boolean> 
     await pullFromServer();
     STATE.activeTripId = newTripId;
     emit(EVENTS.STATE_CHANGED);
-    showLiquidAlert(t('modals.tmplSuccess'));
+    showLiquidAlert(t('modals.tmplSuccess'), 'success');
     navigate(PAGES.HOME);
     return true;
 }

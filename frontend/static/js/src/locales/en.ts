@@ -2404,6 +2404,7 @@ export const en = {
         shareSuccess: 'Shared to your feed.',
         notesChip: '📝 Notes',
         shareFailed: 'Share failed — HTTP {status}',
+        sharePrivate: 'This trip is private — set it to Public (the visibility control above) to share it.',
     },
     // Upload tab (pages/upload.ts) — Excel/CSV import for bulk expenses.
     upload: {

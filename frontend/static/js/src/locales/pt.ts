@@ -1955,6 +1955,7 @@ export const pt: Translations = {
         shareSuccess: 'Partilhado no teu feed.',
         notesChip: '📝 Notas',
         shareFailed: 'Falha ao partilhar — HTTP {status}',
+        sharePrivate: 'Esta viagem é privada — define-a como Pública (o controlo de visibilidade acima) para a partilhares.',
     },
     upload: {
         modeSwitchAria: 'Modo de carregamento',

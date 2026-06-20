@@ -276,7 +276,7 @@ export function Friends() {
                     });
                     const data = await res.json();
                     if (data.status === 'success') {
-                        showLiquidAlert(t('friends.toastRemoveDone'));
+                        showLiquidAlert(t('friends.toastRemoveDone'), 'info');
                     } else {
                         showLiquidAlert(data.message || t('friends.toastRemoveFailed'));
                     }

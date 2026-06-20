@@ -1796,15 +1796,24 @@ body.is-signed-out .trip-controls-popover {
     bottom: var(--space-10);
     left: 50%;
     transform: translateX(-50%) translateY(100px);
-    background: rgba(255,255,255,0.7);
+    background: rgba(255,255,255,0.85);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    padding: var(--space-4) var(--space-8);
-    border-radius: var(--radius-pill);
-    border: 1px solid rgba(255,255,255,0.4);
+    /* Flex row (icon + text) with a sane max-width so a long message wraps to
+       a tidy card instead of ballooning into a round blob (the old pill radius
+       + no max-width made multi-line toasts look circular). */
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    max-width: min(440px, calc(100vw - 32px));
+    padding: 13px 18px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.5);
     box-shadow: var(--shadow-xl);
     color: #002d5b;
-    font-weight: 700;
+    font-weight: 600;
+    text-align: left;
+    line-height: 1.45;
     z-index: 99999;
     opacity: 1;
     /* D4: spring-soft on the entrance — the toast comes up from
@@ -1815,6 +1824,20 @@ body.is-signed-out .trip-controls-popover {
     transition: transform 0.45s var(--easing-spring-soft),
                 opacity 0.45s var(--easing-smooth);
 }
+.liquid-alert__icon {
+    flex-shrink: 0;
+    font-size: 1.05rem;
+    line-height: 1.45;
+}
+.liquid-alert__text {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+/* Type accent — the icon (⚠️ / ✅ / ℹ️) already signals the kind; a coloured
+   left edge reinforces it. ⚠️ now means an ACTUAL problem; success uses ✅. */
+.liquid-alert--success { border-left: 3px solid #34c759; }
+.liquid-alert--error { border-left: 3px solid #ff9f0a; }
+.liquid-alert--info { border-left: 3px solid #0a84ff; }
 .liquid-alert.dismiss {
     /* Faster, smoother exit — no bounce on the way out. */
     transition: transform 0.3s var(--easing-smooth),

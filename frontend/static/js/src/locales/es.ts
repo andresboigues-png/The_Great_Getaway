@@ -1951,6 +1951,7 @@ export const es: Translations = {
         shareSuccess: 'Compartido en tu feed.',
         notesChip: '📝 Notas',
         shareFailed: 'Error al compartir — HTTP {status}',
+        sharePrivate: 'Este viaje es privado: ponlo en Público (el control de visibilidad de arriba) para compartirlo.',
     },
     upload: {
         modeSwitchAria: 'Modo de subida',

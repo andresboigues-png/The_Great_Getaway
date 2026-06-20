@@ -16,6 +16,8 @@
 // primitive.
 
 import { showModal } from '../../components/Modal.js';
+import { navigate } from '../../router.js';
+import { PAGES } from '../../constants.js';
 import { esc } from '../../utils.js';
 import { t } from '../../i18n.js';
 import { iconSvg } from '../../icons.js';
@@ -77,7 +79,7 @@ export function applySilenceBtnVisual(btn: HTMLElement | null, silenced: boolean
  *  entry point. */
 export function openShareToFeedModal(
     trip: { name: string; country?: string; isPublic?: boolean },
-    onSubmit: (caption: string) => Promise<void> | void,
+    onSubmit: (caption: string) => Promise<boolean | 'feed' | void> | boolean | 'feed' | void,
     seedCaption: string = '',
 ): void {
     // BUG-14 (MK2 audit): sharing a PRIVATE trip to the feed silently
@@ -90,7 +92,7 @@ export function openShareToFeedModal(
     // is then an informed choice. Public trips skip the notice (nothing
     // changes for them).
     const willGoPublic = !trip.isPublic;
-    const { root, close } = showModal({
+    const { root, close, closeForNavigation } = showModal({
         cardClass: 'card glass',
         cardStyle: 'width: 480px; max-width: calc(100vw - 32px); padding: 28px; border-radius: 28px; background: white;',
         innerHTML: `
@@ -133,7 +135,21 @@ export function openShareToFeedModal(
     (root.querySelector('#shareModalCancel') as HTMLButtonElement | null)?.addEventListener('click', close);
     (root.querySelector('#shareModalSubmit') as HTMLButtonElement | null)?.addEventListener('click', () => { void (async () => {
         const caption = (textarea?.value || '').trim();
-        close();
-        await onSubmit(caption);
+        // Run the share FIRST, then close ONLY if it didn't fail. On error the
+        // modal stays open so the user remains on this page to fix it (e.g.
+        // flip the trip to Public) — closing first risks the modal's
+        // history-back over-popping all the way back to Home, losing their
+        // place. (onSubmit returns false on failure; undefined/true = success.)
+        const ok = await onSubmit(caption);
+        if (ok === false) return; // error → keep the modal open, stay on the page
+        if (ok === 'feed') {
+            // Success + caller wants the feed: close WITHOUT the history-back
+            // (which would clobber the destination hash), then navigate so the
+            // user lands on their freshly-posted trip.
+            closeForNavigation();
+            navigate(PAGES.FEED);
+            return;
+        }
+        close(); // other success → close in place
     })(); });
 }

@@ -88,28 +88,24 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                 openShareToFeedModal(activeTrip, async (caption: string) => {
                     const result = await shareTripToFeed(activeTrip.id, caption);
                     if (result?.ok) {
-                        showLiquidAlert(t('share.sharedToFeedSuccess'));
-                    } else {
-                        // 2026-05-20: temporary diagnostic — surface
-                        // the actual HTTP status + error body so the
-                        // user can tell us WHY share is failing on
-                        // mobile (suspect: HttpOnly session cookie
-                        // not being sent by iOS Safari ITP). Once
-                        // we know the real failure mode this collapses
-                        // back to the generic localised toast.
-                        const status = result?.status ?? 'no-response';
-                        const errMsg = result?.body?.error || '';
-                        if (result?.status === 409) {
-                            showLiquidAlert(t('share.sharedToFeedDuplicate'));
-                        } else {
-                            showLiquidAlert(
-                                `Share failed — HTTP ${status}` +
-                                (errMsg ? ` · ${errMsg}` : '') +
-                                (status === 401 ? ' (you may be logged out — try refreshing)' : ''),
-                            );
-                            console.error('[share] failed', { status, body: result?.body });
-                        }
+                        showLiquidAlert(t('share.sharedToFeedSuccess'), 'success');
+                        return 'feed'; // success → close + jump to the feed
                     }
+                    if (result?.status === 409) {
+                        showLiquidAlert(t('share.sharedToFeedDuplicate'), 'info');
+                        return 'feed'; // already shared — go to the feed to see it
+                    }
+                    // Real error — surface the status + body and KEEP the modal
+                    // open so the user stays on this page to fix + retry.
+                    const status = result?.status ?? 'no-response';
+                    const errMsg = result?.body?.error || '';
+                    showLiquidAlert(
+                        `Share failed — HTTP ${status}` +
+                        (errMsg ? ` · ${errMsg}` : '') +
+                        (status === 401 ? ' (you may be logged out — try refreshing)' : ''),
+                    );
+                    console.error('[share] failed', { status, body: result?.body });
+                    return false; // keep the modal open + stay on this page
                 });
             },
         });

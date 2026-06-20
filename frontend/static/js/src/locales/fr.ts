@@ -1956,6 +1956,7 @@ export const fr: Translations = {
         shareSuccess: 'Partagé dans ton feed.',
         notesChip: '📝 Notes',
         shareFailed: 'Échec du partage — HTTP {status}',
+        sharePrivate: 'Ce voyage est privé — passez-le en Public (le contrôle de visibilité ci-dessus) pour le partager.',
     },
     upload: {
         modeSwitchAria: 'Mode de téléversement',

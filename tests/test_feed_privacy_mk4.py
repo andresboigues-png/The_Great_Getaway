@@ -264,9 +264,10 @@ def test_soc1_already_public_trip_not_demoted_on_unshare(client, seed_user):
 # ── SOC-2: archived trip absent from Explore + public-trip 404 ─────────
 
 
-def test_soc2_archived_trip_absent_from_explore(client, seed_user):
-    """A public+shared trip the owner has ARCHIVED must not appear in
-    another signed-in user's Explore."""
+def test_archived_public_trip_appears_in_explore(client, seed_user):
+    """2026-06: completed/archived PUBLIC trips are discoverable again —
+    shareability gates on PRIVACY (is_public), not completion. A PRIVATE
+    archived trip stays excluded (the is_public filter still applies)."""
     owner = "explore-owner"
     viewer = seed_user
     _mk_user(owner, "ExpOwner", "explore-owner@example.com")
@@ -279,12 +280,18 @@ def test_soc2_archived_trip_absent_from_explore(client, seed_user):
         "live-explore", owner, "Live Trip", "Sweden",
         is_public=1, is_archived=0, share_token="tok-live-1",
     )
+    # A PRIVATE archived trip must STILL be excluded (privacy gate).
+    _mk_trip(
+        "priv-arch-explore", owner, "Private Done", "Finland",
+        is_public=0, is_archived=1, share_token="tok-priv-arch",
+    )
 
     resp = client.get("/api/feed/explore", headers=_hdr(viewer))
     assert resp.status_code == 200, resp.data
     trip_ids = {it["tripId"] for it in resp.get_json()["items"]}
-    assert "arch-explore" not in trip_ids, "ARCHIVED trip listed in Explore (SOC-2)"
+    assert "arch-explore" in trip_ids, "archived PUBLIC trip should now appear in Explore"
     assert "live-explore" in trip_ids, "live trip wrongly absent from Explore"
+    assert "priv-arch-explore" not in trip_ids, "PRIVATE archived trip must stay out of Explore"
 
 
 def test_explore_excludes_owner_who_blocked_caller(client, seed_user):
@@ -314,9 +321,10 @@ def test_explore_excludes_owner_who_blocked_caller(client, seed_user):
     assert "ok-explore-031" in trip_ids, "control trip wrongly absent from Explore"
 
 
-def test_soc2_public_trip_404_for_nonmember_when_archived(client, seed_user):
-    """get_public_trip must 404 an ARCHIVED trip for a non-member,
-    mirroring fetch_share_payload's archived refusal."""
+def test_archived_public_trip_viewable_by_nonmember(client, seed_user):
+    """2026-06: a completed/archived PUBLIC trip is viewable via
+    /api/public-trip (the click-through from a shared feed post / Explore).
+    Privacy still gates it — a PRIVATE archived trip 404s for a non-member."""
     owner = "pt-owner"
     viewer = seed_user
     _mk_user(owner, "PTOwner", "pt-owner@example.com")
@@ -324,10 +332,16 @@ def test_soc2_public_trip_404_for_nonmember_when_archived(client, seed_user):
         "arch-pt", owner, "Archived PT", "Iceland",
         is_public=1, is_archived=1, share_token="tok-arch-pt",
     )
+    _mk_trip(
+        "priv-arch-pt", owner, "Private PT", "Iceland",
+        is_public=0, is_archived=1, share_token="tok-priv-arch-pt",
+    )
 
-    resp = client.get("/api/public-trip/arch-pt", headers=_hdr(viewer))
-    assert resp.status_code == 404, (
-        "archived public trip served to a non-member via /api/public-trip (SOC-2)"
+    assert client.get("/api/public-trip/arch-pt", headers=_hdr(viewer)).status_code == 200, (
+        "archived PUBLIC trip should be viewable via /api/public-trip"
+    )
+    assert client.get("/api/public-trip/priv-arch-pt", headers=_hdr(viewer)).status_code == 404, (
+        "PRIVATE archived trip must still 404 for a non-member"
     )
 
 
@@ -343,6 +357,22 @@ def test_soc2_owner_still_sees_archived_public_trip(client, seed_user):
     assert resp.status_code == 200, (
         "owner wrongly blocked from their own archived trip"
     )
+
+
+def test_share_completed_trip_gated_on_privacy_not_completion(client, seed_user):
+    """2026-06: an owner can feed-share a COMPLETED (archived) trip as long as
+    it's PUBLIC; a PRIVATE completed trip is refused on privacy grounds (make
+    it public first) — honouring 'only private trips are unshareable'. The old
+    flat archived 409 is gone."""
+    owner = seed_user
+    _mk_trip("done-pub", owner, "Done Public", "Peru", is_public=1, is_archived=1)
+    res = client.post("/api/feed/share", headers=_hdr(owner), json={"trip_id": "done-pub"})
+    assert res.status_code == 200, res.data
+
+    _mk_trip("done-priv", owner, "Done Private", "Peru", is_public=0, is_archived=1)
+    res2 = client.post("/api/feed/share", headers=_hdr(owner), json={"trip_id": "done-priv"})
+    assert res2.status_code == 400, res2.data
+    assert "private" in res2.get_json()["error"].lower()
 
 
 # ── SOC-4: bookmarks listing surface ───────────────────────────────────

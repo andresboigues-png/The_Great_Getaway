@@ -184,7 +184,7 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
             await pullFromServer();
             STATE.activeTripId = newTripId; // belt-and-braces re-stamp post-pull
             emit('state:changed');
-            showLiquidAlert(t('archivedDetail.cloneSuccess'));
+            showLiquidAlert(t('archivedDetail.cloneSuccess'), 'success');
             navigate('home');
         } catch (err) {
             console.error('Clone failed:', err);
@@ -211,7 +211,7 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                             }
                             setShared(false);
                             setSharePostId(null);
-                            showLiquidAlert(t('archivedDetail.unshareSuccess'));
+                            showLiquidAlert(t('archivedDetail.unshareSuccess'), 'success');
                         })(); },
                     });
                     return;
@@ -220,18 +220,28 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                     const result = await shareTripToFeed(trip.id, caption);
                     if (!result || !result.ok) {
                         const status = result?.status ?? 'no-response';
+                        // A 400 from /api/feed/share means the trip is PRIVATE
+                        // (shareability is gated on privacy now). Point the user
+                        // at the visibility control instead of a cryptic
+                        // "share failed (400)" — the server's JSON error body
+                        // doesn't always survive the service-worker round-trip.
+                        if (status === 400) {
+                            showLiquidAlert(t('archivedDetail.sharePrivate'));
+                            return false; // keep the modal open + stay on this page
+                        }
                         const errMsg = result?.body?.error || '';
                         showLiquidAlert(t('archivedDetail.shareFailed', { status: String(status) }) + (errMsg ? ' · ' + errMsg : ''));
                         console.error('[collections.share] failed', { tripId: trip.id, status, body: result?.body });
-                        return;
+                        return false; // keep the modal open + stay on this page
                     }
                     const postId = Number(result.body?.post_id) || 0;
                     if (postId) { setShared(true); setSharePostId(postId); }
                     if (result.body?.status === 'already_shared') {
-                        showLiquidAlert(caption ? t('archivedDetail.shareUpdated') : t('archivedDetail.shareAlready'));
+                        showLiquidAlert(caption ? t('archivedDetail.shareUpdated') : t('archivedDetail.shareAlready'), 'success');
                     } else {
-                        showLiquidAlert(t('archivedDetail.shareSuccess'));
+                        showLiquidAlert(t('archivedDetail.shareSuccess'), 'success');
                     }
+                    return 'feed'; // success → close + jump to the feed
                 });
             },
         });
@@ -305,21 +315,36 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                     {totalDocs > 0 ? <StatChip icon={<Icon name="document" size={17} />} label={t('archivedDetail.statDocuments')} value={String(totalDocs)} /> : null}
                     {expenses.length > 0 ? <StatChip icon={<Icon name="wallet" size={17} />} label={t('archivedDetail.statSpent')} value={formatHome(totalSpent, 'EUR')} /> : null}
 
-                    {isOwnTrip ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: CHIP_BG, border: CHIP_BORDER, padding: '6px 14px', borderRadius: '999px', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
-                        <select
-                            className="trip-privacy-select"
-                            aria-label={t('archivedDetail.visibilityAria')}
-                            defaultValue={trip.isPublic ? (trip.publicShowExpenses ? 'public-full' : 'public-plan') : 'private'}
-                            onChange={(e) => void toggleTripPrivacy(trip.id, e.target.value as TripPrivacyLevel)}
-                            style={{ background: 'transparent', border: 0, color: HERO_TEXT, fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '2px 18px 2px 4px', appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', outline: 'none', backgroundImage: "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"6 9 12 15 18 9\"/></svg>')", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 4px center', backgroundSize: '8px' }}
-                        >
-                            <option value="private" className="text-brand-navy">{t('archivedDetail.visibilityPrivate')}</option>
-                            <option value="public-plan" className="text-brand-navy">{t('archivedDetail.visibilityPublicPlan')}</option>
-                            <option value="public-full" className="text-brand-navy">{t('archivedDetail.visibilityPublicAll')}</option>
-                        </select>
-                    </div>
-                    ) : null}
+                    {isOwnTrip ? (() => {
+                        // A native <select> sizes to its WIDEST option, so the
+                        // short "Private" value left a huge gap before the
+                        // chevron and the chip stretched. Custom control: a
+                        // content-hugging chip (current label + chevron) with an
+                        // invisible native <select> overlaid for the actual pick.
+                        const level: TripPrivacyLevel = trip.isPublic ? (trip.publicShowExpenses ? 'public-full' : 'public-plan') : 'private';
+                        const label = level === 'private'
+                            ? t('archivedDetail.visibilityPrivate')
+                            : level === 'public-full'
+                                ? t('archivedDetail.visibilityPublicAll')
+                                : t('archivedDetail.visibilityPublicPlan');
+                        return (
+                            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '6px', background: CHIP_BG, border: CHIP_BORDER, padding: '8px 14px', borderRadius: '999px', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', color: HERO_TEXT }}>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{label}</span>
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={HERO_TEXT} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, opacity: 0.85 }}><polyline points="6 9 12 15 18 9" /></svg>
+                                <select
+                                    className="trip-privacy-select"
+                                    aria-label={t('archivedDetail.visibilityAria')}
+                                    value={level}
+                                    onChange={(e) => void toggleTripPrivacy(trip.id, e.target.value as TripPrivacyLevel)}
+                                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', margin: 0, border: 0, opacity: 0, cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none' }}
+                                >
+                                    <option value="private" className="text-brand-navy">{t('archivedDetail.visibilityPrivate')}</option>
+                                    <option value="public-plan" className="text-brand-navy">{t('archivedDetail.visibilityPublicPlan')}</option>
+                                    <option value="public-full" className="text-brand-navy">{t('archivedDetail.visibilityPublicAll')}</option>
+                                </select>
+                            </div>
+                        );
+                    })() : null}
                 </div>
             </div>
 

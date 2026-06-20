@@ -18,20 +18,23 @@ import { formatDateShort, formatShortMonthDay, t } from '../i18n.js';
  *  §2.9 deferred-followup. */
 const _activeAlerts = new Set<string>();
 
-export function showLiquidAlert(msg: string): void {
+export type AlertType = 'error' | 'success' | 'info';
+const _ALERT_ICON: Record<AlertType, string> = { error: '⚠️', success: '✅', info: 'ℹ️' };
+
+export function showLiquidAlert(msg: string, type: AlertType = 'error'): void {
     // Dedupe — if this exact message is already on screen, skip.
     if (_activeAlerts.has(msg)) return;
     _activeAlerts.add(msg);
 
     const alert = document.createElement('div');
-    alert.className = 'liquid-alert';
+    alert.className = `liquid-alert liquid-alert--${type}`;
     // §2.9: a11y — wrap in role="status" + aria-live="polite" so
     // screen readers announce toast messages. polite (not assertive)
     // because the messages are informational, not critical
     // interruption-worthy. atomic="true" so the whole message is
     // read together rather than character-by-character on append.
-    alert.setAttribute('role', 'status');
-    alert.setAttribute('aria-live', 'polite');
+    alert.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    alert.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
     alert.setAttribute('aria-atomic', 'true');
     // R8-B2: textContent, not innerHTML. Pre-fix server-supplied
     // strings (badge labels from the AI/achievement APIs, error
@@ -39,9 +42,15 @@ export function showLiquidAlert(msg: string): void {
     // username or currency code) interpolated into innerHTML
     // unescaped — defense-in-depth XSS sink. textContent is safe
     // by construction and the toast doesn't need any markup.
-    const span = document.createElement('span');
-    span.textContent = `⚠️ ${msg}`;
-    alert.appendChild(span);
+    const icon = document.createElement('span');
+    icon.className = 'liquid-alert__icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = _ALERT_ICON[type];
+    const text = document.createElement('span');
+    text.className = 'liquid-alert__text';
+    text.textContent = msg;
+    alert.appendChild(icon);
+    alert.appendChild(text);
     document.body.appendChild(alert);
 
     // Two-frame nudge — the element needs to land in the DOM at its

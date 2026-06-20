@@ -149,20 +149,12 @@ def get_public_trip(trip_id):
         if not is_visible:
             return jsonify({"error": "Not found"}), 404
 
-        # MK4 SOC-2 (P2): refuse ARCHIVED trips to non-members. The
-        # dedicated /share/<token> read path already refuses archived
-        # trips (fetch_share_payload: `if row["is_archived"]: return
-        # None`), and share_trip_to_feed refuses to publish an archived
-        # trip (409) — but this public-trip click-through kept serving
-        # the full read-only payload after the owner completed/archived,
-        # so Explore (now archive-gated) and this endpoint were the two
-        # surfaces still leaking a "done" trip. `is_archived` here is the
-        # OWNER's per-user state (COALESCE(tm.is_archived,0) in the
-        # SELECT). Owner + accepted members keep access (they're the
-        # editors / participants); everyone else gets the same 404 as a
-        # missing trip.
-        if trip.get('is_archived') and not is_member:
-            return jsonify({"error": "Not found"}), 404
+        # 2026-06: completed/archived PUBLIC trips ARE viewable now (the
+        # click-through from a shared feed post / Explore must resolve). Access
+        # is gated on PRIVACY (is_visible = is_public, above) + membership +
+        # blocks — not on completion state. The old archived-non-member 404
+        # (MK4 SOC-2) is removed; private trips are still 404'd by the
+        # is_visible gate.
 
         # Public-trip granularity (next-quarter ship). When a trip is
         # public-on-profile-map, the owner can choose between:
@@ -554,11 +546,12 @@ def fetch_share_payload(token, caller_id=None):
         row = cursor.fetchone()
         if not row:
             return None
-        # R5-B1 fix: archived trips are not visible via share URL.
-        # Owner archiving = "I'm done" = stop serving. Re-share works
-        # by unarchiving + re-running the Share modal.
-        if row["is_archived"]:
-            return None
+        # 2026-06: a completed/archived trip's share link KEEPS working now.
+        # The secret share token IS the access control here (a deliberate
+        # per-trip grant), so completion state no longer gates the read — this
+        # replaces the old R5-B1 archived refusal that broke completed trips'
+        # share links. (Public discovery — Explore / public-trip — still
+        # requires is_public; a private link share is intentional and allowed.)
         # R10-B6c S1: block-aware response. A signed-in caller who's
         # mutually blocked with the trip owner sees the same "not
         # available" branch as a wrong/revoked token (the main.py

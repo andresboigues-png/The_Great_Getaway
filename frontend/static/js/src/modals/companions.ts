@@ -458,7 +458,7 @@ export const openCompanionPickerModal = (tripId: string) => {
             void upsertTrip(trip);
             friendSheet.hidden = true;
             refreshList();
-            showLiquidAlert(t('companions.invitedToast', { name: friendName, role: roleLabel(role) }));
+            showLiquidAlert(t('companions.invitedToast', { name: friendName, role: roleLabel(role) }), 'success');
         }
     })(); });
 };

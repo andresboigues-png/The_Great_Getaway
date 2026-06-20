@@ -102,7 +102,7 @@ export function Creator() {
         // Re-pull the list so the new/updated row (with code + counts) shows.
         setTemplates(await listTemplates());
         resetForm();
-        showLiquidAlert(t('settings.creatorSavedToast'));
+        showLiquidAlert(t('settings.creatorSavedToast'), 'success');
     };
 
     const onDelete = async (id: string) => {
@@ -118,7 +118,7 @@ export function Creator() {
         }
         setTemplates((prev) => prev.filter((x) => x.id !== id));
         if (editingId === id) resetForm();
-        showLiquidAlert(t('settings.creatorDeletedToast'));
+        showLiquidAlert(t('settings.creatorDeletedToast'), 'success');
     };
 
     const onCopy = async (tmpl: TemplateSummary) => {

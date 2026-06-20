@@ -433,7 +433,7 @@ export function Todo() {
                 clearAllMarkedPlaces(activeTrip);
                 emit(EVENTS.STATE_CHANGED);
                 void upsertTrip(activeTrip);
-                showLiquidAlert(t('todo.clearedToast'));
+                showLiquidAlert(t('todo.clearedToast'), 'success');
             },
         });
     };

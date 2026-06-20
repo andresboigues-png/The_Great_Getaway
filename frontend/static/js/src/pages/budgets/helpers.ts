@@ -263,7 +263,7 @@ export const deleteBudget = (id: string) => {
             emit(EVENTS.STATE_CHANGED);
             const p = deleteBudgetOnServer(id);
             if (p) p.catch((err) => console.error('Delete budget failed:', err));
-            showLiquidAlert(t('budgets.deletedToast'));
+            showLiquidAlert(t('budgets.deletedToast'), 'success');
         },
     });
 };
@@ -427,6 +427,6 @@ export const openCreateBudgetModal = () => {
             return;
         }
         close();
-        showLiquidAlert(t('budgets.createSavedToast'));
+        showLiquidAlert(t('budgets.createSavedToast'), 'success');
     };
 };

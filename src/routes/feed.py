@@ -453,14 +453,11 @@ def explore_feed():
             JOIN users u ON u.id = t.user_id
             WHERE t.is_public = 1
               AND t.share_token IS NOT NULL
-              -- MK4 SOC-2 (P2): exclude ARCHIVED trips. The owner
-              -- archiving a public+shared trip mirrors is_archived=1
-              -- onto trips (trips.py ~489) and share_trip_to_feed
-              -- already refuses to share an archived trip (409) +
-              -- the /share/<token> read refuses archived trips
-              -- (fetch_share_payload) — but Explore kept listing them,
-              -- violating "completed = done". Gate it here too.
-              AND COALESCE(t.is_archived, 0) = 0
+              -- 2026-06: archived/completed PUBLIC trips ARE discoverable now.
+              -- Shareability gates on is_public (above), not completion state,
+              -- so a shared completed trip stays in Explore. The old
+              -- `AND is_archived = 0` exclusion was removed; private trips are
+              -- still filtered out by `is_public = 1`.
               AND t.user_id != ?
               AND t.id NOT IN (
                   SELECT trip_id FROM trip_members
@@ -598,15 +595,13 @@ def share_trip_to_feed():
         trip_row = cursor.fetchone()
         if not trip_row:
             return jsonify({"error": "Trip not found"}), 404
-        # R3-Round 3 fix: refuse to publish an archived trip to the
-        # feed unless the caller is the OWNER unarchiving in the same
-        # flow. Pre-fix a relaxer / planner on an archived trip could
-        # surface it to the feed days after the owner considered it
-        # closed, which felt like a betrayal of "completed = done."
-        if trip_row["is_archived"]:
-            return jsonify({
-                "error": "Trip is archived — unarchive before sharing to feed",
-            }), 409
+        # 2026-06: completed/archived trips ARE shareable now — shareability is
+        # gated on PRIVACY (is_public), not completion state. A PUBLIC completed
+        # trip is a "memory" worth sharing; only PRIVATE trips stay unshareable
+        # (see the is_public branch below). The old flat 409 (an R3-Round-3 fix
+        # that blocked everyone to honour "completed = done") is gone; private
+        # completed trips are now refused on privacy grounds instead, with an
+        # actionable "make it public first" message.
         is_owner = (trip_row["user_id"] == user_id)
         # Audit fix (2026-05-26): snapshot the trip's pre-share
         # is_public value so the unshare path can restore it. Without
@@ -631,7 +626,13 @@ def share_trip_to_feed():
             if not cursor.fetchone():
                 return jsonify({"error": "Not found"}), 404
         if not trip_row["is_public"]:
-            if is_owner:
+            # Auto-publish on share is kept for ACTIVE trips only — they have no
+            # separate privacy control, so the Share button IS how an owner
+            # publishes them. A COMPLETED (archived) trip has an explicit
+            # privacy selector, so we honour it: a private completed trip stays
+            # unshareable until the owner flips it to public. Non-owners can
+            # never change privacy.
+            if is_owner and not trip_row["is_archived"]:
                 cursor.execute(
                     "UPDATE trips SET is_public = 1, "
                     "updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
@@ -641,7 +642,9 @@ def share_trip_to_feed():
             else:
                 return jsonify({
                     "error": (
-                        "This trip is private. Ask the owner to make "
+                        "This trip is private. Make it public first to share it."
+                        if is_owner
+                        else "This trip is private. Ask the owner to make "
                         "it public before sharing to the feed."
                     ),
                 }), 400
