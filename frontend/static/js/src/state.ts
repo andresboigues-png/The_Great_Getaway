@@ -13,7 +13,7 @@ export const STATE: AppState = {
     categories: [
         { id: 'c1', name: 'Food', icon: '🍔', color: '#ff3b30' },
         { id: 'c2', name: 'Transport', icon: '✈️', color: '#007aff' },
-        { id: 'c3', name: 'Accommodation', icon: '🏨', color: '#5856d6' }
+        { id: 'c3', name: 'Accommodation', icon: '🛏️', color: '#5856d6' }
     ],
     expenses: [],
     /** §4.5 — server-side settlements (member-to-member, user_id keyed).

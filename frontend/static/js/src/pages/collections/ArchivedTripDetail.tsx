@@ -40,14 +40,18 @@ const HERO_SECONDARY = 'rgba(255,255,255,0.85)';
 const CHIP_BG = 'rgba(255,255,255,0.16)';
 const CHIP_BORDER = '1px solid rgba(255,255,255,0.25)';
 
+// Icon + value only; the label (DAYS / SPENT / …) reveals as a tooltip on
+// hover (mouse). Keeps the hero compact — matches the home action buttons.
 function StatChip({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: CHIP_BG, border: CHIP_BORDER, padding: '10px 16px', borderRadius: '999px', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
-            <span style={{ fontSize: '1.05rem', lineHeight: 1 }}>{icon}</span>
-            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.05 }}>
-                <span style={{ fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: HERO_SECONDARY }}>{label}</span>
-                <span style={{ fontSize: '0.95rem', fontWeight: 800, color: HERO_TEXT }}>{value}</span>
-            </div>
+        <div
+            className="hover-reveal-host"
+            aria-label={`${label}: ${value}`}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', background: CHIP_BG, border: CHIP_BORDER, padding: '10px 14px', borderRadius: '999px', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', color: HERO_TEXT }}
+        >
+            <span style={{ fontSize: '1.05rem', lineHeight: 1, display: 'inline-flex', color: HERO_SECONDARY }} aria-hidden="true">{icon}</span>
+            <span style={{ fontSize: '0.95rem', fontWeight: 800, color: HERO_TEXT }}>{value}</span>
+            <span className="hover-reveal-label" aria-hidden="true">{label}</span>
         </div>
     );
 }
@@ -261,40 +265,47 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                 <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 20% 0%, rgba(255,255,255,0.18) 0%, transparent 55%)', pointerEvents: 'none' }} />
 
                 <div className="archived-hero__actions">
-                    <button type="button" className="ad-pill-glass" style={{ background: 'rgba(255,255,255,0.16)' }} onClick={() => navigate('collections')}>{t('archivedDetail.backBtn')}</button>
+                    {/* Icon-only with a hover-reveal label, matching the home
+                        action buttons. */}
+                    <button type="button" className="ad-pill-glass hover-reveal-host" style={{ padding: '10px' }} onClick={() => navigate('collections')} aria-label={t('archivedDetail.backBtn')}>
+                        <Icon name="arrowLeft" size={16} />
+                        <span className="hover-reveal-label hover-reveal-label--corner">{t('archivedDetail.backBtn')}</span>
+                    </button>
                     <button
                         type="button"
-                        className="ad-pill-glass"
-                        title={shared ? 'Already shared — click to unshare' : t('archivedDetail.shareBtnTitle')}
+                        className="ad-pill-glass hover-reveal-host"
                         aria-label={shared ? 'Unshare this trip' : t('archivedDetail.shareBtnTitle')}
                         onClick={onShare}
-                        style={shared ? { background: '#5856d6', color: 'white', borderColor: '#5856d6' } : undefined}
+                        style={{ padding: '10px', ...(shared ? { background: '#5856d6', color: 'white', borderColor: '#5856d6' } : {}) }}
                     >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                             <circle cx="18" cy="5" r="3"></circle>
                             <circle cx="6" cy="12" r="3"></circle>
                             <circle cx="18" cy="19" r="3"></circle>
                             <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
                             <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                         </svg>
-                        {t('archivedDetail.shareBtn')}
+                        <span className="hover-reveal-label hover-reveal-label--corner">{t('archivedDetail.shareBtn')}</span>
                     </button>
                     <button
                         type="button"
-                        className="ad-pill-glass"
-                        title={t('archivedDetail.cloneBtnTitle')}
+                        className="ad-pill-glass hover-reveal-host"
                         aria-label={t('archivedDetail.cloneBtnAria')}
                         disabled={cloning}
                         onClick={() => void onClone()}
+                        style={{ padding: '10px' }}
                     >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                         </svg>
-                        {cloning ? t('archivedDetail.cloneStatusCloning') : t('archivedDetail.cloneBtn')}
+                        <span className="hover-reveal-label hover-reveal-label--corner">{cloning ? t('archivedDetail.cloneStatusCloning') : t('archivedDetail.cloneBtn')}</span>
                     </button>
                     {isInArchived ? (
-                        <button type="button" className="restore-trip-btn" onClick={() => restoreTrip(trip.id)} style={{ background: '#ffffff', color: '#002d5b', padding: '10px 18px', borderRadius: '999px', fontWeight: 800, fontSize: '0.85rem', cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,0,0,0.18)', border: 0 }}>{t('archivedDetail.restoreBtn')}</button>
+                        <button type="button" className="restore-trip-btn hover-reveal-host" onClick={() => restoreTrip(trip.id)} aria-label={t('archivedDetail.restoreBtn')} style={{ background: '#ffffff', color: '#002d5b', padding: '10px', borderRadius: '999px', cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,0,0,0.18)', border: 0, display: 'inline-flex', alignItems: 'center' }}>
+                            <Icon name="restore" size={16} />
+                            <span className="hover-reveal-label hover-reveal-label--corner">{t('archivedDetail.restoreBtn')}</span>
+                        </button>
                     ) : null}
                 </div>
 
@@ -316,21 +327,24 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                     {expenses.length > 0 ? <StatChip icon={<Icon name="wallet" size={17} />} label={t('archivedDetail.statSpent')} value={formatHome(totalSpent, 'EUR')} /> : null}
 
                     {isOwnTrip ? (() => {
-                        // A native <select> sizes to its WIDEST option, so the
-                        // short "Private" value left a huge gap before the
-                        // chevron and the chip stretched. Custom control: a
-                        // content-hugging chip (current label + chevron) with an
-                        // invisible native <select> overlaid for the actual pick.
+                        // Icon-only privacy control sitting right after Spent: a
+                        // content-hugging chip showing just the visibility icon +
+                        // a chevron, with an invisible native <select> overlaid for
+                        // the actual pick. The full label reveals on hover. Icons:
+                        // lock = private, winding path = public (plan only),
+                        // wallet = public (incl. expenses) — the app's money glyph.
                         const level: TripPrivacyLevel = trip.isPublic ? (trip.publicShowExpenses ? 'public-full' : 'public-plan') : 'private';
                         const label = level === 'private'
                             ? t('archivedDetail.visibilityPrivate')
                             : level === 'public-full'
                                 ? t('archivedDetail.visibilityPublicAll')
                                 : t('archivedDetail.visibilityPublicPlan');
+                        const privacyIcon = level === 'private' ? 'lock' : level === 'public-full' ? 'wallet' : 'path';
                         return (
-                            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '6px', background: CHIP_BG, border: CHIP_BORDER, padding: '8px 14px', borderRadius: '999px', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', color: HERO_TEXT }}>
-                                <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{label}</span>
+                            <div className="hover-reveal-host" aria-label={label} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '6px', background: CHIP_BG, border: CHIP_BORDER, padding: '10px 13px', borderRadius: '999px', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', color: HERO_TEXT }}>
+                                <Icon name={privacyIcon} size={16} />
                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={HERO_TEXT} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, opacity: 0.85 }}><polyline points="6 9 12 15 18 9" /></svg>
+                                <span className="hover-reveal-label">{label}</span>
                                 <select
                                     className="trip-privacy-select"
                                     aria-label={t('archivedDetail.visibilityAria')}

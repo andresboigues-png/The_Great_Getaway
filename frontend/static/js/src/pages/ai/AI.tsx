@@ -133,7 +133,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         navigate('home');
                     }}
                 >
-                    <span className="ai-accommodation-banner__icon" aria-hidden="true">🏨</span>
+                    <span className="ai-accommodation-banner__icon" aria-hidden="true">🛏️</span>
                     <span className="ai-accommodation-banner__text">{t('ai.accommodationBanner')}</span>
                     <span className="ai-accommodation-banner__arrow" aria-hidden="true">→</span>
                 </button>

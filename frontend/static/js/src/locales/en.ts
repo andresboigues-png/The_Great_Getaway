@@ -185,8 +185,8 @@ export const en = {
         // DSGN-012: day-pin map toasts (place / save the pin).
         dayPinClickMap: 'Click on the map to set the location for this day!',
         dayPinSaved: 'Location saved!',
-        restoreTripTitle: 'Restore this trip?',
-        restoreTripConfirmBtn: 'Restore',
+        restoreTripTitle: 'Reactivate this trip?',
+        restoreTripConfirmBtn: 'Reactivate',
         deleteTripTitle: 'Delete this trip?',
         deleteTripConfirmBtn: 'Delete',
         deleteOwnerOnlyTitle: 'Only owners can delete',
@@ -1263,7 +1263,7 @@ export const en = {
         completedTripsTab: 'Completed Trips',
         publicLabel: 'Public',
         notPublicLabel: 'Not public',
-        restoreBtn: 'Restore',
+        restoreBtn: 'Reactivate',
         deletePermanentlyTooltip: 'Delete Permanently',
         deletePermanentlyAriaLabel: 'Delete trip permanently',
         // Card body labels.
@@ -2364,7 +2364,7 @@ export const en = {
         cloneBtn: 'Clone',
         cloneBtnTitle: 'Start a new trip based on this one',
         cloneBtnAria: 'Clone this trip',
-        restoreBtn: '↺ Restore Trip',
+        restoreBtn: 'Reactivate Trip',
         heroTag: 'Completed memory',
         statDays: 'Days',
         statPhotos: 'Photos',

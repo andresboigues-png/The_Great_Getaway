@@ -381,6 +381,11 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                     foodContext,
                     sightseeingContext: sightsContextWithMarked,
                     accommodations,
+                    // The traveller's profile bio — the planner weaves in any
+                    // travel-relevant, destination-feasible tastes (and ignores
+                    // the rest). Server caps + scrubs + tags it like every other
+                    // free-text field.
+                    bio: (STATE.user?.bio || '').trim(),
                     gemini_key: (STATE.geminiApiKey || '').trim(),
                 }),
             }, 75_000);  // MK2 BUG-3: generation takes ~30s (Gemini + Places); the blanket 20s aborted every multi-day plan

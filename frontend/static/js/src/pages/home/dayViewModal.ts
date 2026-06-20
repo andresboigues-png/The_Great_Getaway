@@ -107,7 +107,7 @@ export const openDayView = (day: TripDay): void => {
                     <div style="background: rgba(88,86,214,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(88,86,214,0.12);">
                         <h4 class="text-tag">${t('dayDetail.accommodationHeading')}</h4>
                         <div style="display:flex; align-items:flex-start; gap:10px; margin-top:6px;">
-                            <span style="font-size:1.1rem; line-height:1.3;">🏨</span>
+                            <span style="font-size:1.1rem; line-height:1.3;">🛏️</span>
                             <div style="flex:1; min-width:0;">
                                 <div style="font-weight:700; color:#002d5b; line-height:1.3; word-break:break-word;">${esc(day.accommodation)}</div>
                                 ${day.accommodationAddress ? `<div style="font-size:0.78rem; color:var(--text-secondary); margin-top:2px;">${esc(day.accommodationAddress)}</div>` : ''}

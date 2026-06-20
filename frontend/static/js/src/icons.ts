@@ -36,6 +36,12 @@ export const ICON_PATHS: Record<string, string> = {
         '<line x1="10" x2="21" y1="6" y2="6"/><line x1="10" x2="21" y1="12" y2="12"/>' +
         '<line x1="10" x2="21" y1="18" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/>' +
         '<path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/>',
+    // winding pathway — Path tab + "public, plan only" visibility
+    path: '<path d="M9 3c0 4 6 5 6 9s-6 5-6 9"/>',
+    // arrow-left — back navigation
+    arrowLeft: '<line x1="19" x2="5" y1="12" y2="12"/><polyline points="12 19 5 12 12 5"/>',
+    // rotate-ccw — restore / unarchive a completed trip
+    restore: '<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>',
     // paperclip — documents
     document:
         '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',

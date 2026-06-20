@@ -1846,6 +1846,62 @@ body.is-signed-out .trip-controls-popover {
 .liquid-alert.show { transform: translateX(-50%) translateY(0); }
 .liquid-alert.dismiss { transform: translateX(-50%) translateY(100px); opacity: 0; }
 
+/* Generic icon-button hover-reveal label. An icon-only control reveals its
+   text label as a mouse-only tooltip on hover (touch screens stay clean
+   icon-only — no bloat). Used by the home-map action buttons AND the
+   archived-trip hero (Back / Share / Clone / Restore + the stat & privacy
+   chips). MUST live in this GLOBAL stylesheet, not a page's chunk CSS: the
+   home view and the archived-trip view are separate lazy chunks, so a
+   chunk-local copy only works on one of them. */
+.hover-reveal-host {
+    position: relative;
+}
+.hover-reveal-label {
+    position: absolute;
+    /* ABOVE the host by default (the home-map buttons sit on the search bar,
+       so a tooltip below would cover it; above is transient-hover-over-text). */
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: var(--text-brand-navy, #002d5b);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 8px;
+    white-space: nowrap;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    z-index: 60;
+}
+@media (hover: hover) and (pointer: fine) {
+    .hover-reveal-host:hover .hover-reveal-label,
+    .hover-reveal-host:focus-visible .hover-reveal-label {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+/* Drop-below, right-anchored variant. For icon buttons pinned to the top-RIGHT
+   of an overflow:hidden card (the archived-trip hero actions): an above-label
+   would be clipped by the card's top edge, and a centred label on the rightmost
+   button would spill past the right edge. Anchoring the label's right edge to
+   the button and growing it leftward keeps it inside the card. */
+.hover-reveal-label--corner {
+    bottom: auto;
+    top: calc(100% + 8px);
+    left: auto;
+    right: 0;
+    transform: translateX(0) translateY(-4px);
+}
+@media (hover: hover) and (pointer: fine) {
+    .hover-reveal-host:hover .hover-reveal-label--corner,
+    .hover-reveal-host:focus-visible .hover-reveal-label--corner {
+        transform: translateX(0) translateY(0);
+    }
+}
+
 /* 2026-05-25 (audit): on mobile the bottom-nav is ~80px tall + safe-
    area inset. The default `bottom: var(--space-10)` (40px) puts the
    toast BEHIND the bottom-nav so the user can't read it. Lift the
