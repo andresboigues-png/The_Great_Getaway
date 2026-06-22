@@ -25,9 +25,11 @@ import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Trip, Budget, Category } from '../../types';
 import { t, tn, formatCurrency } from '../../i18n.js';
 
+// Distinct hues for the per-person allocation stacked bar + its legend.
+const ALLOC_PALETTE = ['#0071e3', '#5856d6', '#34c759', '#ff9500', '#ff3b30', '#00c7be', '#bf5af2', '#ffd60a'];
+
 export function Budgets() {
     const trips = useStore((s) => s.trips);
-    const archivedTrips = useStore((s) => s.archivedTrips);
     const categories = useStore((s) => s.categories);
     const budgets = useStore((s) => s.budgets);
     // Subscribe to expenses so spentForBudget recomputes on add/remove.
@@ -44,15 +46,27 @@ export function Budgets() {
     // user can still switch with the chips. Re-mount re-evaluates against the
     // then-current active trip.
     const activeTripId = useStore((s) => s.activeTripId);
-    const [filterTrip, setFilterTrip] = useState<string>(() =>
-        activeTripId && allBudgets.some((b: Budget) => b.tripId === activeTripId)
-            ? activeTripId
-            : '',
+    // "Total" sums every ACTIVE trip (completed/archived excluded) + account-
+    // wide budgets; "This trip" is just the active trip. This set of active
+    // trip ids drives the Total filter, so it changes as trips complete /
+    // reactivate.
+    const activeTripIds = useMemo(
+        () => new Set((trips || []).map((tr: Trip) => tr.id)),
+        [trips],
     );
-
-    const visibleBudgets = filterTrip
-        ? allBudgets.filter((b: Budget) => b.tripId === filterTrip)
-        : allBudgets;
+    // Scope slider — defaults to This trip when the active trip has budgets,
+    // else Total (so the user never lands on an empty view).
+    const [scope, setScope] = useState<'thisTrip' | 'total'>(() =>
+        activeTripId && allBudgets.some((b: Budget) => b.tripId === activeTripId)
+            ? 'thisTrip'
+            : 'total',
+    );
+    const visibleBudgets = scope === 'thisTrip'
+        ? allBudgets.filter((b: Budget) => b.tripId === activeTripId)
+        : allBudgets.filter((b: Budget) => b.tripId === 'all' || activeTripIds.has(b.tripId));
+    // The whole budget summary card (Spent / Allocated / Remaining + the
+    // per-person breakdown) is hidden by default; a gold pill reveals it.
+    const [showOverview, setShowOverview] = useState(false);
 
     // DSGN-031: memoize all O(budgets × expenses) aggregations together so
     // they only recompute when budgets or expenses actually change, not on
@@ -67,6 +81,7 @@ export function Budgets() {
         totalSpent,
         overBudgetCount,
         budgetStatusMap,
+        allocByUser,
     } = useMemo(() => {
         // BUD-4 (MK4): overlap-aware allocation — count only the broadest
         // budget's target when scopes overlap (a trip-total + a sub-budget no
@@ -81,7 +96,18 @@ export function Budgets() {
         );
         // BUD-8 (MK4): per-budget over-budget count.
         const obc = [...statusMap.values()].filter((s) => s.tier === 'over').length;
-        return { totalAllocated: ta, totalSpent: ts, overBudgetCount: obc, budgetStatusMap: statusMap };
+        // Per-person allocation breakdown: sum each budget's EUR target by its
+        // owner; budgets with no specific owner (user 'all'/'') bucket as
+        // shared. Powers the overview's stacked bar.
+        const byUserMap = new Map<string, number>();
+        for (const b of visibleBudgets) {
+            const u = (b.user && b.user !== 'all') ? b.user : '__shared__';
+            byUserMap.set(u, (byUserMap.get(u) || 0) + (b.amount || 0));
+        }
+        const abu = [...byUserMap.entries()]
+            .map(([user, amount]) => ({ user, amount }))
+            .sort((a, b) => b.amount - a.amount);
+        return { totalAllocated: ta, totalSpent: ts, overBudgetCount: obc, budgetStatusMap: statusMap, allocByUser: abu };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [visibleBudgets, expenses]);
     const totalRemaining = totalAllocated - totalSpent;
@@ -101,20 +127,6 @@ export function Budgets() {
     const overallColor =
         overallTier === 'over' ? '#ff3b30' : overallTier === 'near' ? '#ff9500' : '#34c759';
 
-    const tripsInBudgets = [
-        ...new Set(allBudgets.map((b: Budget) => b.tripId).filter((id) => id && id !== 'all')),
-    ] as string[];
-    // BUG-071: the filter lazy-inits to the active trip, but the chip strip
-    // (incl. the "All trips" reset chip) used to render ONLY when >1 TRIP
-    // carried budgets — and tripsInBudgets excludes the account-wide ('all')
-    // scope. So a user with one trip budget + one account-wide budget saw
-    // just the trip budget with no chip to clear the auto filter, hiding the
-    // account-wide budget irrecoverably. Count 'all' as its own scope and
-    // show the strip whenever ≥2 distinct scopes exist, so the reset chip is
-    // always reachable (and stays put after clearing).
-    const hasAccountWideBudget = allBudgets.some((b: Budget) => b.tripId === 'all');
-    const showTripChips =
-        tripsInBudgets.length + (hasAccountWideBudget ? 1 : 0) > 1;
 
     return (
         <div>
@@ -136,57 +148,27 @@ export function Budgets() {
                 >
                     {t('budgets.newBudgetBtn')}
                 </button>
-                {showTripChips && (
-                    <>
+                {/* Scope slider — "This trip" (active trip) vs "Total" (all
+                    ACTIVE trips + account-wide budgets). Replaces the old
+                    per-trip chip strip; always visible. */}
+                <div className="inline-flex rounded-full p-[3px] bg-[rgba(0,0,0,0.05)]" role="tablist" aria-label={t('budgets.title')}>
+                    {(['thisTrip', 'total'] as const).map((s) => (
                         <button
+                            key={s}
                             type="button"
-                            onClick={() => setFilterTrip('')}
+                            role="tab"
+                            aria-selected={scope === s}
+                            onClick={() => setScope(s)}
+                            className="py-2 px-[18px] rounded-full font-extrabold text-[0.82rem] cursor-pointer border-0"
                             style={{
-                                background:
-                                    filterTrip === ''
-                                        ? 'rgba(255,159,10,0.16)'
-                                        : 'rgba(0,0,0,0.04)',
-                                color: filterTrip === '' ? '#a35200' : 'var(--text-brand-navy)',
-                                border: `1px solid ${filterTrip === '' ? 'rgba(255,159,10,0.4)' : 'rgba(0,0,0,0.08)'}`,
-                                padding: '7px 14px',
-                                borderRadius: '999px',
-                                fontSize: '0.78rem',
-                                fontWeight: 800,
-                                cursor: 'pointer',
+                                background: scope === s ? 'linear-gradient(135deg,#ffd60a,#ff9f0a)' : 'transparent',
+                                color: scope === s ? '#5e3c00' : 'var(--text-secondary)',
                             }}
                         >
-                            {t('budgets.filterAllTrips')}
+                            {s === 'thisTrip' ? t('budgets.scopeThisTrip') : t('budgets.scopeTotal')}
                         </button>
-                        {tripsInBudgets.map((tid) => {
-                            const trip =
-                                trips.find((t: Trip) => t.id === tid) ||
-                                archivedTrips.find((t: Trip) => t.id === tid);
-                            if (!trip) return null;
-                            const active = filterTrip === tid;
-                            return (
-                                <button
-                                    key={tid}
-                                    type="button"
-                                    onClick={() => setFilterTrip(tid)}
-                                    style={{
-                                        background: active
-                                            ? 'rgba(255,159,10,0.16)'
-                                            : 'rgba(0,0,0,0.04)',
-                                        color: active ? '#a35200' : 'var(--text-brand-navy)',
-                                        border: `1px solid ${active ? 'rgba(255,159,10,0.4)' : 'rgba(0,0,0,0.08)'}`,
-                                        padding: '7px 14px',
-                                        borderRadius: '999px',
-                                        fontSize: '0.78rem',
-                                        fontWeight: 800,
-                                        cursor: 'pointer',
-                                    }}
-                                >
-                                    {trip.name}
-                                </button>
-                            );
-                        })}
-                    </>
-                )}
+                    ))}
+                </div>
                 <span
                     className="ml-auto text-[0.78rem] text-secondary font-bold"
                 >
@@ -195,10 +177,21 @@ export function Budgets() {
             </div>
 
             {visibleBudgets.length > 0 && (
+                <button
+                    type="button"
+                    onClick={() => setShowOverview((v) => !v)}
+                    aria-expanded={showOverview}
+                    className="mt-[18px] inline-flex items-center gap-1.5 bg-[linear-gradient(135deg,_#ffd60a,_#ff9f0a)] text-[#5e3c00] border-0 py-2 px-4 rounded-full font-extrabold text-[0.82rem] cursor-pointer shadow-[0_6px_18px_rgba(255,159,10,0.3)]"
+                >
+                    {t('budgets.summaryToggle')}
+                    <span aria-hidden="true">{showOverview ? '▴' : '▾'}</span>
+                </button>
+            )}
+            {visibleBudgets.length > 0 && showOverview && (
                 <div
                     className="card glass"
                     style={{
-                        marginTop: '18px',
+                        marginTop: '14px',
                         padding: '24px 28px',
                         borderRadius: '28px',
                         background:
@@ -215,7 +208,7 @@ export function Budgets() {
                             <div
                                 className="text-[0.7rem] font-extrabold uppercase tracking-[0.12em] text-secondary mb-1.5"
                             >
-                                {filterTrip ? t('budgets.overallTrip') : t('budgets.overallAll')}
+                                {scope === 'thisTrip' ? t('budgets.scopeThisTrip') : t('budgets.scopeTotal')}
                             </div>
                             <div
                                 className="flex items-baseline gap-[14px] flex-wrap"
@@ -312,6 +305,34 @@ export function Budgets() {
                             }}
                         />
                     </div>
+                    {/* Per-person allocation breakdown — how the allocated total
+                        splits across companions (stacked bar + legend). Shown
+                        inline; the whole summary card is what toggles now. */}
+                    {allocByUser.length > 0 && totalAllocated > 0 ? (
+                        <div className="mt-5">
+                            <div className="text-[0.66rem] font-extrabold uppercase tracking-widest text-secondary mb-2">
+                                {t('budgets.allocByPersonLabel')}
+                            </div>
+                            <div className="flex h-2.5 rounded-full overflow-hidden bg-[var(--surface-subtle)]" aria-hidden="true">
+                                {allocByUser.map((u, i) => (
+                                    <div
+                                        key={u.user}
+                                        style={{ width: `${(u.amount / totalAllocated) * 100}%`, background: ALLOC_PALETTE[i % ALLOC_PALETTE.length], minWidth: u.amount > 0 ? '2px' : 0 }}
+                                    />
+                                ))}
+                            </div>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-2.5">
+                                {allocByUser.map((u, i) => (
+                                    <span key={u.user} className="inline-flex items-center gap-1.5 text-[0.74rem] font-bold text-secondary">
+                                        <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ background: ALLOC_PALETTE[i % ALLOC_PALETTE.length] }} />
+                                        <span className="text-brand-navy">{u.user === '__shared__' ? t('budgets.allocShared') : u.user}</span>
+                                        <span>{formatHome(u.amount, 'EUR')}</span>
+                                        <span className="opacity-60">{Math.round((u.amount / totalAllocated) * 100)}%</span>
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
                 </div>
             )}
 
@@ -323,7 +344,7 @@ export function Budgets() {
                     <EmptyState
                         accent="orange"
                         iconName="wallet"
-                        title={filterTrip ? t('budgets.emptyTitleFilter') : t('budgets.emptyTitleNoFilter')}
+                        title={scope === 'thisTrip' ? t('budgets.emptyTitleFilter') : t('budgets.emptyTitleNoFilter')}
                         // Body holds inline <strong> markup; render as
                         // HTML so the bold lands. Source string is from
                         // our own translation tables — injection-safe.
@@ -446,16 +467,25 @@ export function Budgets() {
                                         />
                                     </div>
                                     <div
-                                        className="flex justify-between mt-1.5 text-[0.7rem] text-secondary font-bold"
+                                        className="flex justify-between items-center mt-1.5 text-[0.7rem] text-secondary font-bold"
                                     >
                                         <span>{t('budgets.cardPctUsed', { pct: Math.round(status.pct) })}</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => deleteBudget(b.id)}
-                                            className="bg-none border-0 text-[#ff3b30] text-[0.72rem] font-extrabold cursor-pointer p-0 uppercase tracking-[0.06em]"
-                                        >
-                                            {t('budgets.cardDelete')}
-                                        </button>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => openCreateBudgetModal(b)}
+                                                className="bg-none border-0 text-[var(--accent-blue)] text-[0.72rem] font-extrabold cursor-pointer p-0 uppercase tracking-[0.06em]"
+                                            >
+                                                {t('budgets.cardEdit')}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => deleteBudget(b.id)}
+                                                className="bg-none border-0 text-[#ff3b30] text-[0.72rem] font-extrabold cursor-pointer p-0 uppercase tracking-[0.06em]"
+                                            >
+                                                {t('budgets.cardDelete')}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

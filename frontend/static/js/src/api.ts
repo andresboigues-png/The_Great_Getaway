@@ -84,7 +84,7 @@ export async function syncWithServer() {
         // Success path — if we'd previously warned the user about an
         // outage, let them know we're back.
         if (_syncOfflineToastShown) {
-            showLiquidAlert(t('errors.backOnline'));
+            showLiquidAlert(t('errors.backOnline'), 'success');
         }
         _syncConsecutiveFailures = 0;
         _syncOfflineToastShown = false;
@@ -246,7 +246,7 @@ export async function pullFromServer() {
             showLiquidAlert(t('toasts.badgeUnlocked', {
                 emoji: b.emoji || '🏅',
                 label: b.label || t('toasts.badgeUnlockedFallback'),
-            }));
+            }), 'success');
         }
         // Account-level companions (data.companions) is no longer used —
         // companions live per-trip on `trip.companions`.

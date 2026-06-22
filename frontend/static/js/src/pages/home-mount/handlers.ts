@@ -109,7 +109,7 @@ export const addDayPin = (dayId: string): void => {
     // set so a re-entry doesn't overwrite the previous snapshot.
     _pinEditOriginalCoords = { lat: day.lat, lon: day.lon, lng: day.lng };
     editingDayId = dayId;
-    showLiquidAlert(t('errors.dayPinClickMap'));
+    showLiquidAlert(t('errors.dayPinClickMap'), 'info');
 
     activeMapClickListener = (e) => {
         day.lat = e.latlng.lat;
@@ -176,7 +176,7 @@ export const saveDayPin = async (dayId: string): Promise<void> => {
     _pinEditOriginalCoords = null;
     emit('state:changed');
     await upsertDay(day);
-    showLiquidAlert(t('errors.dayPinSaved'));
+    showLiquidAlert(t('errors.dayPinSaved'), 'success');
     navigate('home', null, true);
 };
 
@@ -216,7 +216,7 @@ export const setDayPinFromPlace = async (
     }
     emit('state:changed');
     await upsertDay(day);
-    showLiquidAlert(t('errors.dayPinSaved'));
+    showLiquidAlert(t('errors.dayPinSaved'), 'success');
     navigate('home', null, true);
 };
 
@@ -366,7 +366,7 @@ export const deleteDay = (dayId: string): void => {
                 .filter((d) => d.tripId === tripId)
                 .sort((a, b) => a.dayNumber - b.dayNumber);
             for (const d of survivors) await upsertDay(d);
-            showLiquidAlert(t('errors.dayDeletedToast'));
+            showLiquidAlert(t('errors.dayDeletedToast'), 'success');
             navigate('home', null, true);
         })(); },
     });

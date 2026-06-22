@@ -110,7 +110,7 @@ export async function settleDebt(
     // returns true when on a captive wifi with no DNS) but false
     // negatives are very rare, so an "offline" reading is reliable.
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        showLiquidAlert(t('errors.offline'));
+        showLiquidAlert(t('errors.offline'), 'info');
         return;
     }
     // Audit MK5 P1: NEVER fabricate a 1:1 euroValue for a no-rate currency.
@@ -191,7 +191,7 @@ export async function settleDebt(
                     amount: formatHome(euroValue, 'EUR'),
                     from,
                     to,
-                }));
+                }), 'success');
             } else {
                 // Log + toast. We deliberately don't fall back to the
                 // fake-expense pattern here — keeping the data layer
@@ -245,7 +245,7 @@ export async function settleDebt(
             amount: formatHome(euroValue, 'EUR'),
             from,
             to,
-        }));
+        }), 'success');
     } finally {
         _settleInFlight.delete(inFlightKey);
     }

@@ -55,6 +55,30 @@ def test_upsert_budget_happy_path(client, seed_user, auth_headers):
     assert res.status_code == 200
 
 
+def test_upsert_budget_edit_same_scope_updates_in_place(client, seed_user, auth_headers):
+    """Editing a budget — re-POSTing the SAME id + SAME (trip, category, owner)
+    scope with a changed amount — must UPDATE in place (200), NOT trip the
+    duplicate-scope 409. The scope-dup pre-check excludes the row being edited
+    (`AND id != ?`); the frontend budget-edit flow depends on this."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-edit", "name": "Edit trip", "country": "FR"},
+    })
+    base = {
+        "id": "bud-edit", "tripId": "trip-edit", "categoryId": "all", "user": "all",
+        "amount": 100, "originalAmount": 100, "originalCurrency": "EUR",
+    }
+    r1 = client.post("/api/budgets", headers=auth_headers, json={"budget": base})
+    assert r1.status_code == 200, r1.get_data(as_text=True)
+    # Same id, same scope, new amount → updates (must not 409).
+    edited = {**base, "amount": 250, "originalAmount": 250}
+    r2 = client.post("/api/budgets", headers=auth_headers, json={"budget": edited})
+    assert r2.status_code == 200, r2.get_data(as_text=True)
+    # The stored amount actually changed.
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    bud = next(b for b in data["budgets"] if b["id"] == "bud-edit")
+    assert bud["amount"] == 250
+
+
 def test_budget_trip_scope_requires_money_edit_role(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):

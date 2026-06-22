@@ -500,6 +500,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
             willSilence
                 ? "Trip actions silenced — hidden from friends' feeds."
                 : 'Trip actions visible again.',
+            'success',
         );
     };
 

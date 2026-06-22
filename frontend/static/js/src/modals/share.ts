@@ -255,7 +255,7 @@ export const openShareTripModal = (trip: Trip) => {
             renderState();
             // Auto-copy on generate so the user can paste straight away.
             try { await navigator.clipboard.writeText(buildShareUrl(currentToken!)); } catch { /* ignored */ }
-            showLiquidAlert(t('share.linkReady'));
+            showLiquidAlert(t('share.linkReady'), 'success');
         } catch (e) {
             console.error('Generate share link failed:', e);
             showLiquidAlert(t('share.generateFailed'));
@@ -286,7 +286,7 @@ export const openShareTripModal = (trip: Trip) => {
             }
             emit('state:changed');
             renderState();
-            showLiquidAlert(t('share.linkRevoked'));
+            showLiquidAlert(t('share.linkRevoked'), 'success');
         } catch (e) {
             console.error('Unshare failed:', e);
             showLiquidAlert(t('share.revokeFailed'));

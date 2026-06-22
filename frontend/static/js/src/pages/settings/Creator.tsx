@@ -127,7 +127,7 @@ export function Creator() {
             setCopiedId(tmpl.id);
             setTimeout(() => setCopiedId((c) => (c === tmpl.id ? null : c)), 1600);
         } catch {
-            showLiquidAlert(formatCode(tmpl.code));
+            showLiquidAlert(formatCode(tmpl.code), 'info');
         }
     };
 

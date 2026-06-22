@@ -4518,27 +4518,54 @@ main#app-container.nav-anim-backward {
        back to the true bottom. */
     body > nav.mobile-bottom-nav,
     .mobile-bottom-nav {
+        /* Instagram-style floating liquid-glass ISLAND: a centred, content-
+           hugging pill that floats clear of the bottom edge — not a full-width
+           bar. Heavy blur + translucency + an inset top highlight read as
+           "liquid glass". */
         display: flex !important;
         position: fixed !important;
-        left: 0 !important;
-        right: 0 !important;
-        bottom: 0 !important;
-        background: rgba(255, 255, 255, 0.96);
-        backdrop-filter: saturate(180%) blur(20px);
-        -webkit-backdrop-filter: saturate(180%) blur(20px);
-        border-top: 1px solid rgba(0, 0, 0, 0.08);
-        padding: 4px 0 calc(4px + env(safe-area-inset-bottom));
+        left: 50% !important;
+        right: auto !important;
+        bottom: calc(14px + env(safe-area-inset-bottom)) !important;
+        width: calc(100% - 32px) !important;
+        max-width: 500px;
+        gap: 2px;
+        background: rgba(255, 255, 255, 0.55);
+        backdrop-filter: saturate(180%) blur(28px);
+        -webkit-backdrop-filter: saturate(180%) blur(28px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 32px;
+        padding: 6px 8px;
         z-index: 1500;
-        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 12px 34px rgba(0, 45, 91, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.6);
         opacity: 1 !important;
         visibility: visible !important;
         pointer-events: auto !important;
-        /* Guarantee a renderable size in case anything else is
-           collapsing it to 0 — paddings above + this min-height give
-           the bar a visible footprint even before children paint. */
-        min-height: 56px;
-        transform: none !important;
+        min-height: 0;
+        transform: translateX(-50%) !important;
+        transform-origin: bottom center;
+        transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                    box-shadow 0.3s ease, background 0.3s ease;
     }
+    /* Compact state — the scroll handler (bottomNavScroll.ts) adds this while
+       scrolling DOWN so the island shrinks toward the bottom; scrolling UP (or
+       reaching the top) removes it and it grows back. Pure transform → buttery,
+       no reflow, and the blur stays GPU-composited. */
+    .mobile-bottom-nav.is-compact {
+        transform: translateX(-50%) scale(0.8) !important;
+        box-shadow: 0 6px 18px rgba(0, 45, 91, 0.14);
+    }
+    /* Island items spread evenly across the wide island (flex: 1), compact tap
+       targets, no per-item margins (the nav `gap` spaces them). The old
+       flush-top accent bar is meaningless on a pill. */
+    .mobile-bottom-nav__item {
+        flex: 1;
+        min-height: 48px;
+        padding: 8px 4px;
+        margin: 0;
+        border-radius: 16px;
+    }
+    .mobile-bottom-nav__item.active::before { display: none; }
     /* iOS Safari URL-bar compensation — iOS ONLY (html.is-ios, set in
        nav-chrome.ts). iOS Safari's url bar sits at the BOTTOM, so
        `bottom: 0` hides the nav behind it; lift by the bar height
@@ -4549,7 +4576,8 @@ main#app-container.nav-anim-backward {
     @supports (height: 100dvh) {
         html.is-ios body > nav.mobile-bottom-nav,
         html.is-ios .mobile-bottom-nav {
-            bottom: calc(100vh - 100dvh) !important;
+            /* Keep the island's float gap AND add the iOS URL-bar lift. */
+            bottom: calc(14px + env(safe-area-inset-bottom) + 100vh - 100dvh) !important;
         }
     }
     /* Sign-out override still wins (more specific + same !important
@@ -5142,13 +5170,10 @@ main#app-container.nav-anim-backward {
    page. Flip to a frosted-graphite gradient matching the sidebar
    so the bottom nav reads as the same surface material. */
 :root[data-theme="dark"] .mobile-bottom-nav {
-    background: linear-gradient(
-        180deg,
-        rgba(38, 38, 44, 0.92) 0%,
-        rgba(28, 28, 32, 0.96) 100%
-    ) !important;
-    border-top-color: rgba(255, 255, 255, 0.08) !important;
-    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5) !important;
+    /* Dark liquid-glass island — translucent enough for the blur to read. */
+    background: rgba(28, 28, 32, 0.55) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
 }
 :root[data-theme="dark"] .mobile-bottom-nav__item {
     /* Use accent-blue for both icon stroke (via currentColor on

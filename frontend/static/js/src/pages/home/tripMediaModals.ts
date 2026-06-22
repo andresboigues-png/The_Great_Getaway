@@ -411,7 +411,7 @@ export const openTripPhotosModal = (trip: Trip): void => {
             if (files.length === 0) return;
             showLiquidAlert(files.length === 1
                 ? t('tripMedia.photoUploadingOne', { count: files.length })
-                : t('tripMedia.photoUploadingOther', { count: files.length }));
+                : t('tripMedia.photoUploadingOther', { count: files.length }), 'info');
             const anchorDay = (STATE.tripDays || [])
                 .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);
             const defaultDayId = anchorDay ? anchorDay.id : null;
@@ -450,11 +450,11 @@ export const openTripPhotosModal = (trip: Trip): void => {
                 if (autoTagged > 0) {
                     showLiquidAlert(added === 1
                         ? t('tripMedia.photoUploadedSortedOne', { count: added, sorted: autoTagged })
-                        : t('tripMedia.photoUploadedSortedOther', { count: added, sorted: autoTagged }));
+                        : t('tripMedia.photoUploadedSortedOther', { count: added, sorted: autoTagged }), 'success');
                 } else {
                     showLiquidAlert(added === 1
                         ? t('tripMedia.photoUploadedOne', { count: added })
-                        : t('tripMedia.photoUploadedOther', { count: added }));
+                        : t('tripMedia.photoUploadedOther', { count: added }), 'success');
                 }
                 repaint();
             } else {

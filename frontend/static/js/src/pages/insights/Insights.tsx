@@ -194,8 +194,13 @@ export function Insights() {
     const [ratesSettled, setRatesSettled] = useState(false);
 
     // ── Dashboard controls (sort / filter / dimension toggles) ────────────
-    // Spenders dashboard: how to order the people list.
+    // Spenders dashboard: how to order the list.
     const [spenderSort, setSpenderSort] = useState<'amount_desc' | 'amount_asc' | 'count_desc' | 'name_asc'>('amount_desc');
+    // Spenders is ALWAYS per-companion. The dimension is a SECONDARY breakdown
+    // of each companion's spend: 'general' = their plain total (the original
+    // view); category/country/currency split each companion's bar by that
+    // dimension so you can see what each person spent across categories, etc.
+    const [spenderDim, setSpenderDim] = useState<'general' | 'category' | 'country' | 'currency'>('general');
     // Avg-per-day dashboard: narrow the average to one payer / category.
     const [avgWho, setAvgWho] = useState<string>('all');
     const [avgCat, setAvgCat] = useState<string>('all');
@@ -424,14 +429,40 @@ export function Insights() {
 
     // ── Spenders dashboard: per-person spend + count, ordered by the chosen sort.
     const spenderRows = useMemo(() => {
-        const m: Record<string, { value: number; count: number }> = {};
+        // Primary axis = companion (who). When a secondary dimension is active,
+        // each companion also carries a per-dimension breakdown (`seg`) so the
+        // bar can split into what THAT person spent per category/country/currency.
+        const byWho: Record<string, { name: string; value: number; count: number; seg: Record<string, number> }> = {};
+        const catColorOf: Record<string, string> = {};
+        const allKeys = new Set<string>();
         for (const e of convertedExps) {
             const who = e.who || '—';
-            if (!m[who]) m[who] = { value: 0, count: 0 };
-            m[who]!.value += e.displayValue;
-            m[who]!.count += 1;
+            if (!byWho[who]) byWho[who] = { name: who, value: 0, count: 0, seg: {} };
+            const row = byWho[who]!;
+            row.value += e.displayValue;
+            row.count += 1;
+            if (spenderDim !== 'general') {
+                let k: string;
+                if (spenderDim === 'category') { const c = findCategory(e.categoryId); k = `${c.icon} ${c.name}`; catColorOf[k] = c.color; }
+                else if (spenderDim === 'country') { k = e.country || '—'; }
+                else { k = (e.currency || 'EUR').toUpperCase(); }
+                row.seg[k] = (row.seg[k] || 0) + e.displayValue;
+                allKeys.add(k);
+            }
         }
-        const rows = Object.entries(m).map(([name, v]) => ({ name, value: v.value, count: v.count }));
+        // Stable colour per dimension value — category keeps its own colour;
+        // country/currency get a palette colour by sorted position — so the same
+        // value reads the same across every companion's bar AND the shared legend.
+        const colorOf: Record<string, string> = {};
+        [...allKeys].sort().forEach((k, i) => { colorOf[k] = catColorOf[k] || DASH_PALETTE[i % DASH_PALETTE.length] || '#0071e3'; });
+        const rows = Object.values(byWho).map((r) => ({
+            name: r.name,
+            value: r.value,
+            count: r.count,
+            segs: Object.entries(r.seg)
+                .map(([label, value]) => ({ label, value, color: colorOf[label] || '#0071e3' }))
+                .sort((a, b) => b.value - a.value),
+        }));
         rows.sort((a, b) => {
             if (spenderSort === 'amount_asc') return a.value - b.value;
             if (spenderSort === 'count_desc') return b.count - a.count || b.value - a.value;
@@ -439,7 +470,16 @@ export function Insights() {
             return b.value - a.value;
         });
         return rows;
-    }, [convertedExps, spenderSort]);
+    }, [convertedExps, spenderSort, spenderDim]);
+
+    // Shared legend for the secondary dimension (unique value → colour across
+    // all companions). Empty for 'general'.
+    const spenderLegend = useMemo(() => {
+        if (spenderDim === 'general') return [] as { label: string; color: string }[];
+        const seen = new Map<string, string>();
+        for (const r of spenderRows) for (const s of r.segs) if (!seen.has(s.label)) seen.set(s.label, s.color);
+        return [...seen.entries()].map(([label, color]) => ({ label, color }));
+    }, [spenderRows, spenderDim]);
 
     // ── Avg-per-day dashboard: average over the days that actually had spend,
     // past + dated only (same window as before), now narrowable by payer/category.
@@ -1325,7 +1365,20 @@ export function Insights() {
             {/* Spenders dashboard — per-person spend, sortable, with a share donut. */}
             <div className="card glass in-card-pad-28 mb-8">
                 <div className="flex items-center justify-between gap-2 flex-wrap mb-4">
-                    <h2 className="card-title m-0">{t('insights.spendersTitle')}</h2>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="card-title m-0">{t('insights.spendersTitle')}</h2>
+                        <SegmentedControl
+                            ariaLabel={t('insights.spendersTitle')}
+                            value={spenderDim}
+                            onChange={setSpenderDim}
+                            options={[
+                                { value: 'general', label: t('insights.dimGeneral') },
+                                { value: 'category', label: t('insights.dimCategory') },
+                                { value: 'country', label: t('insights.dimCountry') },
+                                { value: 'currency', label: t('insights.dimCurrency') },
+                            ]}
+                        />
+                    </div>
                     <SegmentedControl
                         ariaLabel={t('insights.sortBy')}
                         value={spenderSort}
@@ -1364,8 +1417,12 @@ export function Insights() {
                                                 <span className="ml-2 text-secondary font-semibold text-[0.78rem]">{r.count} {t('insights.transactionsAbbrev')} · {formatNumber(sharePct, 0)}%</span>
                                             </span>
                                         </div>
-                                        <div className="relative h-1.5 rounded-full bg-[rgba(0,113,227,0.08)] overflow-hidden" aria-hidden="true">
-                                            <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: `${Math.min(100, Math.max(0, barPct))}%`, background: 'linear-gradient(90deg, #0071e3, #5856d6)', borderRadius: 999, transition: 'width 0.3s ease' }} />
+                                        <div className="relative h-1.5 rounded-full bg-[rgba(0,113,227,0.08)] overflow-hidden flex" aria-hidden="true">
+                                            {r.segs.length > 0
+                                                ? r.segs.map((s) => (
+                                                    <div key={s.label} title={`${s.label}: ${targetSym}${formatNumberForCurrency(s.value, targetCurr)}`} style={{ width: `${maxV > 0 ? (s.value / maxV) * 100 : 0}%`, background: s.color, transition: 'width 0.3s ease' }} />
+                                                  ))
+                                                : <div style={{ width: `${Math.min(100, Math.max(0, barPct))}%`, background: 'linear-gradient(90deg, #0071e3, #5856d6)', borderRadius: 999, transition: 'width 0.3s ease' }} />}
                                         </div>
                                     </div>
                                 );
@@ -1373,6 +1430,18 @@ export function Insights() {
                         })()}
                     </div>
                 </div>
+                {/* Shared legend for the secondary dimension — same colour =
+                    same category / country / currency across every companion. */}
+                {spenderLegend.length > 0 ? (
+                    <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-4 pt-4 border-t border-[var(--border-subtle)]">
+                        {spenderLegend.map((l) => (
+                            <span key={l.label} className="inline-flex items-center gap-1.5 text-[0.74rem] font-semibold text-secondary">
+                                <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ background: l.color }} />
+                                {l.label}
+                            </span>
+                        ))}
+                    </div>
+                ) : null}
             </div>
 
             {/* "Expenses per…" dashboard — dimension + metric, with a share donut + %.

@@ -1256,7 +1256,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         // redundant with auto-save but kept as a comfortable
         // Big Button exit.
         await persistNow();
-        showLiquidAlert(t('dayDetail.toastUpdated'));
+        showLiquidAlert(t('dayDetail.toastUpdated'), 'success');
         close();
         navigate('home');
     };

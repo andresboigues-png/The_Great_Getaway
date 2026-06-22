@@ -45,6 +45,7 @@ import { captureTemplateIntent, attemptPendingTemplate, hasPendingTemplateIntent
 import { wireNavChrome, resolvePage } from './bootstrap/nav-chrome.js';
 import { setupInstallPrompt } from './bootstrap/install-prompt.js';
 import { initPullToRefresh } from './pullToRefresh.js';
+import { initBottomNavScroll } from './bottomNavScroll.js';
 
 // ── UI subscribers ──
 // Kept here (not in state.js) so the data layer doesn't reach into the UI.
@@ -199,6 +200,11 @@ async function init() {
     // mobileSwipe gesture wired inside wireNavChrome above; no teardown
     // needed (the page reload that ends the session drops them).
     initPullToRefresh();
+
+    // Mobile bottom-nav island — shrinks on scroll-down, grows on scroll-up
+    // (Instagram-style). Same long-lived passive-listener convention as
+    // initPullToRefresh; rAF-throttled and inert on desktop.
+    initBottomNavScroll();
 
     // §4.10 v2 — PWA install banner. Internally gated on second visit
     // + not-yet-dismissed + not-yet-installed, so first-time visitors

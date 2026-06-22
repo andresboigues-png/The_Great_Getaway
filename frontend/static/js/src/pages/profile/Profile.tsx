@@ -929,7 +929,7 @@ function BioBlock({
                 }
                 emit('state:changed');
                 setDirty(false);
-                showLiquidAlert(ratesReset ? t('profile.updatedRatesReset') : t('profile.updated'));
+                showLiquidAlert(ratesReset ? t('profile.updatedRatesReset') : t('profile.updated'), 'success');
             } else {
                 showLiquidAlert(
                     res.status === 401
@@ -977,7 +977,7 @@ function BioBlock({
             const a = clearAllManualFx();
             const b = clearAllFxOverrides();
             emit('state:changed');
-            showLiquidAlert(a || b ? t('profile.updatedRatesReset') : t('profile.updated'));
+            showLiquidAlert(a || b ? t('profile.updatedRatesReset') : t('profile.updated'), 'success');
         } catch (e) {
             console.error('Home currency update failed:', e);
             showLiquidAlert(t('profile.saveNetwork'));

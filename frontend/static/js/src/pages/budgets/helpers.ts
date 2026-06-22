@@ -273,27 +273,35 @@ export const deleteBudget = (id: string) => {
  *  re-render advantage doesn't apply, and (b) showModal handles
  *  focus-trap, esc-to-close, etc. that we'd have to replicate
  *  in React. */
-export const openCreateBudgetModal = () => {
+export const openCreateBudgetModal = (existing?: Budget) => {
+    // Edit mode (an existing budget is passed in) pre-fills every field and
+    // REUSES the budget's id so the upsert UPDATES the row in place. Create
+    // mode defaults the trip to the active trip and the currency to home.
+    const isEdit = !!existing;
     const activeTripId = STATE.activeTripId || '';
+    const selTripId = existing?.tripId || (activeTripId || 'all');
+    const selCatId = existing?.categoryId || 'all';
+    const selUser = existing?.user || 'all';
     const tripOpts = (STATE.trips || [])
         .map(
             // Renamed param from `t` to `tr` to avoid shadowing the i18n
             // `t` import.
             (tr) =>
-                `<option value="${esc(tr.id)}" ${tr.id === activeTripId ? 'selected' : ''}>${esc(tr.name)}</option>`,
+                `<option value="${esc(tr.id)}" ${tr.id === selTripId ? 'selected' : ''}>${esc(tr.name)}</option>`,
         )
         .join('');
     const catOpts = (STATE.categories || [])
         .map(
             (c) =>
-                `<option value="${esc(c.id)}">${esc(c.icon ? c.icon + ' ' : '')}${esc(c.name)}</option>`,
+                `<option value="${esc(c.id)}" ${c.id === selCatId ? 'selected' : ''}>${esc(c.icon ? c.icon + ' ' : '')}${esc(c.name)}</option>`,
         )
         .join('');
     const allCompanionNames = Array.from(
         new Set((STATE.trips || []).flatMap((tr) => getTripCompanionNames(tr))),
     ).sort();
-    const userOpts = allCompanionNames.map((g) => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
+    const userOpts = allCompanionNames.map((g) => `<option value="${esc(g)}" ${g === selUser ? 'selected' : ''}>${esc(g)}</option>`).join('');
     const home = getHomeCurrency();
+    const selCurr = existing?.originalCurrency || home;
     // R3-Round 2 fix: same widening as ManualTab — show every currency
     // the live FX cache OR the static fallback knows about (not just
     // the 17-entry CONVERSION_RATES).
@@ -302,7 +310,7 @@ export const openCreateBudgetModal = () => {
     // — they get a manual EUR-target field below (mirrors the expense form).
     const currOpts = Array.from(new Set([...getSupportedCurrencies(), ...Object.keys(CURRENCY_SYMBOLS)]))
         .sort((a, b) => (a === 'EUR' ? -1 : b === 'EUR' ? 1 : a.localeCompare(b)))
-        .map((c) => `<option value="${c}" ${home === c ? 'selected' : ''}>${c}</option>`)
+        .map((c) => `<option value="${c}" ${selCurr === c ? 'selected' : ''}>${c}</option>`)
         .join('');
 
     const { root, close } = showModal({
@@ -310,38 +318,38 @@ export const openCreateBudgetModal = () => {
         cardStyle:
             'width: 480px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto;',
         innerHTML: `
-            <h2 class="h2-display">${t('budgets.createTitle')}</h2>
+            <h2 class="h2-display">${isEdit ? t('budgets.editTitle') : t('budgets.createTitle')}</h2>
             <p class="text-subtitle">${t('budgets.createSubtitle')}</p>
             <div style="display: flex; flex-direction: column; gap: var(--space-3); margin: var(--space-4) 0 var(--space-6);">
                 <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary);">${t('budgets.createTripLabel')}</label>
                 <select id="newBudTrip" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
-                    <option value="all" ${!activeTripId ? 'selected' : ''}>${t('budgets.createTripAll')}</option>${tripOpts}
+                    <option value="all" ${selTripId === 'all' ? 'selected' : ''}>${t('budgets.createTripAll')}</option>${tripOpts}
                 </select>
                 <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">${t('budgets.createCategoryLabel')}</label>
                 <select id="newBudCat" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
-                    <option value="all">${t('budgets.createCategoryAll')}</option>${catOpts}
+                    <option value="all" ${selCatId === 'all' ? 'selected' : ''}>${t('budgets.createCategoryAll')}</option>${catOpts}
                 </select>
                 <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">${t('budgets.createPersonLabel')}</label>
                 <select id="newBudUser" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
-                    <option value="all">${t('budgets.createPersonAll')}</option>${userOpts}
+                    <option value="all" ${selUser === 'all' ? 'selected' : ''}>${t('budgets.createPersonAll')}</option>${userOpts}
                 </select>
                 <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">${t('budgets.createTargetLabel')}</label>
                 <div style="display: grid; grid-template-columns: 1fr 110px; gap: var(--space-3);">
-                    <input type="number" id="newBudAmt" class="glass-input" placeholder="1000" min="0" step="any" style="padding: var(--space-3); border-radius: 12px;">
+                    <input type="number" id="newBudAmt" class="glass-input" placeholder="1000" min="0" step="any" value="${isEdit && existing?.originalAmount != null ? esc(String(existing.originalAmount)) : ''}" style="padding: var(--space-3); border-radius: 12px;">
                     <select id="newBudCurr" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">${currOpts}</select>
                 </div>
                 <!-- F2-DSGN1: manual EUR target, shown only for currencies with no
                      live rate (mirrors the expense form's manual-EUR field). -->
                 <div id="newBudEurRow" style="display:none; flex-direction:column; gap: var(--space-2); margin-top:8px;">
                     <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary);">${t('budgets.createEurLabel')}</label>
-                    <input type="number" id="newBudEur" class="glass-input" placeholder="0.00" min="0" step="any" style="padding: var(--space-3); border-radius: 12px;">
+                    <input type="number" id="newBudEur" class="glass-input" placeholder="0.00" min="0" step="any" value="${isEdit && existing?.amount != null ? esc(String(existing.amount)) : ''}" style="padding: var(--space-3); border-radius: 12px;">
                     <span id="newBudEurHint" style="font-size:0.72rem; color: var(--text-secondary);"></span>
                 </div>
                 <div id="newBudStatus" style="font-size:0.72rem; color: var(--text-secondary); min-height:1em; font-weight:700;"></div>
             </div>
             <div style="display:flex; gap: var(--space-3);">
                 <button id="newBudCancelBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">${t('budgets.createCancelBtn')}</button>
-                <button id="newBudSaveBtn" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">${t('budgets.createSaveBtn')}</button>
+                <button id="newBudSaveBtn" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">${isEdit ? t('budgets.editSaveBtn') : t('budgets.createSaveBtn')}</button>
             </div>
         `,
     });
@@ -388,7 +396,8 @@ export const openCreateBudgetModal = () => {
             eurAmt = convertCurrency(amt, curr, 'EUR');
         }
         const budget = {
-            id: generateId(),
+            // Reuse the id when editing so the upsert UPDATES the row.
+            id: existing?.id || generateId(),
             tripId: (q(root, '#newBudTrip') as HTMLSelectElement).value,
             categoryId: (q(root, '#newBudCat') as HTMLSelectElement).value,
             user: (q(root, '#newBudUser') as HTMLSelectElement).value,
@@ -401,7 +410,13 @@ export const openCreateBudgetModal = () => {
             originalAmount: amt,
             originalCurrency: curr,
         };
-        STATE.budgets.push(budget);
+        // Optimistic write: editing replaces the row in place (keeping the
+        // pre-edit copy so a server rejection can roll back to it); creating
+        // appends a new row.
+        const _idx = STATE.budgets.findIndex((bg) => bg.id === budget.id);
+        const _prevRow = _idx >= 0 ? STATE.budgets[_idx] : null;
+        if (_idx >= 0) STATE.budgets[_idx] = budget;
+        else STATE.budgets.push(budget);
         emit(EVENTS.STATE_CHANGED);
         statusEl.textContent = t('budgets.createSavingStatus');
         statusEl.style.color = 'var(--text-secondary)';
@@ -415,7 +430,10 @@ export const openCreateBudgetModal = () => {
         // outbox) → treat as optimistic-ok so the retry can land.
         const res = await upsertBudget(budget);
         if (res && isUnretryableRejection(res)) {
-            STATE.budgets = STATE.budgets.filter((b) => b.id !== budget.id);
+            // Roll back: restore the pre-edit row, or drop the optimistic new one.
+            const _i = STATE.budgets.findIndex((bg) => bg.id === budget.id);
+            if (_prevRow) { if (_i >= 0) STATE.budgets[_i] = _prevRow; }
+            else if (_i >= 0) STATE.budgets.splice(_i, 1);
             emit(EVENTS.STATE_CHANGED);
             if (res.status === 409) {
                 statusEl.textContent = t('budgets.createDuplicateScope');
@@ -427,6 +445,6 @@ export const openCreateBudgetModal = () => {
             return;
         }
         close();
-        showLiquidAlert(t('budgets.createSavedToast'), 'success');
+        showLiquidAlert(isEdit ? t('budgets.updatedToast') : t('budgets.createSavedToast'), 'success');
     };
 };

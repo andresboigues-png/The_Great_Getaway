@@ -58,7 +58,7 @@ export async function attemptPendingClone(): Promise<void> {
         await pullFromServer();
         STATE.activeTripId = newTripId;
         emit(EVENTS.STATE_CHANGED);
-        showLiquidAlert(t('errors.cloneSuccess'));
+        showLiquidAlert(t('errors.cloneSuccess'), 'success');
         navigate(PAGES.HOME);
     } catch (e) {
         console.error('Pending clone failed:', e);

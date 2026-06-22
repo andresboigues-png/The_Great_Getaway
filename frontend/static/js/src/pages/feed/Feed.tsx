@@ -609,6 +609,7 @@ export function Feed() {
             const wasAlready = result.body?.status === 'already_reposted';
             showLiquidAlert(
                 wasAlready ? t('feed.toastAlreadyReposted') : t('feed.toastReposted'),
+                'success',
             );
             btn.style.setProperty('--accent', ACTION_ACCENTS.repost);
             btn.innerHTML =
