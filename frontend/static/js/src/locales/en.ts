@@ -2370,6 +2370,7 @@ export const en = {
         statPhotos: 'Photos',
         statDocuments: 'Documents',
         statSpent: 'Spent',
+        statLikes: 'Likes',
         visibilityAria: 'Trip visibility',
         visibilityPrivate: '🔒 Private',
         visibilityPublicPlan: '🌍 Public — plan only',

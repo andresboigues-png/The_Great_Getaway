@@ -9,6 +9,7 @@ clients don't break, but new code should prefer the delta routes.
 """
 
 import json
+import secrets
 
 from flask import Blueprint, jsonify, request
 
@@ -414,6 +415,19 @@ def sync_data():
                   None,  # checklist_json
                   t.get('coverUrl')))
             ensure_owner_member_row(cursor, t['id'], user_id)
+            # A public trip needs a share_token to be viewable AND to surface in
+            # Explore: /api/feed/explore requires `share_token IS NOT NULL` and
+            # the Explore card links via /share/<token>. The privacy toggle sets
+            # is_public through THIS sync but — unlike feed-share — never minted
+            # a token, so privacy-toggled public trips stayed invisible in
+            # Explore. Mint lazily + owner-only; the `share_token IS NULL` guard
+            # makes it idempotent (after the first mint the UPDATE matches no
+            # rows, and an existing feed-share token is preserved).
+            if _owner_row and t.get('isPublic'):
+                cursor.execute(
+                    "UPDATE trips SET share_token = ? WHERE id = ? AND share_token IS NULL",
+                    (secrets.token_urlsafe(16), t['id']),
+                )
             # R5-B4: the trip just landed (insert OR planner-allowed
             # update). Add to both ACL sets so the expenses loop later
             # in the same /api/sync call can gate against it — without
@@ -531,6 +545,17 @@ def sync_data():
                   None,  # photos_json
                   t.get('coverUrl')))
             ensure_owner_member_row(cursor, t['id'], user_id)
+            # Same as the active-trips loop: a public (here, completed) trip
+            # needs a share_token to be viewable + discoverable in Explore. The
+            # completed-trip dashboard's privacy selector sets is_public via THIS
+            # archived-sync path but never minted one — so a completed trip made
+            # public stayed invisible in Explore. Lazy, owner-only, idempotent
+            # (the NULL guard preserves any existing feed-share token).
+            if _arch_owner_row and t.get('isPublic'):
+                cursor.execute(
+                    "UPDATE trips SET share_token = ? WHERE id = ? AND share_token IS NULL",
+                    (secrets.token_urlsafe(16), t['id']),
+                )
             # R5-B4: same ACL-set top-up as the active loop, so a
             # brand-new archived trip + its expenses in ONE payload
             # gates correctly in the inner expenses loop below.
@@ -1076,6 +1101,7 @@ def get_data():
         # guard offline-replay resurrection on the per-row write path.
         my_member_by_trip = {}
         members_by_trip = {}
+        public_likes_by_trip = {}
         if all_trip_ids:
             placeholders = ','.join(['?'] * len(all_trip_ids))
             cursor.execute(
@@ -1098,6 +1124,24 @@ def get_data():
             )
             for mr in cursor.fetchall():
                 members_by_trip.setdefault(mr['trip_id'], []).append(mr)
+
+            # §4 (collections): per-trip PUBLIC like count — how many likes the
+            # trip's feed share collected, surfaced on the trip in collections.
+            # Likes live on the feed EVENT (feed_likes.event_id =
+            # 'share_<post_id>'); sum them for each trip's ORIGINAL share
+            # (repost_of_post_id IS NULL). One batched GROUP BY for the whole
+            # visible set; dict lookup per trip below. LEFT JOIN so a shared-
+            # but-unliked trip resolves to 0, not a missing row.
+            cursor.execute(
+                f"SELECT fp.trip_id AS trip_id, COUNT(fl.event_id) AS likes "
+                f"FROM feed_posts fp "
+                f"LEFT JOIN feed_likes fl ON fl.event_id = 'share_' || fp.id "
+                f"WHERE fp.repost_of_post_id IS NULL AND fp.trip_id IN ({placeholders}) "
+                f"GROUP BY fp.trip_id",
+                all_trip_ids,
+            )
+            for lr in cursor.fetchall():
+                public_likes_by_trip[lr['trip_id']] = lr['likes']
 
         trips = []
         for r in trips_rows:
@@ -1182,6 +1226,9 @@ def get_data():
                 }
                 for mr in members_by_trip.get(t['id'], [])
             ]
+            # §4: public like count for the trip's feed share (0 if never
+            # shared or not yet liked). Shown on the trip in collections.
+            t['publicLikes'] = public_likes_by_trip.get(t['id'], 0)
             trips.append(t)
 
         # Get all expenses for these trips. snake_case → camelCase is

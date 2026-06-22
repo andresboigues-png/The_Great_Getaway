@@ -86,8 +86,7 @@ export function EventCard(props: EventCardProps) {
                 // cards used to stay white-on-black in dark mode with
                 // near-invisible inner text.
                 background: 'var(--card-bg)',
-                border: `1px solid ${accent.color}22`,
-                borderLeft: `4px solid ${accent.color}`,
+                border: '1px solid var(--border-subtle)',
                 boxShadow: '0 4px 14px rgba(0,45,91,0.06)',
                 display: 'flex',
                 flexDirection: 'column',
@@ -153,7 +152,7 @@ export function EventCard(props: EventCardProps) {
             {isShareLike && ev.trip?.id ? (
                 <button
                     type="button"
-                    className="feed-trip-card mt-2.5 w-full text-left bg-[var(--card-bg-elevated)] border border-[rgba(88,86,214,0.22)] border-l-4 border-[#5856d6] rounded-[14px] py-3 px-3.5 cursor-pointer flex items-center gap-3 shadow-[0_2px_8px_rgba(0,45,91,0.04)] transition-[transform_0.15s_ease,_box-shadow_0.15s_ease]"
+                    className="feed-trip-card mt-2.5 w-full text-left bg-[var(--card-bg-elevated)] border border-[var(--border-subtle)] rounded-[14px] py-3 px-3.5 cursor-pointer flex items-center gap-3 shadow-[0_2px_8px_rgba(0,45,91,0.04)] transition-[transform_0.15s_ease,_box-shadow_0.15s_ease]"
                     data-trip-id={ev.trip.id}
                     onClick={() => void viewArchivedDetails(ev.trip!.id)}
                 >

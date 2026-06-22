@@ -207,6 +207,11 @@ export interface Trip {
     shareToken?: string | null;
     shareViews?: number;
     shareShowCost?: boolean;
+    /** Public like count — how many people liked this trip's feed share.
+     *  Computed server-side (sum of feed_likes on the trip's original share
+     *  event) and shown on the trip in collections. 0 when never shared or
+     *  not yet liked. */
+    publicLikes?: number;
     /** Second share-page privacy toggle (companion to shareShowCost).
      *  When true, the public /share/<token> page renders the day plan
      *  text (morning / afternoon / evening + tip) instead of just the

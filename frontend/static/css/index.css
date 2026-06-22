@@ -1833,11 +1833,8 @@ body.is-signed-out .trip-controls-popover {
     min-width: 0;
     overflow-wrap: anywhere;
 }
-/* Type accent — the icon (⚠️ / ✅ / ℹ️) already signals the kind; a coloured
-   left edge reinforces it. ⚠️ now means an ACTUAL problem; success uses ✅. */
-.liquid-alert--success { border-left: 3px solid #34c759; }
-.liquid-alert--error { border-left: 3px solid #ff9f0a; }
-.liquid-alert--info { border-left: 3px solid #0a84ff; }
+/* Type is signalled by the icon alone (⚠️ error / ✅ success / ℹ️ info) — the
+   coloured left edge was removed per design (no coloured borders on toasts). */
 .liquid-alert.dismiss {
     /* Faster, smoother exit — no bounce on the way out. */
     transition: transform 0.3s var(--easing-smooth),

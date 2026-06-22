@@ -23,7 +23,7 @@ export function ExploreCard({ item }: { item: ExploreFeedItem }) {
 
     return (
         <a
-            className="card glass feed-explore-card block no-underline text-inherit p-0 rounded-lg overflow-hidden shadow-[0_4px_14px_rgba(0,45,91,0.06)] border border-[rgba(0,199,190,0.18)]"
+            className="card glass feed-explore-card block no-underline text-inherit p-0 rounded-lg overflow-hidden shadow-[0_4px_14px_rgba(0,45,91,0.06)] border border-[var(--border-subtle)]"
             href={`/share/${item.shareToken}`}
         >
             <div style={{ ...coverStyle, height: 160, position: 'relative' }}>

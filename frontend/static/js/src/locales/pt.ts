@@ -1924,6 +1924,7 @@ export const pt: Translations = {
         statPhotos: 'Fotos',
         statDocuments: 'Documentos',
         statSpent: 'Gasto',
+        statLikes: 'Gostos',
         visibilityAria: 'Visibilidade da viagem',
         visibilityPrivate: '🔒 Privada',
         visibilityPublicPlan: '🌍 Pública — só plano',

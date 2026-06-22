@@ -52,8 +52,7 @@ export function BundleCard({ bundle, isExpanded, onToggleExpand, onBookmark }: B
                 padding: '16px 18px',
                 borderRadius: 18,
                 background: 'var(--card-bg)',  // BUG-15: theme token (was hard-coded white → unreadable in dark mode)
-                border: `1px solid ${accent.color}22`,
-                borderLeft: `4px solid ${accent.color}`,
+                border: '1px solid var(--border-subtle)',
                 boxShadow: '0 4px 14px rgba(0,45,91,0.06)',
                 display: 'flex',
                 flexDirection: 'column',

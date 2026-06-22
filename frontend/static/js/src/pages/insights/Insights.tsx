@@ -182,8 +182,6 @@ export function Insights() {
     // Subscribed so an edit there re-runs the calc useMemo below; the actual
     // per-currency/per-year lookups go through utils/manualRates.
     const manualRates = useStore((s) => s.manualRates);
-    // Currency-breakdown expander (multi-currency trips only).
-    const [showCurrencyBreakdown, setShowCurrencyBreakdown] = useState(false);
     // Has the CPI fetch settled (resolved or failed)? Gates the
     // "no inflation data" note so it doesn't flash during the initial
     // load before the World Bank series lands.
@@ -582,6 +580,10 @@ export function Insights() {
             inflPct: todayNoInflC > 0 ? ((todayC - todayNoInflC) / todayNoInflC) * 100 : 0,
         };
     });
+    // Lookup by code so the "Expenses per… / Currency" dashboard rows can show
+    // each currency's worth-today FX + inflation move (the detail that used to
+    // live in its own separate breakdown card).
+    const currencyByCode = new Map(currencyRows.map((r) => [r.code, r]));
     // PV-UX1/UX2: the per-currency DONUT + stacked chart cap at the top N
     // currencies + a single aggregated "Other" — a 16-slice donut / 16-series
     // stack is unreadable (and the palette would wrap). `members` lists the codes
@@ -653,7 +655,6 @@ export function Insights() {
 
     // ── Chart.js side-effects ─────────────────────────────────────────────
     const timeCanvasRef = useRef<HTMLCanvasElement | null>(null);
-    const currencyPieRef = useRef<HTMLCanvasElement | null>(null);
     const currencyTimeRef = useRef<HTMLCanvasElement | null>(null);
     const spenderPieRef = useRef<HTMLCanvasElement | null>(null);
     const perPieRef = useRef<HTMLCanvasElement | null>(null);
@@ -800,53 +801,11 @@ export function Insights() {
         return () => chart.destroy();
     }, [targetCurr, targetSym, perMetric, perRows.rows.map((r) => `${r.label}:${(perMetric === 'count' ? r.count : r.value).toFixed(2)}`).join('|')]);
 
-    // Currency-share donut — share of spend (home-equivalent) by the
-    // ORIGINAL currency it was logged in. Only built when the breakdown
-    // is expanded (the canvas isn't in the DOM until then).
-    useEffect(() => {
-        if (!showCurrencyBreakdown || !currencyPieRef.current || currencyRows.length === 0) return;
-        const chart = new Chart(currencyPieRef.current, {
-            type: 'doughnut',
-            data: {
-                // PV-UX1: top-N currencies + an aggregated "Other" slice (the full
-                // list still shows in the breakdown beside this chart).
-                labels: currencyChartRows.map((r) => r.code),
-                datasets: [{
-                    data: currencyChartRows.map((r) => r.homeAmount),
-                    backgroundColor: currencyChartRows.map((r) => r.color),
-                    borderWidth: 0,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'right' },
-                    tooltip: {
-                        displayColors: false,
-                        backgroundColor: 'rgba(17,24,39,0.92)',
-                        padding: 10,
-                        cornerRadius: 10,
-                        titleColor: '#ffffff',
-                        bodyColor: 'rgba(255,255,255,0.82)',
-                        titleFont: { size: 13, weight: '700' },
-                        bodyFont: { size: 13 },
-                        callbacks: {
-                            title: (items: PieTooltipCtx[]) => items[0]?.label ?? '',
-                            label: (ctx: PieTooltipCtx) => `${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}`,
-                        },
-                    },
-                },
-            },
-        });
-        return () => chart.destroy();
-    }, [showCurrencyBreakdown, targetCurr, targetSym, currencyChartRows.map((r) => `${r.code}:${r.homeAmount.toFixed(2)}`).join('|')]);
-
     // Currency-over-time stacked bars — home-equivalent spend per
     // original currency per day, so the currency mix shift across the
     // trip is visible at a glance.
     useEffect(() => {
-        if (!showCurrencyBreakdown || !currencyTimeRef.current || spendCurrencies.length === 0) return;
+        if (perDim !== 'currency' || !currencyTimeRef.current || spendCurrencies.length === 0) return;
         // IA-5 (MK3 audit): drop the undated bucket — keyed in via
         // `e.date || t('insights.unknownDate')`, that localized sentinel has
         // no place on a date-ordered axis (pre-fix it rendered a literal
@@ -913,7 +872,7 @@ export function Insights() {
             },
         });
         return () => chart.destroy();
-    }, [showCurrencyBreakdown, targetSym, targetCurr, JSON.stringify(currencyDateTotals)]);
+    }, [perDim, targetSym, targetCurr, JSON.stringify(currencyDateTotals)]);
 
     // ── Mutation handlers ─────────────────────────────────────────────────
     // Mutate STATE then emit — useStore subscribers re-render. No need
@@ -1229,85 +1188,27 @@ export function Insights() {
                     {hasForeignSpend ? (
                         <button
                             type="button"
-                            onClick={() => setShowCurrencyBreakdown((v) => !v)}
+                            onClick={() => {
+                                // Consolidated: the per-currency breakdown now lives in
+                                // the "Expenses per…" dashboard. Select its Currency
+                                // dimension and scroll there instead of opening a
+                                // separate card.
+                                setPerDim('currency');
+                                setTimeout(() => document.getElementById('expensesPerDash')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+                            }}
                             className="link-underline text-accent-blue font-bold text-[0.85rem]"
                             style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, marginTop: '12px' }}
                         >
-                            {showCurrencyBreakdown
-                                ? t('insights.hideCurrencyBreakdown')
-                                : t('insights.seeCurrencyBreakdown')}
+                            {t('insights.seeCurrencyBreakdown')}
                         </button>
                     ) : null}
                 </div>
             </div>
 
-            {/* Currency breakdown — only for trips with foreign spend. */}
-            {hasForeignSpend && showCurrencyBreakdown ? (
-                <div className="mb-8">
-                    <div className="card glass in-card-pad-28 mb-8">
-                        <h2 className="card-title">{t('insights.currencyBreakdownTitle')}</h2>
-                        <p className="text-secondary text-[0.85rem] mt-1 mb-5">
-                            {t('insights.currencyBreakdownSub')}
-                        </p>
-                        <div className={isMultiCurrency ? 'grid-2 grid-cols-2 gap-6 items-center' : ''}>
-                            {isMultiCurrency ? (
-                                <div className="relative h-[220px] w-full">
-                                    <canvas ref={currencyPieRef}></canvas>
-                                </div>
-                            ) : null}
-                            <div className="flex flex-col gap-2">
-                                {currencyRows.map((r, idx) => {
-                                    const isForeign = r.code !== homeCurr;
-                                    const fx = mv(r.fxPct);
-                                    const infl = mv(r.inflPct);
-                                    return (
-                                        <div
-                                            key={r.code}
-                                            className="flex flex-col gap-1 py-3"
-                                            style={idx < currencyRows.length - 1 ? { borderBottom: '1px solid var(--border-subtle)' } : undefined}
-                                        >
-                                            {/* Currency + its home value — the headline of the row. */}
-                                            <div className="flex items-center justify-between gap-3">
-                                                <span className="flex items-center gap-2.5">
-                                                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: r.color, flexShrink: 0 }} />
-                                                    <span className="font-extrabold" style={{ fontSize: '0.95rem', letterSpacing: '0.01em' }}>{r.code}</span>
-                                                </span>
-                                                <span className="font-extrabold whitespace-nowrap" style={{ color: 'var(--text-brand-navy)', fontSize: '1.02rem' }}>
-                                                    {isForeign ? '≈ ' : ''}{targetSym}{formatNumberForCurrency(r.homeAmount, targetCurr)}
-                                                </span>
-                                            </div>
-                                            {/* Muted detail: what you paid + trip share | this currency's OWN
-                                                worth-today move (FX then inflation), colour-coded. */}
-                                            <div className="flex items-center justify-between gap-3" style={{ paddingLeft: '20px' }}>
-                                                <span className="text-secondary whitespace-nowrap" style={{ fontSize: '0.76rem' }}>
-                                                    {isForeign ? `${CURRENCY_SYMBOLS[r.code] || ''}${formatNumberForCurrency(r.ownAmount, r.code)} · ` : ''}{formatNumber(r.pct, 0)}%
-                                                </span>
-                                                <span className="flex items-center gap-3 whitespace-nowrap" style={{ fontSize: '0.76rem', fontWeight: 600 }}>
-                                                    {isForeign ? (
-                                                        <span style={{ color: fx.color }}>{fx.arrow}{t('insights.pvFxLabel')} {fx.text}</span>
-                                                    ) : null}
-                                                    <span style={{ color: infl.color }}>{infl.arrow}{t('insights.pvInflLabel')} {infl.text}</span>
-                                                </span>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                    {isMultiCurrency ? (
-                        <div className="card glass in-card-pad-28">
-                            <h2 className="card-title">{t('insights.currencyTimelineTitle')}</h2>
-                            <p className="text-secondary text-[0.85rem] mt-1 mb-5">
-                                {t('insights.currencyTimelineSub')}
-                            </p>
-                            <div className="relative h-[300px] w-full">
-                                <canvas ref={currencyTimeRef}></canvas>
-                            </div>
-                        </div>
-                    ) : null}
-                </div>
-            ) : null}
+            {/* The standalone currency-breakdown card was consolidated INTO the
+                "Expenses per…" dashboard below: its Currency dimension now carries
+                the per-currency FX + inflation detail, and the per-currency
+                timeline moved directly beneath the dashboard. */}
 
             {/* Budget vs. spent — only when the trip has budgets. */}
             {tripBudgets.length > 0 ? (
@@ -1474,8 +1375,10 @@ export function Insights() {
                 </div>
             </div>
 
-            {/* "Expenses per…" dashboard — dimension + metric, with a share donut + %. */}
-            <div className="card glass mb-8 p-7">
+            {/* "Expenses per…" dashboard — dimension + metric, with a share donut + %.
+                The Currency dimension also carries the per-currency FX + inflation
+                "worth today" detail (consolidated from the old breakdown card). */}
+            <div id="expensesPerDash" className="card glass mb-8 p-7">
                 <div className="flex justify-between items-center gap-3 flex-wrap mb-4">
                     <div className="flex items-center gap-2 flex-wrap">
                         <h2 className="card-title m-0">{t('insights.expensesPer')}</h2>
@@ -1532,6 +1435,26 @@ export function Insights() {
                                             <div className="relative h-1.5 rounded-full bg-[rgba(0,113,227,0.08)] overflow-hidden" aria-hidden="true">
                                                 <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: `${Math.min(100, Math.max(0, barPct))}%`, background: 'linear-gradient(90deg, #0071e3, #5856d6)', borderRadius: 999, transition: 'width 0.3s ease' }} />
                                             </div>
+                                            {/* Currency dimension only: what you actually paid in
+                                                that currency + its own worth-today move (FX then
+                                                inflation), colour-coded. Home currency has no move. */}
+                                            {perDim === 'currency' ? (() => {
+                                                const cr = currencyByCode.get(r.label);
+                                                if (!cr || r.label === homeCurr) return null;
+                                                const fx = mv(cr.fxPct);
+                                                const infl = mv(cr.inflPct);
+                                                return (
+                                                    <div className="flex items-center justify-between gap-3 mt-1" style={{ paddingLeft: '18px', fontSize: '0.76rem', fontWeight: 600 }}>
+                                                        <span className="text-secondary whitespace-nowrap">
+                                                            {CURRENCY_SYMBOLS[r.label] || ''}{formatNumberForCurrency(cr.ownAmount, r.label)}
+                                                        </span>
+                                                        <span className="flex items-center gap-3 whitespace-nowrap">
+                                                            <span style={{ color: fx.color }}>{fx.arrow}{t('insights.pvFxLabel')} {fx.text}</span>
+                                                            <span style={{ color: infl.color }}>{infl.arrow}{t('insights.pvInflLabel')} {infl.text}</span>
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })() : null}
                                         </div>
                                     );
                                 });
@@ -1540,6 +1463,21 @@ export function Insights() {
                     </div>
                 )}
             </div>
+
+            {/* Per-currency spend over time — moved here from the old breakdown
+                card; multi-currency trips only, shown when the dashboard's
+                Currency dimension is active. */}
+            {perDim === 'currency' && isMultiCurrency ? (
+                <div className="card glass in-card-pad-28 mb-8">
+                    <h2 className="card-title">{t('insights.currencyTimelineTitle')}</h2>
+                    <p className="text-secondary text-[0.85rem] mt-1 mb-5">
+                        {t('insights.currencyTimelineSub')}
+                    </p>
+                    <div className="relative h-[300px] w-full">
+                        <canvas ref={currencyTimeRef}></canvas>
+                    </div>
+                </div>
+            ) : null}
 
             {/* Timeline Section (Full Width) */}
             <div className="card glass mb-0 p-8">

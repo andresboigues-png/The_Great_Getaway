@@ -342,6 +342,37 @@ def test_feed_unshare_cleans_orphan_engagement_rows(
         assert comment == 0, "feed_comments should be cleaned on unshare"
 
 
+def test_data_surfaces_public_like_count(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """A trip's PUBLIC like count (likes on its feed share) is surfaced on the
+    trip in the owner's /api/data, so collections can show how many likes the
+    shared trip collected. Toggles back to 0 when the like is removed."""
+    _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-pub-likes", public=True)
+    post_id = client.post(
+        "/api/feed/share", headers=auth_headers, json={"trip_id": trip_id},
+    ).get_json()["post_id"]
+    event_id = f"share_{post_id}"
+
+    # No likes yet → 0.
+    body = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in body["trips"] if t["id"] == trip_id)
+    assert trip["publicLikes"] == 0
+
+    # Another user likes it → owner's /api/data shows 1.
+    client.post(f"/api/feed/like/{event_id}", headers=other_auth_headers)
+    body = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in body["trips"] if t["id"] == trip_id)
+    assert trip["publicLikes"] == 1
+
+    # Unlike (the like endpoint toggles) → back to 0.
+    client.post(f"/api/feed/like/{event_id}", headers=other_auth_headers)
+    body = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in body["trips"] if t["id"] == trip_id)
+    assert trip["publicLikes"] == 0
+
+
 def test_feed_unshare_deletes_caller_own_post(client, seed_user, auth_headers):
     """Author can delete their own share. Cascade-deletes any reposts
     pointing at it (other tests can pin that side; here we pin the

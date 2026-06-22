@@ -196,6 +196,40 @@ def test_sync_writes_trips_and_expenses(client, seed_user, auth_headers):
     assert any(e["id"] == "exp-sync-1" for e in body["expenses"])
 
 
+def test_sync_public_trip_mints_share_token(client, seed_user, auth_headers):
+    """Marking a trip public via /api/sync must mint a share_token so the trip
+    is viewable AND surfaces in /api/feed/explore (which requires
+    share_token IS NOT NULL). Covers BOTH the active-trips and archived-trips
+    loops — the completed-trip dashboard's privacy selector syncs through the
+    archived path. Pre-fix the privacy toggle set is_public but never minted a
+    token, so public trips stayed invisible in Explore."""
+    client.post("/api/sync", headers=auth_headers, json={
+        "trips": [
+            {"id": "pub-active", "name": "Lisbon", "country": "Portugal", "isPublic": True},
+        ],
+        "archived_trips": [
+            {"id": "pub-archived", "name": "Tokyo", "country": "Japan", "isPublic": True},
+        ],
+    })
+    body = client.get("/api/data", headers=auth_headers).get_json()
+    by_id = {t["id"]: t for t in body["trips"]}
+    # shareToken is owner-gated in /api/data; the owner sees the minted token.
+    assert by_id["pub-active"].get("shareToken"), "active public trip should get a token"
+    assert by_id["pub-archived"].get("shareToken"), "archived public trip should get a token"
+
+
+def test_sync_private_trip_gets_no_share_token(client, seed_user, auth_headers):
+    """Flip side: a PRIVATE trip synced via /api/sync must NOT be minted a
+    token — the mint is gated on isPublic, and a private trip has nothing to
+    discover."""
+    client.post("/api/sync", headers=auth_headers, json={
+        "trips": [{"id": "priv-trip", "name": "Oslo", "country": "Norway", "isPublic": False}],
+    })
+    body = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in body["trips"] if t["id"] == "priv-trip")
+    assert not trip.get("shareToken"), "private trip must not be minted a token"
+
+
 def test_sync_trip_days_cannot_inject_into_foreign_trip(
     client, seed_user, auth_headers, seed_other_user, other_auth_headers,
 ):

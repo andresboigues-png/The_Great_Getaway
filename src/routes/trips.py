@@ -1582,11 +1582,11 @@ def clone_trip(source_id):
     caller. Visibility gate matches /api/public-trip — anything else
     would let the caller exfiltrate private trips by id-guessing.
 
-    R2 audit fix: mirror the archive-410 gate from the share-token
-    clone path. Pre-fix, /api/share/<token>/clone correctly refused
-    archived sources but /api/trips/clone/<id> didn't — a member who
-    knew the source trip's id could clone an archived trip after the
-    owner had completed it. Now both paths agree.
+    2026-06: completion state no longer gates cloning — it mirrors the
+    share-token clone path (both relaxed when completed trips became
+    shareable). Cloning is gated on VISIBILITY (_caller_can_see_trip:
+    public or a member), not on whether the owner has completed the trip,
+    so the completed-trip dashboard's Clone button works again.
     """
     bind_trip_context(source_id)
     user_id = current_user_id()
@@ -1596,19 +1596,11 @@ def clone_trip(source_id):
             # Mirror /api/public-trip's 404 (rather than 403) so
             # id-existence isn't leaked via differential codes.
             return jsonify({"error": "Not found"}), 404
-        # Archive-410 gate, same shape as clone_trip_from_share_token.
-        cursor.execute(
-            "SELECT COALESCE(tm.is_archived, t.is_archived, 0) AS is_archived "
-            "FROM trips t LEFT JOIN trip_members tm "
-            "  ON tm.trip_id = t.id AND tm.user_id = t.user_id "
-            "WHERE t.id = ?",
-            (source_id,),
-        )
-        arch_row = cursor.fetchone()
-        if arch_row and arch_row["is_archived"]:
-            return jsonify({
-                "error": "This trip is no longer available for cloning",
-            }), 410
+        # 2026-06: completion state no longer gates cloning (matches the
+        # share-token clone path + the sharing-model reversal). Cloning a
+        # completed trip the caller can SEE — their own, a public one, or one
+        # they're a member of — is allowed; _caller_can_see_trip above is the
+        # access control, not completion state.
         new_trip_id = _clone_trip_record(cursor, source_id, user_id)
         if not new_trip_id:
             return jsonify({"error": "Not found"}), 404
@@ -1629,33 +1621,23 @@ def clone_trip_from_share_token(token):
     having the share token IS the proof of intent to share. We do
     require auth here though (the clone needs an owner).
 
-    Audit fix (2026-05-27, Trip #39): refuse to clone when the
-    source trip is archived by its owner. A share link that's
-    been left enabled on a completed trip would otherwise let a
-    fresh user create a copy of a "past" trip — confusing UX, and
-    arguably a privacy leak (the owner archived for a reason).
-    Returns 410 Gone with a clear message so the SPA can show
-    "This trip is no longer available for cloning" rather than
-    a generic 404.
+    2026-06: completion state no longer gates cloning. A completed trip can be
+    public + deliberately shared (the sharing model gates on PRIVACY, not
+    completion — see the fetch_share_payload read-path fix), so the old
+    archived-410 refusal here broke the "I want this trip" CTA for exactly the
+    completed trips the owner chose to share. The share token remains the
+    access proof; visibility — not completion — is the gate.
     """
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT t.id, t.share_show_plans, "
-            "       COALESCE(tm.is_archived, t.is_archived, 0) AS is_archived "
-            "FROM trips t LEFT JOIN trip_members tm "
-            "  ON tm.trip_id = t.id AND tm.user_id = t.user_id "
-            "WHERE t.share_token = ?",
+            "SELECT id, share_show_plans FROM trips WHERE share_token = ?",
             (token,),
         )
         row = cursor.fetchone()
         if not row:
             return jsonify({"error": "Not found"}), 404
-        if row["is_archived"]:
-            return jsonify({
-                "error": "This trip is no longer available for cloning",
-            }), 410
         # Audit MK5 P1: clone only what the share page exposed. When the owner
         # kept day plans private (share_show_plans=0), the cloned days carry no
         # plan text; markedPlaces are never copied (handled in _clone_trip_record).

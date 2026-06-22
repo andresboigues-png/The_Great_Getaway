@@ -130,16 +130,22 @@ export function initPullToRefresh(): void {
     /** Position the indicator for the current pull distance (already damped).
      *  Translates it down from above the top edge and rotates the ring in
      *  proportion to progress so the pull feels physical. */
-    function renderPull(distance: number): void {
+    function renderPull(rawDy: number): void {
         const el = ensureIndicator();
-        const clamped = Math.min(distance, MAX_PULL_PX);
-        const progress = Math.min(clamped / TRIGGER_THRESHOLD_PX, 1);
-        el.style.transform = `translate(-50%, ${clamped}px)`;
-        el.style.opacity = String(Math.min(progress, 1));
+        // Visual travel is DAMPED (rubber-band feel), but the arm progress
+        // tracks RAW finger travel so the indicator fills up over exactly the
+        // same ~70px pull that triggers the refresh. (Pre-fix both the arm
+        // point and the trigger were measured on the damped distance, which
+        // needed ~140px of finger travel — twice the intended ~70px — so the
+        // gesture felt like it "wasn't working".)
+        const translate = Math.min(rawDy * PULL_RESISTANCE, MAX_PULL_PX);
+        const progress = Math.min(rawDy / TRIGGER_THRESHOLD_PX, 1);
+        el.style.transform = `translate(-50%, ${translate}px)`;
+        el.style.opacity = String(progress);
         // Manual rotation while dragging; once armed (progress === 1) the CSS
         // spin animation takes over via the .is-refreshing class.
         if (spinner && !refreshing) {
-            spinner.style.transform = `rotate(${clamped * 3}deg)`;
+            spinner.style.transform = `rotate(${translate * 3}deg)`;
         }
         el.classList.toggle('is-armed', progress >= 1);
     }
@@ -250,10 +256,9 @@ export function initPullToRefresh(): void {
             }
 
             // We own the gesture now. Stop the native scroll-bounce and drive
-            // the indicator with damped (resisted) travel.
+            // the indicator (renderPull damps the visual travel internally).
             ev.preventDefault();
-            const distance = dy * PULL_RESISTANCE;
-            renderPull(distance);
+            renderPull(dy);
         },
         { passive: false },
     );
@@ -272,12 +277,12 @@ export function initPullToRefresh(): void {
             if (refreshing || !wasPulling) return;
 
             const t = ev.changedTouches[0];
-            // Distance is measured from finger travel; apply the same
-            // resistance so the threshold check matches what the user SAW the
-            // indicator do.
+            // Trigger on RAW finger travel — the same metric renderPull uses to
+            // arm the indicator, so "indicator looks full" and "release fires
+            // the refresh" happen at the same ~70px pull. (Pre-fix this applied
+            // PULL_RESISTANCE, so it needed ~140px and usually never fired.)
             const dy = t ? t.clientY - sY : 0;
-            const distance = dy * PULL_RESISTANCE;
-            if (distance >= TRIGGER_THRESHOLD_PX) {
+            if (dy >= TRIGGER_THRESHOLD_PX) {
                 triggerRefresh();
             } else {
                 resetIndicator();

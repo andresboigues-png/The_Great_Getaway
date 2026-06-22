@@ -1445,6 +1445,26 @@ def test_clone_via_share_token_works_without_membership(
     assert cloned["ownerId"] == seed_other_user
 
 
+def test_clone_via_share_token_allows_archived_source(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Regression: tapping "I want this trip" on a COMPLETED public trip's
+    /share page must clone it, not 410. Completed trips are shareable now, so
+    the share-token clone path no longer refuses an archived source."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-shared-completed", public=True)
+    token = client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers, json={},
+    ).get_json()["token"]
+    # Owner completes (archives) the trip AFTER sharing the link.
+    client.post(f"/api/trips/{trip_id}/archive", headers=auth_headers)
+    # Recipient taps "I want this trip" → clone must succeed.
+    res = client.post(f"/api/share/{token}/clone", headers=other_auth_headers)
+    assert res.status_code == 200, (
+        f"clone of completed shared trip must succeed, got {res.status_code}"
+    )
+    assert res.get_json().get("tripId")
+
+
 def test_clone_via_unknown_share_token_returns_404(client, seed_user, auth_headers):
     """Unknown / expired tokens get 404."""
     res = client.post("/api/share/fake-token-doesnt-exist/clone", headers=auth_headers)
@@ -1459,14 +1479,14 @@ def test_clone_trip_requires_auth(client, seed_user, auth_headers):
     assert res.status_code == 401
 
 
-def test_clone_trip_id_path_refuses_archived_source(
+def test_clone_trip_id_path_allows_archived_source(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):
-    """R2 audit fix: /api/share/<token>/clone correctly refused
-    archived sources (Trip #39); /api/trips/clone/<id> didn't. A
-    member who knew the source trip id could clone it after the
-    owner had archived. Now both paths return 410 on archived."""
-    # Owner creates a public trip, invites other as member, then archives.
+    """2026-06: completion state no longer gates cloning (matches the share-
+    token path after completed trips became shareable). A member — or anyone
+    who can see a PUBLIC completed trip — can clone it; visibility, not
+    completion, is the gate. (Was: both paths returned 410 on archived.)"""
+    # Owner creates a public trip, invites other as member, then archives it.
     trip_id = _create_trip(client, auth_headers, trip_id="trip-clone-arch", public=True)
     client.post("/api/trips/invite", headers=auth_headers, json={
         "trip_id": trip_id,
@@ -1477,11 +1497,12 @@ def test_clone_trip_id_path_refuses_archived_source(
         "trip_id": trip_id, "accept": True,
     })
     client.post(f"/api/trips/{trip_id}/archive", headers=auth_headers)
-    # Member tries to clone via the id path — must 410.
+    # Member clones the completed trip via the id path — now allowed.
     res = client.post(f"/api/trips/clone/{trip_id}", headers=other_auth_headers)
-    assert res.status_code == 410, (
-        f"clone of archived trip via /api/trips/clone/<id> must 410, got {res.status_code}"
+    assert res.status_code == 200, (
+        f"clone of completed trip via /api/trips/clone/<id> must succeed, got {res.status_code}"
     )
+    assert res.get_json().get("tripId")
 
 
 def test_share_view_count_increments_and_dedupes_in_24h(

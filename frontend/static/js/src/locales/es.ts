@@ -1920,6 +1920,7 @@ export const es: Translations = {
         statPhotos: 'Fotos',
         statDocuments: 'Documentos',
         statSpent: 'Gastado',
+        statLikes: 'Me gusta',
         visibilityAria: 'Visibilidad del viaje',
         visibilityPrivate: '🔒 Privado',
         visibilityPublicPlan: '🌍 Público — solo plan',

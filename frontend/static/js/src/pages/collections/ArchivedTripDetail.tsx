@@ -325,6 +325,9 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                     {totalPhotos > 0 ? <StatChip icon={<Icon name="photo" size={17} />} label={t('archivedDetail.statPhotos')} value={String(totalPhotos)} /> : null}
                     {totalDocs > 0 ? <StatChip icon={<Icon name="document" size={17} />} label={t('archivedDetail.statDocuments')} value={String(totalDocs)} /> : null}
                     {expenses.length > 0 ? <StatChip icon={<Icon name="wallet" size={17} />} label={t('archivedDetail.statSpent')} value={formatHome(totalSpent, 'EUR')} /> : null}
+                    {/* Public likes the trip's feed share collected — only shown once
+                        it has at least one (mirrors the photos/docs chips). */}
+                    {(trip.publicLikes || 0) > 0 ? <StatChip icon={<Icon name="heart" size={17} />} label={t('archivedDetail.statLikes')} value={String(trip.publicLikes)} /> : null}
 
                     {isOwnTrip ? (() => {
                         // Icon-only privacy control sitting right after Spent: a
