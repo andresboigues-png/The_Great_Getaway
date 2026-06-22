@@ -121,10 +121,9 @@ export function LoginWall() {
     return (
         <div className="login-wall">
             <div className="login-wall__inner">
-                <h1
-                    className="login-wall__title"
-                    style={{ background: 'linear-gradient(135deg, #0071e3 0%, #ff9500 50%, #34c759 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}
-                >
+                {/* Gradient fill lives in CSS (.login-wall__title) so it can be
+                    theme-aware — the dark theme uses a brighter, mud-free ramp. */}
+                <h1 className="login-wall__title">
                     {t('login.brand')}
                 </h1>
                 <p className="login-wall__subtitle">{isReturning ? t('login.subtitleReturning') : t('login.subtitleNewUser')}</p>

@@ -275,7 +275,7 @@ export const en = {
     },
     login: {
         brand: 'The Great Getaway',
-        subtitleNewUser: 'Plan trips, split expenses, and bring friends along — all synced across devices.',
+        subtitleNewUser: 'Plan trips, split expenses, and bring friends along. All across devices.',
         subtitleReturning: 'Welcome back. Sign in to pick up where you left off.',
         ctaCardTitleNewUser: 'Create your account with Google',
         ctaCardTitleReturning: 'Sign back in',
@@ -1320,18 +1320,18 @@ export const en = {
         searchError: 'Search failed — try again.',
         // Section: people who follow the user but the user isn't
         // following back.
-        followersOnlyTitle: '👋 Followers',
+        followersOnlyTitle: 'Followers',
         followersOnlyHint: "People following you. Tap a row to view their profile or follow back.",
         followersOnlyEmptyTitle: 'No followers yet',
         followersOnlyEmptyBody: 'Share your trips publicly so other travellers can discover and follow you.',
         followBackBtn: 'Follow back',
         // Section: people the user follows who don't follow back.
-        followingOnlyTitle: '🧭 Following',
+        followingOnlyTitle: 'Following',
         followingOnlyHint: "People you follow. Their public activity shows in your feed.",
         followingOnlyEmptyTitle: 'Not following anyone yet',
         followingOnlyEmptyBody: 'Search above to find someone, or browse the Explore tab on your feed for trip ideas.',
         // Section: mutuals — the Model B equivalent of "friends".
-        friendsTitle: '👥 Friends',
+        friendsTitle: 'Friends',
         // BUG-30: emoji-free short labels for the segmented network tabs
         // (the *Title keys above carry an emoji + are used as section
         // headers, so they can't double as the compact pill labels).

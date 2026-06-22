@@ -3769,6 +3769,14 @@ body.is-signed-out #sidebarOverlay {
     font-weight: 800;
     letter-spacing: -0.04em;
     line-height: 1.05;
+    /* Brand gradient fill — moved out of the inline style so the dark theme
+       can override it (see :root[data-theme="dark"] below). Light theme keeps
+       the original blue → orange → green. */
+    background: linear-gradient(135deg, #0071e3 0%, #ff9500 50%, #34c759 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
 }
 .login-wall__subtitle {
     margin: 0;
@@ -3874,6 +3882,34 @@ body.is-signed-out #sidebarOverlay {
     font-size: 0.78rem;
     line-height: 1.5;
     opacity: 0.85;
+}
+
+/* ── Dark-mode landing page ───────────────────────────────────────────────
+   The .login-wall styles above were tuned for the LIGHT theme: translucent-
+   white feature cards (rgba(255,255,255,0.55)) + navy (#002d5b) titles. Under
+   data-theme="dark" those render as muddy-grey cards with near-invisible navy
+   text, so override the hard-coded light values with dark-glass equivalents +
+   theme tokens. */
+:root[data-theme="dark"] .login-wall__title {
+    /* Brighter, mud-free ramp. The light blue→orange interpolation passes
+       through a grey midpoint, so the middle word read as washed-out grey on
+       the dark canvas. Blue → green → amber keeps the brand trio but blends
+       cleanly (teal + yellow-green midpoints, no grey). */
+    background: linear-gradient(120deg, #2e9bff 0%, #36d97a 55%, #ffb340 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+:root[data-theme="dark"] .login-wall__feature {
+    background: rgba(255, 255, 255, 0.045);
+    border-color: rgba(255, 255, 255, 0.09);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3);
+}
+:root[data-theme="dark"] .login-wall__feature strong {
+    color: var(--text-primary);
+}
+:root[data-theme="dark"] .login-wall__subtitle {
+    color: var(--text-primary);
+    opacity: 0.92;
 }
 
 /* Small pill button that warns on hover (grey → red). Used for the

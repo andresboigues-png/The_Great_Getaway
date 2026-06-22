@@ -175,40 +175,10 @@
             <button id="sidebarClose" class="sidebar-close-btn" aria-label="Close menu" data-i18n-aria-label="sidebar.closeMenu">&times;</button>
         </div>
 
-        <!-- Pinned Profile / Login — TOP of the drawer (round 3 reorg).
-             Moved here from the bottom of the column per user request:
-             the profile picture + name is the most personal anchor in
-             the menu, so it surfaces immediately when the drawer
-             opens. Same #sidebarProfileLink / #sidebarProfileAvatar /
-             #sidebarLogoutBtn IDs preserved so main.ts's updateUserUI
-             keeps mirroring the avatar + name without changes. The
-             border treatment flipped to `border-bottom` (was top) since
-             the block is now at the top — same visual divider role,
-             just on the other edge. -->
-        <div class="sidebar-profile-top" style="border-bottom: 1px solid var(--glass-border); padding-bottom: 16px; margin-bottom: 16px; display: flex; align-items: center;">
-            <a href="#" class="sidebar-item" data-page="profile" id="sidebarProfileLink" style="gap: 12px; flex: 1; margin-bottom: 0;">
-                <div id="sidebarProfileAvatar" style="display: none; width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex-shrink: 0; border: 2px solid var(--accent-blue);">
-                    <img id="sidebarProfilePic" src="" alt="" style="width: 100%; height: 100%; object-fit: cover;">
-                </div>
-                <div id="sidebarProfileIcon" style="flex-shrink: 0;">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                        <circle cx="12" cy="7" r="4" />
-                    </svg>
-                </div>
-                <div style="overflow: hidden;">
-                    <div id="sidebarProfileLabel" style="font-weight: 600; font-size: 0.95rem;">Log in</div>
-                    <div id="sidebarProfileSub" style="font-size: 0.75rem; color: var(--text-secondary); display: none;">Logged in</div>
-                </div>
-            </a>
-            <button id="sidebarLogoutBtn" style="display: none;" title="Log Out">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                    <polyline points="16 17 21 12 16 7"></polyline>
-                    <line x1="21" y1="12" x2="9" y2="12"></line>
-                </svg>
-            </button>
-        </div>
+        <!-- Profile / Login block lives at the BOTTOM of the drawer now (see
+             .sidebar-profile-top after .sidebar-middle) so the user block
+             mirrors the desktop sidebar, which pins the avatar + name at the
+             foot of the column. -->
 
         <!-- Mobile trip controls used to sit at the top of this
              burger drawer. Per-user request they moved into a navbar
@@ -332,14 +302,37 @@
 
         </div> <!-- end middle nav -->
 
-        <!-- Round 3 reorg: profile/login block moved to the TOP of the
-             drawer (right after .sidebar-header). What used to be a
-             pinned-bottom footer is now the first thing the user sees
-             when they open the menu. The previous comment about the
-             flex-1 spacer bug fix still applies to .sidebar-middle:
-             .sidebar-middle alone takes all the available vertical
-             space — there's no longer anything pinned at the bottom,
-             so the column ends with the last middle-section. -->
+        <!-- Profile / Login — pinned at the BOTTOM of the drawer so it mirrors
+             the desktop sidebar's user block (avatar + name + log-out at the
+             foot of the column). .sidebar-middle (flex:1) above pushes it down.
+             Same #sidebarProfileLink / #sidebarProfileAvatar / #sidebarLogoutBtn
+             IDs preserved so main.ts's updateUserUI keeps mirroring the avatar +
+             name. Border on TOP (was bottom when it sat at the top) — same
+             divider role, other edge. -->
+        <div class="sidebar-profile-top" style="border-top: 1px solid var(--glass-border); padding-top: 16px; margin-top: 16px; display: flex; align-items: center;">
+            <a href="#" class="sidebar-item" data-page="profile" id="sidebarProfileLink" style="gap: 12px; flex: 1; margin-bottom: 0;">
+                <div id="sidebarProfileAvatar" style="display: none; width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex-shrink: 0; border: 2px solid var(--accent-blue);">
+                    <img id="sidebarProfilePic" src="" alt="" style="width: 100%; height: 100%; object-fit: cover;">
+                </div>
+                <div id="sidebarProfileIcon" style="flex-shrink: 0;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                    </svg>
+                </div>
+                <div style="overflow: hidden;">
+                    <div id="sidebarProfileLabel" style="font-weight: 600; font-size: 0.95rem;">Log in</div>
+                    <div id="sidebarProfileSub" style="font-size: 0.75rem; color: var(--text-secondary); display: none;">Logged in</div>
+                </div>
+            </a>
+            <button id="sidebarLogoutBtn" style="display: none;" title="Log Out">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+            </button>
+        </div>
     </div>
 
     <!-- Top Navigation Bar -->

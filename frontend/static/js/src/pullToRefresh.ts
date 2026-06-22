@@ -42,14 +42,17 @@ import { pullFromServer } from './api.js';
 const MOBILE_BREAKPOINT_PX = 720;
 
 // How far (in px of ACTUAL finger travel) the user must pull before a release
-// triggers the refresh. ~70px feels deliberate without being a workout — in
-// line with native iOS/Android pull-to-refresh.
-const TRIGGER_THRESHOLD_PX = 70;
+// triggers the refresh. 60px is a comfortable, reliable pull — low enough that
+// a normal downward drag arms it (the prior 70px, and before that an effective
+// ~140px, left users pulling without the refresh ever firing).
+const TRIGGER_THRESHOLD_PX = 60;
 
-// Rubber-band resistance: the indicator only moves a FRACTION of the finger's
-// travel, so the pull feels weighted (the further you pull, the harder it
-// gets, just like a native list). 0.5 ⇒ the indicator tracks at half speed.
-const PULL_RESISTANCE = 0.5;
+// Rubber-band resistance: the indicator moves a FRACTION of the finger's travel
+// so the pull feels weighted. 0.8 keeps the indicator tracking the finger
+// closely (clear visual feedback that the pull is "taking") while still lagging
+// it slightly — the prior 0.5 made the spinner barely move, so the pull felt
+// unresponsive and people let go before arming it.
+const PULL_RESISTANCE = 0.8;
 
 // Hard cap on how far the indicator can travel down the screen, so a wild
 // fling doesn't shove the spinner into the middle of the viewport.
@@ -179,7 +182,15 @@ export function initPullToRefresh(): void {
         if (spinner) spinner.style.transform = '';
         void (async () => {
             try {
-                await pullFromServer();
+                // Hold the spinner for a clear minimum so the refresh is VISIBLE
+                // even when pullFromServer returns instantly — an unchanged-data
+                // poll short-circuits to {unchanged} (api.ts), so without this
+                // floor the spinner flashed for a few ms and the pull felt like
+                // it did nothing.
+                await Promise.all([
+                    pullFromServer(),
+                    new Promise<void>((resolve) => setTimeout(resolve, 600)),
+                ]);
             } finally {
                 resetIndicator();
                 refreshing = false;

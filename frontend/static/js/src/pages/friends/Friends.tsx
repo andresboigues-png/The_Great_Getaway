@@ -559,19 +559,27 @@ function NetworkSection({
         <div
             className="card glass mt-[18px] py-[22px] px-6 rounded-[28px]"
         >
-            <div
-                className="flex items-center justify-between mb-[14px] gap-3"
-            >
-                <h3
-                    className="m-0 text-[1.05rem] text-brand-navy font-extrabold tracking-[-0.02em]"
+            <div className="mb-[14px]">
+                <div className="flex items-center gap-2">
+                    <h3
+                        className="m-0 text-[1.05rem] text-brand-navy font-extrabold tracking-[-0.02em]"
+                    >
+                        {title}
+                    </h3>
+                    <span
+                        className="text-[0.72rem] font-extrabold text-secondary tabular-nums bg-[rgba(0,45,91,0.06)] rounded-full py-px px-2 leading-[1.6]"
+                    >
+                        {rows.length}
+                    </span>
+                </div>
+                {/* Hint as a calm normal-case subtitle BELOW the title — the
+                    old uppercase + wide-tracking line jammed beside the title
+                    wrapped to 3 lines and read as crowded. */}
+                <p
+                    className="mt-[5px] mb-0 text-[0.8rem] text-secondary leading-snug max-w-[48ch]"
                 >
-                    {title}
-                </h3>
-                <span
-                    className="text-[0.7rem] font-extrabold text-secondary uppercase tracking-widest text-right"
-                >
-                    {rows.length} · {hint}
-                </span>
+                    {hint}
+                </p>
             </div>
             <div className="flex flex-col gap-2">
                 {rows.length === 0 ? (

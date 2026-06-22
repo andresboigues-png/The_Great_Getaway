@@ -29,6 +29,7 @@
 //     wiring is unchanged.
 
 import { useActiveTrip } from '../../react/TripContext.js';
+import { useStore } from '../../react/store.js';
 import { canEdit } from '../../permissions.js';
 import { t } from '../../i18n.js';
 import { stripEmoji } from '../../icons.js';
@@ -78,6 +79,13 @@ interface ActiveTripViewProps {
 function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
     const tripCountry = activeTrip.country || '';
     const tripIsEditable = canEdit(activeTrip);
+    // Only nudge for accommodation when none is set yet — once any day of this
+    // trip has accommodation, the planner already has the anchor it needs, so
+    // the banner is just noise. Reactive so it disappears the moment the user
+    // adds accommodation (e.g. returning from the Trip Hub).
+    const hasAccommodation = useStore((s) =>
+        (s.tripDays || []).some((d) => d.tripId === activeTrip.id && !!d.accommodation),
+    );
     const savedNumDays = activeTrip.aiNumDays || 1;
 
     // Form state + host-key pool + generate/accept flows.
@@ -122,8 +130,9 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
 
             {/* Accommodation nudge — the AI plan tailors itself to where
                 you're staying (see integrations.py). Links straight to the
-                Trip Hub accommodation manager. */}
-            {tripIsEditable ? (
+                Trip Hub accommodation manager. Only shown until accommodation
+                is set. */}
+            {tripIsEditable && !hasAccommodation ? (
                 <button
                     type="button"
                     className="ai-accommodation-banner"
