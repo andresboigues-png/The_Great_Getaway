@@ -165,175 +165,12 @@
         })();
     </script>
 
-    <!-- Left Sidebar Overlay -->
-    <div id="sidebarOverlay" class="sidebar-overlay"></div>
-
-    <!-- Left Sidebar Panel -->
-    <div id="sidebar" class="sidebar glass">
-        <div class="sidebar-header">
-            <span class="sidebar-title" data-i18n-key="sidebar.menuTitle">Menu</span>
-            <button id="sidebarClose" class="sidebar-close-btn" aria-label="Close menu" data-i18n-aria-label="sidebar.closeMenu">&times;</button>
-        </div>
-
-        <!-- Profile / Login block lives at the BOTTOM of the drawer now (see
-             .sidebar-profile-top after .sidebar-middle) so the user block
-             mirrors the desktop sidebar, which pins the avatar + name at the
-             foot of the column. -->
-
-        <!-- Mobile trip controls used to sit at the top of this
-             burger drawer. Per-user request they moved into a navbar
-             popover (the compass icon at #tripControlsBtn) so trip-
-             switching is one tap away from the top banner instead of
-             two (drawer-open → controls). The block now lives below
-             this template at #tripControlsPopover — same IDs preserved
-             so main.ts's updateTripSelector mirroring + the click
-             handlers don't need to change. -->
-        <div class="sidebar-divider sidebar-item--mobile-only"></div>
-
-        <!-- Home + Feed sidebar items removed on both viewports per
-             user request. Mobile reaches Home via the brand text
-             tap (#nav-brand fires navigate('home')) and Feed via the
-             bottom-tab nav (round 3 reorg moved Feed there from the
-             top navbar). Desktop reaches Home via brand + the top-nav
-             Home link; Feed via the top-bar feed icon. -->
-
-
-        <!-- Middle navigation sections — wrapped per-section so the
-             flex container can distribute them with `justify-content:
-             space-around` for an even vertical layout (especially on
-             desktop, where there are fewer items than on mobile and
-             the column would otherwise feel top-heavy).
-
-             Each `.sidebar-section` is a self-contained block (label
-             + items inside it). The `.sidebar-middle` parent fills
-             the available vertical space (flex: 1) and spreads the
-             sections evenly. -->
-        <div class="sidebar-middle">
-
-        <!-- Discover — the top section: Search + Templates. Search keeps
-             its desktop-only visibility (on mobile the always-visible
-             top-bar search icon covers it); Templates shows everywhere.
-             Sits first so discovery is the top of the menu. -->
-        <div class="sidebar-section">
-            <div class="sidebar-section-label" style="color: #5856d6;" data-i18n-key="sidebar.sectionDiscover">Discover</div>
-            <a href="#" class="sidebar-item sidebar-item--desktop-only" data-page="search">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="7"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-                <span data-i18n-key="nav.search">Search</span>
-            </a>
-            <a href="#" class="sidebar-item" data-page="templates">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
-                <span data-i18n-key="nav.templates">Templates</span>
-            </a>
-        </div>
-
-        <div class="sidebar-section">
-            <div class="sidebar-section-label" data-i18n-key="sidebar.sectionAccount">Account</div>
-            <a href="#" class="sidebar-item" data-page="collections">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-                </svg>
-                <span data-i18n-key="nav.collections">Collections</span>
-            </a>
-            <a href="#" class="sidebar-item" data-page="friends">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-                <span data-i18n-key="sidebar.yourNetwork">Your network</span>
-            </a>
-        </div>
-
-        <div class="sidebar-section">
-            <div class="sidebar-section-label" style="color: #ff9500;" data-i18n-key="sidebar.sectionKeepingTrack">Keeping track</div>
-            <a href="#" class="sidebar-item" data-page="budgets">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="2" y="7" width="20" height="14" rx="2" />
-                    <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-                </svg>
-                <span data-i18n-key="nav.budgets">Budgets</span>
-            </a>
-            <!-- Insights had no nav entry — it was reachable only as an
-                 Expenses sub-tab (Upload | Insights | History). The
-                 data-page="insights" route redirects to Expenses with the
-                 Insights tab active (pages/insights/mount.ts), so this
-                 entry surfaces the buried analytics view directly. -->
-            <a href="#" class="sidebar-item" data-page="insights">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3 3v18h18" />
-                    <path d="M18 17V9" />
-                    <path d="M13 17V5" />
-                    <path d="M8 17v-3" />
-                </svg>
-                <span data-i18n-key="nav.insights">Insights</span>
-            </a>
-            <a href="#" class="sidebar-item" data-page="settlement">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                </svg>
-                <span data-i18n-key="nav.settlement">Settlements</span>
-            </a>
-        </div>
-
-        <div class="sidebar-section">
-            <div class="sidebar-section-label" style="color: #34c759;" data-i18n-key="sidebar.sectionPreferences">Preferences</div>
-            <!-- 2026-05-14: Personalization moved into Settings as a
-                 sub-section card; the dedicated sidebar entry was
-                 collapsing the Preferences section into two near-
-                 identical items. Direct /personalization route still
-                 works for any deep-linked bookmark. -->
-            <a href="#" class="sidebar-item" data-page="settings">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings">
-                    <path
-                        d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-                    <circle cx="12" cy="12" r="3" />
-                </svg>
-                <span data-i18n-key="nav.settings">Settings</span>
-            </a>
-        </div>
-
-        </div> <!-- end middle nav -->
-
-        <!-- Profile / Login — pinned at the BOTTOM of the drawer so it mirrors
-             the desktop sidebar's user block (avatar + name + log-out at the
-             foot of the column). .sidebar-middle (flex:1) above pushes it down.
-             Same #sidebarProfileLink / #sidebarProfileAvatar / #sidebarLogoutBtn
-             IDs preserved so main.ts's updateUserUI keeps mirroring the avatar +
-             name. Border on TOP (was bottom when it sat at the top) — same
-             divider role, other edge. -->
-        <div class="sidebar-profile-top" style="border-top: 1px solid var(--glass-border); padding-top: 16px; margin-top: 16px; display: flex; align-items: center;">
-            <a href="#" class="sidebar-item" data-page="profile" id="sidebarProfileLink" style="gap: 12px; flex: 1; margin-bottom: 0;">
-                <div id="sidebarProfileAvatar" style="display: none; width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex-shrink: 0; border: 2px solid var(--accent-blue);">
-                    <img id="sidebarProfilePic" src="" alt="" style="width: 100%; height: 100%; object-fit: cover;">
-                </div>
-                <div id="sidebarProfileIcon" style="flex-shrink: 0;">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                        <circle cx="12" cy="7" r="4" />
-                    </svg>
-                </div>
-                <div style="overflow: hidden;">
-                    <div id="sidebarProfileLabel" style="font-weight: 600; font-size: 0.95rem;">Log in</div>
-                    <div id="sidebarProfileSub" style="font-size: 0.75rem; color: var(--text-secondary); display: none;">Logged in</div>
-                </div>
-            </a>
-            <button id="sidebarLogoutBtn" style="display: none;" title="Log Out">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                    <polyline points="16 17 21 12 16 7"></polyline>
-                    <line x1="21" y1="12" x2="9" y2="12"></line>
-                </svg>
-            </button>
-        </div>
-    </div>
+    <!-- Round 18: the full burger drawer (#sidebarOverlay + #sidebar) was
+         removed — the icon rail island (#sidebarRail, further down) is now the
+         menu on both viewports (desktop shows it permanently; mobile toggles it
+         via the hamburger + edge-swipe). To restore a full labelled burger menu
+         see the "burger-drawer-removed" memory note: the drawer markup is in git
+         at commit 3eb03ad, and its .sidebar* CSS is still present in index.css. -->
 
     <!-- Top Navigation Bar -->
     <nav class="navbar glass">
@@ -619,12 +456,8 @@
          green (Preferences). The user's profile avatar pinned at
          the bottom mirrors the burger drawer's footer pattern. -->
     <aside id="sidebarRail" class="sidebar-rail" aria-label="Quick navigation">
-        <a href="#" class="sidebar-rail__item" data-page="search" aria-label="Search" data-i18n-aria-label="nav.search" title="Search">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="11" cy="11" r="7"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-        </a>
+        <!-- Round 19: rail search removed — search is unifying into the
+             home search bar (universal places + internal results). -->
         <a href="#" class="sidebar-rail__item" data-page="templates" aria-label="Templates" data-i18n-aria-label="nav.templates" title="Templates">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>

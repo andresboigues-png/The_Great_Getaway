@@ -15,7 +15,6 @@ import { navigate, type NavAnimDir } from '../router.js';
 import { markNotificationsRead } from '../api.js';
 import { PAGES, type PageName } from '../constants.js';
 import { openNewTripModal, openEditTripModal, openDownloadChooserModal } from '../modals.js';
-import { logout } from '../pages/profile.js';
 import { initMobileSwipe } from '../mobileSwipe.js';
 import { renderNotificationDropdown, handleNotificationClick } from './notifications.js';
 import { archiveActiveTrip, deleteActiveTrip, toggleActiveTripSilence } from './trip-controls.js';
@@ -52,70 +51,21 @@ export function wireNavChrome(): void {
     const _isIOS = /iPad|iPhone|iPod/.test(_ua) || (_ua.includes('Mac') && 'ontouchend' in document);
     document.documentElement.classList.toggle('is-ios', _isIOS);
 
-    // ── Hamburger ──
-    // §2.8: a11y — same aria-expanded story as the notification bells.
-    // The hamburger button toggles the side-drawer; screen readers
-    // need to know its expanded state. aria-controls points at the
-    // sidebar element so AT can announce "Menu, expanded" instead of
-    // a bare "button."
+    // ── Hamburger → rail island ──
+    // Round 18: the full burger drawer was removed — the icon rail island is
+    // the menu on both viewports (desktop shows it permanently; mobile
+    // toggles it via this button + the edge swipe in mobileSwipe.ts). The
+    // hamburger's aria-expanded mirrors the island's open state; aria-controls
+    // points at the rail so AT announces "Menu, expanded".
     const hamburgerBtn = document.getElementById('hamburgerBtn');
-    const sidebarEl = document.getElementById('sidebar');
-    if (hamburgerBtn && sidebarEl) {
+    if (hamburgerBtn) {
         hamburgerBtn.setAttribute('aria-haspopup', 'true');
         hamburgerBtn.setAttribute('aria-expanded', 'false');
-        // Round 15: the burger toggles the icon rail island on mobile now,
-        // not the full drawer.
         hamburgerBtn.setAttribute('aria-controls', 'sidebarRail');
     }
-    const toggleSidebar = () => {
-        const sidebar = document.getElementById('sidebar');
-        const overlay = document.getElementById('sidebarOverlay');
-        sidebar?.classList.toggle('open');
-        overlay?.classList.toggle('open');
-        const isOpen = !!sidebar?.classList.contains('open');
-        if (hamburgerBtn && sidebar) {
-            hamburgerBtn.setAttribute(
-                'aria-expanded', isOpen ? 'true' : 'false',
-            );
-        }
-        // R6-B2: move focus FIRST, then apply inert/aria-hidden. Pre-fix
-        // we set aria-hidden=true on the navbar (which contained the
-        // still-focused hamburger) BEFORE moving focus → a brief window
-        // where focus was inside an aria-hidden subtree, which screen
-        // readers (NVDA in particular) flag as a violation.
-        if (isOpen) {
-            const close = document.getElementById('sidebarClose');
-            (close as HTMLElement | null)?.focus();
-        } else {
-            hamburgerBtn?.focus();
-        }
-        // R3-Fix #19: when the sidebar is open it's the only visible
-        // surface — the rest of the page must be inert to keyboard +
-        // screen reader so Tab/TalkBack swipe don't escape into the
-        // navbar/main/bottom-nav behind the drawer. Modal.ts has the
-        // same pattern via its focus trap; the sidebar drawer is
-        // morally a modal dialog so we mirror it.
-        const navbar = document.querySelector('.navbar') as HTMLElement | null;
-        const mainEl = document.getElementById('app-container');
-        const bottomNav = document.querySelector('.mobile-bottom-nav') as HTMLElement | null;
-        for (const el of [navbar, mainEl, bottomNav]) {
-            if (!el) continue;
-            if (isOpen) {
-                el.setAttribute('inert', '');
-                el.setAttribute('aria-hidden', 'true');
-            } else {
-                el.removeAttribute('inert');
-                el.removeAttribute('aria-hidden');
-            }
-        }
-    };
-
-    // Round 15: on mobile the burger toggles the icon rail island (slides
-    // in/out from the left) instead of the full drawer. Unlike toggleSidebar
-    // this is NOT modal — no overlay, no inert — so the page stays
-    // interactive: the user taps rail icons to navigate and the island only
-    // retracts on a second burger tap. (Desktop hides the burger and shows
-    // the rail permanently, so this is mobile-only in practice.)
+    // Toggle the icon rail island — NON-modal (no overlay, no inert), so the
+    // page stays interactive: tap rail icons to navigate; the island only
+    // retracts on a second burger tap (or a left-swipe / Esc).
     const toggleRail = () => {
         const rail = document.getElementById('sidebarRail');
         if (!rail) return;
@@ -124,19 +74,40 @@ export function wireNavChrome(): void {
     };
 
     document.getElementById('hamburgerBtn')?.addEventListener('click', toggleRail);
-    document.getElementById('sidebarOverlay')?.addEventListener('click', toggleSidebar);
-    document.getElementById('sidebarClose')?.addEventListener('click', toggleSidebar);
-    // R6-B2: Escape key closes the sidebar — Modal.ts has the same
-    // pattern but the sidebar was missing it. Pre-fix keyboard-only
-    // users who tabbed past the close button had no key-only escape
-    // (the drawer is morally a modal dialog; Modal.ts gives every
-    // other modal Esc, sidebar was the lone exception).
+
+    // Esc closes the open rail island (keyboard parity with the burger tap).
+    // No-op on desktop, where the rail is permanently shown (never .is-open).
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
-        const sidebar = document.getElementById('sidebar');
-        if (sidebar?.classList.contains('open')) {
+        const rail = document.getElementById('sidebarRail');
+        if (rail?.classList.contains('is-open')) {
             e.preventDefault();
-            toggleSidebar();
+            rail.classList.remove('is-open');
+            hamburgerBtn?.setAttribute('aria-expanded', 'false');
+        }
+    });
+
+    // Round 19: TWO taps outside the open island close it — so the user isn't
+    // forced to the burger. Two (not one) because the island is non-modal: a
+    // single content tap while it's open shouldn't dismiss it. Tapping the
+    // island itself or the burger resets the count.
+    let railOutsideTaps = 0;
+    document.addEventListener('click', (e) => {
+        const rail = document.getElementById('sidebarRail');
+        if (!rail || !rail.classList.contains('is-open')) {
+            railOutsideTaps = 0;
+            return;
+        }
+        const target = e.target as HTMLElement | null;
+        if (!target || rail.contains(target) || target.closest('#hamburgerBtn')) {
+            railOutsideTaps = 0;
+            return;
+        }
+        railOutsideTaps += 1;
+        if (railOutsideTaps >= 2) {
+            railOutsideTaps = 0;
+            rail.classList.remove('is-open');
+            hamburgerBtn?.setAttribute('aria-expanded', 'false');
         }
     });
 
@@ -332,7 +303,6 @@ export function wireNavChrome(): void {
         });
     }
 
-    document.getElementById('sidebarLogoutBtn')?.addEventListener('click', () => void logout());
     document.getElementById('completeTripBtn')?.addEventListener('click', archiveActiveTrip);
     document.getElementById('completeTripBtnSidebar')?.addEventListener('click', archiveActiveTrip);
     document.getElementById('deleteTripBtn')?.addEventListener('click', deleteActiveTrip);
@@ -448,23 +418,9 @@ export function wireNavChrome(): void {
                 }
             }
             navigate(page, null, false, animDir);
-            // Auto-close sidebar. CRITICAL: toggleSidebar() applied
-            // `inert` + `aria-hidden` to the navbar / #app-container /
-            // bottom-nav when the drawer opened. Closing here by only
-            // stripping `.open` left that `inert` in place, so the WHOLE
-            // page became scroll-but-not-tappable after navigating via a
-            // drawer link — fatal for drawer-only pages like Settings.
-            // Lift the inert state too. (2026-05-30 mobile tap-lock fix.)
-            document.getElementById('sidebar')?.classList.remove('open');
-            document.getElementById('sidebarOverlay')?.classList.remove('open');
-            for (const el of [
-                document.querySelector('.navbar'),
-                document.getElementById('app-container'),
-                document.querySelector('.mobile-bottom-nav'),
-            ]) {
-                el?.removeAttribute('inert');
-                el?.removeAttribute('aria-hidden');
-            }
+            // Round 18: the burger drawer (and its overlay + inert) is gone,
+            // so navigating no longer needs to close it. The rail island is
+            // non-modal and intentionally stays open across navigation.
         }
     });
 }

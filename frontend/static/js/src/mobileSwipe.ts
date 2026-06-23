@@ -96,8 +96,6 @@ const SWIPE_HORIZONTAL_RATIO = 1.5;
 // - .mobile-bottom-nav: tapping a tab is a tap, not a swipe. Letting our
 //   handler interpret a finger-drift across a tab as a swipe would clash
 //   with the tab's own click navigation.
-// - .sidebar: swipes inside the open burger drawer should scroll its
-//   content vertically, not navigate the page underneath.
 // - input/textarea/select/button: native form controls handle their own
 //   touch. A horizontal drag on a slider is a slider drag, not a swipe.
 // - [data-no-swipe]: explicit opt-out for any element we add later
@@ -114,7 +112,6 @@ const SWIPE_HORIZONTAL_RATIO = 1.5;
 //   (Google adds gm-style to the wrapper of every map it controls).
 const SWIPE_OPT_OUT_SELECTORS = [
     '.mobile-bottom-nav',
-    '.sidebar',
     '.modal',
     'input',
     'textarea',
@@ -251,7 +248,15 @@ export function initMobileSwipe(): void {
             }
 
             const page = currentPage();
-            if (!page) return; // we're on a non-swipe page — leave alone
+            if (!page) {
+                // Round 19: on a non-tab page (Budgets, Collections, Profile,
+                // etc.) there's no prev/next tab, but a right-swipe still
+                // reveals the rail island — so the gesture works everywhere,
+                // not just on Home. (A left-swipe here is a no-op; closing an
+                // open island was already handled above.)
+                if (dx > 0) openIsland();
+                return;
+            }
             const idx = SWIPE_ORDER.indexOf(page);
             if (idx === -1) return;
 
