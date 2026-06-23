@@ -63,7 +63,9 @@ export function wireNavChrome(): void {
     if (hamburgerBtn && sidebarEl) {
         hamburgerBtn.setAttribute('aria-haspopup', 'true');
         hamburgerBtn.setAttribute('aria-expanded', 'false');
-        hamburgerBtn.setAttribute('aria-controls', 'sidebar');
+        // Round 15: the burger toggles the icon rail island on mobile now,
+        // not the full drawer.
+        hamburgerBtn.setAttribute('aria-controls', 'sidebarRail');
     }
     const toggleSidebar = () => {
         const sidebar = document.getElementById('sidebar');
@@ -108,7 +110,20 @@ export function wireNavChrome(): void {
         }
     };
 
-    document.getElementById('hamburgerBtn')?.addEventListener('click', toggleSidebar);
+    // Round 15: on mobile the burger toggles the icon rail island (slides
+    // in/out from the left) instead of the full drawer. Unlike toggleSidebar
+    // this is NOT modal — no overlay, no inert — so the page stays
+    // interactive: the user taps rail icons to navigate and the island only
+    // retracts on a second burger tap. (Desktop hides the burger and shows
+    // the rail permanently, so this is mobile-only in practice.)
+    const toggleRail = () => {
+        const rail = document.getElementById('sidebarRail');
+        if (!rail) return;
+        const isOpen = rail.classList.toggle('is-open');
+        hamburgerBtn?.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    };
+
+    document.getElementById('hamburgerBtn')?.addEventListener('click', toggleRail);
     document.getElementById('sidebarOverlay')?.addEventListener('click', toggleSidebar);
     document.getElementById('sidebarClose')?.addEventListener('click', toggleSidebar);
     // R6-B2: Escape key closes the sidebar — Modal.ts has the same

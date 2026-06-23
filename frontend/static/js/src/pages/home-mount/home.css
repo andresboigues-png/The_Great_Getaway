@@ -658,8 +658,14 @@
 .map-poi-toggle-bar {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
-    padding: 7px 14px;
+    /* Round 12: equal 10px padding (matches the Maps + Share buttons'
+       p-2.5) so this reads as the SAME circle, not a wider pill. The
+       label is an absolute hover-reveal tooltip, so it doesn't affect
+       the resting size — only the padding + icon do. Design (accent-blue
+       glass, colour, shadow) is otherwise unchanged. */
+    padding: 10px;
     background: rgba(255, 255, 255, 0.94);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);

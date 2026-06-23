@@ -71,7 +71,6 @@ export function Budgets() {
         : allBudgets.filter((b: Budget) => b.tripId === 'all' || activeTripIds.has(b.tripId));
     // The whole budget summary card (Spent / Allocated / Remaining + the
     // per-person breakdown) is hidden by default; a gold pill reveals it.
-    const [showOverview, setShowOverview] = useState(false);
 
     // DSGN-031: memoize all O(budgets × expenses) aggregations together so
     // they only recompute when budgets or expenses actually change, not on
@@ -203,18 +202,9 @@ export function Budgets() {
                 </span>
             </div>
 
+            {/* Round 16: the budget summary is always shown now — the gold
+                show/hide toggle was removed per request. */}
             {visibleBudgets.length > 0 && (
-                <button
-                    type="button"
-                    onClick={() => setShowOverview((v) => !v)}
-                    aria-expanded={showOverview}
-                    className="mt-[18px] inline-flex items-center gap-1.5 bg-[linear-gradient(135deg,_#ffd60a,_#ff9f0a)] text-[#5e3c00] border-0 py-2 px-4 rounded-full font-extrabold text-[0.82rem] cursor-pointer shadow-[0_6px_18px_rgba(255,159,10,0.3)]"
-                >
-                    {t('budgets.summaryToggle')}
-                    <span aria-hidden="true">{showOverview ? '▴' : '▾'}</span>
-                </button>
-            )}
-            {visibleBudgets.length > 0 && showOverview && (
                 <div
                     className="card glass"
                     style={{

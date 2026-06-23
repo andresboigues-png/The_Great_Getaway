@@ -917,19 +917,38 @@ h1 {
    content visually clear of the strip. */
 .sidebar-rail {
     position: fixed;
-    top: 56px;
-    left: 0;
-    bottom: 0;
-    width: 64px;
+    /* Round 13: floating Liquid Glass island — detached from the left edge
+       and vertically centred in the space below the navbar (was a full-
+       height edge strip flush at left:0). Content-hugging, capped to the
+       viewport with an internal scroll. Same glass recipe as the mobile
+       bottom island. */
+    top: calc(50% + 30px);
+    left: 12px;
+    transform: translateY(-50%);
+    /* Round 15: transform transition drives the mobile slide-in/out (the
+       burger toggles .is-open there). No-op on desktop, where it's static. */
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    width: 56px;
+    max-height: calc(100dvh - 100px);
     z-index: 100;
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border-right: 1px solid var(--glass-border);
+    background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.5) 0%,
+        rgba(255, 255, 255, 0.28) 55%,
+        rgba(255, 255, 255, 0.42) 100%
+    );
+    backdrop-filter: blur(26px) saturate(185%) brightness(1.06);
+    -webkit-backdrop-filter: blur(26px) saturate(185%) brightness(1.06);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-radius: 26px;
+    box-shadow:
+        0 14px 38px rgba(0, 45, 91, 0.2),
+        inset 0 1.5px 1px rgba(255, 255, 255, 0.95),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.24);
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 14px 0 18px;
+    padding: 12px 0;
     gap: 6px;
     overflow-y: auto;
 }
@@ -1057,22 +1076,21 @@ body.is-signed-out .sidebar-rail {
    above the rail (z-index higher). */
 @media (min-width: 721px) {
     main#app-container {
-        padding-left: 64px;
+        /* Clear the floating rail island (left:12px + width:56px = right
+           edge ~68px) plus a 16px gutter. Was 64px when the rail was a
+           flush-left full-height strip. */
+        padding-left: 84px;
     }
     /* Modal overlays cover the whole viewport — keep them above the
        rail via the existing modal z-index, no new rule needed
        (.modal-overlay is z-index 2000+). */
 
-    /* Align the hamburger button's centerline with the rail's
-       centerline (rail is 64px wide, centered at viewport x=32).
-       Currently the navbar's `padding: 0 40px` puts the hamburger
-       at x=40-84; pulling it back via `position: relative; left`
-       slides just the button (and its inner span lines) without
-       reshuffling the flex siblings (brand text + nav-icon
-       buttons), so the rest of the navbar layout stays stable. */
+    /* Round 14: desktop drops the burger entirely — the floating rail
+       island IS the navigation on desktop, so the hamburger (which opened
+       the now-redundant full drawer) is hidden here. It stays on mobile,
+       where the drawer is the primary menu. */
     .hamburger-btn {
-        position: relative;
-        left: -30px;
+        display: none;
     }
     /* The flex container holding hamburger + brand + bell etc. is
        inline-styled with `gap: 16px`. The hamburger's negative
@@ -1082,8 +1100,21 @@ body.is-signed-out .sidebar-rail {
        the layout box, the brand stays at its original spot. */
 }
 @media (max-width: 720px) {
+    /* Round 15: on mobile the burger toggles this rail island in/out
+       (slides from the left) instead of the full labelled drawer. Shown
+       but parked off-screen by default; .is-open (set by the burger in
+       nav-chrome.ts) slides it in. Icon-only, same Liquid Glass as desktop.
+       Vertically centred between the navbar + the bottom-nav island, with
+       an internal scroll if the icon stack is taller than the gap. */
     .sidebar-rail {
-        display: none;
+        display: flex;
+        top: 50%;
+        max-height: calc(100dvh - 190px);
+        z-index: 1100;
+        transform: translateX(calc(-100% - 16px)) translateY(-50%);
+    }
+    .sidebar-rail.is-open {
+        transform: translateX(0) translateY(-50%);
     }
 }
 
@@ -1104,13 +1135,45 @@ body.is-signed-out .sidebar-rail {
     right: 12px;
     z-index: 1000;
     border-radius: 18px;
-    background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: saturate(180%) blur(24px);
-    -webkit-backdrop-filter: saturate(180%) blur(24px);
-    border: 1px solid var(--glass-border);
-    box-shadow: 0 20px 50px rgba(0, 45, 91, 0.25);
+    /* Round 14 — Liquid Glass (matches the nav islands): luminous
+       translucent gradient + bright specular top rim + vibrancy. Kept a
+       touch more opaque than the icon islands so the dense menu text
+       stays legible over whatever's behind the popover. */
+    background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.62) 0%,
+        rgba(255, 255, 255, 0.48) 55%,
+        rgba(255, 255, 255, 0.56) 100%
+    );
+    backdrop-filter: saturate(185%) brightness(1.05) blur(26px);
+    -webkit-backdrop-filter: saturate(185%) brightness(1.05) blur(26px);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow:
+        0 20px 50px rgba(0, 45, 91, 0.22),
+        inset 0 1.5px 1px rgba(255, 255, 255, 0.95),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.22);
     padding: 18px;
     box-sizing: border-box;
+    /* Round 16: smooth open — fade + a slight grow from the top each time
+       the popover is shown. Going display:none → block re-triggers the
+       animation, so no JS change is needed; it just plays on every open. */
+    transform-origin: top center;
+    animation: tripPopoverIn 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes tripPopoverIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .trip-controls-popover {
+        animation: none;
+    }
 }
 .trip-controls-popover .sidebar-trip-controls {
     /* Reuse the existing burger-drawer trip-controls block styling
@@ -4653,14 +4716,26 @@ main#app-container.nav-anim-backward {
         width: calc(100% - 32px) !important;
         max-width: 500px;
         gap: 2px;
-        background: rgba(255, 255, 255, 0.55);
-        backdrop-filter: saturate(180%) blur(28px);
-        -webkit-backdrop-filter: saturate(180%) blur(28px);
-        border: 1px solid rgba(255, 255, 255, 0.5);
+        /* Round 13 — Liquid Glass: luminous translucent gradient (brighter
+           top → softer middle), a bright specular top rim + full-perimeter
+           inner edge, and a vibrancy-boosted backdrop (saturate + brightness)
+           so colour behind it glows through. */
+        background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.5) 0%,
+            rgba(255, 255, 255, 0.28) 55%,
+            rgba(255, 255, 255, 0.42) 100%
+        );
+        backdrop-filter: saturate(185%) brightness(1.06) blur(26px);
+        -webkit-backdrop-filter: saturate(185%) brightness(1.06) blur(26px);
+        border: 1px solid rgba(255, 255, 255, 0.7);
         border-radius: 32px;
         padding: 6px 8px;
         z-index: 1500;
-        box-shadow: 0 12px 34px rgba(0, 45, 91, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+        box-shadow:
+            0 14px 38px rgba(0, 45, 91, 0.2),
+            inset 0 1.5px 1px rgba(255, 255, 255, 0.95),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.24);
         opacity: 1 !important;
         visibility: visible !important;
         pointer-events: auto !important;
@@ -5206,13 +5281,18 @@ main#app-container.nav-anim-backward {
    on the right edge defines where the rail ends against the
    page bg. */
 :root[data-theme="dark"] .sidebar-rail {
+    /* Dark Liquid Glass island — matches the dark mobile island. */
     background: linear-gradient(
         180deg,
-        rgba(54, 54, 60, 0.88) 0%,
-        rgba(38, 38, 44, 0.92) 100%
+        rgba(66, 66, 74, 0.5) 0%,
+        rgba(40, 40, 46, 0.42) 55%,
+        rgba(52, 52, 60, 0.5) 100%
     );
-    border-right-color: rgba(255, 255, 255, 0.06);
-    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow:
+        0 14px 38px rgba(0, 0, 0, 0.55),
+        inset 0 1.5px 1px rgba(255, 255, 255, 0.18),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.07);
 }
 /* Active rail icon — the small accent-blue dot/highlight that
    marks the current page. The base rule uses a translucent blue
@@ -5293,10 +5373,19 @@ main#app-container.nav-anim-backward {
    page. Flip to a frosted-graphite gradient matching the sidebar
    so the bottom nav reads as the same surface material. */
 :root[data-theme="dark"] .mobile-bottom-nav {
-    /* Dark liquid-glass island — translucent enough for the blur to read. */
-    background: rgba(28, 28, 32, 0.55) !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+    /* Dark Liquid Glass — same recipe tuned for the dark page: a dark
+       translucent gradient, a soft white specular rim + inner edge. */
+    background: linear-gradient(
+        180deg,
+        rgba(66, 66, 74, 0.5) 0%,
+        rgba(40, 40, 46, 0.42) 55%,
+        rgba(52, 52, 60, 0.5) 100%
+    ) !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    box-shadow:
+        0 14px 38px rgba(0, 0, 0, 0.55),
+        inset 0 1.5px 1px rgba(255, 255, 255, 0.18),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.07) !important;
 }
 :root[data-theme="dark"] .mobile-bottom-nav__item {
     /* Use accent-blue for both icon stroke (via currentColor on
@@ -5365,13 +5454,18 @@ main#app-container.nav-anim-backward {
    dark. Flip to the same frosted-graphite material the sidebar
    uses so the popover reads as a coherent piece of chrome. */
 :root[data-theme="dark"] .trip-controls-popover {
+    /* Dark Liquid Glass — matches the dark nav islands. */
     background: linear-gradient(
         180deg,
-        rgba(54, 54, 60, 0.94) 0%,
-        rgba(38, 38, 44, 0.97) 100%
+        rgba(66, 66, 74, 0.62) 0%,
+        rgba(40, 40, 46, 0.55) 55%,
+        rgba(52, 52, 60, 0.6) 100%
     );
-    border-color: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow:
+        0 20px 50px rgba(0, 0, 0, 0.6),
+        inset 0 1.5px 1px rgba(255, 255, 255, 0.18),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.07);
 }
 
 /* (Dark-mode overrides for .trip-companions-card, .path-chip
