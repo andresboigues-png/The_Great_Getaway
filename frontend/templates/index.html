@@ -524,6 +524,18 @@
         </a>
     </aside>
 
+    <!-- Round 19: mobile peek handle — a small half-tucked circle on the
+         left edge that hints at the slidable rail island and opens it on
+         tap (the hamburger was removed). Hidden while the island is open
+         (it slides over this spot), and switchable off via Settings →
+         Appearance (body.menu-handle-off). Desktop never shows it (the rail
+         is permanent there). -->
+    <button type="button" id="railPeek" class="rail-peek" aria-label="Open menu">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+    </button>
+
     <!-- Main Content Area -->
     <!-- R3-Round 3 fix: tabindex=-1 so the skip-link can move focus
          here. Without it, anchoring to #app-container shifts the

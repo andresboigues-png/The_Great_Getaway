@@ -789,7 +789,11 @@ h1 {
    HAMBURGER BUTTON
    ================================================ */
 .hamburger-btn {
-    display: flex;
+    /* Round 19: the hamburger is removed on both viewports — the rail island
+       is opened by the left-edge peek handle (#railPeek) + swipe on mobile,
+       and is permanently shown on desktop. Kept in the DOM (hidden) so a
+       future "restore burger menu" only needs to flip this back to flex. */
+    display: none;
     flex-direction: column;
     justify-content: space-between;
     align-items: stretch;
@@ -821,6 +825,66 @@ h1 {
 
 .hamburger-btn:hover span , .hamburger-btn:active span , .hamburger-btn:focus-visible span {
     background-color: var(--accent-blue-hover);
+}
+
+/* Round 19: peek handle — the mobile rail-island opener that replaces the
+   hamburger. A small half-tucked Liquid-Glass circle on the left edge that
+   hints "pull me". Desktop never shows it (the rail is permanent). */
+.rail-peek {
+    display: none;
+}
+@media (max-width: 720px) {
+    .rail-peek {
+        display: flex;
+        position: fixed;
+        left: -22px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 1050;
+        align-items: center;
+        justify-content: flex-end;
+        width: 44px;
+        height: 44px;
+        padding: 0 6px 0 0;
+        border-radius: 50%;
+        color: var(--accent-blue);
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.5) 0%,
+            rgba(255, 255, 255, 0.28) 55%,
+            rgba(255, 255, 255, 0.42) 100%
+        );
+        backdrop-filter: blur(20px) saturate(185%) brightness(1.06);
+        -webkit-backdrop-filter: blur(20px) saturate(185%) brightness(1.06);
+        border: 1px solid rgba(255, 255, 255, 0.65);
+        box-shadow:
+            0 8px 22px rgba(0, 45, 91, 0.18),
+            inset 0 1.5px 1px rgba(255, 255, 255, 0.9);
+        transition: transform 0.18s ease, opacity 0.2s ease;
+    }
+    .rail-peek:active {
+        transform: translateY(-50%) scale(0.92);
+    }
+    /* While the island is open it slides over this spot — fade the handle. */
+    .sidebar-rail.is-open ~ .rail-peek {
+        opacity: 0;
+        pointer-events: none;
+    }
+}
+/* Settings → Appearance: handle toggled off → never show it. */
+body.menu-handle-off .rail-peek {
+    display: none !important;
+}
+:root[data-theme="dark"] .rail-peek {
+    background: linear-gradient(
+        180deg,
+        rgba(66, 66, 74, 0.5) 0%,
+        rgba(40, 40, 46, 0.42) 55%,
+        rgba(52, 52, 60, 0.5) 100%
+    );
+    border-color: rgba(255, 255, 255, 0.16);
 }
 
 /* ================================================

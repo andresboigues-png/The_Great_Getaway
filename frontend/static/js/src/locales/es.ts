@@ -335,6 +335,8 @@ export const es: Translations = {
         creatorSaveError: 'No se pudo guardar la plantilla. Inténtalo de nuevo.',
         subtabPills: 'Píldoras del mapa',
         themePickerSubtitle: 'Elige un tema. <strong>Sistema</strong> sigue la apariencia de tu dispositivo y se actualiza al instante cuando cambia.',
+        menuHandleLabel: 'Asa del menú',
+        menuHandleSub: 'Un pequeño tirador en el borde izquierdo para abrir el menú lateral en el móvil. Desactivado → desliza a la derecha.',
         themeBodyLight: 'Superficies claras, texto oscuro. Clásico.',
         themeBodyDark: 'Superficies oscuras, texto claro. Más cómodo después del atardecer.',
         themeBodySystem: 'Sigue tu dispositivo. Se ajusta automáticamente cuando lo hace tu sistema.',

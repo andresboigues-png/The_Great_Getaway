@@ -422,6 +422,8 @@ export const en = {
         subtabPills: 'Map pills',
         // Theme picker.
         themePickerSubtitle: "Pick a theme. <strong>System</strong> follows your device's appearance setting and updates live when it changes.",
+        menuHandleLabel: 'Menu handle',
+        menuHandleSub: 'A small grip on the left edge to open the side menu on mobile. Off → swipe right to open.',
         themeBodyLight: 'Bright surfaces, dark text. Classic.',
         themeBodyDark: 'Dark surfaces, light text. Easy on the eyes after sundown.',
         themeBodySystem: 'Follow your device. Auto-switches when your OS does.',

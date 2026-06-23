@@ -335,6 +335,8 @@ export const pt: Translations = {
         creatorSaveError: 'Não foi possível guardar o modelo. Tenta novamente.',
         subtabPills: 'Pílulas do mapa',
         themePickerSubtitle: 'Escolhe um tema. <strong>Sistema</strong> segue a aparência do teu dispositivo e atualiza-se ao vivo quando muda.',
+        menuHandleLabel: 'Pega do menu',
+        menuHandleSub: 'Uma pequena pega na margem esquerda para abrir o menu lateral no telemóvel. Desativado → desliza para a direita.',
         themeBodyLight: 'Superfícies claras, texto escuro. Clássico.',
         themeBodyDark: 'Superfícies escuras, texto claro. Mais agradável depois do pôr do sol.',
         themeBodySystem: 'Segue o teu dispositivo. Alterna automaticamente quando o sistema operativo o faz.',

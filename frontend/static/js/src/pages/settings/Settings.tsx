@@ -729,6 +729,17 @@ function GeneralPillsSection() {
 function GeneralAppearanceSection() {
     const prefs = useStore((s) => s.preferences);
     const currentTheme = prefs?.theme || 'system';
+    // Round 19: mobile "menu handle" — the left-edge peek that opens the rail
+    // island. Local + localStorage-backed (a UI-only pref, not server-synced);
+    // toggling flips the body class the peek CSS keys off. Default on.
+    const [menuHandle, setMenuHandle] = useState(
+        () => localStorage.getItem('gg_menu_handle') !== 'off',
+    );
+    const onToggleHandle = (on: boolean) => {
+        setMenuHandle(on);
+        localStorage.setItem('gg_menu_handle', on ? 'on' : 'off');
+        document.body.classList.toggle('menu-handle-off', !on);
+    };
 
     const onPick = (value: 'light' | 'dark' | 'system') => {
         setTheme(value);
@@ -767,6 +778,22 @@ function GeneralAppearanceSection() {
                 {opt('light', t('settings.themeLight'), '☀️', t('settings.themeBodyLight'))}
                 {opt('dark', t('settings.themeDark'), '🌙', t('settings.themeBodyDark'))}
                 {opt('system', t('settings.themeSystem'), '🖥️', t('settings.themeBodySystem'))}
+            </div>
+
+            {/* Round 19: mobile menu-handle (left-edge peek) on/off. */}
+            <div className="flex items-center justify-between gap-4 mt-7">
+                <div className="min-w-0">
+                    <div className="font-semibold text-[0.95rem]">{t('settings.menuHandleLabel')}</div>
+                    <div className="text-secondary text-[0.82rem] mt-0.5">{t('settings.menuHandleSub')}</div>
+                </div>
+                <label className="switch" title={t('settings.menuHandleLabel')}>
+                    <input
+                        type="checkbox"
+                        checked={menuHandle}
+                        onChange={(e) => onToggleHandle(e.target.checked)}
+                    />
+                    <span className="slider"></span>
+                </label>
             </div>
         </div>
     );

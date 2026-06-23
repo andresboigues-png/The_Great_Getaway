@@ -74,6 +74,13 @@ export function wireNavChrome(): void {
     };
 
     document.getElementById('hamburgerBtn')?.addEventListener('click', toggleRail);
+    // Round 19: the left-edge peek handle (which replaced the burger button)
+    // opens the island too.
+    document.getElementById('railPeek')?.addEventListener('click', toggleRail);
+    // Apply the saved "menu handle" preference (Settings → Appearance toggle).
+    if (localStorage.getItem('gg_menu_handle') === 'off') {
+        document.body.classList.add('menu-handle-off');
+    }
 
     // Esc closes the open rail island (keyboard parity with the burger tap).
     // No-op on desktop, where the rail is permanently shown (never .is-open).
