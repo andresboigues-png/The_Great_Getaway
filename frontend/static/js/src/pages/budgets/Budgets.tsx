@@ -24,6 +24,7 @@ import {
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Trip, Budget, Category } from '../../types';
 import { t, tn, formatCurrency } from '../../i18n.js';
+import { findAcceptedMemberUserId } from '../../companions.js';
 
 // Distinct hues for the per-person allocation stacked bar + its legend.
 const ALLOC_PALETTE = ['#0071e3', '#5856d6', '#34c759', '#ff9500', '#ff3b30', '#00c7be', '#bf5af2', '#ffd60a'];
@@ -35,6 +36,10 @@ export function Budgets() {
     // Subscribe to expenses so spentForBudget recomputes on add/remove.
     // Stored in a variable so useMemo below can list it as a dependency.
     const expenses = useStore((s) => s.expenses);
+    // Current user — used to collapse self-references (the auto-added self-
+    // companion + any stale old self-name left on existing budgets after a
+    // companion was linked to this account) into a single "You" bucket.
+    const me = useStore((s) => s.user);
 
     const allBudgets = budgets || [];
 
@@ -97,15 +102,37 @@ export function Budgets() {
         // BUD-8 (MK4): per-budget over-budget count.
         const obc = [...statusMap.values()].filter((s) => s.tier === 'over').length;
         // Per-person allocation breakdown: sum each budget's EUR target by its
-        // owner; budgets with no specific owner (user 'all'/'') bucket as
-        // shared. Powers the overview's stacked bar.
-        const byUserMap = new Map<string, number>();
+        // OWNER, but resolve owners to a canonical identity first so the user
+        // shows up ONCE. The app auto-adds the user as a self-companion, and a
+        // later self-link can leave a STALE old self-name on existing budgets —
+        // which otherwise rendered the user as two separate people.
+        // findAcceptedMemberUserId maps a name → member id via the companion's
+        // linkedUserId or a first-name match on the roster; that, plus a first-
+        // name fallback, collapses every self-reference into one "You" bucket.
+        // 'all'/'' = shared. Powers the overview's stacked bar.
+        const myId = me?.id;
+        const myFirst = (me?.name || '').trim().split(/\s+/)[0]?.toLowerCase() || '';
+        const activeTrip = (trips || []).find((tr: Trip) => tr.id === activeTripId);
+        const byUserMap = new Map<string, { label: string; amount: number }>();
         for (const b of visibleBudgets) {
-            const u = (b.user && b.user !== 'all') ? b.user : '__shared__';
-            byUserMap.set(u, (byUserMap.get(u) || 0) + (b.amount || 0));
+            const raw = (b.user || '').trim();
+            let key: string;
+            let label: string;
+            if (!raw || raw === 'all') {
+                key = '__shared__';
+                label = '__shared__';
+            } else {
+                const uid = activeTrip ? findAcceptedMemberUserId(activeTrip, raw) : undefined;
+                const isSelf = (!!myId && uid === myId) || (!!myFirst && raw.toLowerCase() === myFirst);
+                key = isSelf ? '__self__' : `n:${raw.toLowerCase()}`;
+                label = isSelf ? '__self__' : raw;
+            }
+            const entry = byUserMap.get(key) || { label, amount: 0 };
+            entry.amount += (b.amount || 0);
+            byUserMap.set(key, entry);
         }
-        const abu = [...byUserMap.entries()]
-            .map(([user, amount]) => ({ user, amount }))
+        const abu = [...byUserMap.values()]
+            .map(({ label, amount }) => ({ user: label, amount }))
             .sort((a, b) => b.amount - a.amount);
         return { totalAllocated: ta, totalSpent: ts, overBudgetCount: obc, budgetStatusMap: statusMap, allocByUser: abu };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -325,7 +352,7 @@ export function Budgets() {
                                 {allocByUser.map((u, i) => (
                                     <span key={u.user} className="inline-flex items-center gap-1.5 text-[0.74rem] font-bold text-secondary">
                                         <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ background: ALLOC_PALETTE[i % ALLOC_PALETTE.length] }} />
-                                        <span className="text-brand-navy">{u.user === '__shared__' ? t('budgets.allocShared') : u.user}</span>
+                                        <span className="text-brand-navy">{u.user === '__shared__' ? t('budgets.allocShared') : u.user === '__self__' ? t('budgets.allocYou') : u.user}</span>
                                         <span>{formatHome(u.amount, 'EUR')}</span>
                                         <span className="opacity-60">{Math.round((u.amount / totalAllocated) * 100)}%</span>
                                     </span>

@@ -6,12 +6,19 @@
 // is easy to swap out per surface.
 
 import { STATE, emit } from '../state.js';
-import { archiveTripOnServer, deleteTrip, notifyTripPublic, fetchTripMedia, isUnretryableRejection } from '../api.js';
+import { archiveTripOnServer, deleteTrip, notifyTripPublic, fetchTripMedia, isUnretryableRejection, setTripActionsHidden } from '../api.js';
 import { navigate } from '../router.js';
 import { showConfirmModal, esc, showLiquidAlert } from '../utils.js';
 import { t } from '../i18n.js';
 import { EVENTS, PAGES } from '../constants.js';
-import { canDelete } from '../permissions.js';
+import { canDelete, canManageRoster } from '../permissions.js';
+
+// Silence-row icons for the trip-controls menu — bell (visible) vs
+// bell-off (silenced). Swapped in updateTripSelector by trip state.
+const BELL_SVG =
+    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>';
+const BELL_OFF_SVG =
+    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"></path><path d="M18.63 13A17.89 17.89 0 0 1 18 8"></path><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"></path><path d="M18 8a6 6 0 0 0-9.33-5"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
 
 export function updateTripSelector() {
     // Two trip selectors live in the DOM: #tripSelector in the desktop
@@ -41,10 +48,26 @@ export function updateTripSelector() {
 
     if (selectors.length === 0) return;
 
+    // Mobile top-banner trip-change control (Instagram "For you ▾").
+    // Static "Your trip" label (set via data-i18n-key in the template);
+    // we only toggle its visibility here. Desktop hides it via the
+    // mobile-only parent cluster, so the inline flips no-op there.
+    const navTripChange = document.getElementById('navTripChange');
+
+    // Round 8: Edit / Download / Silence moved into this popover from the
+    // Home trip-title row. Edit + Silence are owner/planner-gated (same
+    // as the in-content originals were); Download is available to any
+    // member while a trip is active.
+    const editBtn = document.getElementById('editTripBtnSidebar');
+    const downloadBtn = document.getElementById('downloadTripBtnSidebar');
+    const silenceBtn = document.getElementById('silenceTripBtnSidebar');
+
     if (STATE.trips.length === 0) {
         for (const sel of selectors) sel.innerHTML = `<option value="">${esc(t('common.noActiveTrips'))}</option>`;
         for (const btn of completeBtns) btn.style.display = 'none';
         for (const btn of deleteBtns) btn.style.display = 'none';
+        for (const btn of [editBtn, downloadBtn, silenceBtn]) if (btn) btn.style.display = 'none';
+        if (navTripChange) navTripChange.style.display = 'none';
         return;
     }
 
@@ -63,6 +86,32 @@ export function updateTripSelector() {
     for (const btn of completeBtns) btn.style.display = hasActive ? 'flex' : 'none';
     for (const btn of deleteBtns) btn.style.display = hasActive && canDelete(activeTrip) ? 'flex' : 'none';
 
+    // Round 8: the trip-change control shows a static "Your trip" label,
+    // so we only toggle its visibility here — shown with an active trip,
+    // hidden otherwise (parity with the action buttons).
+    if (navTripChange) {
+        navTripChange.style.display = hasActive ? 'flex' : 'none';
+        navTripChange.setAttribute('aria-label', t('tripActions.switchTrip'));
+    }
+
+    // Gate + paint the popover action buttons. Edit + Silence need manage
+    // rights; Download just needs an active trip.
+    const manageable = !!activeTrip && canManageRoster(activeTrip);
+    if (editBtn) editBtn.style.display = hasActive && manageable ? 'flex' : 'none';
+    if (downloadBtn) downloadBtn.style.display = hasActive ? 'flex' : 'none';
+    if (silenceBtn) {
+        silenceBtn.style.display = hasActive && manageable ? 'flex' : 'none';
+        // Swap the row's icon + label to reflect server state: bell +
+        // "Silence trip" when visible, bell-off + "Unsilence trip" when
+        // the trip is already silenced.
+        const silenced = !!activeTrip?.actionsHidden;
+        silenceBtn.classList.toggle('trip-menu-row--silenced', silenced);
+        const icon = silenceBtn.querySelector('.trip-menu-row__icon');
+        const label = silenceBtn.querySelector('.trip-menu-row__label');
+        if (icon) icon.innerHTML = silenced ? BELL_OFF_SVG : BELL_SVG;
+        if (label) label.textContent = silenced ? t('tripActions.rowUnsilence') : t('tripActions.rowSilence');
+    }
+
     for (const sel of selectors) {
         sel.onchange = (e) => {
             const target = e.target as HTMLSelectElement | null;
@@ -76,6 +125,46 @@ export function updateTripSelector() {
             navigate(PAGES.HOME);
         };
     }
+}
+
+/**
+ * Toggle "silence trip actions" for the active trip from the trip-controls
+ * popover. Round 8: lifted out of TripBody's in-content silence button so
+ * the same behaviour (optimistic flip + visual + server PATCH + revert on
+ * failure) runs from the popover. The button's bell/bell-off + red-wash
+ * visual is painted by applySilenceBtnVisual; updateTripSelector repaints
+ * it on the state:changed this emits.
+ */
+export async function toggleActiveTripSilence(): Promise<void> {
+    const trip = STATE.trips.find(t => t.id === STATE.activeTripId);
+    if (!trip) return;
+    const wasSilenced = !!trip.actionsHidden;
+    const willSilence = !wasSilenced;
+    // Optimistic flip — the emit repaints the row's icon + label via
+    // updateTripSelector (the state:changed subscriber).
+    trip.actionsHidden = willSilence;
+    emit(EVENTS.STATE_CHANGED);
+    const result = await setTripActionsHidden(trip.id, willSilence);
+    if (!result || !result.ok) {
+        trip.actionsHidden = wasSilenced;
+        emit(EVENTS.STATE_CHANGED);
+        // 404 = trip row not on the server yet (create/silence race);
+        // 403 = genuinely not the owner; everything else → generic.
+        let msg = "Couldn't update — try again in a moment.";
+        if (result?.status === 404) {
+            msg = 'Trip is still saving — try again in a moment.';
+        } else if (result?.status === 403) {
+            msg = 'Only the trip owner can silence trip actions.';
+        }
+        showLiquidAlert(msg);
+        return;
+    }
+    showLiquidAlert(
+        willSilence
+            ? "Trip actions silenced — hidden from friends' feeds."
+            : 'Trip actions visible again.',
+        'success',
+    );
 }
 
 export function archiveActiveTrip() {

@@ -1,7 +1,9 @@
 // pages/home-mount/HomeHeader.tsx — §3.3 React migration.
 //
 // Page-top header for the active-trip Home view:
-//   - Big gradient greeting (per-trip rotating, pickGreeting decides)
+//   - Big gradient trip-name title (round 8: replaced the rotating
+//     "Welcome back" greeting — the trip name is the useful thing to
+//     show here, and it lets the duplicate in-content title go away)
 //   - Trip stats line ("N expenses recorded for {trip name}")
 //   - Action row: POI toggle button, Google Maps link, Share button
 //
@@ -13,14 +15,12 @@
 // openShareChooserModal(trip, onShareToFeed) where the inner share
 // dispatches shareTripToFeed.
 
-import { useMemo } from 'react';
 import { STATE } from '../../state.js';
 import { showLiquidAlert } from '../../utils.js';
 import { esc } from '../../utils/dom-helpers.js';
 import { shareTripToFeed } from '../../api.js';
 import { openShareChooserModal } from '../../modals.js';
 import { openShareToFeedModal } from '../home/shareModal.js';
-import { pickGreeting } from '../home/welcomeCard.js';
 import { t } from '../../i18n.js';
 import { countryCodeToFlag } from '../../utils/place-names.js';
 import type { Trip } from '../../types';
@@ -61,13 +61,6 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
     // (no useStore) — the parent already subscribes for the bigger
     // re-render boundary.
     const tripExpenses = (STATE.expenses || []).filter((e) => e && e.tripId === activeTrip.id);
-    const tripDays = (STATE.tripDays || []).filter((d) => d.tripId === activeTrip.id);
-    const isFresh = tripExpenses.length === 0 && tripDays.length === 0;
-    // DSGN-044: memoize on [trip id, freshness] so the random pick
-    // is stable across unrelated state updates (poll ticks, theme
-    // toggles, etc.) and only re-rolls when the user actually switches
-    // trips or adds the first day/expense.
-    const greeting = useMemo(() => pickGreeting(activeTrip, isFresh), [activeTrip.id, isFresh]);
 
     // Maps href — exact same resolution logic the legacy
     // trip-header version used. Falls through place_id → lat/lng
@@ -126,7 +119,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                 <h1
                     className="inline-block [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
                 >
-                    {greeting}
+                    {activeTrip.name}
                 </h1>
                 {showFlagStrip ? (
                     <div
@@ -242,20 +235,6 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                         <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
                     </svg>
                     <span className="hover-reveal-label">{t('home.poiToggleLabel')}</span>
-                    <svg
-                        className="map-poi-toggle-bar__chevron"
-                        width="13"
-                        height="13"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                    >
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
                 </button>
 
                 {mapsHref ? (

@@ -1122,53 +1122,23 @@ body.is-signed-out .sidebar-rail {
 }
 @media (min-width: 721px) {
     /* Compass button + popover are mobile chrome; on desktop the same
-       controls live in the navbar's .nav-trips--desktop-only block.
-       2026-05-21: also hide the new mobile-trip-switcher button on
-       desktop — it's the in-content replacement for the compass and
-       has no place in the desktop layout. */
+       controls live in the navbar's .nav-trips--desktop-only block. */
     #tripControlsBtn,
-    .trip-controls-popover,
-    #mobileTripSwitcherBtn {
+    .trip-controls-popover {
         display: none !important;
     }
 }
 /* 2026-05-21: mobile-only — REMOVE the compass from the top banner
    (per-user request: "shouldn't be a button in the top banner at
-   all"). The replacement #mobileTripSwitcherBtn lives in
-   HomeHeader.tsx and reuses the same popover. */
+   all"). Round 7: the mobile trip-controls opener is now the
+   top-banner #navTripChange control (trip name + ▾), which reuses the
+   same #tripControlsPopover. The old in-content circular switcher
+   (#mobileTripSwitcherBtn / .mobile-trip-switcher) it replaced has
+   been removed. */
 @media (max-width: 720px) {
     #tripControlsBtn {
         display: none !important;
     }
-}
-/* 2026-05-25 (audit): removed `.trip-switch-row` + `.trip-switch-row h1`.
-   The wrapper was orphaned when the mobile trip-switcher button moved
-   from HomeHeader.tsx to TripBody.tsx — no markup references it now. */
-/* The circular-arrow trip-switch button. Soft accent-blue tinted
-   pill so it reads as "tap to switch" without dominating the
-   greeting. */
-.mobile-trip-switcher {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: 1px solid rgba(0, 113, 227, 0.22);
-    background: rgba(0, 113, 227, 0.08);
-    color: var(--accent-blue);
-    cursor: pointer;
-    flex-shrink: 0;
-    -webkit-tap-highlight-color: transparent;
-    transition: background 0.18s ease, transform 0.18s ease;
-}
-.mobile-trip-switcher:hover,
-.mobile-trip-switcher:active,
-.mobile-trip-switcher:focus-visible {
-    background: rgba(0, 113, 227, 0.18);
-}
-.mobile-trip-switcher:active {
-    transform: scale(0.95);
 }
 /* Signed-out users have no trip controls to show — keep parity with
    the rest of the chrome that hides on the login wall. */
@@ -4276,36 +4246,135 @@ body.is-signed-out #sidebarOverlay {
    (Apple HIG min) so the dropdown options inherit a comfortable
    row height too — fixes the previous "selector opens too small /
    weird" issue where a tiny trigger produced a tiny option list. */
+/* Round 9: trip-controls popover redesigned as a clean iOS-style action
+   menu — current-trip selector on top, grouped labelled rows below
+   (replacing the busy colour-filled icon circles), Delete set apart in
+   red, New trip a quiet accent button at the bottom. Neutral translucent
+   greys (systemFill-ish) are used so the same values read correctly on
+   the light glass + the dark popover without theme-specific overrides. */
 .sidebar-trip-controls {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    margin-bottom: 16px;
+    gap: 14px;
+    margin: 0;
 }
-.sidebar-trip-controls__new {
-    width: 100%;
-    text-align: center;
-}
+
+/* Current-trip selector — tap to switch. Clean bordered field, trip name
+   bold + centred, native chevron kept. */
 .sidebar-trip-controls__selector {
     width: 100%;
-    /* Override the desktop selector's min-width: 160px (which would
-       otherwise prevent the full-width fill on a narrow sidebar). */
+    /* Override the desktop selector's min-width so it fills the popover. */
     min-width: 0 !important;
-    min-height: 44px;
-    padding: 10px 14px;
-    font-size: 0.9rem;
+    min-height: 48px;
+    padding: 12px 16px;
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: rgba(120, 120, 128, 0.08);
+    border: 1px solid rgba(120, 120, 128, 0.22);
+    border-radius: 13px;
     box-sizing: border-box;
     text-align: center;
     text-align-last: center;
+    cursor: pointer;
 }
-.sidebar-trip-controls__actions {
+
+/* Grouped action card — hairline-separated rows, iOS-menu style. */
+.trip-menu-group {
     display: flex;
-    gap: 14px;
-    /* Centered (was flex-end). When an active trip exists both
-       buttons render — owner sees Complete + Delete; non-owner
-       sees Complete only. Either way the pair sits centered. */
-    justify-content: center;
+    flex-direction: column;
+    background: rgba(120, 120, 128, 0.06);
+    border: 1px solid rgba(120, 120, 128, 0.18);
+    border-radius: 13px;
+    overflow: hidden;
+}
+
+/* One action row: leading icon + label, full-width tap target. */
+.trip-menu-row {
+    display: flex;
     align-items: center;
+    gap: 13px;
+    width: 100%;
+    margin: 0;
+    padding: 13px 16px;
+    background: transparent;
+    border: none;
+    border-top: 1px solid rgba(120, 120, 128, 0.18);
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s ease;
+}
+.trip-menu-row:first-child {
+    border-top: none;
+}
+.trip-menu-row:hover,
+.trip-menu-row:active,
+.trip-menu-row:focus-visible {
+    background: rgba(120, 120, 128, 0.12);
+    outline: none;
+}
+.trip-menu-row__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    color: var(--text-secondary);
+}
+.trip-menu-row__label {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Destructive (Delete) — red icon + label, in its own group below. */
+.trip-menu-row--danger,
+.trip-menu-row--danger .trip-menu-row__icon {
+    color: #ff3b30;
+}
+
+/* Complete — its own green-themed island (parallel to the red Delete
+   island below): green icon + green label. */
+.trip-menu-row--success,
+.trip-menu-row--success .trip-menu-row__icon {
+    color: #34c759;
+}
+
+/* Silence active (trip hidden from feeds) — the row turns red, echoing
+   the old solid-red silenced state as a clean red icon + label. Toggled
+   by updateTripSelector when activeTrip.actionsHidden is set. */
+.trip-menu-row--silenced,
+.trip-menu-row--silenced .trip-menu-row__icon {
+    color: #ff3b30;
+}
+
+/* New trip — quiet accent button at the bottom (creating is secondary to
+   managing the current trip in this menu). */
+.trip-menu-new {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 46px;
+    padding: 12px 16px;
+    background: transparent;
+    border: 1px solid var(--accent-blue);
+    border-radius: 13px;
+    color: var(--accent-blue);
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s ease;
+}
+.trip-menu-new:hover,
+.trip-menu-new:active {
+    background: rgba(0, 113, 227, 0.08);
 }
 
 /* ── Phase D1: Mobile-first responsive sweep ──────────────────────
@@ -4446,6 +4515,30 @@ main#app-container.nav-anim-backward {
         padding: 0 12px;
         grid-template-columns: auto 1fr;
         gap: 8px;
+        /* Seamless top banner (round 10) — Instagram-style: no border, no
+           shadow, and a background tinted to the PAGE colour (--bg-color
+           #f5f5f7) rather than white. The old white glass read as a lighter
+           band over the grey page (an obvious "this is a banner" seam); the
+           page-tinted version dissolves into the page at rest. The blur +
+           translucency still frost whatever scrolls under it, so the liquid-
+           glass effect on scroll is preserved. */
+        background: rgba(245, 245, 247, 0.72);
+        backdrop-filter: saturate(150%) blur(24px);
+        -webkit-backdrop-filter: saturate(150%) blur(24px);
+        border-bottom: none;
+        box-shadow: none;
+        /* Hide-on-scroll (round 7) — slides up out of view on scroll-down,
+           back on scroll-up. Toggled by bottomNavScroll.ts via `.is-hidden`. */
+        transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+        will-change: transform;
+    }
+    .navbar.is-hidden {
+        transform: translateY(-100%);
+    }
+    /* Dark mode — same page-tinted glass, dark page colour (#0a0a0a), so
+       the bar stays seamless against the dark page too. */
+    :root[data-theme="dark"] .navbar {
+        background: rgba(10, 10, 10, 0.72);
     }
 
     /* Compact trip controls — keep the New Trip button reachable
@@ -4466,33 +4559,63 @@ main#app-container.nav-anim-backward {
         padding-right: 28px;
     }
 
-    /* Brand text shrinks two notches on mobile to fit alongside the
-       4-icon right cluster (round 3 reorg added compass + notif to
-       the right, on top of search + to-do that were already there).
-       At 0.85rem bold, "The Great Getaway" is ~115px wide — leaves
-       just enough room for the 164px right cluster on iPhone SE
-       (375px viewport). `white-space: nowrap` is non-negotiable;
-       a 2-line wrap would push the navbar height past 60px.
-
-       Round-3 polish: the brand carries the same blue→orange→green
-       gradient it had on `.sidebar-brand-mobile` (the now-removed
-       drawer copy) so the brand identity travels with the text from
-       drawer to navbar. `-webkit-background-clip: text` masks the
-       gradient to the glyph shapes; `-webkit-text-fill-color:
-       transparent` lets the masked background show through. The
-       weight bumps to 800 because gradient-filled text reads thin
-       at 600 — the heavier glyphs give the colour mix room to land.
-       Desktop brand stays solid (white via the .glass token) so the
-       desktop look is unchanged. */
+    /* Round 7: the brand wordmark is hidden on mobile. The mobile top
+       banner now leads with #navTripChange (the Instagram "For you ▾"
+       trip-change control) instead, so the brand text would just crowd
+       it. Desktop keeps the brand (its rule is untouched above). */
     .nav-brand {
-        font-size: 0.85rem;
+        display: none;
+    }
+
+    /* #navTripChange — mobile-only trip-change control that replaces
+       the brand. Reads as a page-title-with-affordance (Instagram's
+       "For you ▾"): bold near-black/near-white label + a quiet chevron.
+       var(--text-primary) so it flips for dark mode automatically. The
+       label truncates with an ellipsis so a long trip name can't push
+       the right-cluster icons off the bar (max-width tuned for the
+       375px iPhone SE alongside the 3-icon right cluster). */
+    .nav-trip-change {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        /* Capped so a long trip name truncates (ellipsis below) instead
+           of pushing the right-cluster icons off the bar. Responsive:
+           38vw scales the cap down on narrow phones (≈115px at 320px, in
+           line with the old brand footprint that fit there) and a 150px
+           ceiling stops it sprawling on wide/foldable mobiles. The empty
+           center 1fr column absorbs any remaining slack. */
+        max-width: min(150px, 38vw);
+        padding: 4px 6px;
+        margin: 0;
+        background: transparent;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        color: var(--text-primary);
+        -webkit-tap-highlight-color: transparent;
+        transition: background 0.18s ease, transform 0.18s ease;
+    }
+    .nav-trip-change:active {
+        background: rgba(127, 127, 127, 0.16);
+        transform: scale(0.97);
+    }
+    .nav-trip-change__label {
+        font-size: 1.05rem;
         font-weight: 800;
         letter-spacing: -0.02em;
         white-space: nowrap;
-        background: linear-gradient(135deg, #0071e3 0%, #ff9500 50%, #34c759 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        /* min-width:0 lets the label shrink below its content width so the
+           ellipsis actually engages inside the flex button. */
+        min-width: 0;
+    }
+    .nav-trip-change__chevron {
+        font-size: 0.7rem;
+        line-height: 1;
+        opacity: 0.6;
+        flex-shrink: 0;
+        transform: translateY(1px);
     }
 
     /* Show + position the bottom-tab nav. iOS-style fixed strip
@@ -6100,17 +6223,16 @@ main#app-container.nav-anim-backward {
    WCAG/Apple-HIG 44×44 minimum on mobile. Pre-fix the trip-card
    actions (Edit / PDF / Silence / Switch / Complete / Delete /
    close-X) were 32-36 px, well below the touch-target floor — Sofia
-   on iPhone Mini routinely mistapped Archive vs Delete. The five
+   on iPhone Mini routinely mistapped Archive vs Delete. These
    classes (icon-btn-square, icon-btn-circle, icon-action-btn,
-   icon-x-btn, mobile-trip-switcher) each have their visual sizing
-   defined elsewhere — this override grows them at mobile widths
-   without disturbing the desktop look. */
+   icon-x-btn) each have their visual sizing defined elsewhere — this
+   override grows them at mobile widths without disturbing the desktop
+   look. */
 @media (max-width: 720px) {
     .icon-btn-square,
     .icon-btn-circle,
     .icon-action-btn,
     .icon-x-btn,
-    .mobile-trip-switcher,
     .lb-nav-btn--close {
         min-width: var(--tap-min);
         min-height: var(--tap-min);

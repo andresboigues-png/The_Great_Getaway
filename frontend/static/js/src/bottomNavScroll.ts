@@ -1,11 +1,17 @@
 /**
- * bottomNavScroll.ts — Instagram-style shrink-on-scroll for the mobile bottom-
- * nav island.
+ * bottomNavScroll.ts — Instagram-style scroll-direction chrome for the mobile
+ * top banner + bottom-nav island.
  *
- * Scrolling DOWN shrinks the island (adds `.is-compact`, a pure CSS transform
- * scale — no reflow); scrolling UP, or reaching the very top, grows it back.
- * rAF-throttled + passive so it never costs scroll smoothness, and gated on the
- * mobile breakpoint (the nav is `display:none` on desktop anyway).
+ * One rAF-throttled passive scroll listener drives BOTH:
+ *   • bottom-nav island — scrolling DOWN shrinks it (`.is-compact`, a pure CSS
+ *     transform scale, no reflow); scrolling UP or reaching the top grows it back.
+ *   • top banner (`.navbar`) — scrolling DOWN slides it up out of view
+ *     (`.is-hidden`, translateY(-100%)); scrolling UP or reaching the top slides
+ *     it back, so reading content gets a cleaner full-bleed surface.
+ *
+ * Both are pure CSS transforms (no reflow), gated on the mobile breakpoint (the
+ * island is `display:none` on desktop and the navbar's hide CSS only exists in
+ * the mobile @media block, so desktop is untouched either way).
  *
  * The app scrolls the document (same assumption pullToRefresh.ts relies on), so
  * window.scrollY is the source of truth.
@@ -26,14 +32,20 @@ export function initBottomNavScroll(): void {
     const apply = (): void => {
         ticking = false;
         const nav = document.querySelector('.mobile-bottom-nav');
-        if (!nav) return;
+        const topbar = document.querySelector('.navbar');
         const y = window.scrollY || document.documentElement.scrollTop || 0;
         if (y <= TOP_GUARD_PX) {
-            nav.classList.remove('is-compact');
+            // At/near the top: everything fully expanded + visible.
+            nav?.classList.remove('is-compact');
+            topbar?.classList.remove('is-hidden');
         } else if (y > lastY + DIRECTION_DELTA_PX) {
-            nav.classList.add('is-compact'); // scrolling down → shrink
+            // Scrolling down → shrink the island, hide the top banner.
+            nav?.classList.add('is-compact');
+            topbar?.classList.add('is-hidden');
         } else if (y < lastY - DIRECTION_DELTA_PX) {
-            nav.classList.remove('is-compact'); // scrolling up → grow
+            // Scrolling up → grow the island, reveal the top banner.
+            nav?.classList.remove('is-compact');
+            topbar?.classList.remove('is-hidden');
         }
         lastY = y;
     };

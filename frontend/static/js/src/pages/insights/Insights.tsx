@@ -201,6 +201,9 @@ export function Insights() {
     // view); category/country/currency split each companion's bar by that
     // dimension so you can see what each person spent across categories, etc.
     const [spenderDim, setSpenderDim] = useState<'general' | 'category' | 'country' | 'currency'>('general');
+    // "Budget vs spent" card — hidden by default behind a gold pill (mirrors the
+    // budgets page's collapsible summary).
+    const [showBudgetVs, setShowBudgetVs] = useState(false);
     // Avg-per-day dashboard: narrow the average to one payer / category.
     const [avgWho, setAvgWho] = useState<string>('all');
     const [avgCat, setAvgCat] = useState<string>('all');
@@ -558,7 +561,7 @@ export function Insights() {
             const spentHome = convertCurrency(stat.spent, 'EUR', targetCurr);
             const targetHome = convertCurrency(stat.target, 'EUR', targetCurr);
             return {
-                title: budgetTitle(b),
+                title: budgetTitle(b, false), // current-trip only → drop the trip name
                 spentHome,
                 targetHome,
                 pct: stat.pct,
@@ -1250,11 +1253,22 @@ export function Insights() {
                 the per-currency FX + inflation detail, and the per-currency
                 timeline moved directly beneath the dashboard. */}
 
-            {/* Budget vs. spent — only when the trip has budgets. */}
+            {/* Budget vs. spent — hidden by default behind a gold pill (mirrors
+                the budgets page's collapsible summary). Only when there are budgets. */}
             {tripBudgets.length > 0 ? (
-                <div className="card glass in-card-pad-28 mb-8">
-                    <h2 className="card-title">{t('insights.budgetVsActualTitle')}</h2>
-                    <p className="text-secondary text-[0.85rem] mt-1 mb-5">{t('insights.budgetVsActualSub')}</p>
+                <div className="mb-8">
+                    <button
+                        type="button"
+                        onClick={() => setShowBudgetVs((v) => !v)}
+                        aria-expanded={showBudgetVs}
+                        className="inline-flex items-center gap-1.5 bg-[linear-gradient(135deg,_#ffd60a,_#ff9f0a)] text-[#5e3c00] border-0 py-2 px-4 rounded-full font-extrabold text-[0.82rem] cursor-pointer shadow-[0_6px_18px_rgba(255,159,10,0.3)]"
+                    >
+                        {t('insights.budgetVsActualTitle')}
+                        <span aria-hidden="true">{showBudgetVs ? '▴' : '▾'}</span>
+                    </button>
+                    {showBudgetVs ? (
+                    <div className="card glass in-card-pad-28 mt-3">
+                    <p className="text-secondary text-[0.85rem] mb-5">{t('insights.budgetVsActualSub')}</p>
                     <div className="flex flex-col gap-4">
                         {tripBudgets.map((b, i) => (
                             <div key={i}>
@@ -1284,6 +1298,8 @@ export function Insights() {
                         On a non-EUR home this stops the same "food spend" reading
                         two different numbers on one page with no explanation. */}
                     <p className="text-secondary text-[0.72rem] mt-4 italic">{t('insights.budgetBasisNote')}</p>
+                    </div>
+                    ) : null}
                 </div>
             ) : null}
 

@@ -26,11 +26,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { STATE, emit } from '../../state.js';
-import { showLiquidAlert, esc } from '../../utils.js';
-import { setTripActionsHidden, upsertDay } from '../../api.js';
+import { esc } from '../../utils.js';
+import { upsertDay } from '../../api.js';
 import {
-    openEditTripModal,
-    openDownloadChooserModal,
     openCompanionPickerModal,
     openTripMembersModal,
     openAddDayModal,
@@ -40,7 +38,6 @@ import { openTripDocumentsModal, openTripPhotosModal } from '../home/tripMediaMo
 import { openAccommodationModal } from '../home/accommodationModal.js';
 import { openDayPinPlaceModal } from '../home/dayPinPlaceModal.js';
 import { openDayDetail as _openDayDetailRaw, type HomeTab } from '../home/dayDetailModal.js';
-import { applySilenceBtnVisual } from '../home/shareModal.js';
 import { buildPathTabHtml, togglePathCardCollapsed } from '../home/pathTab.js';
 import {
     registerPathSelectionHooks,
@@ -277,10 +274,6 @@ export function TripBody({ activeTrip }: TripBodyProps) {
             const target = e.target as HTMLElement | null;
             if (!target) return;
 
-            // Reset map view — clicking the trip name fits the map
-            // to all pins. (#resetMapViewBtn is a JSX <button> with
-            // onClick, but path-card-collapse-btn etc. need delegation.)
-
             // Add-day chip
             if (target.closest('#pathAddDayChip')) {
                 openAddDayModal();
@@ -422,87 +415,10 @@ export function TripBody({ activeTrip }: TripBodyProps) {
         setActiveHomeTab(key);
     };
 
-    // ── Reset map view ─────────────────────────────────────────
-    const onResetMapView = () => {
-        const map = window.activeMap as google.maps.Map;
-        if (!map) return;
-        const _g = google;
-        const bounds = new _g.maps.LatLngBounds();
-        if (typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
-            bounds.extend({ lat: activeTrip.lat, lng: activeTrip.lng });
-        }
-        const tripDaysHere = (STATE.tripDays || []).filter((d) => d.tripId === activeTrip.id);
-        for (const day of tripDaysHere) {
-            if (typeof day.lat === 'number') {
-                bounds.extend({ lat: day.lat, lng: day.lon || day.lng });
-            }
-        }
-        if (!bounds.isEmpty()) {
-            const ne = bounds.getNorthEast();
-            const sw = bounds.getSouthWest();
-            const latSpan = Math.abs(ne.lat() - sw.lat());
-            const lngSpan = Math.abs(ne.lng() - sw.lng());
-            const isEffectivelyPoint = latSpan < 0.001 && lngSpan < 0.001;
-            if (isEffectivelyPoint && activeTrip.viewport) {
-                const v = activeTrip.viewport;
-                map.fitBounds(
-                    new _g.maps.LatLngBounds(
-                        { lat: v.south, lng: v.west },
-                        { lat: v.north, lng: v.east },
-                    ),
-                );
-            } else if (isEffectivelyPoint) {
-                map.setCenter(ne);
-                map.setZoom(12);
-            } else {
-                map.fitBounds(bounds, 80);
-            }
-        } else if (activeTrip.viewport) {
-            const v = activeTrip.viewport;
-            map.fitBounds(
-                new _g.maps.LatLngBounds(
-                    { lat: v.south, lng: v.west },
-                    { lat: v.north, lng: v.east },
-                ),
-            );
-        }
-    };
-
-    // ── Silence trip toggle ────────────────────────────────────
-    const onSilenceTrip = async (e: React.MouseEvent<HTMLButtonElement>) => {
-        const silenceBtn = e.currentTarget;
-        const wasSilenced = silenceBtn.dataset.silenced === '1';
-        const willSilence = !wasSilenced;
-        // Optimistic local + visual flip.
-        activeTrip.actionsHidden = willSilence;
-        applySilenceBtnVisual(silenceBtn, willSilence);
-        emit('state:changed');
-        const result = await setTripActionsHidden(activeTrip.id, willSilence);
-        if (!result || !result.ok) {
-            activeTrip.actionsHidden = wasSilenced;
-            applySilenceBtnVisual(silenceBtn, wasSilenced);
-            emit('state:changed');
-            // USER-BUG-2 (2026-05-28): 404 means the trip row isn't on the
-            // server yet (race between trip-create POST and silence click).
-            // The pre-fix wording always claimed "not the owner" even when
-            // the user had just created the trip and clearly IS the owner.
-            // 403 is the real not-owner case. 5xx / network → generic copy.
-            let msg = "Couldn't update — try again in a moment.";
-            if (result?.status === 404) {
-                msg = "Trip is still saving — try again in a moment.";
-            } else if (result?.status === 403) {
-                msg = 'Only the trip owner can silence trip actions.';
-            }
-            showLiquidAlert(msg);
-            return;
-        }
-        showLiquidAlert(
-            willSilence
-                ? "Trip actions silenced — hidden from friends' feeds."
-                : 'Trip actions visible again.',
-            'success',
-        );
-    };
+    // Round 8: onResetMapView + onSilenceTrip were removed. The reset-
+    // map-on-title-tap gesture went away with the in-content title, and
+    // the silence toggle moved to the trip-controls popover
+    // (toggleActiveTripSilence in bootstrap/trip-controls.ts).
 
     const onCompanionsRoster = () => {
         if (canManageRoster(activeTrip)) {
@@ -512,199 +428,22 @@ export function TripBody({ activeTrip }: TripBodyProps) {
         }
     };
 
-    const tripTitle = activeTrip.name || 'Your Journey';
-
     return (
         <div ref={daysContainerRef} className="mt-10">
             <div className="flex flex-col mb-6">
-                {/* Mobile: title gets its own full-width line and the action
-                    buttons (change/switcher, edit, download, mute) wrap to the
-                    line below — otherwise a long name like "Sao Miguel 26" is
-                    squeezed into an ugly 3-line word-wrap between the buttons.
-                    Desktop (sm+) stays a single inline row (flex-nowrap). */}
-                <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap">
-                    {/* 2026-05-21: mobile-only circular-arrow trip
-                        switcher to the LEFT of the trip name. Replaces
-                        the navbar compass (now hidden on mobile). Opens
-                        the same #tripControlsPopover via the delegated
-                        handler in nav-chrome.ts. */}
-                    <button
-                        type="button"
-                        id="mobileTripSwitcherBtn"
-                        className="mobile-trip-switcher"
-                        aria-label={t('tripActions.switchTrip')}
-                        title={t('tripActions.switchTrip')}
-                    >
-                        <svg
-                            width="18"
-                            height="18"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.4"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                        >
-                            <polyline points="23 4 23 10 17 10"></polyline>
-                            <polyline points="1 20 1 14 7 14"></polyline>
-                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path>
-                            <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path>
-                        </svg>
-                    </button>
-                    <button
-                        id="resetMapViewBtn"
-                        // order-first pulls the title ahead of the mobile
-                        // switcher (which precedes it in the DOM); w-full forces
-                        // it onto its own line so the buttons wrap below. Both
-                        // revert at sm+ so desktop keeps the inline row.
-                        className="order-first w-full text-left sm:w-auto"
-                        title={t('tripActions.resetMapView')}
-                        onClick={onResetMapView}
-                    >
-                        <h2
-                            className="text-[length:var(--font-3xl)] tracking-[-0.03em] m-0 font-extrabold text-brand-navy"
-                        >
-                            {tripTitle}
-                        </h2>
-                    </button>
-                    {tripIsManageable ? (
-                        <button
-                            id="editTripBtn"
-                            className="icon-btn-square"
-                            title={t('tripActions.editTrip')}
-                            aria-label={t('tripActions.editTrip')}
-                            onClick={() => openEditTripModal(activeTrip)}
-                        >
-                            <svg
-                                width="14"
-                                height="14"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                aria-hidden="true"
-                            >
-                                <path d="M12 20h9"></path>
-                                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-                            </svg>
-                        </button>
-                    ) : null}
-                    {/* PDF download — same shape + hover behavior as
-                        Edit, just a different accent color. Setting
-                        `--accent: 52,199,89` (green) on the button
-                        makes the shared `.icon-btn-square` hover/focus
-                        rules light up green on hover instead of blue.
-                        Triangle clip-path retired 2026-05-18 — the
-                        special-snowflake shape felt out of place
-                        between the other two square buttons. */}
-                    <button
-                        id="downloadTripPdfBtn"
-                        className="icon-btn-square"
-                        title={t('tripActions.download')}
-                        aria-label={t('tripActions.download')}
-                        onClick={() => openDownloadChooserModal(activeTrip)}
-                        style={{ ['--accent' as string]: '52,199,89' }}
-                    >
-                        <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                        >
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <polyline points="7 10 12 15 17 10"></polyline>
-                            <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                    </button>
-                    {tripIsManageable ? (
-                        <button
-                            id="silenceTripBtn"
-                            className="icon-btn-square"
-                            data-silenced={activeTrip.actionsHidden ? '1' : '0'}
-                            // 2026-05-18: same shape + hover model as Edit
-                            // and Download — `--accent` drives the hover
-                            // color. Always red here so the button reads
-                            // as the "make this private" verb regardless
-                            // of current state. When silence is ACTIVE
-                            // (actionsHidden=1) we fill the baseline with
-                            // a soft red wash so the on-state is visible
-                            // without breaking the shared shape, instead
-                            // of the old "solid red badge" treatment that
-                            // visually shouted compared to the other two
-                            // neutral-baseline buttons.
-                            style={{
-                                ['--accent' as string]: '255,59,48',
-                                ...(activeTrip.actionsHidden
-                                    ? {
-                                          background: 'rgba(255,59,48,0.12)',
-                                          borderColor: 'rgba(255,59,48,0.4)',
-                                          color: '#ff3b30',
-                                      }
-                                    : {}),
-                            }}
-                            title={
-                                activeTrip.actionsHidden
-                                    ? t('tripActions.silenceOnTitle')
-                                    : t('tripActions.silenceOffTitle')
-                            }
-                            aria-label={
-                                activeTrip.actionsHidden
-                                    ? t('tripActions.silenceOnAria')
-                                    : t('tripActions.silenceOffAria')
-                            }
-                            aria-pressed={activeTrip.actionsHidden ? 'true' : 'false'}
-                            onClick={(e) => void onSilenceTrip(e)}
-                        >
-                            {activeTrip.actionsHidden ? (
-                                <svg
-                                    width="14"
-                                    height="14"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2.2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    aria-hidden="true"
-                                >
-                                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-                                    <path d="M18.63 13A17.89 17.89 0 0 1 18 8"></path>
-                                    <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"></path>
-                                    <path d="M18 8a6 6 0 0 0-9.33-5"></path>
-                                    <line x1="1" y1="1" x2="23" y2="23"></line>
-                                </svg>
-                            ) : (
-                                <svg
-                                    width="14"
-                                    height="14"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2.2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    aria-hidden="true"
-                                >
-                                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
-                                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-                                </svg>
-                            )}
-                        </button>
-                    ) : null}
-                    {!tripIsEditable ? (
-                        // BUG-073: show the viewer's ACTUAL role. canEdit is
-                        // planner-only, so BOTH relaxers and budgeteers land
-                        // here — the old hardcoded "👁 Relaxer" badge
-                        // mislabelled budgeteers, who can in fact edit expenses.
-                        getMyRole(activeTrip) === ROLE_BUDGETEER ? (
+                {/* Round 8: the in-content trip-title row (name + Edit /
+                    Download / Silence) was removed — the trip name now
+                    lives in the page-top H1 (HomeHeader) and those three
+                    actions moved into the trip-controls popover. Only the
+                    read-only role badge stays, shown to non-planners so
+                    they know why editing is limited. */}
+                {!tripIsEditable ? (
+                    <div className="flex flex-wrap items-center gap-3">
+                        {/* BUG-073: show the viewer's ACTUAL role. canEdit
+                            is planner-only, so BOTH relaxers and budgeteers
+                            land here — a hardcoded "Relaxer" badge would
+                            mislabel budgeteers, who can edit expenses. */}
+                        {getMyRole(activeTrip) === ROLE_BUDGETEER ? (
                             <span
                                 className="trip-role-badge trip-role-badge--relaxer"
                                 title={t('companions.roleBudgeteer')}
@@ -718,25 +457,16 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                             >
                                 👁 {t('companions.roleRelaxer')}
                             </span>
-                        )
-                    ) : null}
-                </div>
+                        )}
+                    </div>
+                ) : null}
                 <p
                     className="text-[0.95rem] text-secondary mt-1.5 mx-0 mb-0 font-medium flex items-center gap-2.5 flex-wrap"
                 >
-                    {/* 2026-05-21: anchor (Hub, dayNumber=0) doesn't
-                        count as a planned day — show only numbered
-                        days. A brand-new trip with only the auto-stamped
-                        Hub correctly reads "0 Days of adventure" now. */}
-                    {/* 2026-05-24: i18n — was hardcoded
-                        "N Day{s} of adventure". `tn()` picks the
-                        correct plural/singular form per locale. */}
-                    {(() => {
-                        const plannedDayCount = tripDays.filter((d: TripDay) => (d.dayNumber || 0) > 0).length;
-                        return (
-                            <span>{tn('home.daysOfAdventure', plannedDayCount, { count: plannedDayCount })}</span>
-                        );
-                    })()}
+                    {/* Round 11: the "N days of adventure" count moved under
+                        the Path tab (it reads as a header for the day list
+                        there). This line now just hosts the trip's
+                        destination local-time chip (filled by HeroMap). */}
                     <span
                         id="homeTripLocalTimeChip"
                         className="trip-local-time-chip hidden"
@@ -833,6 +563,15 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                 className={`home-tab-content${activeTab === 'days' ? ' is-active' : ''} flex flex-col gap-1`}
                 data-home-tab="days"
             >
+                {/* Round 11: "N days of adventure" lives here now, under the
+                    Path tab, as a header for the day list (it used to sit in
+                    the trip header above the tab nav). */}
+                <p className="text-[0.95rem] text-secondary mt-0 mx-0 mb-1 font-medium text-center">
+                    {(() => {
+                        const plannedDayCount = tripDays.filter((d: TripDay) => (d.dayNumber || 0) > 0).length;
+                        return <span>{tn('home.daysOfAdventure', plannedDayCount, { count: plannedDayCount })}</span>;
+                    })()}
+                </p>
                 <div ref={pathTabInnerRef} id="pathTabInner" />
             </div>
         </div>

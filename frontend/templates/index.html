@@ -350,7 +350,22 @@
             <button id="hamburgerBtn" class="hamburger-btn" aria-label="Open menu">
                 <span></span><span></span><span></span>
             </button>
+            <!-- Desktop brand wordmark. Hidden on mobile (round 7) — the
+                 mobile top banner now leads with the trip-change control
+                 below (Instagram "For you ▾" pattern) instead of the
+                 brand, which reads as "where am I / tap to switch". -->
             <div class="nav-brand">The Great Getaway</div>
+            <!-- Search — mobile-only, moved to the right of the burger
+                 (round 8) to free the centre of the banner for the
+                 trip-change control. Desktop search lives in the sidebar
+                 rail / drawer, so this navbar copy stays mobile-only. -->
+            <a href="#" data-page="search" id="navSearchBtn" class="navbar-icon-mobile-only" aria-label="Search" title="Search across trips, days, and expenses"
+                style="background: transparent; border: none; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+            </a>
         </div>
 
         <!-- CENTER cluster (grid column 2).
@@ -361,7 +376,22 @@
              `auto 1fr auto` (mobile) so the empty middle naturally
              collapses and lets left/right cluster widths drive the
              layout. -->
-        <div class="navbar-cluster navbar-cluster--center navbar-icon-mobile-only"></div>
+        <div class="navbar-cluster navbar-cluster--center navbar-icon-mobile-only">
+            <!-- Trip-change control (round 8: moved from the left cluster
+                 to the centre — Instagram "For you ▾" placement). Static
+                 "Your trip" label + a ▾; opens #tripControlsPopover
+                 (change / edit / silence / download / complete / delete)
+                 via the delegated handler in nav-chrome.ts. show/hide +
+                 aria are driven by updateTripSelector; hidden until a
+                 trip is active. The parent cluster is mobile-only, so the
+                 control hides on desktop without its own utility class. -->
+            <button type="button" id="navTripChange" class="nav-trip-change"
+                aria-haspopup="dialog" aria-expanded="false" aria-controls="tripControlsPopover"
+                style="display: none;">
+                <span id="navTripChangeLabel" class="nav-trip-change__label" data-i18n-key="nav.yourTrip">Your trip</span>
+                <span class="nav-trip-change__chevron" aria-hidden="true">▾</span>
+            </button>
+        </div>
 
         <!-- RIGHT cluster (grid column 3, mobile only).
              Reading order (2026-05-14 swap — Feed promoted from
@@ -425,13 +455,7 @@
                     <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
                 </svg>
             </button>
-            <a href="#" data-page="search" id="navSearchBtn" aria-label="Search" title="Search across trips, days, and expenses"
-                style="background: transparent; border: none; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="7"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-            </a>
+            <!-- Search moved to the left cluster (round 8). -->
             <!-- Feed — mobile top-nav slot. Same broadcast-arc glyph
                  as the desktop Feed icon (#navFeedBtnDesktop) and the
                  previous bottom-nav Feed entry, so the visual identity
@@ -538,18 +562,43 @@
          dismissable popover wired in nav-chrome.ts). -->
     <div id="tripControlsPopover" class="trip-controls-popover" role="dialog" aria-modal="false" aria-label="Trip controls" style="display: none;">
         <div class="sidebar-trip-controls">
-            <button class="btn-primary-pill sidebar-trip-controls__new" id="newTripBtnSidebar"><span aria-hidden="true">+</span> <span data-i18n-key="nav.newTrip">New Trip</span></button>
-            <select id="tripSelectorSidebar" class="btn-primary-pill--inverse sidebar-trip-controls__selector" aria-label="Select active trip">
+            <!-- Round 9: redesigned as a clean iOS-style action menu — the
+                 current-trip selector on top, grouped labelled action rows
+                 below (replacing the busy colour-filled icon circles),
+                 Delete set apart in red, New trip a quiet accent button at
+                 the bottom. IDs are unchanged so the nav-chrome.ts wiring +
+                 updateTripSelector gating still apply; updateTripSelector
+                 also swaps the Silence row's icon + label by state. -->
+            <select id="tripSelectorSidebar" class="sidebar-trip-controls__selector" aria-label="Select active trip">
                 <option value="">Select a Trip...</option>
             </select>
-            <div class="sidebar-trip-controls__actions">
-                <button class="icon-btn-circle" id="completeTripBtnSidebar" style="--accent: 52,199,89; display: none;" title="Complete Trip" aria-label="Complete trip">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            <div class="trip-menu-group">
+                <button class="trip-menu-row" id="editTripBtnSidebar" style="display: none;">
+                    <span class="trip-menu-row__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></span>
+                    <span class="trip-menu-row__label" data-i18n-key="tripActions.rowEdit">Edit trip</span>
                 </button>
-                <button class="icon-btn-circle" id="deleteTripBtnSidebar" style="--accent: 255,59,48; display: none;" title="Delete Trip" aria-label="Delete trip">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                <button class="trip-menu-row" id="downloadTripBtnSidebar" style="display: none;">
+                    <span class="trip-menu-row__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></span>
+                    <span class="trip-menu-row__label" data-i18n-key="tripActions.rowDownload">Download</span>
+                </button>
+                <button class="trip-menu-row" id="silenceTripBtnSidebar" style="display: none;">
+                    <span class="trip-menu-row__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg></span>
+                    <span class="trip-menu-row__label" data-i18n-key="tripActions.rowSilence">Silence trip</span>
                 </button>
             </div>
+            <div class="trip-menu-group">
+                <button class="trip-menu-row trip-menu-row--success" id="completeTripBtnSidebar" style="display: none;">
+                    <span class="trip-menu-row__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+                    <span class="trip-menu-row__label" data-i18n-key="tripActions.rowComplete">Complete trip</span>
+                </button>
+            </div>
+            <div class="trip-menu-group">
+                <button class="trip-menu-row trip-menu-row--danger" id="deleteTripBtnSidebar" style="display: none;">
+                    <span class="trip-menu-row__icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></span>
+                    <span class="trip-menu-row__label" data-i18n-key="tripActions.rowDelete">Delete trip</span>
+                </button>
+            </div>
+            <button class="trip-menu-new" id="newTripBtnSidebar"><span aria-hidden="true">+</span> <span data-i18n-key="nav.newTrip">New Trip</span></button>
         </div>
     </div>
 

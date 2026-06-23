@@ -11,14 +11,14 @@
 // data load.
 
 import { STATE } from '../state.js';
-import { navigate } from '../router.js';
+import { navigate, type NavAnimDir } from '../router.js';
 import { markNotificationsRead } from '../api.js';
 import { PAGES, type PageName } from '../constants.js';
-import { openNewTripModal } from '../modals.js';
+import { openNewTripModal, openEditTripModal, openDownloadChooserModal } from '../modals.js';
 import { logout } from '../pages/profile.js';
 import { initMobileSwipe } from '../mobileSwipe.js';
 import { renderNotificationDropdown, handleNotificationClick } from './notifications.js';
-import { archiveActiveTrip, deleteActiveTrip } from './trip-controls.js';
+import { archiveActiveTrip, deleteActiveTrip, toggleActiveTripSilence } from './trip-controls.js';
 import { wireRoleButtonKeys } from '../components/Keyboard.js';
 
 /**
@@ -241,9 +241,15 @@ export function wireNavChrome(): void {
         if (tcp && tcp.style.display && tcp.style.display !== 'none') {
             e.preventDefault();
             tcp.style.display = 'none';
-            const trigger = document.getElementById('tripControlsBtn');
-            trigger?.setAttribute('aria-expanded', 'false');
-            trigger?.focus();
+            const compass = document.getElementById('tripControlsBtn');
+            const banner = document.getElementById('navTripChange');
+            compass?.setAttribute('aria-expanded', 'false');
+            banner?.setAttribute('aria-expanded', 'false');
+            // Return focus to whichever trigger is actually on screen —
+            // the compass is desktop-only, the banner control mobile-only,
+            // so focus never lands on a display:none element.
+            const visibleTrigger = banner && banner.offsetParent !== null ? banner : compass;
+            visibleTrigger?.focus();
         }
     });
 
@@ -253,18 +259,18 @@ export function wireNavChrome(): void {
     // inline in the navbar's .nav-trips--desktop-only block.
     const tripControlsBtn = document.getElementById('tripControlsBtn');
     const tripControlsPopover = document.getElementById('tripControlsPopover');
-    // 2026-05-21: the navbar compass was relocated to a circular-arrow
-    // button next to the trip name on mobile (HomeHeader.tsx
-    // #mobileTripSwitcherBtn). Document-level delegated click handles
-    // BOTH triggers since the new button mounts/unmounts with each
-    // home-page render and a direct addEventListener would only catch
-    // the first instance.
+    // Round 7: on mobile the trip-controls opener is the top-banner
+    // #navTripChange control (trip name + ▾). It's static markup in
+    // index.html, but the click is still handled via document-level
+    // delegation (below) to match the rest of the popover wiring.
     const togglePopover = (e: Event) => {
         e.stopPropagation();
         if (!tripControlsPopover) return;
         const isHidden = tripControlsPopover.style.display === 'none' || !tripControlsPopover.style.display;
         tripControlsPopover.style.display = isHidden ? 'block' : 'none';
         tripControlsBtn?.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+        // Mobile top-banner trigger (round 7) shares this popover.
+        document.getElementById('navTripChange')?.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
         if (isHidden) {
             // Close any open notification dropdown — only one navbar
             // popover can be visible at a time. Both copies handled.
@@ -286,11 +292,10 @@ export function wireNavChrome(): void {
         }
     };
     tripControlsBtn?.addEventListener('click', togglePopover);
-    // Delegated handler for the mobile in-content button. Lives at the
-    // document level so the listener survives home-page re-mounts.
+    // Delegated handler for the mobile top-banner trip-change control.
     document.addEventListener('click', (e) => {
         const target = e.target as HTMLElement | null;
-        const btn = target?.closest('#mobileTripSwitcherBtn');
+        const btn = target?.closest('#navTripChange');
         if (btn) togglePopover(e);
     });
 
@@ -317,6 +322,32 @@ export function wireNavChrome(): void {
     document.getElementById('completeTripBtnSidebar')?.addEventListener('click', archiveActiveTrip);
     document.getElementById('deleteTripBtn')?.addEventListener('click', deleteActiveTrip);
     document.getElementById('deleteTripBtnSidebar')?.addEventListener('click', deleteActiveTrip);
+
+    // Round 8: Edit / Download / Silence relocated from the Home trip-
+    // title row into the trip-controls popover. Edit + Download open a
+    // modal over the active trip; Silence toggles in place.
+    // Edit / Download open a full modal — close the popover behind it so
+    // the user lands back on the page (not a stale open popover) when the
+    // modal dismisses. Silence toggles in place, so it leaves the popover
+    // open and lets updateTripSelector repaint the button's on/off state.
+    const closeTripControlsPopover = () => {
+        if (tripControlsPopover) tripControlsPopover.style.display = 'none';
+        tripControlsBtn?.setAttribute('aria-expanded', 'false');
+        document.getElementById('navTripChange')?.setAttribute('aria-expanded', 'false');
+    };
+    document.getElementById('editTripBtnSidebar')?.addEventListener('click', () => {
+        const tr = STATE.trips.find((x) => x.id === STATE.activeTripId);
+        if (!tr) return;
+        closeTripControlsPopover();
+        openEditTripModal(tr);
+    });
+    document.getElementById('downloadTripBtnSidebar')?.addEventListener('click', () => {
+        const tr = STATE.trips.find((x) => x.id === STATE.activeTripId);
+        if (!tr) return;
+        closeTripControlsPopover();
+        openDownloadChooserModal(tr);
+    });
+    document.getElementById('silenceTripBtnSidebar')?.addEventListener('click', () => void toggleActiveTripSilence());
 
     // ── Document-level delegated click handler ──
     // Handles: notification-item route, outside-click dropdown close,
@@ -364,21 +395,21 @@ export function wireNavChrome(): void {
         // popover element, so it WOULDN'T be inside the popover —
         // closing on selection is fine here, the user has confirmed
         // their pick by then.
-        // 2026-05-21: also allow clicks on the new in-content mobile
-        // trip-switcher button (#mobileTripSwitcherBtn) — without this
-        // the outside-click handler would fire on the same click that
-        // togglePopover already toggled, snapping the popover back
-        // closed before the user could see it.
-        const onMobileSwitcher = target?.closest('#mobileTripSwitcherBtn');
+        // Also allow clicks on the mobile trip-change trigger
+        // (#navTripChange) — without this the outside-click handler would
+        // fire on the same click that togglePopover already toggled,
+        // snapping the popover back closed before the user could see it.
+        const onTripChangeTrigger = target?.closest('#navTripChange');
         if (tripControlsPopover
             && tripControlsPopover.style.display === 'block'
             && target
             && !tripControlsPopover.contains(target)
             && !(tripControlsBtn && tripControlsBtn.contains(target))
-            && !onMobileSwitcher
+            && !onTripChangeTrigger
         ) {
             tripControlsPopover.style.display = 'none';
             if (tripControlsBtn) tripControlsBtn.setAttribute('aria-expanded', 'false');
+            document.getElementById('navTripChange')?.setAttribute('aria-expanded', 'false');
         }
 
         // Navigation listener (delegated)
@@ -386,7 +417,22 @@ export function wireNavChrome(): void {
         if (navLink) {
             e.preventDefault();
             const page = resolvePage(navLink.getAttribute('data-page') ?? PAGES.HOME);
-            navigate(page);
+            // Bottom-nav taps animate the page swap in the direction of
+            // travel: tapping a tab to the right of the current one slides
+            // the new page in from the right, a tab to the left from the
+            // left — so it reads as moving across the tab bar instead of
+            // snapping in place. (Uses the same slide the swipe-nav does.)
+            let animDir: NavAnimDir | undefined;
+            const bottomNav = navLink.closest('.mobile-bottom-nav');
+            if (bottomNav) {
+                const items = Array.from(bottomNav.querySelectorAll<HTMLElement>('[data-page]'));
+                const toIdx = items.indexOf(navLink as HTMLElement);
+                const fromIdx = items.findIndex((i) => i.classList.contains('active'));
+                if (toIdx >= 0 && fromIdx >= 0 && toIdx !== fromIdx) {
+                    animDir = toIdx > fromIdx ? 'forward' : 'backward';
+                }
+            }
+            navigate(page, null, false, animDir);
             // Auto-close sidebar. CRITICAL: toggleSidebar() applied
             // `inert` + `aria-hidden` to the navbar / #app-container /
             // bottom-nav when the drawer opened. Closing here by only

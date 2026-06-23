@@ -100,6 +100,7 @@ export const en = {
         search: 'Search',
         // Buttons in the navbar / sidebar.
         newTrip: 'New Trip',
+        yourTrip: 'Your trip',
         notifications: 'Notifications',
         markAllRead: 'Mark all read',
         notificationsEmpty: 'No new notifications',
@@ -868,6 +869,7 @@ export const en = {
         allocByPersonLabel: 'Allocated by person',
         summaryToggle: 'Budget summary',
         allocShared: 'Shared',
+        allocYou: 'You',
         cardEdit: 'Edit',
         editTitle: 'Edit budget',
         editSaveBtn: 'Save changes',
@@ -1944,6 +1946,13 @@ export const en = {
         silenceOffTitle: "Silence trip actions — hide create / archive / join events from friends' Actions feeds",
         silenceOnAria: 'Unsilence trip actions',
         silenceOffAria: 'Silence trip actions',
+        // Round 9: short labels for the redesigned trip-controls menu rows.
+        rowEdit: 'Edit trip',
+        rowDownload: 'Download',
+        rowSilence: 'Silence trip',
+        rowUnsilence: 'Unsilence trip',
+        rowComplete: 'Complete trip',
+        rowDelete: 'Delete trip',
     },
     share: {
         // Share-chooser modal — the entry point that asks "which way?"

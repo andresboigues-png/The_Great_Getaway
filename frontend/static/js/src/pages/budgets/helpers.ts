@@ -206,17 +206,21 @@ export function budgetStatus(budget: Budget) {
 
 /** Build a human-readable title for a budget's combination of filters.
  *  Always shows all three dimensions (trip, category, person). */
-export function budgetTitle(b: Budget): string {
+export function budgetTitle(b: Budget, includeTrip = true): string {
     const parts: string[] = [];
-    if (b.tripId && b.tripId !== 'all') {
-        // Renamed local from `t` to `trip` to avoid shadowing the
-        // imported `t` (i18n lookup function).
-        const trip = (STATE.trips || []).find((tr) => tr.id === b.tripId);
-        const archived = (STATE.archivedTrips || []).find((tr) => tr.id === b.tripId);
-        const name = trip?.name || archived?.name;
-        if (name) parts.push(name);
-    } else {
-        parts.push(t('budgets.titleAllTrips'));
+    // Insights shows budgets for the CURRENT trip only, so it passes
+    // includeTrip=false — the trip name would be identical on every row.
+    if (includeTrip) {
+        if (b.tripId && b.tripId !== 'all') {
+            // Renamed local from `t` to `trip` to avoid shadowing the
+            // imported `t` (i18n lookup function).
+            const trip = (STATE.trips || []).find((tr) => tr.id === b.tripId);
+            const archived = (STATE.archivedTrips || []).find((tr) => tr.id === b.tripId);
+            const name = trip?.name || archived?.name;
+            if (name) parts.push(name);
+        } else {
+            parts.push(t('budgets.titleAllTrips'));
+        }
     }
     if (b.categoryId && b.categoryId !== 'all') {
         // Resolve by id, then fall back to a case-insensitive NAME match so
