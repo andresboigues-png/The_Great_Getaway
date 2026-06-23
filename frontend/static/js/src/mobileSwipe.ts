@@ -7,9 +7,10 @@
  * folded into Expenses as a tab).
  * - Swipe LEFT  → next tab in the SWIPE_ORDER list.
  * - Swipe RIGHT → previous tab in the list.
- * - At the LEFT boundary (Home) a right-swipe opens the burger drawer
- *   instead of being a no-op (the drawer is the "what's even further
- *   left of Home" surface, so this matches user mental model).
+ * - At the LEFT boundary (Home) a right-swipe slides the rail nav island
+ *   out (round 17) — the "what's even further left of Home" surface.
+ * - When the rail island is open (on any page), a left-swipe slides it
+ *   back closed; a right-swipe is a no-op (it's already out).
  * - At the RIGHT boundary (Expenses) a left-swipe is a no-op — there's
  *   nothing past Expenses and we don't want to surprise the user with
  *   an unexpected modal.
@@ -138,33 +139,25 @@ interface SwipeStart {
 }
 
 /**
- * Open the burger drawer (used as the "right-swipe-from-Home" target).
- * Mirrors the toggle wiring in main.ts so a swipe-from-Home and a
- * hamburger tap reach the same end state. We deliberately call .add
- * (not .toggle) here — the swipe semantics are "open the drawer", not
- * "flip whatever state it's in".
+ * Open / close the icon rail island (round 17 — the swipe target on
+ * mobile, replacing the old burger drawer). A right-swipe from Home slides
+ * the island out; a left-swipe slides it back. Unlike the drawer this is
+ * NON-modal — no overlay, no inert, no focus trap — so the page behind
+ * stays interactive (matching the burger toggle + toggleRail in
+ * nav-chrome.ts). We mirror the hamburger's aria-expanded so both open
+ * paths stay in sync.
  */
-function openSidebar(): void {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar?.classList.contains('open')) return;  // already open — don't re-apply
-    sidebar?.classList.add('open');
-    document.getElementById('sidebarOverlay')?.classList.add('open');
-    // BUG-16 (MK2 audit): mirror the hamburger path (nav-chrome.ts
-    // toggleSidebar) so a SWIPE-open applies the same `inert` + `aria-hidden`
-    // + `aria-expanded` state. Pre-fix the swipe added only `.open`, leaving
-    // the page behind the drawer keyboard/screen-reader reachable and the
-    // hamburger's aria-expanded wrong. All close paths (close button, overlay,
-    // Esc, drawer-link nav) already strip inert, so we only owe the open side.
+function openIsland(): void {
+    const rail = document.getElementById('sidebarRail');
+    if (!rail || rail.classList.contains('is-open')) return;
+    rail.classList.add('is-open');
     document.getElementById('hamburgerBtn')?.setAttribute('aria-expanded', 'true');
-    for (const el of [
-        document.querySelector('.navbar'),
-        document.getElementById('app-container'),
-        document.querySelector('.mobile-bottom-nav'),
-    ]) {
-        el?.setAttribute('inert', '');
-        el?.setAttribute('aria-hidden', 'true');
-    }
-    (document.getElementById('sidebarClose') as HTMLElement | null)?.focus();
+}
+function closeIsland(): void {
+    const rail = document.getElementById('sidebarRail');
+    if (!rail || !rail.classList.contains('is-open')) return;
+    rail.classList.remove('is-open');
+    document.getElementById('hamburgerBtn')?.setAttribute('aria-expanded', 'false');
 }
 
 /** True if the touch target (or any ancestor) matches an opt-out
@@ -247,6 +240,16 @@ export function initMobileSwipe(): void {
             // (absDy === 0 short-circuits the divide; treat as horizontal.)
             if (absDy > 0 && absDx / absDy < SWIPE_HORIZONTAL_RATIO) return;
 
+            // Rail island (round 17): it can be open on ANY page (it's nav
+            // chrome that persists across navigation), so handle it before the
+            // bottom-tab logic + the currentPage() early-return below. A
+            // left-swipe slides it closed; a right-swipe while it's already
+            // open is a no-op (it's out — don't also change tabs).
+            if (document.getElementById('sidebarRail')?.classList.contains('is-open')) {
+                if (dx < 0) closeIsland();
+                return;
+            }
+
             const page = currentPage();
             if (!page) return; // we're on a non-swipe page — leave alone
             const idx = SWIPE_ORDER.indexOf(page);
@@ -262,13 +265,12 @@ export function initMobileSwipe(): void {
                 const next = SWIPE_ORDER[idx + 1];
                 if (next) navigate(next, null, false, 'forward');
             } else {
-                // Swipe RIGHT → previous tab. At the LEFT boundary
-                // (Home) we open the burger drawer instead — the
-                // "what's left of Home" surface, per user spec.
-                // 'backward' slides the new page in from the left edge,
-                // matching the right-swipe gesture.
+                // Swipe RIGHT → previous tab. At the LEFT boundary (Home)
+                // we slide the rail nav island out instead (round 17) — the
+                // "what's left of Home" surface. 'backward' slides a new page
+                // in from the left, matching the right-swipe gesture.
                 if (idx === 0) {
-                    openSidebar();
+                    openIsland();
                 } else {
                     const prev = SWIPE_ORDER[idx - 1];
                     if (prev) navigate(prev, null, false, 'backward');
