@@ -826,6 +826,7 @@ export const pt: Translations = {
         groupTrips: 'Viagens',
         groupDays: 'Dias',
         groupExpenses: 'Despesas',
+        showAll: 'Ver os {count}',
         noCountry: 'Sem país definido',
         dayFallback: 'Dia {num}',
         dayFallbackUnknown: 'Dia ?',

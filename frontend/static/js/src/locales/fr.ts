@@ -827,6 +827,7 @@ export const fr: Translations = {
         groupTrips: 'Voyages',
         groupDays: 'Jours',
         groupExpenses: 'Dépenses',
+        showAll: 'Voir les {count}',
         noCountry: 'Aucun pays défini',
         dayFallback: 'Jour {num}',
         dayFallbackUnknown: 'Jour ?',

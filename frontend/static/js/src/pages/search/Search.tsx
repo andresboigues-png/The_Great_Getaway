@@ -399,7 +399,7 @@ function ResultGroupSection({
                     onClick={onShowAll}
                     className="mt-2.5 py-2.5 px-[18px] rounded-full bg-[rgba(0,113,227,0.08)] border border-[rgba(0,113,227,0.2)] text-accent-blue font-bold text-[0.85rem] cursor-pointer"
                 >
-                    Show all {count}
+                    {t('search.showAll', { count })}
                 </button>
             )}
         </div>

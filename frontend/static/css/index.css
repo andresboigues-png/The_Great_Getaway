@@ -1264,6 +1264,31 @@ body.is-signed-out .sidebar-rail {
         animation: none;
     }
 }
+
+/* B1 polish — result-row interaction + dark-mode legibility. The rows are
+   built with inline styles in mapSearch.ts, so these overrides carry
+   !important to win. Hover is a soft tint; the keyboard active-option
+   highlight (set inline in mapSearch.ts) is a touch stronger, so the two
+   stay distinguishable. */
+#homeMapSearchResults .map-search-row:hover,
+#homeMapSearchResults .map-internal-row:hover {
+    background: rgba(0, 113, 227, 0.06) !important;
+}
+#homeMapSearchResults .map-internal-showall:hover {
+    background: rgba(0, 113, 227, 0.16) !important;
+}
+:root[data-theme="dark"] #homeMapSearchResults .map-search-row:hover,
+:root[data-theme="dark"] #homeMapSearchResults .map-internal-row:hover {
+    background: rgba(255, 255, 255, 0.07) !important;
+}
+:root[data-theme="dark"] #homeMapSearchResults .map-search-row,
+:root[data-theme="dark"] #homeMapSearchResults .map-internal-row {
+    border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+:root[data-theme="dark"] #homeMapSearchResults .gg-archived-pill {
+    background: rgba(255, 159, 10, 0.18) !important;
+    color: #ffb04d !important;
+}
 .trip-controls-popover .sidebar-trip-controls {
     /* Reuse the existing burger-drawer trip-controls block styling
        (full-width pill + selector + centred action row) — it was

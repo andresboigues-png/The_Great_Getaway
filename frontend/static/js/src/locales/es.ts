@@ -822,6 +822,7 @@ export const es: Translations = {
         groupTrips: 'Viajes',
         groupDays: 'Días',
         groupExpenses: 'Gastos',
+        showAll: 'Ver los {count}',
         noCountry: 'Sin país definido',
         dayFallback: 'Día {num}',
         dayFallbackUnknown: 'Día ?',

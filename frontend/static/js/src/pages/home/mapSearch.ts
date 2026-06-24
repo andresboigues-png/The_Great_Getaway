@@ -163,7 +163,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
                 style="width:100%; text-align:left; padding:11px 16px; background:transparent; border:0; border-bottom:1px solid rgba(0,0,0,0.05); display:flex; gap:10px; align-items:flex-start; cursor:pointer;">
                 <span style="font-size:1rem; line-height:1.2; flex-shrink:0;">📍</span>
                 <div style="flex:1; min-width:0;">
-                    <div style="font-weight:700; color:#002d5b; font-size:0.88rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.structured_formatting?.main_text || p.description || '')}</div>
+                    <div style="font-weight:700; color:var(--text-brand-navy); font-size:0.88rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.structured_formatting?.main_text || p.description || '')}</div>
                     ${p.structured_formatting?.secondary_text ? `<div style="font-size:0.74rem; color:var(--text-secondary); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.structured_formatting.secondary_text)}</div>` : ''}
                 </div>
                 ${distHtml}
@@ -180,20 +180,20 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
 
     /** One internal (cross-trip) result row — carries nav data attrs that
      *  the delegated click handler reads to route. */
-    const internalRowHtml = (o: { kind: string; tripId: string; dayId: string; archived: boolean; icon: string; title: string; subtitle: string }): string => `
-        <button type="button" class="map-internal-row" data-internal-kind="${esc(o.kind)}" data-trip-id="${esc(o.tripId)}" data-day-id="${esc(o.dayId)}" data-archived="${o.archived ? '1' : '0'}"
+    const internalRowHtml = (o: { id: string; kind: string; tripId: string; dayId: string; archived: boolean; icon: string; title: string; subtitle: string }): string => `
+        <button type="button" class="map-internal-row" role="option" id="${o.id}" aria-selected="false" data-internal-kind="${esc(o.kind)}" data-trip-id="${esc(o.tripId)}" data-day-id="${esc(o.dayId)}" data-archived="${o.archived ? '1' : '0'}"
             style="width:100%; text-align:left; padding:11px 16px; background:transparent; border:0; border-bottom:1px solid rgba(0,0,0,0.05); display:flex; gap:10px; align-items:center; cursor:pointer;">
             <span style="flex-shrink:0; color:var(--accent-blue); display:inline-flex; align-items:center;">${iconSvg(o.icon, { size: 19 })}</span>
             <div style="flex:1; min-width:0;">
-                <div style="font-weight:700; color:#002d5b; font-size:0.88rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(o.title)}</div>
+                <div style="font-weight:700; color:var(--text-brand-navy); font-size:0.88rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(o.title)}</div>
                 <div style="font-size:0.74rem; color:var(--text-secondary); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(o.subtitle)}</div>
             </div>
-            ${o.archived ? `<span style="flex-shrink:0; font-size:0.58rem; font-weight:800; letter-spacing:0.05em; text-transform:uppercase; padding:3px 7px; border-radius:999px; background:rgba(255,149,0,0.14); color:#b46a00;">${esc(t('search.archivedPill'))}</span>` : ''}
+            ${o.archived ? `<span class="gg-archived-pill" style="flex-shrink:0; font-size:0.58rem; font-weight:800; letter-spacing:0.05em; text-transform:uppercase; padding:3px 7px; border-radius:999px; background:rgba(255,149,0,0.14); color:#b46a00;">${esc(t('search.archivedPill'))}</span>` : ''}
         </button>`;
 
     const showAllBtnHtml = (group: string, count: number): string => `
         <button type="button" class="map-internal-showall" data-group="${esc(group)}"
-            style="font-size:0.72rem; font-weight:800; color:var(--accent-blue); background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.18); border-radius:999px; padding:4px 11px; cursor:pointer;">${esc(`Show all ${count}`)}</button>`;
+            style="font-size:0.72rem; font-weight:800; color:var(--accent-blue); background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.18); border-radius:999px; padding:4px 11px; cursor:pointer;">${esc(t('search.showAll', { count }))}</button>`;
 
     /** Internal groups (Trips / Days / Expenses) — same labels, titles,
      *  subtitles + icons as the legacy Search page. Each caps at
@@ -202,9 +202,13 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
         const r = lastInternal;
         if (!r) return '';
         let html = '';
+        // Sequential option ids so internal rows join the combobox arrow-nav
+        // (aria-activedescendant) below the Places predictions above.
+        let optIdx = 0;
         if (r.trips.length) {
             const shown = internalShowAll.trips ? r.trips : r.trips.slice(0, INTERNAL_LIMIT);
             const rows = shown.map((hit) => internalRowHtml({
+                id: `${OPTION_ID_PREFIX}i${optIdx++}`,
                 kind: 'trip', tripId: hit.trip.id, dayId: '', archived: hit.archived,
                 icon: 'map', title: hit.trip.name || '—', subtitle: hit.trip.country || t('search.noCountry'),
             })).join('');
@@ -214,6 +218,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
         if (r.days.length) {
             const shown = internalShowAll.days ? r.days : r.days.slice(0, INTERNAL_LIMIT);
             const rows = shown.map((hit) => internalRowHtml({
+                id: `${OPTION_ID_PREFIX}i${optIdx++}`,
                 kind: 'day', tripId: hit.trip.id, dayId: hit.day.id, archived: hit.archived,
                 icon: 'calendar',
                 title: hit.day.name || (hit.day.dayNumber ? t('search.dayFallback', { num: hit.day.dayNumber }) : t('search.dayFallbackUnknown')),
@@ -225,6 +230,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
         if (r.expenses.length) {
             const shown = internalShowAll.expenses ? r.expenses : r.expenses.slice(0, INTERNAL_LIMIT);
             const rows = shown.map((hit) => internalRowHtml({
+                id: `${OPTION_ID_PREFIX}i${optIdx++}`,
                 kind: 'expense', tripId: hit.trip?.id || '', dayId: '', archived: hit.archived,
                 icon: 'wallet', title: hit.expense.label || t('search.expenseNoLabel'),
                 subtitle: `${formatAmount(hit.expense.value, hit.expense.currency)} · ${hit.expense.who || t('search.expenseNoPayer')}${hit.trip ? ` · ${hit.trip.name}` : ''}`,
@@ -452,7 +458,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
      *  a visible background so both AT and sighted keyboard users can see
      *  which result Enter will pick. */
     const setActiveOption = (nextIndex: number) => {
-        const rows = Array.from(resultsEl.querySelectorAll('.map-search-row')) as HTMLElement[];
+        const rows = Array.from(resultsEl.querySelectorAll('.map-search-row, .map-internal-row')) as HTMLElement[];
         if (rows.length === 0) return;
         activeIndex = (nextIndex + rows.length) % rows.length;
         rows.forEach((r, i) => {
@@ -476,10 +482,19 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
             e.preventDefault();
             setActiveOption(activeIndex - 1);
         } else if (e.key === 'Enter') {
-            const active = resultsEl.querySelector('.map-search-row[aria-selected="true"]') as HTMLElement | null;
+            const active = resultsEl.querySelector('[aria-selected="true"]') as HTMLElement | null;
             if (active) {
                 e.preventDefault();
-                selectRow(active);
+                if (active.classList.contains('map-internal-row')) {
+                    goToInternal(
+                        active.dataset.internalKind || '',
+                        active.dataset.tripId || '',
+                        active.dataset.archived === '1',
+                        active.dataset.dayId || '',
+                    );
+                } else {
+                    selectRow(active);
+                }
             }
         } else if (e.key === 'Escape') {
             hideResults();
