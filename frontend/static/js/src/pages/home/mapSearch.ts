@@ -141,12 +141,13 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
         return currency ? `${num} ${currency}` : num;
     };
 
-    /** Group container — uppercase label header + an optional right-aligned
-     *  header slot (the Show-all toggle). */
-    const groupWrap = (label: string, inner: string, headerExtra = ''): string => `
+    /** Group container — uppercase label header (with an optional total
+     *  count, e.g. "TRIPS · 12") + an optional right-aligned header slot
+     *  (the Show-all toggle). */
+    const groupWrap = (label: string, inner: string, headerExtra = '', count?: number): string => `
         <div class="map-search-group">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:12px 16px 4px;">
-                <span style="font-size:0.68rem; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-secondary);">${esc(label)}</span>
+                <span style="font-size:0.68rem; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-secondary);">${esc(label)}${typeof count === 'number' ? ` · ${count}` : ''}</span>
                 ${headerExtra}
             </div>
             ${inner}
@@ -160,7 +161,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
             : '';
         return `
             <button type="button" class="map-search-row" role="option" id="${OPTION_ID_PREFIX}${i}" aria-selected="false" data-place-id="${esc(p.place_id)}"
-                style="width:100%; text-align:left; padding:11px 16px; background:transparent; border:0; border-bottom:1px solid rgba(0,0,0,0.05); display:flex; gap:10px; align-items:flex-start; cursor:pointer;">
+                style="width:100%; text-align:left; padding:11px 16px; background:transparent; border:0; border-bottom:1px solid rgba(0,0,0,0.05); display:flex; gap:10px; align-items:center; cursor:pointer;">
                 <span style="font-size:1rem; line-height:1.2; flex-shrink:0;">📍</span>
                 <div style="flex:1; min-width:0;">
                     <div style="font-weight:700; color:var(--text-brand-navy); font-size:0.88rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.structured_formatting?.main_text || p.description || '')}</div>
@@ -213,7 +214,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
                 icon: 'map', title: hit.trip.name || '—', subtitle: hit.trip.country || t('search.noCountry'),
             })).join('');
             const extra = (!internalShowAll.trips && r.trips.length > INTERNAL_LIMIT) ? showAllBtnHtml('trips', r.trips.length) : '';
-            html += groupWrap(t('search.groupTrips'), rows, extra);
+            html += groupWrap(t('search.groupTrips'), rows, extra, r.trips.length);
         }
         if (r.days.length) {
             const shown = internalShowAll.days ? r.days : r.days.slice(0, INTERNAL_LIMIT);
@@ -225,7 +226,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
                 subtitle: `${hit.trip.name}${hit.day.date ? ` · ${hit.day.date}` : ''}`,
             })).join('');
             const extra = (!internalShowAll.days && r.days.length > INTERNAL_LIMIT) ? showAllBtnHtml('days', r.days.length) : '';
-            html += groupWrap(t('search.groupDays'), rows, extra);
+            html += groupWrap(t('search.groupDays'), rows, extra, r.days.length);
         }
         if (r.expenses.length) {
             const shown = internalShowAll.expenses ? r.expenses : r.expenses.slice(0, INTERNAL_LIMIT);
@@ -236,7 +237,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
                 subtitle: `${formatAmount(hit.expense.value, hit.expense.currency)} · ${hit.expense.who || t('search.expenseNoPayer')}${hit.trip ? ` · ${hit.trip.name}` : ''}`,
             })).join('');
             const extra = (!internalShowAll.expenses && r.expenses.length > INTERNAL_LIMIT) ? showAllBtnHtml('expenses', r.expenses.length) : '';
-            html += groupWrap(t('search.groupExpenses'), rows, extra);
+            html += groupWrap(t('search.groupExpenses'), rows, extra, r.expenses.length);
         }
         return html;
     };
