@@ -1136,7 +1136,11 @@ body.menu-handle-off .rail-peek {
 }
 /* On signed-out pages the rail has no nav target and the user is
    stuck on the login wall — hide it so the wall is the only chrome. */
-body.is-signed-out .sidebar-rail {
+body.is-signed-out .sidebar-rail,
+body.is-signed-out .rail-peek {
+    /* The rail AND its left-edge peek handle are nav chrome — neither should
+       be reachable from the login wall. (.rail-peek is shown on mobile, so it
+       leaked onto the signed-out page without this.) */
     display: none !important;
 }
 /* Desktop: shift main content right by the rail width so it doesn't
