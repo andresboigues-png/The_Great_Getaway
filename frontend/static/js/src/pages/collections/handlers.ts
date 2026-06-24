@@ -67,13 +67,21 @@ export const restoreTrip = (id: string) => {
         onConfirm: () => { void (async () => {
             trip.isArchived = false;
 
-            // Restore expenses and days to global lists
+            // Restore expenses and days to global lists — DE-DUPE BY ID.
+            // /api/data loads ALL days/expenses flat into STATE (active +
+            // archived), so a just-loaded archived trip's rows are usually
+            // already present. A blind append re-added the trip's nested copy
+            // on top → "reactivated with doubled days" (1·1·2·2). Filtering by
+            // id makes restore idempotent (the DB was always correct — the
+            // double was frontend STATE only, cleared by any /api/data pull).
             if (trip.expenses) {
-                STATE.expenses = [...STATE.expenses, ...trip.expenses];
+                const seen = new Set(STATE.expenses.map((e) => e.id));
+                STATE.expenses = [...STATE.expenses, ...trip.expenses.filter((e) => !seen.has(e.id))];
                 delete trip.expenses;
             }
             if (trip.tripDays) {
-                STATE.tripDays = [...STATE.tripDays, ...trip.tripDays];
+                const seen = new Set(STATE.tripDays.map((d) => d.id));
+                STATE.tripDays = [...STATE.tripDays, ...trip.tripDays.filter((d) => !seen.has(d.id))];
                 delete trip.tripDays;
             }
             // 2026-05-26 (audit TR3): also restore settlements that
@@ -86,7 +94,8 @@ export const restoreTrip = (id: string) => {
                 | import('../../types').Settlement[]
                 | undefined;
             if (archivedSettlements && archivedSettlements.length > 0) {
-                STATE.settlements = [...(STATE.settlements || []), ...archivedSettlements];
+                const seenS = new Set((STATE.settlements || []).map((s) => s.id));
+                STATE.settlements = [...(STATE.settlements || []), ...archivedSettlements.filter((s) => !seenS.has(s.id))];
                 delete (trip as { settlements?: unknown }).settlements;
             }
 
