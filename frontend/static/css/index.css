@@ -72,6 +72,9 @@
     /* Brand purple — used by the To-do + AI explainer blocks and the
        "✦ AI" chip. Tokenised so dark mode can lift the shade. */
     --accent-purple: #7c3a9e;
+    /* Heading orange (EmptyState accent, etc.) — dark orange in light mode,
+       lifted in dark mode so it stays legible on dark cards. */
+    --accent-orange: #a35200;
     --accent-purple-bg-soft: rgba(155, 89, 182, 0.10);
     --accent-purple-border-soft: rgba(155, 89, 182, 0.32);
     /* Deeper section-label variants — used by small uppercase
@@ -306,6 +309,7 @@
        #7c3a9e reads as too saturated / too dark on the #1c1c1e
        card-bg; this lighter shade keeps the brand identity legible. */
     --accent-purple: #c084ee;
+    --accent-orange: #ffb04d;
     --accent-purple-bg-soft: rgba(192, 132, 238, 0.14);
     --accent-purple-border-soft: rgba(192, 132, 238, 0.32);
     /* Lifted section-label tones for dark mode — the light variants

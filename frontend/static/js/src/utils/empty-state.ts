@@ -64,9 +64,9 @@ export interface EmptyCardOpts {
  *  entirely — display-images + quotes for the no-trips home cover). */
 export function buildEmptyCardHtml(opts: EmptyCardOpts): string {
     const accentColors = {
-        purple: { border: 'rgba(155,89,182,0.35)', bg: 'rgba(155,89,182,0.04)', heading: '#7c3a9e' },
-        orange: { border: 'rgba(255,159,10,0.32)', bg: 'rgba(255,159,10,0.04)', heading: '#a35200' },
-        blue:   { border: 'rgba(0,113,227,0.18)', bg: 'rgba(0,113,227,0.03)', heading: '#002d5b' },
+        purple: { border: 'rgba(155,89,182,0.35)', bg: 'rgba(155,89,182,0.04)', heading: 'var(--accent-purple)' },
+        orange: { border: 'rgba(255,159,10,0.32)', bg: 'rgba(255,159,10,0.04)', heading: 'var(--accent-orange)' },
+        blue:   { border: 'rgba(0,113,227,0.18)', bg: 'rgba(0,113,227,0.03)', heading: 'var(--text-brand-navy)' },
     };
     const palette = accentColors[opts.accent || 'blue'];
     const ctaHtml = opts.ctaLabel

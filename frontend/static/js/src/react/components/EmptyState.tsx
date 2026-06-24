@@ -33,17 +33,17 @@ const ACCENTS = {
         // #7c3a9e is a darker mid-purple (~5.5:1 on white) that still
         // reads as the same purple family as the border/background
         // tints above.
-        heading: '#7c3a9e',
+        heading: 'var(--accent-purple)',
     },
     orange: {
         border: 'rgba(255,159,10,0.32)',
         background: 'rgba(255,159,10,0.04)',
-        heading: '#a35200',
+        heading: 'var(--accent-orange)',
     },
     blue: {
         border: 'rgba(0,113,227,0.18)',
         background: 'rgba(0,113,227,0.03)',
-        heading: '#002d5b',
+        heading: 'var(--text-brand-navy)',
     },
 } as const;
 
