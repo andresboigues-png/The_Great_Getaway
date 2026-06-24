@@ -1951,6 +1951,7 @@ export const es: Translations = {
         visibilityPrivate: '🔒 Privado',
         visibilityPublicPlan: '🌍 Público — solo plan',
         visibilityPublicAll: '🌍 Público — incl. gastos',
+        notesTitle: 'Notas del viaje',
         journeyTitle: 'El viaje',
         journeySubtitle: 'Toca un día para revivir lo que se planeó.',
         dayAria: 'Ver Día {n}',

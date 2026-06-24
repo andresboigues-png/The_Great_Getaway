@@ -1956,6 +1956,7 @@ export const fr: Translations = {
         visibilityPrivate: '🔒 Privé',
         visibilityPublicPlan: '🌍 Public — plan uniquement',
         visibilityPublicAll: '🌍 Public — incl. dépenses',
+        notesTitle: 'Notes du voyage',
         journeyTitle: 'Le voyage',
         journeySubtitle: "Touche un jour pour revivre ce qui a été planifié.",
         dayAria: 'Voir Jour {n}',

@@ -365,6 +365,15 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                 </div>
             </div>
 
+            {trip.notes ? (
+                <>
+                    <div className="ad-journey-head" style={{ display: 'flex', alignItems: 'baseline', gap: '12px', margin: '8px 4px 14px' }}>
+                        <h2 className="ad-hero-title">{t('archivedDetail.notesTitle')}</h2>
+                    </div>
+                    <p style={{ margin: '0 4px 30px', whiteSpace: 'pre-wrap', lineHeight: 1.65, color: '#33475b', fontSize: '1rem' }}>{trip.notes}</p>
+                </>
+            ) : null}
+
             <div className="ad-journey-head" style={{ display: 'flex', alignItems: 'baseline', gap: '12px', margin: '8px 4px 14px' }}>
                 <h2 className="ad-hero-title">{t('archivedDetail.journeyTitle')}</h2>
                 <span className="ad-text-muted-sm">{t('archivedDetail.journeySubtitle')}</span>

@@ -2401,6 +2401,7 @@ export const en = {
         visibilityPrivate: '🔒 Private',
         visibilityPublicPlan: '🌍 Public — plan only',
         visibilityPublicAll: '🌍 Public — incl. expenses',
+        notesTitle: 'Trip notes',
         journeyTitle: 'The journey',
         journeySubtitle: 'Tap a day to relive what was planned.',
         dayAria: 'View Day {n}',
