@@ -384,10 +384,15 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
             internalShowAll.trips = false;
             internalShowAll.days = false;
             internalShowAll.expenses = false;
-            // Places still pending → omit that group; paint internal now so
-            // the panel opens immediately, Places drop in on top when ready.
+            // Smooth-first: hold the panel for a beat so Places + the internal
+            // groups can appear together (avoids "Places snap in on top and
+            // shove the rows down" reflow). The fallback paints the internal
+            // half if Places is slow (>320ms) so a sluggish network never
+            // leaves the user staring at a blank input.
             lastPreds = null;
-            if (hasInternalHits(lastInternal)) paintResults();
+            const internalFallback = setTimeout(() => {
+                if (seq === searchSeq && hasInternalHits(lastInternal)) paintResults();
+            }, 320);
             // Bias predictions toward the current viewport so
             // "lisbon" while looking at Berlin doesn't surface
             // unrelated Lisbons; falls back to global if no map
@@ -405,6 +410,9 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
                 req.origin = { lat: activeTrip.lat, lng: activeTrip.lng };
             }
             autocomplete.getPlacePredictions(req, (preds: google.maps.places.AutocompletePrediction[] | null, status: google.maps.places.PlacesServiceStatus) => {
+                // Places resolved — cancel the internal-only fallback so we
+                // render both halves together (the common, no-reflow path).
+                clearTimeout(internalFallback);
                 // BUG-088: ignore a stale response — a newer request was issued
                 // after this one, or the input has since moved on from `q`.
                 if (seq !== searchSeq || searchInput.value.trim() !== q) return;
