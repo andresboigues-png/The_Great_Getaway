@@ -360,9 +360,12 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
         if (!tripId) return;
         hideResults();
         if (archived) {
-            STATE.activeDetailId = tripId;
-            emit(EVENTS.STATE_CHANGED);
-            navigate('collections');
+            // Archived trips/days live in Collections — open the trip's detail
+            // the same way the Collections cards do (viewArchivedDetails mounts
+            // ArchivedTripDetail directly). STATE.activeDetailId was a dead end:
+            // nothing reads it, despite Search.tsx's stale comment. Lazy-import
+            // so collections.ts doesn't get pulled into the home chunk.
+            void import('../collections.js').then((m) => m.viewArchivedDetails(tripId));
             return;
         }
         STATE.activeTripId = tripId;

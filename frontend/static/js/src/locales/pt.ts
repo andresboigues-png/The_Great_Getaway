@@ -1414,7 +1414,7 @@ export const pt: Translations = {
         tabPath: 'Caminho',
         tabHub: 'Base',
         tabCompanions: 'Companheiros',
-        searchMapPlaceholder: 'Pesquisar qualquer local no mapa…',
+        searchMapPlaceholder: 'Pesquisar qualquer coisa…',
         showQuickAccessBtn: 'Mostrar Acesso Rápido',
         quickAccessTitle: 'Acesso Rápido',
         gettingStartedTitle: 'Guia inicial',

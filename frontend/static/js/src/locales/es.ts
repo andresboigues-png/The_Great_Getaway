@@ -1410,7 +1410,7 @@ export const es: Translations = {
         tabPath: 'Camino',
         tabHub: 'Centro',
         tabCompanions: 'Acompañantes',
-        searchMapPlaceholder: 'Buscar cualquier lugar en el mapa…',
+        searchMapPlaceholder: 'Buscar cualquier cosa…',
         showQuickAccessBtn: 'Mostrar acceso rápido',
         quickAccessTitle: 'Acceso rápido',
         gettingStartedTitle: 'Guía inicial',
