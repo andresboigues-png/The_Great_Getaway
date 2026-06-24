@@ -828,6 +828,8 @@ export const pt: Translations = {
         groupExpenses: 'Despesas',
         showAll: 'Ver os {count}',
         showLess: 'Ver menos',
+        seeMore: 'Ver mais',
+        searching: 'A procurar…',
         noCountry: 'Sem país definido',
         dayFallback: 'Dia {num}',
         dayFallbackUnknown: 'Dia ?',

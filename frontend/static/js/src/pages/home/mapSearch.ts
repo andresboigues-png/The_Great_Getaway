@@ -129,6 +129,14 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
     // null = Places request still in flight (group omitted for now);
     // [] = resolved with no places; non-empty = render the Places group.
     let lastPreds: google.maps.places.AutocompletePrediction[] | null = null;
+    // Places "See more": Autocomplete caps at 5 predictions, so the fuller
+    // list comes from a Places Text Search fired ON DEMAND (never per
+    // keystroke — Text Search is billed per request). `placesExpanded` toggles
+    // the appended hits, `lastTextResults` caches them for the query, and
+    // `placesLoading` drives the toggle's "Searching…" state.
+    let placesExpanded = false;
+    let lastTextResults: google.maps.places.PlaceResult[] | null = null;
+    let placesLoading = false;
 
     const hasInternalHits = (r: InternalSearchResults | null): boolean =>
         !!r && (r.trips.length > 0 || r.days.length > 0 || r.expenses.length > 0);
@@ -153,30 +161,105 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
             ${inner}
         </div>`;
 
-    /** One Google-Places prediction row (role=option, distance chip,
-     *  place-id) — markup unchanged from the pre-B1 renderPredictions. */
-    const placeRowHtml = (p: google.maps.places.AutocompletePrediction, i: number): string => {
-        const distHtml = typeof p.distance_meters === 'number'
-            ? `<span style="flex-shrink:0; font-size:0.72rem; color:var(--text-secondary); font-weight:700; margin-left:8px; padding:2px 8px; background:rgba(0,113,227,0.07); border-radius:999px; align-self:center;">${esc(formatDistance(p.distance_meters))}</span>`
+    /** Normalised place row — both Autocomplete predictions and Text Search
+     *  results collapse to this so one renderer handles both. */
+    type PlaceRow = { placeId: string; title: string; subtitle: string; distanceMeters: number | null };
+
+    const fromPrediction = (p: google.maps.places.AutocompletePrediction): PlaceRow => ({
+        placeId: p.place_id,
+        title: p.structured_formatting?.main_text || p.description || '',
+        subtitle: p.structured_formatting?.secondary_text || '',
+        distanceMeters: typeof p.distance_meters === 'number' ? p.distance_meters : null,
+    });
+
+    /** Great-circle distance (m) from the trip anchor to a Text Search hit —
+     *  Text Search doesn't return distance_meters, so we derive it (no geometry
+     *  library needed). Null when the trip has no geo. */
+    const haversine = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+        const R = 6371000;
+        const toRad = (d: number) => (d * Math.PI) / 180;
+        const dLat = toRad(lat2 - lat1);
+        const dLng = toRad(lng2 - lng1);
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(a));
+    };
+
+    const fromResult = (r: google.maps.places.PlaceResult): PlaceRow => {
+        const loc = r.geometry?.location;
+        const dist = loc && activeTrip && typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number'
+            ? haversine(activeTrip.lat, activeTrip.lng, loc.lat(), loc.lng())
+            : null;
+        return { placeId: r.place_id || '', title: r.name || '', subtitle: r.formatted_address || r.vicinity || '', distanceMeters: dist };
+    };
+
+    /** One Google-Places row (role=option, distance chip, place-id) — same
+     *  markup whether the source is an Autocomplete prediction or a Text
+     *  Search hit. */
+    const placeRowHtml = (row: PlaceRow, i: number): string => {
+        const distHtml = typeof row.distanceMeters === 'number'
+            ? `<span style="flex-shrink:0; font-size:0.72rem; color:var(--text-secondary); font-weight:700; margin-left:8px; padding:2px 8px; background:rgba(0,113,227,0.07); border-radius:999px; align-self:center;">${esc(formatDistance(row.distanceMeters))}</span>`
             : '';
         return `
-            <button type="button" class="map-search-row" role="option" id="${OPTION_ID_PREFIX}${i}" aria-selected="false" data-place-id="${esc(p.place_id)}"
+            <button type="button" class="map-search-row" role="option" id="${OPTION_ID_PREFIX}${i}" aria-selected="false" data-place-id="${esc(row.placeId)}"
                 style="width:100%; text-align:left; padding:11px 16px; background:transparent; border:0; border-bottom:1px solid rgba(0,0,0,0.05); display:flex; gap:10px; align-items:center; cursor:pointer;">
                 <span style="font-size:1rem; line-height:1.2; flex-shrink:0;">📍</span>
                 <div style="flex:1; min-width:0;">
-                    <div style="font-weight:700; color:var(--text-brand-navy); font-size:0.88rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.structured_formatting?.main_text || p.description || '')}</div>
-                    ${p.structured_formatting?.secondary_text ? `<div style="font-size:0.74rem; color:var(--text-secondary); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.structured_formatting.secondary_text)}</div>` : ''}
+                    <div style="font-weight:700; color:var(--text-brand-navy); font-size:0.88rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(row.title)}</div>
+                    ${row.subtitle ? `<div style="font-size:0.74rem; color:var(--text-secondary); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(row.subtitle)}</div>` : ''}
                 </div>
                 ${distHtml}
             </button>`;
     };
 
-    /** Places group — first 5 predictions. Omitted entirely while the
-     *  request is in flight (lastPreds null) or when it resolved empty. */
+    /** "See more" / "Show less" / "Searching…" toggle for the Places group. */
+    const placesToggleHtml = (): string => {
+        const label = placesLoading ? t('search.searching') : placesExpanded ? t('search.showLess') : t('search.seeMore');
+        return `
+            <button type="button" class="map-places-toggle" aria-expanded="${placesExpanded ? 'true' : 'false'}"${placesLoading ? ' disabled' : ''}
+                style="font-size:0.72rem; font-weight:800; color:var(--accent-blue); background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.18); border-radius:999px; padding:4px 11px; cursor:${placesLoading ? 'default' : 'pointer'};${placesLoading ? ' opacity:0.7;' : ''}">${esc(label)}</button>`;
+    };
+
+    /** Places group — top-5 Autocomplete predictions, plus (when expanded) the
+     *  deduped Text Search hits below them. Omitted entirely while the
+     *  predictions request is in flight (lastPreds null) or resolved empty. */
     const buildPlacesGroupHtml = (): string => {
         if (!lastPreds || lastPreds.length === 0) return '';
-        const rows = lastPreds.slice(0, 5).map((p, i) => placeRowHtml(p, i)).join('');
-        return groupWrap(t('search.groupPlaces'), rows);
+        const predRows = lastPreds.slice(0, 5).map(fromPrediction);
+        let rows = predRows;
+        if (placesExpanded && lastTextResults) {
+            const seen = new Set(predRows.map((r) => r.placeId));
+            const extra = lastTextResults.map(fromResult).filter((r) => r.placeId && !seen.has(r.placeId));
+            rows = predRows.concat(extra);
+        }
+        const rowsHtml = rows.map((r, i) => placeRowHtml(r, i)).join('');
+        return groupWrap(t('search.groupPlaces'), rowsHtml, placesToggleHtml());
+    };
+
+    /** Fire a Places Text Search for the current query (up to ~20 hits) and
+     *  expand the Places group with the deduped extras. Runs only on a
+     *  "See more" click — never per keystroke — to keep billing bounded. */
+    const runTextSearch = () => {
+        const q = searchInput.value.trim();
+        if (!q) return;
+        const keepScroll = resultsEl.scrollTop;
+        placesLoading = true;
+        paintResults();
+        resultsEl.scrollTop = keepScroll;
+        const svc = getPlacesService();
+        // Build the request without naming the TextSearchRequest type (absent
+        // from this project's trimmed google.maps typings); the object literal
+        // is structurally checked against textSearch's signature.
+        const bounds = map.getBounds();
+        const req = bounds ? { query: q, bounds } : { query: q };
+        svc.textSearch(req, (results: google.maps.places.PlaceResult[] | null, status: google.maps.places.PlacesServiceStatus) => {
+            placesLoading = false;
+            // Stale guard — the input moved on while the search was in flight.
+            if (searchInput.value.trim() !== q) return;
+            lastTextResults = status === google.maps.places.PlacesServiceStatus.OK && results ? results : [];
+            placesExpanded = true;
+            paintResults();
+            resultsEl.scrollTop = keepScroll;
+        });
     };
 
     /** One internal (cross-trip) result row — carries nav data attrs that
@@ -386,6 +469,9 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
             internalShowAll.trips = false;
             internalShowAll.days = false;
             internalShowAll.expenses = false;
+            placesExpanded = false;
+            lastTextResults = null;
+            placesLoading = false;
             // Smooth-first: hold the panel for a beat so Places + the internal
             // groups can appear together (avoids "Places snap in on top and
             // shove the rows down" reflow). The fallback paints the internal
@@ -439,6 +525,25 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
 
     resultsEl.addEventListener('click', (e) => {
         const target = e.target as HTMLElement | null;
+        // Places "See more" / "Show less" — fetch the fuller Text Search list
+        // the first time, then toggle it in/out on subsequent clicks.
+        const placesToggle = target?.closest('.map-places-toggle') as HTMLElement | null;
+        if (placesToggle) {
+            if (placesLoading) return;
+            const keepScroll = resultsEl.scrollTop;
+            if (placesExpanded) {
+                placesExpanded = false;
+                paintResults();
+                resultsEl.scrollTop = keepScroll;
+            } else if (lastTextResults) {
+                placesExpanded = true;
+                paintResults();
+                resultsEl.scrollTop = keepScroll;
+            } else {
+                runTextSearch();
+            }
+            return;
+        }
         // Show-all toggle for an internal group — expand + repaint.
         const groupToggle = target?.closest('.map-internal-showall') as HTMLElement | null;
         if (groupToggle) {

@@ -1278,7 +1278,8 @@ body.is-signed-out .sidebar-rail {
 #homeMapSearchResults .map-internal-row:hover {
     background: rgba(0, 113, 227, 0.06) !important;
 }
-#homeMapSearchResults .map-internal-showall:hover {
+#homeMapSearchResults .map-internal-showall:hover,
+#homeMapSearchResults .map-places-toggle:hover {
     background: rgba(0, 113, 227, 0.16) !important;
 }
 :root[data-theme="dark"] #homeMapSearchResults .map-search-row:hover,

@@ -824,6 +824,8 @@ export const es: Translations = {
         groupExpenses: 'Gastos',
         showAll: 'Ver los {count}',
         showLess: 'Ver menos',
+        seeMore: 'Ver más',
+        searching: 'Buscando…',
         noCountry: 'Sin país definido',
         dayFallback: 'Día {num}',
         dayFallbackUnknown: 'Día ?',
