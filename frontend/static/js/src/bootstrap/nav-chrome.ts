@@ -77,6 +77,47 @@ export function wireNavChrome(): void {
     // Round 19: the left-edge peek handle (which replaced the burger button)
     // opens the island too.
     document.getElementById('railPeek')?.addEventListener('click', toggleRail);
+
+    // Desktop hover labels for the permanent left rail (like the home map's
+    // Maps/Share buttons). The rail clips horizontal overflow (overflow-y:auto
+    // + its transform also traps position:fixed children), so a CSS flyout
+    // label would be cut off — instead one reused tooltip is appended to
+    // <body> and positioned at the hovered item's right edge. mouseover/out
+    // don't fire on touch (and the CSS hides it under @media (hover:none)), so
+    // this stays mouse-only.
+    {
+        const railEl = document.getElementById('sidebarRail');
+        if (railEl) {
+            let railTip: HTMLDivElement | null = null;
+            let railTipItem: Element | null = null;
+            railEl.addEventListener('mouseover', (e) => {
+                const item = (e.target as HTMLElement | null)?.closest('.sidebar-rail__item') as HTMLElement | null;
+                if (!item || item === railTipItem) return;
+                railTipItem = item;
+                const label = item.getAttribute('aria-label') || item.getAttribute('title') || '';
+                if (!label) return;
+                if (!railTip) {
+                    railTip = document.createElement('div');
+                    railTip.className = 'rail-hover-tip';
+                    document.body.appendChild(railTip);
+                }
+                railTip.textContent = label;
+                const r = item.getBoundingClientRect();
+                railTip.style.top = `${r.top + r.height / 2}px`;
+                railTip.style.left = `${r.right + 12}px`;
+                railTip.classList.add('is-visible');
+            });
+            railEl.addEventListener('mouseout', (e) => {
+                const item = (e.target as HTMLElement | null)?.closest('.sidebar-rail__item');
+                if (!item) return;
+                const related = e.relatedTarget as Node | null;
+                if (related && item.contains(related)) return; // moving within the same item
+                railTipItem = null;
+                railTip?.classList.remove('is-visible');
+            });
+        }
+    }
+
     // Apply the saved "menu handle" preference (Settings → Appearance toggle).
     if (localStorage.getItem('gg_menu_handle') === 'off') {
         document.body.classList.add('menu-handle-off');
