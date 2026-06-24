@@ -22,7 +22,8 @@ import { STATE, emit } from '../../state.js';
 import { EVENTS } from '../../constants.js';
 import { setSelectedDay } from '../home/pathSelection.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
-import type { Trip, TripDay, Expense } from '../../types';
+import { searchInternal } from './searchInternal.js';
+import type { Trip, TripDay } from '../../types';
 import { t, tn, getIntlLocale } from '../../i18n.js';
 import { stripEmoji, iconSvg } from '../../icons.js';
 
@@ -37,26 +38,8 @@ const VISIBLE_LIMIT = 8;
 // right section deterministically (`[data-search-group="trips"]`).
 type ResultGroup = 'trips' | 'days' | 'expenses';
 
-interface TripHit {
-    kind: 'trip';
-    trip: Trip;
-    /** Whether this trip is from the archive (renders an "Archived" pill). */
-    archived: boolean;
-}
-interface DayHit {
-    kind: 'day';
-    day: TripDay;
-    /** Trip the day belongs to — denormalised so the row can show
-     *  "Day 2 — Shibuya · Tokyo Trip" without a second lookup. */
-    trip: Trip;
-    archived: boolean;
-}
-interface ExpenseHit {
-    kind: 'expense';
-    expense: Expense;
-    trip: Trip | null;
-    archived: boolean;
-}
+// TripHit / DayHit / ExpenseHit moved to ./searchInternal.ts (shared with the
+// home universal search); the result rows below infer their types from it.
 
 // ── Styles ──────────────────────────────────────────────────────────
 // Inline-style objects so the file is self-contained — no
@@ -152,79 +135,10 @@ export function Search() {
     // useMemo so the filter doesn't re-run on every keystroke when
     // unrelated state changes. Recomputes when the query OR any of
     // the four source slices changes.
-    const results = useMemo(() => {
-        const q = query.trim().toLowerCase();
-        if (!q) {
-            return { trips: [] as TripHit[], days: [] as DayHit[], expenses: [] as ExpenseHit[] };
-        }
-
-        // Helper: does any of the strings include the query?
-        const matches = (...fields: Array<string | undefined | null>): boolean =>
-            fields.some((f) => typeof f === 'string' && f.toLowerCase().includes(q));
-
-        // Trip lookup — used for joining days and expenses back to
-        // their parent trip's name. Covers BOTH active + archived.
-        const tripById = new Map<string, { trip: Trip; archived: boolean }>();
-        for (const t of trips) tripById.set(t.id, { trip: t, archived: false });
-        for (const t of archivedTrips) tripById.set(t.id, { trip: t, archived: true });
-
-        // ── Trip hits ───────────────────────────────────────────────
-        const tripHits: TripHit[] = [];
-        for (const t of trips) {
-            if (matches(t.name, t.country, t.notes)) tripHits.push({ kind: 'trip', trip: t, archived: false });
-        }
-        for (const t of archivedTrips) {
-            if (matches(t.name, t.country, t.notes)) tripHits.push({ kind: 'trip', trip: t, archived: true });
-        }
-
-        // ── Day hits ────────────────────────────────────────────────
-        // Active days live in STATE.tripDays (flat). Archived days
-        // are nested on each archived trip's `tripDays` snapshot.
-        const dayHits: DayHit[] = [];
-        for (const d of tripDays) {
-            const parent = tripById.get(d.tripId);
-            if (!parent) continue; // orphan day with no parent trip — skip
-            const plan = d.plan || ({} as TripDay['plan']);
-            if (matches(d.name, d.notes, plan.morning, plan.afternoon, plan.evening)) {
-                dayHits.push({ kind: 'day', day: d, trip: parent.trip, archived: parent.archived });
-            }
-        }
-        for (const t of archivedTrips) {
-            for (const d of t.tripDays || []) {
-                const plan = d.plan || ({} as TripDay['plan']);
-                if (matches(d.name, d.notes, plan.morning, plan.afternoon, plan.evening)) {
-                    dayHits.push({ kind: 'day', day: d, trip: t, archived: true });
-                }
-            }
-        }
-
-        // ── Expense hits ────────────────────────────────────────────
-        // Active live in STATE.expenses; archived nested on
-        // archivedTrips[i].expenses. Settlement-shape rows ARE
-        // included here — they're real expenses with searchable
-        // labels, even if they have a special country marker.
-        const expenseHits: ExpenseHit[] = [];
-        for (const e of expenses) {
-            if (matches(e.label, e.country, e.who, e.currency)) {
-                const parent = tripById.get(e.tripId);
-                expenseHits.push({
-                    kind: 'expense',
-                    expense: e,
-                    trip: parent?.trip ?? null,
-                    archived: parent?.archived ?? false,
-                });
-            }
-        }
-        for (const t of archivedTrips) {
-            for (const e of t.expenses || []) {
-                if (matches(e.label, e.country, e.who, e.currency)) {
-                    expenseHits.push({ kind: 'expense', expense: e, trip: t, archived: true });
-                }
-            }
-        }
-
-        return { trips: tripHits, days: dayHits, expenses: expenseHits };
-    }, [query, trips, archivedTrips, tripDays, expenses]);
+    const results = useMemo(
+        () => searchInternal(query, { trips, archivedTrips, tripDays, expenses }),
+        [query, trips, archivedTrips, tripDays, expenses],
+    );
 
     const totalHits = results.trips.length + results.days.length + results.expenses.length;
     const hasQuery = query.trim().length > 0;
