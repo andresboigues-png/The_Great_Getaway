@@ -828,6 +828,7 @@ export const fr: Translations = {
         groupDays: 'Jours',
         groupExpenses: 'Dépenses',
         showAll: 'Voir les {count}',
+        showLess: 'Voir moins',
         noCountry: 'Aucun pays défini',
         dayFallback: 'Jour {num}',
         dayFallbackUnknown: 'Jour ?',

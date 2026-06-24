@@ -1014,6 +1014,7 @@ export const en = {
         groupDays: 'Days',
         groupExpenses: 'Expenses',
         showAll: 'Show all {count}',
+        showLess: 'Show less',
         // Row fallbacks.
         noCountry: 'No country set',
         dayFallback: 'Day {num}',

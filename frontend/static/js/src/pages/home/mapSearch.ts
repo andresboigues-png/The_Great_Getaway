@@ -192,9 +192,11 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
             ${o.archived ? `<span class="gg-archived-pill" style="flex-shrink:0; font-size:0.58rem; font-weight:800; letter-spacing:0.05em; text-transform:uppercase; padding:3px 7px; border-radius:999px; background:rgba(255,149,0,0.14); color:#b46a00;">${esc(t('search.archivedPill'))}</span>` : ''}
         </button>`;
 
-    const showAllBtnHtml = (group: string, count: number): string => `
-        <button type="button" class="map-internal-showall" data-group="${esc(group)}"
-            style="font-size:0.72rem; font-weight:800; color:var(--accent-blue); background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.18); border-radius:999px; padding:4px 11px; cursor:pointer;">${esc(t('search.showAll', { count }))}</button>`;
+    /** Group expand/collapse toggle — "Show all N" when collapsed,
+     *  "Show less" when expanded. Same pill, keyed by data-group. */
+    const groupToggleBtnHtml = (group: string, count: number, expanded: boolean): string => `
+        <button type="button" class="map-internal-showall" data-group="${esc(group)}" aria-expanded="${expanded ? 'true' : 'false'}"
+            style="font-size:0.72rem; font-weight:800; color:var(--accent-blue); background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.18); border-radius:999px; padding:4px 11px; cursor:pointer;">${esc(expanded ? t('search.showLess') : t('search.showAll', { count }))}</button>`;
 
     /** Internal groups (Trips / Days / Expenses) — same labels, titles,
      *  subtitles + icons as the legacy Search page. Each caps at
@@ -213,7 +215,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
                 kind: 'trip', tripId: hit.trip.id, dayId: '', archived: hit.archived,
                 icon: 'map', title: hit.trip.name || '—', subtitle: hit.trip.country || t('search.noCountry'),
             })).join('');
-            const extra = (!internalShowAll.trips && r.trips.length > INTERNAL_LIMIT) ? showAllBtnHtml('trips', r.trips.length) : '';
+            const extra = r.trips.length > INTERNAL_LIMIT ? groupToggleBtnHtml('trips', r.trips.length, internalShowAll.trips) : '';
             html += groupWrap(t('search.groupTrips'), rows, extra, r.trips.length);
         }
         if (r.days.length) {
@@ -225,7 +227,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
                 title: hit.day.name || (hit.day.dayNumber ? t('search.dayFallback', { num: hit.day.dayNumber }) : t('search.dayFallbackUnknown')),
                 subtitle: `${hit.trip.name}${hit.day.date ? ` · ${hit.day.date}` : ''}`,
             })).join('');
-            const extra = (!internalShowAll.days && r.days.length > INTERNAL_LIMIT) ? showAllBtnHtml('days', r.days.length) : '';
+            const extra = r.days.length > INTERNAL_LIMIT ? groupToggleBtnHtml('days', r.days.length, internalShowAll.days) : '';
             html += groupWrap(t('search.groupDays'), rows, extra, r.days.length);
         }
         if (r.expenses.length) {
@@ -236,7 +238,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
                 icon: 'wallet', title: hit.expense.label || t('search.expenseNoLabel'),
                 subtitle: `${formatAmount(hit.expense.value, hit.expense.currency)} · ${hit.expense.who || t('search.expenseNoPayer')}${hit.trip ? ` · ${hit.trip.name}` : ''}`,
             })).join('');
-            const extra = (!internalShowAll.expenses && r.expenses.length > INTERNAL_LIMIT) ? showAllBtnHtml('expenses', r.expenses.length) : '';
+            const extra = r.expenses.length > INTERNAL_LIMIT ? groupToggleBtnHtml('expenses', r.expenses.length, internalShowAll.expenses) : '';
             html += groupWrap(t('search.groupExpenses'), rows, extra, r.expenses.length);
         }
         return html;
@@ -438,11 +440,11 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
     resultsEl.addEventListener('click', (e) => {
         const target = e.target as HTMLElement | null;
         // Show-all toggle for an internal group — expand + repaint.
-        const showAll = target?.closest('.map-internal-showall') as HTMLElement | null;
-        if (showAll) {
-            const g = showAll.dataset.group;
+        const groupToggle = target?.closest('.map-internal-showall') as HTMLElement | null;
+        if (groupToggle) {
+            const g = groupToggle.dataset.group;
             if (g === 'trips' || g === 'days' || g === 'expenses') {
-                internalShowAll[g] = true;
+                internalShowAll[g] = !internalShowAll[g];
                 paintResults();
             }
             return;
