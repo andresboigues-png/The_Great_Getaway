@@ -44,7 +44,7 @@ export function MapSearchBar() {
                     aria-controls="homeMapSearchResults"
                     aria-autocomplete="list"
                     aria-haspopup="listbox"
-                    className="flex-1 min-w-0 border-0 outline-0 bg-transparent py-1.5 px-0 text-[0.95rem] text-brand-navy font-semibold"
+                    className="flex-1 min-w-0 border-0 outline-0 bg-transparent py-1.5 px-0 text-[0.95rem] text-center text-brand-navy font-semibold"
                 />
                 <button
                     id="homeMapSearchClear"

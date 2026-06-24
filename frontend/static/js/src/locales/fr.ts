@@ -1415,7 +1415,7 @@ export const fr: Translations = {
         tabPath: 'Itinéraire',
         tabHub: 'Base',
         tabCompanions: 'Compagnons',
-        searchMapPlaceholder: 'Tout rechercher…',
+        searchMapPlaceholder: 'Tout rechercher (lieux, voyages…)',
         showQuickAccessBtn: 'Afficher l\'accès rapide',
         quickAccessTitle: 'Accès rapide',
         gettingStartedTitle: 'Guide de démarrage',

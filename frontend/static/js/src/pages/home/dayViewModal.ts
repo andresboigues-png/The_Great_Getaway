@@ -96,10 +96,12 @@ export const openDayView = (day: TripDay): void => {
                     </div>
                 </div>
                 <div class="flex flex-col gap-6">
+                    ${day.notes ? `
                     <div style="background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
                         <h4 class="text-tag">${t('dayView.personalNotes')}</h4>
-                        ${day.notes ? `<p class="dvm-plan-text">${esc(day.notes)}</p>` : `<p class="dvm-italic-muted">${t('dayView.noNotes')}</p>`}
+                        <p class="dvm-plan-text">${esc(day.notes)}</p>
                     </div>
+                    ` : ''}
                     ${day.accommodation ? `
                     <!-- Accommodation (Wave 2) — read-only mirror of the
                          editable modal's card, so viewers see where the trip
@@ -139,10 +141,12 @@ export const openDayView = (day: TripDay): void => {
                             </div>
                         ` : `<p class="dvm-italic-muted-sub">${Number(day.dayNumber) === 0 ? t('dayView.documentsEmptyTripWide') : t('dayView.documentsEmpty')}</p>`}
                     </div>
+                    ${day.tip ? `
                     <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
                         <h4 class="text-tag" style="--accent: 52,199,89;">${t('dayView.expertTip')}</h4>
-                        <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${esc(day.tip || t('dayView.expertTipDefault'))}</p>
+                        <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${esc(day.tip)}</p>
                     </div>
+                    ` : ''}
                 </div>
             </div>
         `,

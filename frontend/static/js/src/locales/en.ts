@@ -1754,7 +1754,7 @@ export const en = {
         tabHub: 'Trip Hub',
         tabCompanions: 'Companions',
         // Map search input placeholder.
-        searchMapPlaceholder: 'Search anything…',
+        searchMapPlaceholder: 'Search anything (places, trips…)',
         // Quick Access / Getting Started guide card.
         showQuickAccessBtn: 'Show Quick Access',
         quickAccessTitle: 'Quick Access',
