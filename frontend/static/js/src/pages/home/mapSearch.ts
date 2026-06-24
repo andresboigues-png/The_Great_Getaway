@@ -527,6 +527,13 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
     };
 
     resultsEl.addEventListener('click', (e) => {
+        // Keep the click inside the panel: the Show-all / See-more toggles
+        // repaint resultsEl in place, which DETACHES the clicked button. If the
+        // event then bubbled to the document-level outside-click handler, its
+        // `wrap.contains(e.target)` check would read the now-detached node as
+        // "outside" and hide the whole panel — so the toggles looked like they
+        // did nothing. Stopping propagation here keeps inside-clicks inside.
+        e.stopPropagation();
         const target = e.target as HTMLElement | null;
         // Places "See more" / "Show less" — fetch the fuller Text Search list
         // the first time, then toggle it in/out on subsequent clicks.
