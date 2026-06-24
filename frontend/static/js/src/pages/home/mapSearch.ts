@@ -444,8 +444,12 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
         if (groupToggle) {
             const g = groupToggle.dataset.group;
             if (g === 'trips' || g === 'days' || g === 'expenses') {
+                // Preserve scroll across the repaint so toggling a group deep
+                // in the panel doesn't snap the view back to the top.
+                const keepScroll = resultsEl.scrollTop;
                 internalShowAll[g] = !internalShowAll[g];
                 paintResults();
+                resultsEl.scrollTop = keepScroll;
             }
             return;
         }
