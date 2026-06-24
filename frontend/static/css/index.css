@@ -4387,7 +4387,11 @@ body.is-signed-out #sidebarOverlay {
 .notif-desktop-dropdown {
     position: absolute;
     top: 100%;
-    left: 0;
+    /* Right-anchored: the desktop bell now sits at the RIGHT end of the
+       nav strip (swapped with Feed), so grow the panel leftward to keep it
+       on-screen instead of spilling past the viewport edge. */
+    right: 0;
+    left: auto;
     width: 340px;
     max-height: 420px;
     overflow-y: auto;

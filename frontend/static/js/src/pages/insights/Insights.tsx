@@ -446,7 +446,7 @@ export function Insights() {
             row.count += 1;
             if (spenderDim !== 'general') {
                 let k: string;
-                if (spenderDim === 'category') { const c = findCategory(e.categoryId); k = `${c.icon} ${c.name}`; catColorOf[k] = c.color; }
+                if (spenderDim === 'category') { const c = findCategory(e.categoryId); k = c.name; catColorOf[k] = c.color; }
                 else if (spenderDim === 'country') { k = e.country || '—'; }
                 else { k = (e.currency || 'EUR').toUpperCase(); }
                 row.seg[k] = (row.seg[k] || 0) + e.displayValue;
@@ -511,7 +511,7 @@ export function Insights() {
             let color = '#0071e3';
             if (perDim === 'country') { key = e.country || ''; label = key; if (!key) continue; }
             else if (perDim === 'currency') { key = (e.currency || 'EUR').toUpperCase(); label = key; }
-            else { const c = findCategory(e.categoryId); key = c.id || c.name; label = `${c.icon} ${c.name}`; color = c.color; }
+            else { const c = findCategory(e.categoryId); key = c.id || c.name; label = c.name; color = c.color; }
             if (!m[key]) m[key] = { label, value: 0, count: 0, color };
             m[key]!.value += e.displayValue;
             m[key]!.count += 1;
@@ -533,7 +533,7 @@ export function Insights() {
         for (const e of convertedExps) {
             const c = findCategory(e.categoryId);
             const id = c.id || c.name;
-            if (!m.has(id)) m.set(id, `${c.icon} ${c.name}`);
+            if (!m.has(id)) m.set(id, c.name);
         }
         return Array.from(m.entries()).map(([id, label]) => ({ id, label }));
     }, [convertedExps]);
@@ -805,7 +805,7 @@ export function Insights() {
                     },
                     y: {
                         beginAtZero: true,
-                        grid: { color: 'rgba(0,0,0,0.05)', drawTicks: false },
+                        grid: { display: false },
                         border: { display: false },
                         ticks: {
                             maxTicksLimit: 5,
