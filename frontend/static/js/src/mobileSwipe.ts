@@ -102,14 +102,13 @@ const SWIPE_HORIZONTAL_RATIO = 1.5;
 //   that needs to capture horizontal touch (image carousels, etc.).
 // - [contenteditable]: rich-text editors (notes, AI prompts) need free
 //   horizontal touch for cursor placement.
-// - Google Maps containers (#homeHeroMap, #aiGoogleMap, #emptyMap,
-//   #legaciesMap, .gm-style): horizontal touch on a map is a pan
-//   gesture — the user is dragging the world view, not asking to
-//   change tabs. Without this opt-out, panning west on the home map
-//   would right-swipe → open the burger drawer mid-drag. The
-//   .gm-style backstop catches anything Google renders inside an
-//   info-window / autocomplete dropdown that we didn't anticipate
-//   (Google adds gm-style to the wrapper of every map it controls).
+// NOTE: Google Maps containers are intentionally NOT opted out (they used
+//   to be). On mobile every map runs `cooperative` gestureHandling
+//   (mobileSafeGestureHandling), so ONE finger never pans the map — it
+//   takes TWO. A single-finger horizontal swipe over the map therefore
+//   can't be a pan and SHOULD reach the rail-nav gesture (slide the island
+//   out over the map). Two-finger pans are already excluded by the
+//   touchstart `touches.length !== 1` guard, so there's no conflict.
 const SWIPE_OPT_OUT_SELECTORS = [
     '.mobile-bottom-nav',
     '.modal',
@@ -120,11 +119,6 @@ const SWIPE_OPT_OUT_SELECTORS = [
     '[data-no-swipe]',
     '[contenteditable]',
     '[contenteditable="true"]',
-    '#homeHeroMap',
-    '#aiGoogleMap',
-    '#emptyMap',
-    '#legaciesMap',
-    '.gm-style',
 ].join(',');
 
 let _wired = false;
