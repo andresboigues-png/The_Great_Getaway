@@ -12,6 +12,7 @@
 // exactly.
 
 import { useEffect, useRef } from 'react';
+import { useNavSettled } from '../../react/useNavSettled.js';
 import { STATE, emit } from '../../state.js';
 import { applyMapTheme } from '../../theme.js';
 import { mobileSafeGestureHandling, whenGoogleMapsReady } from '../../googleMapsServices.js';
@@ -34,9 +35,13 @@ export function useAiMap(
     const googleMapRef = useRef<google.maps.Map | null>(null);
     const mapMarkersRef = useRef<google.maps.Marker[]>([]);
     const dayRowsRef = useRef<HTMLDivElement[]>([]);
+    // Defer map setup until the nav slide settles (smooth transition into AI);
+    // the markers effect below re-runs once the map exists via this same dep.
+    const navSettled = useNavSettled();
 
     // ── Initial map setup ────────────────────────────────────────
     useEffect(() => {
+        if (!navSettled) return; // hold map setup until the slide finishes
         // Wait for the async Google Maps script — see the empty-trip
         // effect in EmptyTripView.tsx for the rationale.
         let cancelled = false;
@@ -88,7 +93,11 @@ export function useAiMap(
         // switch. The `idle` listener also captured `activeTrip` via
         // closure — it now reads the current trip via the latest
         // effect run.
-    }, [activeTrip.id]);
+        // Intentional: depend on the stable activeTrip.id, not the
+        // activeTrip / tripCountry objects (new identity each render → would
+        // rebuild the map constantly).
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTrip.id, navSettled]);
 
     // ── Repaint map markers when itinerary changes ──────────────
     useEffect(() => {
@@ -176,7 +185,7 @@ export function useAiMap(
             timers.forEach((h) => window.clearTimeout(h));
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [itinerary]);
+    }, [itinerary, navSettled]);
 
     const onResetZoom = () => {
         const aiTripMapKey = activeTrip.id + '_ai';

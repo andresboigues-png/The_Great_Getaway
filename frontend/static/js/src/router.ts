@@ -108,6 +108,43 @@ let _navAnimCleanup: ((e: AnimationEvent) => void) | null = null;
  *  newer animation started, and would strip its class mid-slide. */
 let _navAnimGen = 0;
 
+// ── Nav-settle gate ──────────────────────────────────────────────────
+// Heavy page init (map creation, chart render) awaits whenNavSettled() so the
+// expensive, layer-repainting work lands AFTER the slide finishes instead of
+// dropping its frames mid-transition. Resolves IMMEDIATELY when no slide is in
+// flight (direct loads, rail nav), so it never delays a non-animated mount.
+let _navSettleResolve: (() => void) | null = null;
+let _navSettlePromise: Promise<void> = Promise.resolve();
+let _navSettleTimer: ReturnType<typeof setTimeout> | null = null;
+
+function beginNavSettle(): void {
+    // Supersede any prior pending settle (rapid re-nav) so its waiters don't
+    // hang — their page is being torn down and its gated effects bail anyway.
+    _navSettleResolve?.();
+    if (_navSettleTimer) clearTimeout(_navSettleTimer);
+    _navSettlePromise = new Promise<void>((res) => {
+        _navSettleResolve = res;
+    });
+    // Fallback: resolve even if animationend never fires (reduced-motion,
+    // interrupted slide, background tab). A hair past the 0.28s keyframe.
+    _navSettleTimer = setTimeout(endNavSettle, 340);
+}
+function endNavSettle(): void {
+    if (_navSettleTimer) {
+        clearTimeout(_navSettleTimer);
+        _navSettleTimer = null;
+    }
+    _navSettleResolve?.();
+    _navSettleResolve = null;
+}
+
+/** Resolves once the in-flight nav slide has finished — or immediately when no
+ *  slide is running. Heavy page init awaits this (via the useNavSettled hook)
+ *  so map/chart work happens after the transition, keeping the slide smooth. */
+export function whenNavSettled(): Promise<void> {
+    return _navSettlePromise;
+}
+
 /** Apply a slide-in animation to the content container. Uses a class
  *  (not an inline `animation` property) so the keyframes + easing live
  *  in CSS where they're tuned alongside the rest of the mobile chrome.
@@ -125,6 +162,8 @@ function applyNavAnimation(container: HTMLElement, dir: NavAnimDir): void {
     // previous frame's pending style change.
     void container.offsetWidth;
     container.classList.add(dir === 'forward' ? 'nav-anim-forward' : 'nav-anim-backward');
+    // Gate heavy page init (map/charts) until this slide finishes.
+    beginNavSettle();
     const cleanup = (e: AnimationEvent) => {
         // animationend bubbles — a child element's own animation will
         // dispatch this listener with target=child. Skip those; only
@@ -141,6 +180,8 @@ function applyNavAnimation(container: HTMLElement, dir: NavAnimDir): void {
         container.classList.remove('nav-anim-forward', 'nav-anim-backward');
         container.removeEventListener('animationend', cleanup);
         _navAnimCleanup = null;
+        // Slide done — let gated heavy init (map/charts) run now.
+        endNavSettle();
     };
     _navAnimCleanup = cleanup;
     container.addEventListener('animationend', cleanup);

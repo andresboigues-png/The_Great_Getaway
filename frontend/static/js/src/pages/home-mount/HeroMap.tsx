@@ -61,6 +61,7 @@ import { paintDayMarkers } from '../home/dayMarkers.js';
 import { paintTodoMarkers } from '../home/todoMarkers.js';
 import { renderDayRoutePolyline } from '../home/routePolyline.js';
 import { wireMapSearchBanner } from '../home/mapSearch.js';
+import { useNavSettled } from '../../react/useNavSettled.js';
 import {
     activeMapClickListener,
     cancelPinEdit,
@@ -89,6 +90,10 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
     // loaded / blocked API key / offline). Renders a placeholder so the
     // hero card isn't just an empty blurred glass panel.
     const [mapLoadFailed, setMapLoadFailed] = useState(false);
+    // Hold the (heavy) map setup below until the nav slide settles, so a
+    // swipe/tab transition into Home stays at full frame rate; the map fills
+    // in just after. Immediate on direct loads / rail nav (no slide).
+    const navSettled = useNavSettled();
 
     // Slideshow controller built lazily (once per mount). The active-
     // trip Home doesn't rotate the slideshow — only the quote at
@@ -104,6 +109,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
     const initialQuote = slideshow.quotes[0] || '';
 
     useEffect(() => {
+        if (!navSettled) return; // hold map setup until the slide finishes
         // Shared cancel flag — every async path inside this effect
         // checks it before mutating DOM / state. Without it, a fast
         // navigate-away mid-render leaves the resolved `.then`
@@ -885,7 +891,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
         // parent component re-mounts the whole Home tree via
         // navigate('home'), which re-runs this effect with the new trip.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mapRetryTick]);
+    }, [mapRetryTick, navSettled]);
 
     // ── Auto-scroll the map card into view when entering edit
     // mode. The user clicks Add Pin / Edit Pin from the day card
