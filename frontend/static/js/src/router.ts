@@ -188,6 +188,27 @@ const PAGE_LOADERS: Record<PageName, () => Promise<MountFn>> = {
     },
 };
 
+/** Warm the bottom-tab page chunks (Home / To-do / Plan-AI / Expenses + Feed)
+ *  on idle so a swipe or tab tap never waits on a network/disk fetch for the
+ *  chunk — the slide can start immediately. Each import() is cached by the
+ *  module system, so this is a one-time background fetch (a no-op once the
+ *  user has visited the tab). Failures are swallowed — navigate()'s on-demand
+ *  load is the real path. NOTE: this removes the COLD-nav fetch stall; the
+ *  warm-nav smoothness ceiling is the per-page mount/init that runs during the
+ *  slide (map/charts), which is a separate piece of work. */
+export function preloadBottomTabChunks(): void {
+    const warm = () => {
+        for (const p of [PAGES.HOME, PAGES.TODO, PAGES.AI, PAGES.EXPENSES, PAGES.FEED] as PageName[]) {
+            void PAGE_LOADERS[p]?.().catch(() => { /* navigate() loads on demand */ });
+        }
+    };
+    const w = window as Window & {
+        requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+    };
+    if (typeof w.requestIdleCallback === 'function') w.requestIdleCallback(warm, { timeout: 4000 });
+    else setTimeout(warm, 1500);
+}
+
 /** Navigate to a known page. */
 export function navigate(
     page: PageName,

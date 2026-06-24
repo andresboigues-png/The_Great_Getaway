@@ -11,7 +11,7 @@
 // data load.
 
 import { STATE } from '../state.js';
-import { navigate, type NavAnimDir } from '../router.js';
+import { navigate, preloadBottomTabChunks, type NavAnimDir } from '../router.js';
 import { markNotificationsRead } from '../api.js';
 import { PAGES, type PageName } from '../constants.js';
 import { openNewTripModal, openEditTripModal, openDownloadChooserModal } from '../modals.js';
@@ -39,6 +39,10 @@ export function wireNavChrome(): void {
     // violation. wireRoleButtonKeys on document.body translates key →
     // click() for the entire page in a single delegated listener.
     wireRoleButtonKeys(document.body);
+
+    // Warm the bottom-tab page chunks on idle so the first swipe/tap to each
+    // tab doesn't stall on a chunk fetch (self-defers via requestIdleCallback).
+    preloadBottomTabChunks();
 
     // ── Platform tag for the bottom-nav URL-bar compensation ──
     // The mobile bottom-nav is lifted by `calc(100vh - 100dvh)` to clear
