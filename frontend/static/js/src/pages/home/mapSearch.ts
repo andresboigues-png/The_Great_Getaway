@@ -22,7 +22,13 @@
 
 import { POI_CATEGORIES, type PoiCategory } from './poiCategories.js';
 import { esc } from '../../utils.js';
-import { t, tn } from '../../i18n.js';
+import { t, tn, getIntlLocale } from '../../i18n.js';
+import { STATE, emit } from '../../state.js';
+import { EVENTS } from '../../constants.js';
+import { navigate } from '../../router.js';
+import { setSelectedDay } from './pathSelection.js';
+import { iconSvg } from '../../icons.js';
+import { searchInternal, type InternalSearchResults } from '../search/searchInternal.js';
 import type { Trip } from '../../types';
 
 /** What the map-search wiring needs from home.ts to do its job.
@@ -112,43 +118,165 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
         return `${Math.round(km)} km`;
     };
 
-    const renderPredictions = (preds: google.maps.places.AutocompletePrediction[] | null | undefined) => {
+    // ── B1: unified results — a Google Places group (top) then internal
+    // cross-trip groups (Trips / Days / Expenses) below. `lastPreds` and
+    // `lastInternal` cache the two halves so a Show-all toggle or a late
+    // Places response can repaint without re-querying. Places rows pin on
+    // the map (existing flow); internal rows navigate.
+    const INTERNAL_LIMIT = 4;
+    const internalShowAll = { trips: false, days: false, expenses: false };
+    let lastInternal: InternalSearchResults | null = null;
+    // null = Places request still in flight (group omitted for now);
+    // [] = resolved with no places; non-empty = render the Places group.
+    let lastPreds: google.maps.places.AutocompletePrediction[] | null = null;
+
+    const hasInternalHits = (r: InternalSearchResults | null): boolean =>
+        !!r && (r.trips.length > 0 || r.days.length > 0 || r.expenses.length > 0);
+
+    /** Format an expense amount for a result subtitle — ported from the
+     *  Search page so the home rows read identically (locale-aware). */
+    const formatAmount = (value: number | undefined, currency: string | undefined): string => {
+        if (typeof value !== 'number') return currency || '';
+        const num = value.toLocaleString(getIntlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return currency ? `${num} ${currency}` : num;
+    };
+
+    /** Group container — uppercase label header + an optional right-aligned
+     *  header slot (the Show-all toggle). */
+    const groupWrap = (label: string, inner: string, headerExtra = ''): string => `
+        <div class="map-search-group">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:12px 16px 4px;">
+                <span style="font-size:0.68rem; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-secondary);">${esc(label)}</span>
+                ${headerExtra}
+            </div>
+            ${inner}
+        </div>`;
+
+    /** One Google-Places prediction row (role=option, distance chip,
+     *  place-id) — markup unchanged from the pre-B1 renderPredictions. */
+    const placeRowHtml = (p: google.maps.places.AutocompletePrediction, i: number): string => {
+        const distHtml = typeof p.distance_meters === 'number'
+            ? `<span style="flex-shrink:0; font-size:0.72rem; color:var(--text-secondary); font-weight:700; margin-left:8px; padding:2px 8px; background:rgba(0,113,227,0.07); border-radius:999px; align-self:center;">${esc(formatDistance(p.distance_meters))}</span>`
+            : '';
+        return `
+            <button type="button" class="map-search-row" role="option" id="${OPTION_ID_PREFIX}${i}" aria-selected="false" data-place-id="${esc(p.place_id)}"
+                style="width:100%; text-align:left; padding:11px 16px; background:transparent; border:0; border-bottom:1px solid rgba(0,0,0,0.05); display:flex; gap:10px; align-items:flex-start; cursor:pointer;">
+                <span style="font-size:1rem; line-height:1.2; flex-shrink:0;">📍</span>
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:700; color:#002d5b; font-size:0.88rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.structured_formatting?.main_text || p.description || '')}</div>
+                    ${p.structured_formatting?.secondary_text ? `<div style="font-size:0.74rem; color:var(--text-secondary); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.structured_formatting.secondary_text)}</div>` : ''}
+                </div>
+                ${distHtml}
+            </button>`;
+    };
+
+    /** Places group — first 5 predictions. Omitted entirely while the
+     *  request is in flight (lastPreds null) or when it resolved empty. */
+    const buildPlacesGroupHtml = (): string => {
+        if (!lastPreds || lastPreds.length === 0) return '';
+        const rows = lastPreds.slice(0, 5).map((p, i) => placeRowHtml(p, i)).join('');
+        return groupWrap(t('search.groupPlaces'), rows);
+    };
+
+    /** One internal (cross-trip) result row — carries nav data attrs that
+     *  the delegated click handler reads to route. */
+    const internalRowHtml = (o: { kind: string; tripId: string; dayId: string; archived: boolean; icon: string; title: string; subtitle: string }): string => `
+        <button type="button" class="map-internal-row" data-internal-kind="${esc(o.kind)}" data-trip-id="${esc(o.tripId)}" data-day-id="${esc(o.dayId)}" data-archived="${o.archived ? '1' : '0'}"
+            style="width:100%; text-align:left; padding:11px 16px; background:transparent; border:0; border-bottom:1px solid rgba(0,0,0,0.05); display:flex; gap:10px; align-items:center; cursor:pointer;">
+            <span style="flex-shrink:0; color:var(--accent-blue); display:inline-flex; align-items:center;">${iconSvg(o.icon, { size: 19 })}</span>
+            <div style="flex:1; min-width:0;">
+                <div style="font-weight:700; color:#002d5b; font-size:0.88rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(o.title)}</div>
+                <div style="font-size:0.74rem; color:var(--text-secondary); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(o.subtitle)}</div>
+            </div>
+            ${o.archived ? `<span style="flex-shrink:0; font-size:0.58rem; font-weight:800; letter-spacing:0.05em; text-transform:uppercase; padding:3px 7px; border-radius:999px; background:rgba(255,149,0,0.14); color:#b46a00;">${esc(t('search.archivedPill'))}</span>` : ''}
+        </button>`;
+
+    const showAllBtnHtml = (group: string, count: number): string => `
+        <button type="button" class="map-internal-showall" data-group="${esc(group)}"
+            style="font-size:0.72rem; font-weight:800; color:var(--accent-blue); background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.18); border-radius:999px; padding:4px 11px; cursor:pointer;">${esc(`Show all ${count}`)}</button>`;
+
+    /** Internal groups (Trips / Days / Expenses) — same labels, titles,
+     *  subtitles + icons as the legacy Search page. Each caps at
+     *  INTERNAL_LIMIT rows with a Show-all toggle. */
+    const buildInternalGroupsHtml = (): string => {
+        const r = lastInternal;
+        if (!r) return '';
+        let html = '';
+        if (r.trips.length) {
+            const shown = internalShowAll.trips ? r.trips : r.trips.slice(0, INTERNAL_LIMIT);
+            const rows = shown.map((hit) => internalRowHtml({
+                kind: 'trip', tripId: hit.trip.id, dayId: '', archived: hit.archived,
+                icon: 'map', title: hit.trip.name || '—', subtitle: hit.trip.country || t('search.noCountry'),
+            })).join('');
+            const extra = (!internalShowAll.trips && r.trips.length > INTERNAL_LIMIT) ? showAllBtnHtml('trips', r.trips.length) : '';
+            html += groupWrap(t('search.groupTrips'), rows, extra);
+        }
+        if (r.days.length) {
+            const shown = internalShowAll.days ? r.days : r.days.slice(0, INTERNAL_LIMIT);
+            const rows = shown.map((hit) => internalRowHtml({
+                kind: 'day', tripId: hit.trip.id, dayId: hit.day.id, archived: hit.archived,
+                icon: 'calendar',
+                title: hit.day.name || (hit.day.dayNumber ? t('search.dayFallback', { num: hit.day.dayNumber }) : t('search.dayFallbackUnknown')),
+                subtitle: `${hit.trip.name}${hit.day.date ? ` · ${hit.day.date}` : ''}`,
+            })).join('');
+            const extra = (!internalShowAll.days && r.days.length > INTERNAL_LIMIT) ? showAllBtnHtml('days', r.days.length) : '';
+            html += groupWrap(t('search.groupDays'), rows, extra);
+        }
+        if (r.expenses.length) {
+            const shown = internalShowAll.expenses ? r.expenses : r.expenses.slice(0, INTERNAL_LIMIT);
+            const rows = shown.map((hit) => internalRowHtml({
+                kind: 'expense', tripId: hit.trip?.id || '', dayId: '', archived: hit.archived,
+                icon: 'wallet', title: hit.expense.label || t('search.expenseNoLabel'),
+                subtitle: `${formatAmount(hit.expense.value, hit.expense.currency)} · ${hit.expense.who || t('search.expenseNoPayer')}${hit.trip ? ` · ${hit.trip.name}` : ''}`,
+            })).join('');
+            const extra = (!internalShowAll.expenses && r.expenses.length > INTERNAL_LIMIT) ? showAllBtnHtml('expenses', r.expenses.length) : '';
+            html += groupWrap(t('search.groupExpenses'), rows, extra);
+        }
+        return html;
+    };
+
+    /** Paint the unified panel from the two cached halves. */
+    const paintResults = () => {
         // DSGN-006: each (re)render resets the active option + opens the combobox.
         activeIndex = -1;
         searchInput.setAttribute('aria-expanded', 'true');
         searchInput.removeAttribute('aria-activedescendant');
-        if (!preds || preds.length === 0) {
-            resultsEl.style.display = 'block';
-            // DSGN-059: localized "No matches." (also announced via statusEl).
-            resultsEl.innerHTML = `<div style="padding:14px 18px; color:var(--text-secondary); font-size:0.85rem;">${esc(t('map.noMatches'))}</div>`;
-            if (statusEl) statusEl.textContent = t('map.noMatches');
+        const placesHtml = buildPlacesGroupHtml();
+        const internalHtml = buildInternalGroupsHtml();
+        if (!placesHtml && !internalHtml) {
+            // Genuine no-match only once Places has actually resolved
+            // (lastPreds !== null); while it's pending we only paint early
+            // when there were internal hits, so don't flash "No matches".
+            if (lastPreds !== null) {
+                resultsEl.style.display = 'block';
+                resultsEl.innerHTML = `<div style="padding:14px 18px; color:var(--text-secondary); font-size:0.85rem;">${esc(t('map.noMatches'))}</div>`;
+                if (statusEl) statusEl.textContent = t('map.noMatches');
+            }
             return;
         }
         resultsEl.style.display = 'block';
-        const shown = preds.slice(0, 6);
-        if (statusEl) statusEl.textContent = tn('map.resultsAnnounce', shown.length);
-        resultsEl.innerHTML = shown.map((p, i) => {
-            // distance_meters is populated by the AutocompleteService
-            // when the request carried an `origin` (the trip's anchor
-            // pin lat/lng, see the request builder below). Falls back
-            // to empty string for predictions that don't expose it
-            // (e.g. very generic queries) so the row still renders
-            // cleanly.
-            const distHtml = typeof p.distance_meters === 'number'
-                ? `<span style="flex-shrink:0; font-size:0.72rem; color:var(--text-secondary); font-weight:700; margin-left:8px; padding:2px 8px; background:rgba(0,113,227,0.07); border-radius:999px; align-self:center;">${esc(formatDistance(p.distance_meters))}</span>`
-                : '';
-            return `
-                <button type="button" class="map-search-row" role="option" id="${OPTION_ID_PREFIX}${i}" aria-selected="false" data-place-id="${esc(p.place_id)}"
-                    style="width:100%; text-align:left; padding:11px 16px; background:transparent; border:0; border-bottom:1px solid rgba(0,0,0,0.05); display:flex; gap:10px; align-items:flex-start; cursor:pointer;">
-                    <span style="font-size:1rem; line-height:1.2; flex-shrink:0;">📍</span>
-                    <div style="flex:1; min-width:0;">
-                        <div style="font-weight:700; color:#002d5b; font-size:0.88rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.structured_formatting?.main_text || p.description || '')}</div>
-                        ${p.structured_formatting?.secondary_text ? `<div style="font-size:0.74rem; color:var(--text-secondary); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.structured_formatting.secondary_text)}</div>` : ''}
-                    </div>
-                    ${distHtml}
-                </button>
-            `;
-        }).join('');
+        resultsEl.innerHTML = placesHtml + internalHtml;
+        const placeCount = lastPreds ? Math.min(lastPreds.length, 5) : 0;
+        const internalCount = lastInternal ? (lastInternal.trips.length + lastInternal.days.length + lastInternal.expenses.length) : 0;
+        if (statusEl) statusEl.textContent = tn('map.resultsAnnounce', placeCount + internalCount);
+    };
+
+    /** Navigate to an internal hit — mirrors Search.tsx's goTo* handlers
+     *  (archived → Collections detail; active day → home with the day
+     *  pre-selected; active expense → expenses). */
+    const goToInternal = (kind: string, tripId: string, archived: boolean, dayId: string) => {
+        if (!tripId) return;
+        hideResults();
+        if (archived) {
+            STATE.activeDetailId = tripId;
+            emit(EVENTS.STATE_CHANGED);
+            navigate('collections');
+            return;
+        }
+        STATE.activeTripId = tripId;
+        if (kind === 'day' && dayId) setSelectedDay(tripId, dayId);
+        emit(EVENTS.STATE_CHANGED);
+        navigate(kind === 'expense' ? 'expenses' : 'home');
     };
 
     /** Show a brief inline error in the results panel (sighted users)
@@ -238,6 +366,21 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
             // BUG-088: stamp this request so the callback can drop a stale
             // (out-of-order) response that resolves after a newer keystroke.
             const seq = ++searchSeq;
+            // Internal half is synchronous — compute from STATE and reset
+            // the per-group Show-all for this new query.
+            lastInternal = searchInternal(q, {
+                trips: STATE.trips || [],
+                archivedTrips: STATE.archivedTrips || [],
+                tripDays: STATE.tripDays || [],
+                expenses: STATE.expenses || [],
+            });
+            internalShowAll.trips = false;
+            internalShowAll.days = false;
+            internalShowAll.expenses = false;
+            // Places still pending → omit that group; paint internal now so
+            // the panel opens immediately, Places drop in on top when ready.
+            lastPreds = null;
+            if (hasInternalHits(lastInternal)) paintResults();
             // Bias predictions toward the current viewport so
             // "lisbon" while looking at Berlin doesn't surface
             // unrelated Lisbons; falls back to global if no map
@@ -258,15 +401,11 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
                 // BUG-088: ignore a stale response — a newer request was issued
                 // after this one, or the input has since moved on from `q`.
                 if (seq !== searchSeq || searchInput.value.trim() !== q) return;
-                if (status !== google.maps.places.PlacesServiceStatus.OK) {
-                    if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
-                        renderPredictions([]);
-                    } else {
-                        hideResults();
-                    }
-                    return;
-                }
-                renderPredictions(preds || []);
+                // Any non-OK (incl. ZERO_RESULTS) → no Places group; the
+                // internal groups still render, otherwise paintResults shows
+                // the no-match note.
+                lastPreds = status === google.maps.places.PlacesServiceStatus.OK ? (preds || []) : [];
+                paintResults();
             });
         }, 220);
     });
@@ -283,6 +422,28 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
 
     resultsEl.addEventListener('click', (e) => {
         const target = e.target as HTMLElement | null;
+        // Show-all toggle for an internal group — expand + repaint.
+        const showAll = target?.closest('.map-internal-showall') as HTMLElement | null;
+        if (showAll) {
+            const g = showAll.dataset.group;
+            if (g === 'trips' || g === 'days' || g === 'expenses') {
+                internalShowAll[g] = true;
+                paintResults();
+            }
+            return;
+        }
+        // Internal hit → navigate within the app.
+        const internalRow = target?.closest('.map-internal-row') as HTMLElement | null;
+        if (internalRow) {
+            goToInternal(
+                internalRow.dataset.internalKind || '',
+                internalRow.dataset.tripId || '',
+                internalRow.dataset.archived === '1',
+                internalRow.dataset.dayId || '',
+            );
+            return;
+        }
+        // Place prediction → pin on the map (existing flow).
         selectRow(target?.closest('.map-search-row') as HTMLElement | null);
     });
 

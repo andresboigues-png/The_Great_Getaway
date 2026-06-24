@@ -822,6 +822,7 @@ export const pt: Translations = {
             one: '{count} resultado para "{query}"',
             other: '{count} resultados para "{query}"',
         },
+        groupPlaces: 'Locais',
         groupTrips: 'Viagens',
         groupDays: 'Dias',
         groupExpenses: 'Despesas',

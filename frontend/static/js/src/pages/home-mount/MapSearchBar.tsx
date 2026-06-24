@@ -66,7 +66,12 @@ export function MapSearchBar() {
                 // injects role="option" rows + drives aria-activedescendant.
                 role="listbox"
                 aria-label={t('map.searchResultsLabel')}
-                className="hidden absolute top-[calc(100%_+_6px)] left-0 right-0 bg-[var(--surface-glass-light)] backdrop-filter-[blur(22px)_saturate(160%)] [-webkit-backdrop-filter:blur(22px)_saturate(160%)] border border-[rgba(0,0,0,0.08)] rounded-lg shadow-[0_18px_44px_rgba(0,45,91,0.18)] overflow-hidden max-h-[320px] overflow-y-auto"
+                // B1: a fuller "search environment" — the bar stays pinned and
+                // this panel drops in below it (Places group then internal
+                // groups), tall enough to read as its own surface, scrolling
+                // internally past 70vh. The slide-in lives in index.css
+                // (#homeMapSearchResults / @keyframes ggMapResultsIn).
+                className="hidden absolute top-[calc(100%_+_6px)] left-0 right-0 bg-[var(--surface-glass-light)] backdrop-filter-[blur(22px)_saturate(160%)] [-webkit-backdrop-filter:blur(22px)_saturate(160%)] border border-[rgba(0,0,0,0.08)] rounded-[18px] shadow-[0_18px_44px_rgba(0,45,91,0.18)] overflow-hidden max-h-[70vh] overflow-y-auto"
             ></div>
             {/* DSGN-006: visually-hidden polite live region so screen readers
                 hear the result count / "No matches." that sighted users see. */}

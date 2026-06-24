@@ -1009,6 +1009,7 @@ export const en = {
             other: '{count} results for "{query}"',
         },
         // Group labels.
+        groupPlaces: 'Places',
         groupTrips: 'Trips',
         groupDays: 'Days',
         groupExpenses: 'Expenses',

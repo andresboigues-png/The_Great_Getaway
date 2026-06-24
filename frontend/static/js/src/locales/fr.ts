@@ -823,6 +823,7 @@ export const fr: Translations = {
             one: '{count} résultat pour "{query}"',
             other: '{count} résultats pour "{query}"',
         },
+        groupPlaces: 'Lieux',
         groupTrips: 'Voyages',
         groupDays: 'Jours',
         groupExpenses: 'Dépenses',

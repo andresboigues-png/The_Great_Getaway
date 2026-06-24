@@ -1239,6 +1239,31 @@ body.is-signed-out .sidebar-rail {
         animation: none;
     }
 }
+
+/* B1: home universal-search results panel — slides in below the pinned
+   search bar so typing "morphs" the view into its own results environment
+   (Places group, then internal Trips / Days / Expenses groups). mapSearch.ts
+   toggles display:none→block; the animation replays on each open (the
+   display change re-triggers it) and never on page load (a display:none
+   element doesn't animate). */
+#homeMapSearchResults {
+    animation: ggMapResultsIn 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes ggMapResultsIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    #homeMapSearchResults {
+        animation: none;
+    }
+}
 .trip-controls-popover .sidebar-trip-controls {
     /* Reuse the existing burger-drawer trip-controls block styling
        (full-width pill + selector + centred action row) — it was

@@ -818,6 +818,7 @@ export const es: Translations = {
             one: '{count} resultado para "{query}"',
             other: '{count} resultados para "{query}"',
         },
+        groupPlaces: 'Lugares',
         groupTrips: 'Viajes',
         groupDays: 'Días',
         groupExpenses: 'Gastos',
