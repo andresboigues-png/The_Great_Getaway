@@ -493,6 +493,37 @@ def test_auth_google_real_path_supports_credential_field(client, monkeypatch):
     assert res.get_json()["user"]["id"] == "uid-cred"
 
 
+def test_auth_google_real_path_thin_profile_no_name_or_picture(client, monkeypatch):
+    """Regression: a Google ID token may omit the OPTIONAL `name` /
+    `picture` claims (brand-new account, minimal/Workspace profile, or a
+    grant without full profile scope). The handler previously read them
+    via `idinfo['name']` / `idinfo['picture']`, so a thin token raised
+    KeyError → unhandled 500 on a first-time login (the symptom: a new
+    user 'can't log in, Internal Server Error'). The handler now uses
+    `.get()` with empty-string fallbacks, so this logs in cleanly."""
+    monkeypatch.setenv("CLIENT_ID_GOOGLE_AUTH", "client-id-test")
+    monkeypatch.delenv("GG_ALLOW_TEST_LOGIN", raising=False)
+
+    def fake_verify(token, request, client_id):
+        # No `name`, no `picture` — only the guaranteed claims.
+        return {
+            "sub": "thin-uid-999",
+            "email": "thin@example.com",
+            "email_verified": True,
+        }
+
+    import routes.auth
+    monkeypatch.setattr(routes.auth.id_token, "verify_oauth2_token", fake_verify)
+
+    res = client.post("/api/auth/google", json={"token": "thin.google.token"})
+    assert res.status_code == 200  # was 500 before the .get() hardening
+    body = res.get_json()
+    assert body["status"] == "success"
+    assert body["user"]["id"] == "thin-uid-999"
+    assert body["user"]["name"] == ""
+    assert body["user"]["picture"] == ""
+
+
 def test_auth_google_real_path_returns_existing_profile_on_repeat_signin(
     client, monkeypatch,
 ):

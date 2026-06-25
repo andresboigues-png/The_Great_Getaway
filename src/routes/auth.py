@@ -228,8 +228,17 @@ def google_auth():
 
         user_id = idinfo['sub']
         email = idinfo['email']
-        name = idinfo['name']
-        picture = idinfo['picture']
+        # `sub` + `email` are guaranteed here (email is gated by the
+        # email_verified check above), but `name` and `picture` are
+        # OPTIONAL claims in a Google ID token — a brand-new account, a
+        # minimal/Workspace profile, or a grant without the full profile
+        # scope can omit them. Bracket access (`idinfo['name']`) then
+        # raises KeyError, which the `except ValueError` below does NOT
+        # catch → an unhandled 500 on this first-login path. Use `.get()`
+        # with safe fallbacks so a thin profile logs in cleanly (the
+        # frontend already falls back to the email for a missing name).
+        name = idinfo.get('name', '')
+        picture = idinfo.get('picture', '')
 
         with get_db() as conn:
             cursor = conn.cursor()
