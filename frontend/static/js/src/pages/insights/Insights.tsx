@@ -900,6 +900,15 @@ export function Insights() {
                             beginAtZero: true,
                             grid: { display: false },
                             border: { display: false },
+                            // The gutter's plot is decorative (the line is
+                            // transparent), so hand almost the whole canvas
+                            // width to the axis. Otherwise Chart.js splits this
+                            // narrow canvas ~half/half and the € labels clip on
+                            // the left — only the trailing chars showed
+                            // ("€1.5k"→"5k", "€500"→"00").
+                            afterFit: (scale: { width: number; chart: { width: number } }) => {
+                                scale.width = scale.chart.width - 4;
+                            },
                             ticks: {
                                 maxTicksLimit: 5,
                                 color: 'rgba(60,60,67,0.5)',

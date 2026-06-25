@@ -758,7 +758,7 @@ h1 {
    scale; labels are abbreviated so they never clip in this narrow band). */
 .timeline-yaxis {
     flex: 0 0 auto;
-    width: 52px;
+    width: 56px;
     position: relative;
 }
 .timeline-scroll {
