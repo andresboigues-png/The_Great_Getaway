@@ -758,7 +758,12 @@ h1 {
    scale; labels are abbreviated so they never clip in this narrow band). */
 .timeline-yaxis {
     flex: 0 0 auto;
-    width: 56px;
+    /* Narrowed from 56px → 44px (2026-06-26): the compact "€1.5k"-style
+       labels only need ~28px, so the extra width was wasted gutter. Pulling
+       the axis left hands those px back to the plot so more of the line is
+       visible. The afterFit in Insights.tsx claims (canvas width − 4) for the
+       axis, so the labels stay right-aligned next to the plot and uncut. */
+    width: 44px;
     position: relative;
 }
 .timeline-scroll {
