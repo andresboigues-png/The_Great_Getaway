@@ -109,6 +109,11 @@ const SWIPE_HORIZONTAL_RATIO = 1.5;
 //   that needs to capture horizontal touch (image carousels, etc.).
 // - [contenteditable]: rich-text editors (notes, AI prompts) need free
 //   horizontal touch for cursor placement.
+// - .timeline-scroll: the Insights spending timeline scrolls horizontally
+//   (overflow-x) to show all days. A horizontal drag there IS the chart's
+//   own scroll — the same case as a slider — so it must NOT also slide the
+//   page / open the rail. Without this, scrubbing the graph fought the
+//   nav gesture.
 // NOTE: Google Maps containers are intentionally NOT opted out (they used
 //   to be). On mobile every map runs `cooperative` gestureHandling
 //   (mobileSafeGestureHandling), so ONE finger never pans the map — it
@@ -124,6 +129,7 @@ const SWIPE_OPT_OUT_SELECTORS = [
     '[data-no-swipe]',
     '[contenteditable]',
     '[contenteditable="true"]',
+    '.timeline-scroll',
 ].join(',');
 
 let _wired = false;

@@ -698,6 +698,10 @@ export function Insights() {
 
     // ── Chart.js side-effects ─────────────────────────────────────────────
     const timeCanvasRef = useRef<HTMLCanvasElement | null>(null);
+    // Fixed Y-axis companion canvas — renders ONLY the € scale in a
+    // non-scrolling gutter so the money axis stays put while the plot
+    // scrolls sideways on phones (see the timeline effect + .timeline-yaxis).
+    const timeAxisRef = useRef<HTMLCanvasElement | null>(null);
     const currencyTimeRef = useRef<HTMLCanvasElement | null>(null);
     const spenderPieRef = useRef<HTMLCanvasElement | null>(null);
     const perPieRef = useRef<HTMLCanvasElement | null>(null);
@@ -807,7 +811,11 @@ export function Insights() {
                         beginAtZero: true,
                         grid: { display: false },
                         border: { display: false },
+                        // Labels are drawn by the fixed-axis companion canvas
+                        // (timeAxisRef) so they stay visible while this plot
+                        // scrolls; hide them here to avoid a doubled axis.
                         ticks: {
+                            display: false,
                             maxTicksLimit: 5,
                             color: 'rgba(60,60,67,0.5)',
                             font: { size: 11 },
@@ -818,7 +826,83 @@ export function Insights() {
                 },
             },
         });
-        return () => chart.destroy();
+
+        // ── Fixed Y-axis gutter ───────────────────────────────────────
+        // The timeline scrolls horizontally on phones (overflow-x), which
+        // would drag the € scale off-screen. This second canvas renders
+        // ONLY the Y axis and lives in a non-scrolling gutter to the left,
+        // so the money scale stays put while the user scrubs the plot. It
+        // shares the main chart's data + axis config, so its ticks line up
+        // 1:1 with the plot heights: identical canvas height + identical
+        // x-axis reserved height (same x config, just transparent text) +
+        // identical auto-computed y bounds (same data, beginAtZero,
+        // maxTicksLimit) → identical getPixelForValue. The line itself is
+        // transparent — only the axis shows.
+        let axisChart: InstanceType<typeof Chart> | null = null;
+        if (timeAxisRef.current) {
+            axisChart = new Chart(timeAxisRef.current, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        {
+                            data: points,
+                            borderColor: 'transparent',
+                            backgroundColor: 'transparent',
+                            fill: false,
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    events: [], // decorative — no hover / tooltip
+                    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                    scales: {
+                        x: {
+                            // Mirror the main x-axis EXACTLY so it reserves the
+                            // same bottom height (→ same plot rect), but render
+                            // its tick text invisible.
+                            type: 'linear',
+                            grid: { display: false },
+                            border: { display: false },
+                            ticks: {
+                                maxRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 7,
+                                color: 'transparent',
+                                font: { size: 11 },
+                                padding: 8,
+                                callback: (value: number | string) => {
+                                    const v = Number(value);
+                                    if (!Number.isFinite(v)) return '';
+                                    return timelineDateLabel(new Date(v).toISOString().slice(0, 10), includeYear);
+                                },
+                            },
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: { display: false },
+                            border: { display: false },
+                            ticks: {
+                                maxTicksLimit: 5,
+                                color: 'rgba(60,60,67,0.5)',
+                                font: { size: 11 },
+                                padding: 10,
+                                callback: (value: number | string) => targetSym + formatNumber(Number(value), 0),
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        return () => {
+            chart.destroy();
+            if (axisChart) axisChart.destroy();
+        };
     }, [dateTotals, targetCurr, targetSym, mode, tripExps.length]);
 
     // Spenders share donut — per-person spend. The list beside it is the legend.
@@ -1042,7 +1126,7 @@ export function Insights() {
         return (
             <div>
                 <h1
-                    className="inline-block [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
+                    className="inline-block text-[1.5rem] font-extrabold text-brand-navy tracking-[-0.02em]"
                 >
                     {t('insights.title')}
                 </h1>
@@ -1064,7 +1148,7 @@ export function Insights() {
         return (
             <div>
                 <h1
-                    className="inline-block [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
+                    className="inline-block text-[1.5rem] font-extrabold text-brand-navy tracking-[-0.02em]"
                 >
                     {t('insights.title')}
                 </h1>
@@ -1098,7 +1182,7 @@ export function Insights() {
             >
                 <div className="min-w-0 flex-[1_1_240px]">
                     <h1
-                        className="inline-block [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text mb-3"
+                        className="inline-block text-[1.5rem] font-extrabold text-brand-navy tracking-[-0.02em] mb-1"
                     >
                         {t('insights.title')}
                     </h1>
@@ -1579,12 +1663,18 @@ export function Insights() {
                 {/* On phones the daily points don't fit a narrow width, so the
                     plot gets a min per-point width and the card scrolls sideways
                     (stays fit-to-width on desktop — see .timeline-inner in index.css). */}
-                <div className="timeline-scroll">
-                    <div
-                        className="timeline-inner relative h-[350px]"
-                        style={{ ['--timeline-min' as string]: `${timelinePointCount * 40}px` }}
-                    >
-                        <canvas id="timelineChart" ref={timeCanvasRef}></canvas>
+                <div className="timeline-frame">
+                    {/* Fixed € axis — stays put while .timeline-scroll scrolls. */}
+                    <div className="timeline-yaxis relative h-[350px]">
+                        <canvas ref={timeAxisRef}></canvas>
+                    </div>
+                    <div className="timeline-scroll">
+                        <div
+                            className="timeline-inner relative h-[350px]"
+                            style={{ ['--timeline-min' as string]: `${timelinePointCount * 40}px` }}
+                        >
+                            <canvas id="timelineChart" ref={timeCanvasRef}></canvas>
+                        </div>
                     </div>
                 </div>
             </div>

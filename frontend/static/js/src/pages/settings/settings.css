@@ -694,14 +694,42 @@
 
 .management-card {
     position: relative;
-    padding: 32px;
-    border-radius: 28px;
+    padding: 22px 22px 20px;
+    border-radius: 22px;
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     overflow: hidden;
 }
 
 .management-card:hover , .management-card:active , .management-card:focus-visible {
     transform: translateY(-5px);
+}
+
+/* 2026-06-25: icon-led settings landing. Each management card now leads
+   with a colour-tinted rounded icon tile (iOS-Settings style) so the
+   sections are recognisable at a glance instead of reading as a stack of
+   text-only blocks. `--mc-accent: R,G,B` is set per card in Settings.tsx;
+   the SVG strokes in currentColor, so the tint + icon share the accent. */
+.management-card__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    margin-bottom: 14px;
+    border-radius: 12px;
+    background: rgba(var(--mc-accent), 0.14);
+    color: rgb(var(--mc-accent));
+    border: 1px solid rgba(var(--mc-accent), 0.22);
+}
+/* The global .card-title runs large (page-heading scale); inside a
+   management card it's a section label, so size it down + tighten the
+   description so more cards read at a glance. */
+.management-card .card-title {
+    font-size: 1.18rem;
+}
+.management-card .st-help-text {
+    font-size: 0.88rem;
+    line-height: 1.45;
 }
 
 .danger-card {

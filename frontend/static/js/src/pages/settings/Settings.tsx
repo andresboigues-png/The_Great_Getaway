@@ -283,6 +283,11 @@ function MenuView() {
                 className="card-button-reset card glass management-card"
                 onClick={() => setSettingsTab('general')}
             >
+                <span
+                    className="management-card__icon"
+                    style={{ ['--mc-accent' as string]: '0,113,227' }}
+                    dangerouslySetInnerHTML={{ __html: iconSvg('palette', { size: 22 }) }}
+                />
                 <h2 className="card-title m-0">
                     {t('settings.cardGeneralTitle')}
                 </h2>
@@ -299,6 +304,11 @@ function MenuView() {
                 className="card-button-reset card glass management-card"
                 onClick={() => setSettingsTab('format')}
             >
+                <span
+                    className="management-card__icon"
+                    style={{ ['--mc-accent' as string]: '255,149,0' }}
+                    dangerouslySetInnerHTML={{ __html: iconSvg('document', { size: 22 }) }}
+                />
                 <h2 className="card-title m-0">
                     {t('settings.cardFormatTitle')}
                 </h2>
@@ -320,6 +330,11 @@ function MenuView() {
                 className="card-button-reset card glass management-card"
                 onClick={() => setSettingsTab('personalization')}
             >
+                <span
+                    className="management-card__icon"
+                    style={{ ['--mc-accent' as string]: '88,86,214' }}
+                    dangerouslySetInnerHTML={{ __html: iconSvg('user', { size: 22 }) }}
+                />
                 <h2 className="card-title m-0">
                     {t('settings.cardPersonalizationTitle')}
                 </h2>
@@ -341,6 +356,11 @@ function MenuView() {
                 className="card-button-reset card glass management-card"
                 onClick={() => setSettingsTab('sessions')}
             >
+                <span
+                    className="management-card__icon"
+                    style={{ ['--mc-accent' as string]: '52,199,89' }}
+                    dangerouslySetInnerHTML={{ __html: iconSvg('smartphone', { size: 22 }) }}
+                />
                 <h2 className="card-title m-0">
                     {t('settings.cardSessionsTitle')}
                 </h2>
@@ -362,6 +382,11 @@ function MenuView() {
                 className="card-button-reset card glass management-card"
                 onClick={() => setSettingsTab('blocks')}
             >
+                <span
+                    className="management-card__icon"
+                    style={{ ['--mc-accent' as string]: '0,199,190' }}
+                    dangerouslySetInnerHTML={{ __html: iconSvg('lock', { size: 22 }) }}
+                />
                 <h2 className="card-title m-0">
                     {t('settings.cardBlocksTitle')}
                 </h2>
@@ -383,6 +408,11 @@ function MenuView() {
                     className="card-button-reset card glass management-card"
                     onClick={() => setSettingsTab('creator')}
                 >
+                    <span
+                        className="management-card__icon"
+                        style={{ ['--mc-accent' as string]: '175,82,222' }}
+                        dangerouslySetInnerHTML={{ __html: iconSvg('sparkles', { size: 22 }) }}
+                    />
                     <h2 className="card-title m-0">
                         {t('settings.cardCreatorTitle')}
                     </h2>
@@ -408,6 +438,11 @@ function MenuView() {
                     className="card-button-reset card glass management-card"
                     onClick={() => setSettingsTab('developer')}
                 >
+                    <span
+                        className="management-card__icon"
+                        style={{ ['--mc-accent' as string]: '90,200,250' }}
+                        dangerouslySetInnerHTML={{ __html: iconSvg('zap', { size: 22 }) }}
+                    />
                     <h2 className="card-title m-0">
                         {t('settings.cardDeveloperTitle')}
                     </h2>
@@ -426,6 +461,11 @@ function MenuView() {
                 onClick={() => setSettingsTab('reset')}
             >
                 <div className="danger-glow pulse-red"></div>
+                <span
+                    className="management-card__icon"
+                    style={{ ['--mc-accent' as string]: '255,59,48' }}
+                    dangerouslySetInnerHTML={{ __html: iconSvg('trash', { size: 22 }) }}
+                />
                 <h2 className="card-title text-[#ff3b30] m-0">
                     {t('settings.cardDataMgmtTitle')}
                 </h2>

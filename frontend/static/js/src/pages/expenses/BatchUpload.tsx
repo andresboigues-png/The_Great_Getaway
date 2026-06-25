@@ -166,7 +166,11 @@ export function BatchUpload() {
 
     return (
         <div>
-            <h1>{t('upload.pageTitle')}</h1>
+            {/* No page <h1> here: Batch is a sub-mode of the Expenses tab
+                (the "Expenses" gradient title + the Upload mode-switch
+                already label it). A second 3rem h1 read as a co-equal page
+                title. The green card-title below ("Excel Upload") is the
+                section heading. */}
             <div className="card glass" style={{ borderColor: 'rgba(33, 115, 70, 0.3)', boxShadow: '0 0 15px rgba(33, 115, 70, 0.1)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                     <h2 className="card-title" style={{ color: '#217346', margin: 0 }}>{t('upload.sectionHeading')}</h2>

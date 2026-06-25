@@ -748,7 +748,21 @@ h1 {
 /* Spending timeline: fits the card on desktop; on phones each day gets a
    minimum width (set inline as --timeline-min) so the chart scrolls sideways
    instead of crushing 30+ points into a phone's width. */
+.timeline-frame {
+    display: flex;
+    align-items: stretch;
+}
+/* Fixed € axis gutter — sits OUTSIDE .timeline-scroll so it never moves
+   while the plot scrolls sideways. Width holds a "€10.5k"-ish label at
+   11px; the companion canvas (timeAxisRef) draws only the Y scale. */
+.timeline-yaxis {
+    flex: 0 0 auto;
+    width: 56px;
+    position: relative;
+}
 .timeline-scroll {
+    flex: 1 1 auto;
+    min-width: 0;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
@@ -1709,8 +1723,10 @@ body.is-signed-out .trip-controls-popover {
 /* --- Settings & Management UI --- */
 .settings-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 24px;
+    /* 260px min (was 300) — the icon-led cards are denser, so more fit per
+       row on wide screens, which is the "see everything at a glance" goal. */
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px;
     margin-top: 24px;
 }
 
@@ -4582,17 +4598,41 @@ body.is-signed-out #sidebarOverlay {
     min-width: 0;
 }
 
-/* Destructive (Delete) — red icon + label, in its own group below. */
+/* Destructive (Delete) — red icon + label, in its own group below.
+   2026-06-25: plain coloured text washed out against the liquid-glass
+   popover ("sometimes can't be seen"), so the row now also carries a
+   translucent red wash + bolder weight. The tint reads in both light and
+   dark mode (a red-tinted area stands out over either glass), while the
+   #ff3b30 icon/label stays legible on its own tint. */
 .trip-menu-row--danger,
 .trip-menu-row--danger .trip-menu-row__icon {
     color: #ff3b30;
 }
+.trip-menu-row--danger {
+    background: rgba(255, 59, 48, 0.14);
+    font-weight: 700;
+}
+.trip-menu-row--danger:hover,
+.trip-menu-row--danger:active,
+.trip-menu-row--danger:focus-visible {
+    background: rgba(255, 59, 48, 0.22);
+}
 
 /* Complete — its own green-themed island (parallel to the red Delete
-   island below): green icon + green label. */
+   island below): green icon + green label, on a translucent green wash
+   (same liquid-glass-contrast fix as Delete above). */
 .trip-menu-row--success,
 .trip-menu-row--success .trip-menu-row__icon {
     color: #34c759;
+}
+.trip-menu-row--success {
+    background: rgba(52, 199, 89, 0.14);
+    font-weight: 700;
+}
+.trip-menu-row--success:hover,
+.trip-menu-row--success:active,
+.trip-menu-row--success:focus-visible {
+    background: rgba(52, 199, 89, 0.22);
 }
 
 /* Silence active (trip hidden from feeds) — the row turns red, echoing
