@@ -29,6 +29,7 @@ import { requestPersonalizationTab } from '../../utils/persTab.js';
 import { makeInflationFactor, makePresentValueCalc } from '../../utils/presentValue.js';
 import { getIntlLocale, formatNumber, formatNumberForCurrency, formatShortMonthDay } from '../../i18n.js';
 import { getHomeCurrency, currencySymbol } from '../../utils.js';
+import { isDarkMode } from '../../theme.js';
 import { computeTripBalances } from '../settlement/balances.js';
 import { budgetStatus, budgetTitle } from '../budgets/helpers.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
@@ -721,6 +722,11 @@ export function Insights() {
         const points = sortedDates
             .map((d) => ({ x: Date.parse(`${d}T00:00:00Z`), y: dateTotals[d]! }))
             .filter((p) => Number.isFinite(p.x));
+        // Theme-aware tick colour. The old hardcoded dark slate
+        // (rgba(60,60,67,0.5)) was near-invisible on the dark-mode card — use
+        // the same secondary-text tones as the rest of the app (#5a5a5e light
+        // / #c4c4cc dark) so the € + date labels read in both themes.
+        const tickCol = isDarkMode() ? '#c4c4cc' : '#5a5a5e';
         const chart = new Chart(timeCanvasRef.current, {
             type: 'line',
             data: {
@@ -803,7 +809,7 @@ export function Insights() {
                             maxRotation: 0,
                             autoSkip: true,
                             maxTicksLimit: 7,
-                            color: 'rgba(60,60,67,0.5)',
+                            color: tickCol,
                             font: { size: 11 },
                             padding: 8,
                             callback: (value: number | string) => {
@@ -823,7 +829,7 @@ export function Insights() {
                         ticks: {
                             display: false,
                             maxTicksLimit: 5,
-                            color: 'rgba(60,60,67,0.5)',
+                            color: tickCol,
                             font: { size: 11 },
                             padding: 10,
                             callback: (value: number | string) => targetSym + formatNumber(Number(value), 0),
@@ -917,7 +923,7 @@ export function Insights() {
                             },
                             ticks: {
                                 maxTicksLimit: 5,
-                                color: 'rgba(60,60,67,0.5)',
+                                color: tickCol,
                                 font: { size: 11 },
                                 padding: 6,
                                 callback: fmtAxisTick,
