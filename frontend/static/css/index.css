@@ -780,6 +780,15 @@ h1 {
     .timeline-inner {
         min-width: var(--timeline-min, 100%);
     }
+    /* Phones: the small € axis labels left a lot of empty space between
+       them and the card's side padding. Pull the whole chart toward the
+       left edge so the Y axis sits closer to it and the plot reclaims the
+       width (a negative margin works regardless of whether the card's
+       padding resolves to .card's 24px or the p-8 utility's 32px). */
+    .timeline-frame {
+        margin-left: -14px;
+        margin-right: -6px;
+    }
 }
 
 /* (.liquid-table + th/td + .liquid-table th + tr:last-child td +
