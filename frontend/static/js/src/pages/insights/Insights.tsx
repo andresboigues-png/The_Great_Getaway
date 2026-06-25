@@ -849,14 +849,24 @@ export function Insights() {
             },
         });
 
-        // Compact € axis labels for the fixed gutter — "€1k", "€1.5k",
-        // "€500". Full "€1.000"-style labels overflow the narrow gutter and
-        // clip on a phone (the trailing digits were all that showed); the
-        // abbreviated form fits cleanly while still conveying the scale.
+        // Compact € axis labels for the narrow fixed gutter — "€500", "€1.5k",
+        // "€12k", "€1.2M". Full "€1.000"-style labels overflowed and clipped.
+        // The width is capped at every magnitude so a label can never outgrow
+        // the 44px gutter: a decimal only in the 1k–10k band, none above, and
+        // an "M" suffix for millions (so a big day reads "€1.2M", not the
+        // 38px-wide "€1500k").
         const fmtAxisTick = (value: number | string): string => {
             const n = Number(value);
             if (!Number.isFinite(n)) return '';
-            if (Math.abs(n) >= 1000) {
+            const abs = Math.abs(n);
+            if (abs >= 1_000_000) {
+                const m = n / 1_000_000;
+                return targetSym + (Number.isInteger(m) ? String(m) : m.toFixed(1)) + 'M';
+            }
+            if (abs >= 10_000) {
+                return targetSym + String(Math.round(n / 1000)) + 'k';
+            }
+            if (abs >= 1000) {
                 const k = n / 1000;
                 return targetSym + (Number.isInteger(k) ? String(k) : k.toFixed(1)) + 'k';
             }
@@ -935,7 +945,7 @@ export function Insights() {
                                 maxTicksLimit: 5,
                                 color: tickCol,
                                 font: { size: 11 },
-                                padding: 6,
+                                padding: 4,
                                 callback: fmtAxisTick,
                             },
                         },
