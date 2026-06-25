@@ -727,6 +727,10 @@ export function Insights() {
         // the same secondary-text tones as the rest of the app (#5a5a5e light
         // / #c4c4cc dark) so the € + date labels read in both themes.
         const tickCol = isDarkMode() ? '#c4c4cc' : '#5a5a5e';
+        // Clamp the x-axis to the exact data span (first/last expense) so the
+        // line begins on the Y axis and ends at the right edge.
+        const xMin = points.length ? points[0]!.x : undefined;
+        const xMax = points.length ? points[points.length - 1]!.x : undefined;
         const chart = new Chart(timeCanvasRef.current, {
             type: 'line',
             data: {
@@ -797,11 +801,12 @@ export function Insights() {
                     x: {
                         // Numeric time axis (x = epoch-ms); ticks reformat to dates.
                         type: 'linear',
-                        // Clamp the axis to the real data span. The default
-                        // ('ticks') rounds min/max out to the nearest "nice" tick,
-                        // which left a big empty stretch before the first expense —
-                        // the line looked like it started halfway across. 'data'
-                        // makes the plot span exactly first → last expense.
+                        // Clamp the axis to the exact data span so the line begins
+                        // on the Y axis and ends at the right edge — no "nice tick"
+                        // padding either side (default 'ticks' rounded out and left
+                        // the line starting partway across).
+                        min: xMin,
+                        max: xMax,
                         bounds: 'data',
                         grid: { display: false },
                         border: { display: false },
@@ -809,6 +814,11 @@ export function Insights() {
                             maxRotation: 0,
                             autoSkip: true,
                             maxTicksLimit: 7,
+                            // 'inner' aligns the first/last date labels INWARD so
+                            // they don't overflow the chart edges. Without it,
+                            // Chart.js pads the plot to fit the centered first
+                            // label, pushing the line off the Y axis.
+                            align: 'inner',
                             color: tickCol,
                             font: { size: 11 },
                             padding: 8,
