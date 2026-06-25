@@ -791,6 +791,12 @@ export function Insights() {
                     x: {
                         // Numeric time axis (x = epoch-ms); ticks reformat to dates.
                         type: 'linear',
+                        // Clamp the axis to the real data span. The default
+                        // ('ticks') rounds min/max out to the nearest "nice" tick,
+                        // which left a big empty stretch before the first expense —
+                        // the line looked like it started halfway across. 'data'
+                        // makes the plot span exactly first → last expense.
+                        bounds: 'data',
                         grid: { display: false },
                         border: { display: false },
                         ticks: {
