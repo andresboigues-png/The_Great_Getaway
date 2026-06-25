@@ -151,16 +151,37 @@ export function wireNavChrome(): void {
             return;
         }
         const target = e.target as HTMLElement | null;
-        if (!target || rail.contains(target) || target.closest('#hamburgerBtn')) {
+        // Inside the island, or on the burger / peek handle that toggle it →
+        // leave it to those handlers (and reset the blank-tap counter).
+        if (
+            !target
+            || rail.contains(target)
+            || target.closest('#hamburgerBtn')
+            || target.closest('#railPeek')
+        ) {
             railOutsideTaps = 0;
             return;
         }
-        railOutsideTaps += 1;
-        if (railOutsideTaps >= 2) {
+        const closeRail = () => {
             railOutsideTaps = 0;
             rail.classList.remove('is-open');
             hamburgerBtn?.setAttribute('aria-expanded', 'false');
+        };
+        // Tapping an actual control / feature on the current page (a button,
+        // link, field, switch, card — anything clickable) means the user is
+        // now doing something, so retract the island immediately to get it out
+        // of the way. Blank-space taps stay gentle: one keeps the non-modal
+        // island open, a second one dismisses it.
+        if (
+            target.closest(
+                'button, a, input, select, textarea, label, [role="button"], [role="tab"], [role="switch"], [role="link"], [tabindex], [onclick], .card-button-reset',
+            )
+        ) {
+            closeRail();
+            return;
         }
+        railOutsideTaps += 1;
+        if (railOutsideTaps >= 2) closeRail();
     });
 
     // ── Mobile swipe-between-tabs ──
@@ -334,7 +355,24 @@ export function wireNavChrome(): void {
     document.addEventListener('click', (e) => {
         const target = e.target as HTMLElement | null;
         const btn = target?.closest('#navTripChange');
-        if (btn) togglePopover(e);
+        if (!btn) return;
+        // The trip-controls popover is a Home affordance — it acts on the
+        // active trip whose map + day plan live on Home, so floating it over
+        // Expenses / Insights / Settings looked out of place. On Home, just
+        // toggle it. Anywhere else, go Home first, THEN open it.
+        const hash = window.location.hash.replace('#', '');
+        const onHome = !hash || hash === PAGES.HOME;
+        if (onHome) {
+            togglePopover(e);
+            return;
+        }
+        e.stopPropagation();
+        navigate(PAGES.HOME);
+        // The popover is persistent chrome (not part of the page mount), so it
+        // can open right away — it overlays Home as that page slides in.
+        if (tripControlsPopover && tripControlsPopover.style.display !== 'block') {
+            togglePopover(e);
+        }
     });
 
     // ── Trip-controls buttons (desktop navbar + mobile popover) ──

@@ -753,11 +753,12 @@ h1 {
     align-items: stretch;
 }
 /* Fixed € axis gutter — sits OUTSIDE .timeline-scroll so it never moves
-   while the plot scrolls sideways. Width holds a "€10.5k"-ish label at
-   11px; the companion canvas (timeAxisRef) draws only the Y scale. */
+   while the plot scrolls sideways. Width holds a compact "€1.5k"-style
+   label at 11px (the companion canvas, timeAxisRef, draws only the Y
+   scale; labels are abbreviated so they never clip in this narrow band). */
 .timeline-yaxis {
     flex: 0 0 auto;
-    width: 56px;
+    width: 52px;
     position: relative;
 }
 .timeline-scroll {

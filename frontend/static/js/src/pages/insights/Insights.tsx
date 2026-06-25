@@ -827,6 +827,20 @@ export function Insights() {
             },
         });
 
+        // Compact € axis labels for the fixed gutter — "€1k", "€1.5k",
+        // "€500". Full "€1.000"-style labels overflow the narrow gutter and
+        // clip on a phone (the trailing digits were all that showed); the
+        // abbreviated form fits cleanly while still conveying the scale.
+        const fmtAxisTick = (value: number | string): string => {
+            const n = Number(value);
+            if (!Number.isFinite(n)) return '';
+            if (Math.abs(n) >= 1000) {
+                const k = n / 1000;
+                return targetSym + (Number.isInteger(k) ? String(k) : k.toFixed(1)) + 'k';
+            }
+            return targetSym + formatNumber(n, 0);
+        };
+
         // ── Fixed Y-axis gutter ───────────────────────────────────────
         // The timeline scrolls horizontally on phones (overflow-x), which
         // would drag the € scale off-screen. This second canvas renders
@@ -890,8 +904,8 @@ export function Insights() {
                                 maxTicksLimit: 5,
                                 color: 'rgba(60,60,67,0.5)',
                                 font: { size: 11 },
-                                padding: 10,
-                                callback: (value: number | string) => targetSym + formatNumber(Number(value), 0),
+                                padding: 6,
+                                callback: fmtAxisTick,
                             },
                         },
                     },
