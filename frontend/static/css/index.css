@@ -3540,6 +3540,36 @@ body.is-signed-out .trip-controls-popover {
 }
 /* (.form-row--snug REMOVED 2026-05-16 — zero refs.) */
 
+/* Mobile: compact the "Add one by one" expense form. At desktop sizing
+   (p-12 card, 18px field padding, var(--space-6) row gaps, 2.2rem title) it
+   ran ~860px tall on a phone — too much scrolling for a quick submission.
+   Scoped to .manual-expense-card so the other forms that share .form-row /
+   .glass-input-light / .form-label-light keep their sizing. The `.X .Y`
+   selectors here are specificity (0,2,0), which beats both the base classes
+   and the card's own Tailwind utilities (p-12 / rounded-[44px] / text-[2.2rem]
+   / mb-8, all 0,1,0) — no !important needed. Tap targets stay ≥44px because
+   the inputs keep their min-height: var(--tap-min). */
+@media (max-width: 720px) {
+    .card.manual-expense-card {
+        padding: 20px;
+        border-radius: 26px;
+    }
+    .manual-expense-card .card-title {
+        font-size: 1.5rem;
+        margin-bottom: 16px;
+    }
+    .manual-expense-card .form-row {
+        margin-bottom: 12px;
+    }
+    .manual-expense-card .glass-input-light {
+        padding: 11px 14px;
+    }
+    .manual-expense-card .form-label-light {
+        margin-bottom: 4px;
+        font-size: 0.78rem;
+    }
+}
+
 /* Themed block button — accent-color-driven. Each call site provides one
    `--accent: R,G,B` custom property (raw triple, not `rgb()`); the rules
    below build the resting + hover backgrounds, foreground, and border
