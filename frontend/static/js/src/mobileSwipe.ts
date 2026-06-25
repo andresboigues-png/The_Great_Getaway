@@ -96,8 +96,15 @@ const SWIPE_HORIZONTAL_RATIO = 1.5;
 // - .mobile-bottom-nav: tapping a tab is a tap, not a swipe. Letting our
 //   handler interpret a finger-drift across a tab as a swipe would clash
 //   with the tab's own click navigation.
-// - input/textarea/select/button: native form controls handle their own
-//   touch. A horizontal drag on a slider is a slider drag, not a swipe.
+// - input/textarea: text fields + range sliders genuinely own horizontal
+//   touch (cursor placement / dragging the slider thumb). NOTE: <button> and
+//   <select> are deliberately NOT opted out — they activate on a TAP, never a
+//   horizontal drag, so a clear horizontal swipe over them is a nav gesture.
+//   The 80px + ratio gates keep taps registering as taps, and the browser
+//   fires no click after a real drag, so the control isn't triggered. Buttons
+//   / selects inside a .modal or [data-no-swipe] stay protected via those
+//   ancestors. Without this, swiping over the "Who paid" / "Category" selects
+//   or the batch "Load & process" button did nothing.
 // - [data-no-swipe]: explicit opt-out for any element we add later
 //   that needs to capture horizontal touch (image carousels, etc.).
 // - [contenteditable]: rich-text editors (notes, AI prompts) need free
@@ -114,8 +121,6 @@ const SWIPE_OPT_OUT_SELECTORS = [
     '.modal',
     'input',
     'textarea',
-    'select',
-    'button',
     '[data-no-swipe]',
     '[contenteditable]',
     '[contenteditable="true"]',
