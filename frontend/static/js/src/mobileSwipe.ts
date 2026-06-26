@@ -124,6 +124,10 @@ const SWIPE_HORIZONTAL_RATIO = 1.5;
 const SWIPE_OPT_OUT_SELECTORS = [
     '.mobile-bottom-nav',
     '.modal',
+    // Every showModal()/dialog overlay (the card lives under .modal-overlay,
+    // e.g. the day-detail modal). Swiping inside an open modal must NOT slide
+    // the page / sections behind it — the modal owns the gesture.
+    '.modal-overlay',
     'input',
     'textarea',
     '[data-no-swipe]',
