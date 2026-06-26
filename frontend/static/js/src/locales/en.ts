@@ -987,6 +987,8 @@ export const en = {
         // Timeline.
         timelineTitle: 'Spending Timeline',
         timelineSubtitle: 'Chronological flow of your expenses',
+        timelineZoomIn: 'Spread out the timeline',
+        timelineZoomOut: 'Fit the whole timeline',
         // Date-grouping fallback.
         unknownDate: 'Unknown',
     },

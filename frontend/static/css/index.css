@@ -751,6 +751,7 @@ h1 {
 .timeline-frame {
     display: flex;
     align-items: stretch;
+    position: relative; /* anchor for the floating zoom button */
 }
 /* Fixed € axis gutter — sits OUTSIDE .timeline-scroll so it never moves
    while the plot scrolls sideways. Width holds a compact "€1.5k"-style
@@ -776,18 +777,55 @@ h1 {
 .timeline-inner {
     width: 100%;
 }
+/* Zoomed IN (toggled by the glass button): spread the points to a per-point
+   width and scroll. Default — no .is-zoomed — fits everything in view, which
+   is what the user sees first (zoomed out). */
+.timeline-inner.is-zoomed {
+    min-width: var(--timeline-min, 100%);
+}
+
+/* Liquid-glass zoom toggle, floated in the chart's top-right corner (over the
+   headroom above the line). Frosts the card behind it; the icon flips between
+   magnifier-plus (spread) and magnifier-minus (fit). Only rendered when the
+   points overflow the visible width. */
+.timeline-zoom-btn {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    backdrop-filter: blur(18px) saturate(180%);
+    color: var(--text-brand-navy);
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.timeline-zoom-btn:hover,
+.timeline-zoom-btn:active,
+.timeline-zoom-btn:focus-visible {
+    transform: scale(1.07);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+    outline: none;
+}
+
 @media (max-width: 720px) {
-    .timeline-inner {
-        min-width: var(--timeline-min, 100%);
-    }
-    /* Phones: the small € axis labels left a lot of empty space between
-       them and the card's side padding. Pull the whole chart toward the
-       left edge so the Y axis sits closer to it and the plot reclaims the
-       width (a negative margin works regardless of whether the card's
-       padding resolves to .card's 24px or the p-8 utility's 32px). */
+    /* Phones: the small € axis labels left a lot of empty space between them
+       and the card's side padding. Pull the whole chart toward the left edge
+       so the Y axis sits closer to it and the plot reclaims the width
+       (negative margin; the card's p-8 padding resolves to 32px because
+       main.css loads after index.css). */
     .timeline-frame {
-        margin-left: -14px;
-        margin-right: -6px;
+        margin-left: -22px;
+        margin-right: -10px;
     }
 }
 

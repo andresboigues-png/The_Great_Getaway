@@ -803,6 +803,8 @@ export const es: Translations = {
         byCountrySubtitle: 'A dónde fue el dinero en cada tramo',
         timelineTitle: 'Cronología de gastos',
         timelineSubtitle: 'Flujo cronológico de tus gastos',
+        timelineZoomIn: 'Expandir la cronología',
+        timelineZoomOut: 'Ver toda la cronología',
         unknownDate: 'Desconocido',
     },
     search: {

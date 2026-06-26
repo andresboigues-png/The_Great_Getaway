@@ -808,6 +808,8 @@ export const fr: Translations = {
         byCountrySubtitle: 'Où est passé l\'argent sur chaque étape',
         timelineTitle: 'Chronologie des dépenses',
         timelineSubtitle: 'Flux chronologique de tes dépenses',
+        timelineZoomIn: 'Étendre la chronologie',
+        timelineZoomOut: 'Voir toute la chronologie',
         unknownDate: 'Inconnu',
     },
     search: {

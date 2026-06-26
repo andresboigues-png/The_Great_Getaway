@@ -707,6 +707,32 @@ export function Insights() {
     const spenderPieRef = useRef<HTMLCanvasElement | null>(null);
     const perPieRef = useRef<HTMLCanvasElement | null>(null);
 
+    // ── Timeline zoom ─────────────────────────────────────────────────────
+    // Default is zoomed OUT: every point fits the visible width, no scroll.
+    // When there are more points than fit at a comfortable per-point width, a
+    // glass button lets the user zoom IN (spread to --timeline-min + scroll)
+    // and back. We measure the actual plot width so the button only appears
+    // when the points genuinely overflow — never for a timeline that already
+    // fits (where zooming would be a no-op).
+    const [timelineZoomed, setTimelineZoomed] = useState(false);
+    const timeScrollRef = useRef<HTMLDivElement | null>(null);
+    const [timelinePlotW, setTimelinePlotW] = useState(0);
+    useEffect(() => {
+        const el = timeScrollRef.current;
+        if (!el) {
+            setTimelinePlotW(0);
+            return;
+        }
+        const measure = () => setTimelinePlotW(el.clientWidth);
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
+        // tripExps.length re-runs this on the no-expenses → loaded transition
+        // (when .timeline-scroll first mounts) so the plot gets measured.
+    }, [tripExps.length]);
+    const timelineNeedsZoom = timelinePlotW > 0 && timelinePointCount * 40 > timelinePlotW + 12;
+
     useEffect(() => {
         if (!timeCanvasRef.current || tripExps.length === 0) return;
         // MK2 audit fix (timeline must represent TIME): plot points on a
@@ -1719,13 +1745,38 @@ export function Insights() {
                     plot gets a min per-point width and the card scrolls sideways
                     (stays fit-to-width on desktop — see .timeline-inner in index.css). */}
                 <div className="timeline-frame">
+                    {timelineNeedsZoom ? (
+                        <button
+                            type="button"
+                            className="timeline-zoom-btn"
+                            onClick={() => setTimelineZoomed((z) => !z)}
+                            aria-pressed={timelineZoomed}
+                            aria-label={timelineZoomed ? t('insights.timelineZoomOut') : t('insights.timelineZoomIn')}
+                            title={timelineZoomed ? t('insights.timelineZoomOut') : t('insights.timelineZoomIn')}
+                        >
+                            {timelineZoomed ? (
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="11" cy="11" r="7"></circle>
+                                    <line x1="8" y1="11" x2="14" y2="11"></line>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                            ) : (
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="11" cy="11" r="7"></circle>
+                                    <line x1="11" y1="8" x2="11" y2="14"></line>
+                                    <line x1="8" y1="11" x2="14" y2="11"></line>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                            )}
+                        </button>
+                    ) : null}
                     {/* Fixed € axis — stays put while .timeline-scroll scrolls. */}
                     <div className="timeline-yaxis relative h-[350px]">
                         <canvas ref={timeAxisRef}></canvas>
                     </div>
-                    <div className="timeline-scroll">
+                    <div className="timeline-scroll" ref={timeScrollRef}>
                         <div
-                            className="timeline-inner relative h-[350px]"
+                            className={`timeline-inner relative h-[350px]${timelineZoomed && timelineNeedsZoom ? ' is-zoomed' : ''}`}
                             style={{ ['--timeline-min' as string]: `${timelinePointCount * 40}px` }}
                         >
                             <canvas id="timelineChart" ref={timeCanvasRef}></canvas>

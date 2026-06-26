@@ -807,6 +807,8 @@ export const pt: Translations = {
         byCountrySubtitle: 'Para onde foi o dinheiro em cada etapa',
         timelineTitle: 'Cronologia de gastos',
         timelineSubtitle: 'Fluxo cronológico das tuas despesas',
+        timelineZoomIn: 'Expandir a cronologia',
+        timelineZoomOut: 'Ver toda a cronologia',
         unknownDate: 'Desconhecido',
     },
     search: {
