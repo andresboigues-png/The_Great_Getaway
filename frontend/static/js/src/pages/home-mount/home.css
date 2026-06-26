@@ -1237,6 +1237,36 @@
     margin-bottom: var(--space-10);
     gap: var(--space-3);
 }
+.day-detail-header__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+/* Numbered-day header buttons: 🛏️ accommodation + ✏️ edit name/date, sitting
+   beside the close ✕. */
+.day-detail-header__act {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 45, 91, 0.12);
+    background: rgba(0, 45, 91, 0.04);
+    color: #002d5b;
+    font-size: 1.05rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+.day-detail-header__act:hover,
+.day-detail-header__act:focus-visible {
+    background: rgba(0, 45, 91, 0.09);
+    transform: scale(1.05);
+    outline: none;
+}
 .day-detail-header__inner {
     flex: 1;
     min-width: 0;

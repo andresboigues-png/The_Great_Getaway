@@ -40,6 +40,7 @@ import { t, formatHourLabel } from '../../i18n.js';
 import { navigate } from '../../router.js';
 import { openTripChecklistModal } from './tripChecklistModal.js';
 import { openDayView } from './dayViewModal.js';
+import { openAccommodationModal } from './accommodationModal.js';
 import { iconSvg } from '../../icons.js';
 
 
@@ -639,7 +640,13 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                     </div>
                     <h2 class="day-detail-header__title">${headerTitle}</h2>
                 </div>
-                <button id="closeDetailBtn" class="close-x-btn" aria-label="${esc(t('dayDetail.closeBtn'))}">✕</button>
+                <div class="day-detail-header__actions">
+                    ${!isAnchor ? `
+                    <button id="dayAccommodationBtn" class="day-detail-header__act" type="button" title="${esc(t('dayDetail.accommodationHeading'))}" aria-label="${esc(t('dayDetail.accommodationHeading'))}">🛏️</button>
+                    <button id="dayEditBtn" class="day-detail-header__act" type="button" title="${esc(t('common.edit'))}" aria-label="${esc(t('dayDetail.editDayAria'))}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button>
+                    ` : ''}
+                    <button id="closeDetailBtn" class="close-x-btn" aria-label="${esc(t('dayDetail.closeBtn'))}">✕</button>
+                </div>
             </div>
             ${bodyHtml}
             ${footerHtml}
@@ -1243,6 +1250,64 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             applyShortlistFilters();
         });
     });
+
+    // Numbered-day header actions (hidden on the Anchor / Trip Hub):
+    //   • Accommodation — reuse the Trip Hub's accommodation editor,
+    //     preselected to this day, so "where you're staying" is set the
+    //     same way everywhere. Close this modal first so we don't stack.
+    //   • Edit — change the day's name + date in a small sub-form.
+    if (!isAnchor) {
+        const accBtn = root.querySelector('#dayAccommodationBtn') as HTMLButtonElement | null;
+        if (accBtn) {
+            accBtn.onclick = async () => {
+                if (saveTimer || pendingSave) await persistNow();
+                close();
+                if (trip) openAccommodationModal(trip, { preselectDayId: day.id });
+            };
+        }
+        const editBtn = root.querySelector('#dayEditBtn') as HTMLButtonElement | null;
+        if (editBtn) editBtn.onclick = () => openDayEdit();
+    }
+
+    /** Small sub-modal to edit the day's name + date. Writes straight onto
+     *  the `day` object + persists via the same upsertDay path the plan
+     *  autosave uses, then live-updates this modal's header (and emits so the
+     *  home day cards repaint). */
+    function openDayEdit(): void {
+        // Hoisted fn: TS widens the outer `day` const back to TripDay|undefined
+        // here, so re-narrow (it's already guaranteed by the early return at
+        // the top of openDayDetail).
+        if (!day) return;
+        const { root: er, close: ec } = showModal({
+            cardClass: 'card glass',
+            cardStyle: 'width: min(420px, calc(100vw - 32px)); padding: var(--space-8); border-radius: 24px; background: white;',
+            innerHTML: `
+                <h3 style="margin:0 0 18px; font-size:1.3rem; font-weight:800; color:#002d5b; letter-spacing:-0.02em;">${esc(t('dayDetail.editDayTitle'))}</h3>
+                <label style="display:block; font-size:0.74rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">${esc(t('dayDetail.editDayNameLabel'))}</label>
+                <input id="dayEditName" type="text" class="glass-input" style="width:100%; box-sizing:border-box; margin-bottom:16px;" value="${esc(day.name || '')}">
+                <label style="display:block; font-size:0.74rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">${esc(t('dayDetail.editDayDateLabel'))}</label>
+                <input id="dayEditDate" type="date" class="glass-input" style="width:100%; box-sizing:border-box; margin-bottom:22px;" value="${esc(day.date || '')}">
+                <div style="display:flex; gap:10px; justify-content:flex-end;">
+                    <button id="dayEditCancel" type="button" class="btn btn-liquid-glass" style="padding:10px 18px; border-radius:12px;">${esc(t('common.cancel'))}</button>
+                    <button id="dayEditSave" type="button" class="btn-primary" style="padding:10px 22px; border-radius:12px;">${esc(t('common.save'))}</button>
+                </div>
+            `,
+        });
+        (q(er, '#dayEditCancel') as HTMLButtonElement).onclick = () => ec();
+        (q(er, '#dayEditSave') as HTMLButtonElement).onclick = async () => {
+            const nm = (q(er, '#dayEditName') as HTMLInputElement).value.trim();
+            const dt = (q(er, '#dayEditDate') as HTMLInputElement).value;
+            if (nm) day.name = nm;
+            if (dt) day.date = dt;
+            await persistNow();
+            const titleEl = root.querySelector('.day-detail-header__title');
+            if (titleEl) titleEl.textContent = day.name;
+            const subEl = root.querySelector('.day-detail-header__subtitle');
+            if (subEl) subEl.textContent = formatDayDate(day.date);
+            emit('state:changed');
+            ec();
+        };
+    }
 
     (q(root, '#closeDetailBtn') as HTMLButtonElement).onclick = async () => {
         // Flush any pending debounce so closing-while-typing
