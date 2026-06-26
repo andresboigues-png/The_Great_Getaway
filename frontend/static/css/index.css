@@ -776,12 +776,21 @@ h1 {
 }
 .timeline-inner {
     width: 100%;
+    /* Smooth zoom: min-width animates between fit (none) and the per-point
+       width (.is-zoomed). Chart.js's responsive observer redraws the line as
+       the width animates, so the plot visibly spreads / compresses. */
+    transition: min-width 0.38s cubic-bezier(0.4, 0, 0.2, 1);
 }
 /* Zoomed IN (toggled by the glass button): spread the points to a per-point
    width and scroll. Default — no .is-zoomed — fits everything in view, which
    is what the user sees first (zoomed out). */
 .timeline-inner.is-zoomed {
     min-width: var(--timeline-min, 100%);
+}
+@media (prefers-reduced-motion: reduce) {
+    .timeline-inner {
+        transition: none;
+    }
 }
 
 /* Liquid-glass zoom toggle, floated in the chart's top-right corner (over the

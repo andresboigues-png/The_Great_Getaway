@@ -732,6 +732,15 @@ export function Insights() {
         // (when .timeline-scroll first mounts) so the plot gets measured.
     }, [tripExps.length]);
     const timelineNeedsZoom = timelinePlotW > 0 && timelinePointCount * 40 > timelinePlotW + 12;
+    // Mirror the EFFECTIVE zoom state into a ref the chart's x-axis tick
+    // callback reads on every (resize-driven) render — so the date labels
+    // switch between "first + last only" (zoomed out) and "all" (zoomed in)
+    // without re-creating the chart. useLayoutEffect keeps it current before
+    // the zoom transition paints.
+    const zoomedRef = useRef(false);
+    useLayoutEffect(() => {
+        zoomedRef.current = timelineZoomed && timelineNeedsZoom;
+    }, [timelineZoomed, timelineNeedsZoom]);
 
     useEffect(() => {
         if (!timeCanvasRef.current || tripExps.length === 0) return;
@@ -848,9 +857,16 @@ export function Insights() {
                             color: tickCol,
                             font: { size: 11 },
                             padding: 8,
-                            callback: (value: number | string) => {
+                            callback: (value: number | string, index: number, ticks: readonly unknown[]) => {
                                 const v = Number(value);
                                 if (!Number.isFinite(v)) return '';
+                                // Zoomed out: show ONLY the first + last date (the
+                                // endpoints). Zoomed in: show every generated tick.
+                                // zoomedRef is read fresh on each resize-driven
+                                // render, so this flips with the zoom animation.
+                                if (!zoomedRef.current && index !== 0 && index !== ticks.length - 1) {
+                                    return '';
+                                }
                                 return timelineDateLabel(new Date(v).toISOString().slice(0, 10), includeYear);
                             },
                         },
