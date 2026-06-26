@@ -86,6 +86,7 @@ export const fr: Translations = {
         settlement: 'Règlement',
         search: 'Rechercher',
         newTrip: 'Nouveau voyage',
+        tripOptions: 'Options du voyage',
         yourTrip: 'Ton voyage',
         notifications: 'Notifications',
         markAllRead: 'Tout marquer comme lu',

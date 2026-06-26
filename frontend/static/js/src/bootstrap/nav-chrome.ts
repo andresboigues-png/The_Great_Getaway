@@ -379,7 +379,11 @@ export function wireNavChrome(): void {
     // Both sets fire the same handler — nav-trips.ts mirrors the selector +
     // visibility state. Optional-chaining the addEventListener means a
     // future deploy that strips one set won't crash this boot.
-    document.getElementById('newTripBtn')?.addEventListener('click', () => openNewTripModal());
+    // Desktop "+" (navbar) now OPENS the trip-controls popover — the same one
+    // the mobile #navTripChange trigger uses — rather than creating a trip
+    // directly. New Trip itself lives inside the popover (#newTripBtnSidebar
+    // below), alongside Edit / Download / Silence / Complete / Delete.
+    document.getElementById('newTripBtn')?.addEventListener('click', (e) => togglePopover(e));
     document.getElementById('newTripBtnSidebar')?.addEventListener('click', () => openNewTripModal());
 
     // Mark-all-read — present in BOTH dropdown copies so either bell's
@@ -475,12 +479,16 @@ export function wireNavChrome(): void {
         // fire on the same click that togglePopover already toggled,
         // snapping the popover back closed before the user could see it.
         const onTripChangeTrigger = target?.closest('#navTripChange');
+        // Desktop opener (#newTripBtn) toggles the same popover — exclude it so
+        // the click that opens it doesn't immediately fall through and close it.
+        const onDesktopTripMenu = target?.closest('#newTripBtn');
         if (tripControlsPopover
             && tripControlsPopover.style.display === 'block'
             && target
             && !tripControlsPopover.contains(target)
             && !(tripControlsBtn && tripControlsBtn.contains(target))
             && !onTripChangeTrigger
+            && !onDesktopTripMenu
         ) {
             tripControlsPopover.style.display = 'none';
             if (tripControlsBtn) tripControlsBtn.setAttribute('aria-expanded', 'false');

@@ -81,6 +81,7 @@ export const pt: Translations = {
         settlement: 'Acerto de contas',
         search: 'Pesquisar',
         newTrip: 'Nova viagem',
+        tripOptions: 'Opções da viagem',
         yourTrip: 'A tua viagem',
         notifications: 'Notificações',
         markAllRead: 'Marcar todas como lidas',

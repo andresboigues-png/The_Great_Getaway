@@ -81,6 +81,7 @@ export const es: Translations = {
         settlement: 'Liquidación',
         search: 'Buscar',
         newTrip: 'Nuevo viaje',
+        tripOptions: 'Opciones del viaje',
         yourTrip: 'Tu viaje',
         notifications: 'Notificaciones',
         markAllRead: 'Marcar todo como leído',

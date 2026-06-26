@@ -321,18 +321,16 @@
         <!-- Trip controls — desktop only. On mobile these move into the
              top of the burger drawer (#newTripBtnSidebar etc.). -->
         <div class="nav-trips nav-trips--desktop-only" style="display: flex; align-items: center; gap: 8px;">
-            <button class="btn-primary-pill btn-primary-pill--icon" id="newTripBtn" data-i18n-aria-label="nav.newTrip" aria-label="New trip">
-                <span class="np-icon" aria-hidden="true">+</span>
-                <span class="np-label" data-i18n-key="nav.newTrip">New Trip</span>
-            </button>
             <select id="tripSelector" class="btn-primary-pill--inverse" aria-label="Select active trip" style="min-width: 160px;">
                 <option value="">Select a Trip...</option>
             </select>
-            <button class="icon-btn-circle" id="completeTripBtn" style="--accent: 52,199,89; display: none;" title="Complete Trip">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            </button>
-            <button class="icon-btn-circle" id="deleteTripBtn" style="--accent: 255,59,48; display: none;" title="Delete Trip">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+            <!-- Desktop trip menu: this single "+" opens the SAME #tripControlsPopover
+                 as mobile (New Trip · Edit · Download · Silence · Complete · Delete).
+                 The popover's own trip selector is hidden on desktop (the selector
+                 above already covers it). The old inline Complete / Delete icon
+                 buttons are gone — they live in the popover now. -->
+            <button class="btn-primary-pill btn-primary-pill--icon" id="newTripBtn" data-i18n-aria-label="nav.tripOptions" aria-label="Trip options" aria-haspopup="dialog" aria-controls="tripControlsPopover" aria-expanded="false" title="Trip options">
+                <span class="np-icon" aria-hidden="true">+</span>
             </button>
         </div>
     </nav>

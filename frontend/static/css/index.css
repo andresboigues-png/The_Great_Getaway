@@ -1383,11 +1383,25 @@ body.is-signed-out .rail-peek {
     margin: 0;
 }
 @media (min-width: 721px) {
-    /* Compass button + popover are mobile chrome; on desktop the same
-       controls live in the navbar's .nav-trips--desktop-only block. */
-    #tripControlsBtn,
-    .trip-controls-popover {
+    /* The standalone compass opener stays mobile-only. */
+    #tripControlsBtn {
         display: none !important;
+    }
+    /* 2026-06-26: the trip-controls popover is now used on desktop too — the
+       "+" button in .nav-trips--desktop-only opens it (New Trip + Edit +
+       Download + Silence + Complete + Delete). Reposition it from the mobile
+       full-width banner-drop into a compact dropdown anchored under the navbar
+       top-right, and hide its internal trip selector (the navbar already has
+       #tripSelector). JS still toggles display:block/none. */
+    .trip-controls-popover {
+        top: 60px;
+        left: auto;
+        right: 20px;
+        width: 320px;
+        max-width: 320px;
+    }
+    .trip-controls-popover #tripSelectorSidebar {
+        display: none;
     }
 }
 /* 2026-05-21: mobile-only — REMOVE the compass from the top banner

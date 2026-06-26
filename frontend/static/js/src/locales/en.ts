@@ -100,6 +100,7 @@ export const en = {
         search: 'Search',
         // Buttons in the navbar / sidebar.
         newTrip: 'New Trip',
+        tripOptions: 'Trip options',
         yourTrip: 'Your trip',
         notifications: 'Notifications',
         markAllRead: 'Mark all read',
