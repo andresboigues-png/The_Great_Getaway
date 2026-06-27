@@ -31,7 +31,9 @@
 .trip-tabnav-wrap {
     display: flex;
     justify-content: center;
-    margin: var(--space-5) 0 var(--space-6);
+    /* Top margin trimmed (space-5 -> space-2) so the Path/Trip-Hub/Companions
+       selector sits closer to the map above it; bottom margin unchanged. */
+    margin: var(--space-2) 0 var(--space-6);
 }
 .trip-tabnav {
     display: inline-flex;
@@ -1640,8 +1642,15 @@
         font-size: 0.74rem;
     }
     .day-plan-pane textarea.plan-input {
-        /* Was 140px — too cramped for a day's plan on a phone. */
-        min-height: 230px;
+        /* Mobile: let the textarea auto-grow to its full content height
+           (sized inline by autoGrowPlan in dayDetailModal.ts) and let the
+           bottom-sheet modal scroll instead of an inner scrollbar. Drop the
+           desktop flex:1 so the inline height wins, hide the inner
+           scrollbar, and keep a generous floor for short/empty plans. */
+        flex: none;
+        height: auto;
+        overflow-y: hidden;
+        min-height: min(280px, 45vh);
     }
     /* Smaller photo + tighter card padding so the rich place cards
        fit in a portrait-phone column without horizontal overflow. */

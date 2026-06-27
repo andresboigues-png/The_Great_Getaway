@@ -73,6 +73,9 @@ export function wireNavChrome(): void {
     const toggleRail = () => {
         const rail = document.getElementById('sidebarRail');
         if (!rail) return;
+        // The burger / peek handle always opens the rail from the LEFT, so
+        // clear any right-side flag a prior swipe-from-Expenses left set.
+        rail.classList.remove('rail-from-right');
         const isOpen = rail.classList.toggle('is-open');
         hamburgerBtn?.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
     };
@@ -135,6 +138,7 @@ export function wireNavChrome(): void {
         if (rail?.classList.contains('is-open')) {
             e.preventDefault();
             rail.classList.remove('is-open');
+            rail.classList.remove('rail-from-right');
             hamburgerBtn?.setAttribute('aria-expanded', 'false');
         }
     });
@@ -165,6 +169,7 @@ export function wireNavChrome(): void {
         const closeRail = () => {
             railOutsideTaps = 0;
             rail.classList.remove('is-open');
+            rail.classList.remove('rail-from-right');
             hamburgerBtn?.setAttribute('aria-expanded', 'false');
         };
         // Tapping an actual control / feature on the current page (a button,

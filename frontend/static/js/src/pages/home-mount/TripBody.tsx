@@ -429,7 +429,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
     };
 
     return (
-        <div ref={daysContainerRef} className="mt-10">
+        <div ref={daysContainerRef} className="mt-4">
             <div className="flex flex-col mb-6">
                 {/* Round 8: the in-content trip-title row (name + Edit /
                     Download / Silence) was removed — the trip name now

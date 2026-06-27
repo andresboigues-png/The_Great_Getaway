@@ -838,6 +838,21 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // debounced upsertDay so the server stays in sync without
     // spamming requests on every keystroke.
     const planTextareas = (root.querySelectorAll('textarea.plan-input') as NodeListOf<HTMLTextAreaElement>);
+    // Auto-grow a plan textarea to fit its content so the FULL plan is
+    // visible with no inner scrollbar (the bottom-sheet modal scrolls
+    // instead). Mobile CSS drops the textarea's flex:1 + sets
+    // overflow-y:hidden so this inline height takes effect; on desktop
+    // flex:1 still wins, so the inline height is benign there. Guard
+    // against hidden panes: inactive .day-plan-pane is display:none, so
+    // its textarea reports scrollHeight 0 — sizing it then would collapse
+    // it to 0px. Re-run when the pane becomes visible (see switchPlanTab).
+    const autoGrowPlan = (ta: HTMLTextAreaElement | null | undefined): void => {
+        if (!ta || ta.offsetParent === null) return; // not laid out yet
+        ta.style.height = 'auto';
+        if (ta.scrollHeight > 0) ta.style.height = `${ta.scrollHeight}px`;
+    };
+    // Initial paint: only the active pane's textarea is visible.
+    autoGrowPlan(root.querySelector('.day-plan-pane.is-active textarea.plan-input') as HTMLTextAreaElement | null);
     const notesTextarea = (q(root, '#detailNotes') as HTMLTextAreaElement);
     const statusEl = (q(root, '#autosaveStatus') as HTMLElement);
 
@@ -1088,6 +1103,9 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         // element).
         setTimeout(() => {
             const ta = (root.querySelector(`.day-plan-pane.is-active textarea.plan-input`) as HTMLTextAreaElement | null);
+            // Grow now that the pane is visible — scrollHeight was 0 while
+            // it was display:none, so it could not be measured at click time.
+            autoGrowPlan(ta);
             ta?.focus();
         }, 0);
     };
@@ -1103,6 +1121,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // Wire input events on every editable textarea.
     planTextareas.forEach(ta => {
         ta.addEventListener('input', () => {
+            autoGrowPlan(ta);
             queueSave();
             refreshShortlistButtons();
             refreshPlanTabCounts();

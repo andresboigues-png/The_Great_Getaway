@@ -89,6 +89,13 @@ const SWIPE_MIN_DISTANCE_PX = 80;
 // not to feel finicky and tight enough not to swallow vertical scrolls.
 const SWIPE_HORIZONTAL_RATIO = 1.5;
 
+// Rail edge zone — a rail-opening swipe must START within this many px of a
+// screen edge. This keeps the rail deliberate (an edge drag) and leaves
+// mid-screen swipes free for tab navigation, so the rail can't be opened by
+// an accidental mid-page swipe. The left edge opens the left rail; the right
+// edge opens the right rail — on ANY page, but only ever one side at a time.
+const RAIL_EDGE_ZONE_PX = 30;
+
 // Selectors for elements where horizontal touch belongs to that element,
 // not to us. Anything inside one of these gets a free pass: we read the
 // touchstart's target ancestors and bail if it matches.
@@ -146,16 +153,36 @@ interface SwipeStart {
 
 /**
  * Open / close the icon rail island (round 17 — the swipe target on
- * mobile, replacing the old burger drawer). A right-swipe from Home slides
- * the island out; a left-swipe slides it back. Unlike the drawer this is
- * NON-modal — no overlay, no inert, no focus trap — so the page behind
- * stays interactive (matching the burger toggle + toggleRail in
- * nav-chrome.ts). We mirror the hamburger's aria-expanded so both open
- * paths stay in sync.
+ * mobile, replacing the old burger drawer). A swipe from the LEFT screen
+ * edge opens it (openIsland); a swipe from the RIGHT edge opens it mirrored
+ * (openIslandRight); swiping the open rail back toward its own edge closes
+ * it. Works on any page. Unlike the drawer this is NON-modal — no overlay,
+ * no inert, no focus trap — so the page behind stays interactive (matching
+ * the burger toggle + toggleRail in nav-chrome.ts). We mirror the
+ * hamburger's aria-expanded so both open paths stay in sync.
  */
 function openIsland(): void {
     const rail = document.getElementById('sidebarRail');
     if (!rail || rail.classList.contains('is-open')) return;
+    // Default open = from the LEFT (Home gesture). Strip any stale
+    // right-side flag so a left open never inherits the mirrored geometry.
+    rail.classList.remove('rail-from-right');
+    rail.classList.add('is-open');
+    document.getElementById('hamburgerBtn')?.setAttribute('aria-expanded', 'true');
+}
+/**
+ * Open the SAME rail island but mirrored to the RIGHT edge — the
+ * symmetric counterpart of openIsland(). Triggered by the
+ * "swipe past the last tab" gesture at the Expenses boundary, so the
+ * rail is reachable from either end (left at Home, right at Expenses).
+ * The `.rail-from-right` class flips the rail's anchor + slide transform
+ * to the right edge (see index.css). nav-chrome.ts's close/toggle paths
+ * strip the flag so the rail resets to left geometry once dismissed.
+ */
+function openIslandRight(): void {
+    const rail = document.getElementById('sidebarRail');
+    if (!rail || rail.classList.contains('is-open')) return;
+    rail.classList.add('rail-from-right');
     rail.classList.add('is-open');
     document.getElementById('hamburgerBtn')?.setAttribute('aria-expanded', 'true');
 }
@@ -163,6 +190,9 @@ function closeIsland(): void {
     const rail = document.getElementById('sidebarRail');
     if (!rail || !rail.classList.contains('is-open')) return;
     rail.classList.remove('is-open');
+    // Reset the side flag so the next open starts from its default (left)
+    // geometry unless explicitly re-flagged by openIslandRight().
+    rail.classList.remove('rail-from-right');
     document.getElementById('hamburgerBtn')?.setAttribute('aria-expanded', 'false');
 }
 
@@ -246,49 +276,53 @@ export function initMobileSwipe(): void {
             // (absDy === 0 short-circuits the divide; treat as horizontal.)
             if (absDy > 0 && absDx / absDy < SWIPE_HORIZONTAL_RATIO) return;
 
-            // Rail island (round 17): it can be open on ANY page (it's nav
-            // chrome that persists across navigation), so handle it before the
-            // bottom-tab logic + the currentPage() early-return below. A
-            // left-swipe slides it closed; a right-swipe while it's already
-            // open is a no-op (it's out — don't also change tabs).
-            if (document.getElementById('sidebarRail')?.classList.contains('is-open')) {
-                if (dx < 0) closeIsland();
+            // ── Rail island ────────────────────────────────────────────
+            // The icon rail is nav chrome that can open from EITHER edge on
+            // ANY page. It opens only on a deliberate EDGE swipe — a drag that
+            // STARTS within RAIL_EDGE_ZONE_PX of a screen edge — so ordinary
+            // mid-screen swipes stay free for tab navigation and the rail is
+            // never opened by accident. Only one side is ever open (there's a
+            // single #sidebarRail; openIsland/openIslandRight keep the
+            // rail-from-right flag mutually exclusive).
+            const rail = document.getElementById('sidebarRail');
+            if (rail?.classList.contains('is-open')) {
+                // Close by swiping the rail back toward its OWN edge: a left
+                // rail closes on a left-swipe, a right rail on a right-swipe.
+                // A swipe the other way while it's open is a no-op (the rail
+                // is out — don't navigate the page behind it).
+                const fromRight = rail.classList.contains('rail-from-right');
+                if (fromRight ? dx > 0 : dx < 0) closeIsland();
+                return;
+            }
+            // Closed: an edge swipe opens the matching side.
+            const vw = window.innerWidth;
+            if (s.x <= RAIL_EDGE_ZONE_PX && dx > 0) {
+                // From the LEFT edge, dragging right → left rail.
+                openIsland();
+                return;
+            }
+            if (s.x >= vw - RAIL_EDGE_ZONE_PX && dx < 0) {
+                // From the RIGHT edge, dragging left → right rail.
+                openIslandRight();
                 return;
             }
 
+            // ── Bottom-tab navigation (mid-screen swipes) ───────────────
             const page = currentPage();
-            if (!page) {
-                // Round 19: on a non-tab page (Budgets, Collections, Profile,
-                // etc.) there's no prev/next tab, but a right-swipe still
-                // reveals the rail island — so the gesture works everywhere,
-                // not just on Home. (A left-swipe here is a no-op; closing an
-                // open island was already handled above.)
-                if (dx > 0) openIsland();
-                return;
-            }
+            if (!page) return; // non-tab page: rail (edge-only) handled above
             const idx = SWIPE_ORDER.indexOf(page);
             if (idx === -1) return;
-
             if (dx < 0) {
-                // Swipe LEFT → next tab. No-op at the right boundary
-                // (Expenses, post-2026-05-14 swap) per user spec.
-                // 'forward' tells the router to slide the new page in
-                // from the right edge — the direction the finger came
-                // from — so the animation matches the gesture instead
-                // of materialising in place.
+                // Swipe LEFT → next tab ('forward' slides the new page in from
+                // the right, matching the finger). The Expenses boundary is a
+                // no-op — the rail is reached via a right-edge swipe now.
                 const next = SWIPE_ORDER[idx + 1];
                 if (next) navigate(next, null, false, 'forward');
             } else {
-                // Swipe RIGHT → previous tab. At the LEFT boundary (Home)
-                // we slide the rail nav island out instead (round 17) — the
-                // "what's left of Home" surface. 'backward' slides a new page
-                // in from the left, matching the right-swipe gesture.
-                if (idx === 0) {
-                    openIsland();
-                } else {
-                    const prev = SWIPE_ORDER[idx - 1];
-                    if (prev) navigate(prev, null, false, 'backward');
-                }
+                // Swipe RIGHT → previous tab ('backward'). The Home boundary is
+                // a no-op — the rail is reached via a left-edge swipe now.
+                const prev = SWIPE_ORDER[idx - 1];
+                if (prev) navigate(prev, null, false, 'backward');
             }
         },
         { passive: true },
