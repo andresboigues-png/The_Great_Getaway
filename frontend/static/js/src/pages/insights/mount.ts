@@ -1,23 +1,18 @@
-// pages/insights/mount.ts — 2026-05-14 restructure.
+// pages/insights/mount.ts — router adapter for the standalone
+// Insights page.
 //
-// Pre-restructure: this file mounted <Insights /> at the /insights
-// route. After the restructure, Insights lives as a tab inside
-// Expenses (alongside Upload + History). The /insights route is
-// kept alive purely as a redirect so existing bookmarks +
-// in-app links land in the right place — it sets the Expenses
-// tab to 'insights' and navigates to /expenses, which mounts the
-// actual Insights component as a tab.
-//
-// The Insights React component itself is still imported by
-// Expenses.tsx — it just no longer has its own route mount.
+// History: Insights was originally its own /insights route. The
+// 2026-05-14 restructure folded it into Expenses as a tab and left
+// this file as a redirect. 2026-06-27 reverses that — Insights is a
+// top-level page again, reachable from the nav rail (the rail's
+// data-page="insights" item lands here directly). The Insights React
+// component is now mounted standalone instead of being borrowed by
+// Expenses.tsx.
 
-import { navigate } from '../../router.js';
-import { setExpensesTab } from '../expenses.js';
+import { createElement } from 'react';
+import { mountReact } from '../../react/reactMount.js';
+import { Insights } from './Insights.js';
 
-export function mountInsights(_container: HTMLElement): void {
-    // Set the tab BEFORE navigating so the Expenses mount on
-    // arrival reads the right tab state. The `_container` arg is
-    // unused — navigate replaces the current page entirely.
-    setExpensesTab('insights');
-    navigate('expenses');
+export function mountInsights(container: HTMLElement): void {
+    mountReact(container, createElement(Insights));
 }

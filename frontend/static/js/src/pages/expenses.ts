@@ -47,8 +47,7 @@ import {
 
 /** Set the active Expenses tab. Accepts new values + legacy aliases:
  *
- *    'upload' / 'insights' / 'history' — current tab values, set
- *      directly.
+ *    'upload' / 'history' — current tab values, set directly.
  *    'manual'  — legacy alias for "Upload tab, Manual sub-mode".
  *      Sets the main tab to 'upload' + flips the inner toggle to
  *      'manual'.
@@ -59,7 +58,7 @@ import {
  *
  *  Unknown values silently no-op rather than corrupting the store. */
 export function setExpensesTab(
-    tab: 'upload' | 'insights' | 'history' | 'manual' | 'batch',
+    tab: 'upload' | 'history' | 'manual' | 'batch',
 ) {
     if (tab === 'manual') {
         setUploadMode('manual');
@@ -71,7 +70,7 @@ export function setExpensesTab(
         setActiveExpensesTab('upload');
         return;
     }
-    if (tab === 'upload' || tab === 'insights' || tab === 'history') {
+    if (tab === 'upload' || tab === 'history') {
         setActiveExpensesTab(tab as ExpensesTab);
     }
 }

@@ -13,13 +13,16 @@
 //      navigate('expenses') re-mount cycle.
 //
 // 2026-05-14 restructure: Manual + Batch tabs collapsed into a single
-// "Upload" tab with an inner switch. Insights moved from a top-level
-// page into the Expenses tab strip. New tab order: Upload | Insights
-// | History. The legacy 'manual' / 'batch' values map to 'upload'
-// with the corresponding sub-mode set so external callers (and the
-// `setExpensesTab` façade in pages/expenses.ts) keep working.
+// "Upload" tab with an inner switch. The legacy 'manual' / 'batch'
+// values map to 'upload' with the corresponding sub-mode set so
+// external callers (and the `setExpensesTab` façade in
+// pages/expenses.ts) keep working.
+//
+// 2026-06-27: Insights moved back OUT to its own top-level /insights
+// page (reachable from the nav rail), so it's no longer a tab here.
+// Tab order: Upload | History.
 
-export type ExpensesTab = 'upload' | 'insights' | 'history';
+export type ExpensesTab = 'upload' | 'history';
 
 /** Inner mode for the Upload tab — flips between the per-row Manual
  *  form and the spreadsheet Batch importer. Used only when the

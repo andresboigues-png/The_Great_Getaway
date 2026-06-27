@@ -4,13 +4,12 @@
 // 2026-05-14 restructure:
 //   - "Manual" + "Batch" tabs collapsed into a single "Upload" tab
 //     with an inner Manual/Batch toggle (see UploadTab.tsx).
-//   - "Insights" promoted from a top-level page into a tab here.
-//     It used to be its own route at /insights; that route now
-//     redirects to /expenses with the Insights tab active.
-//   - The mobile bottom-nav Insights item is gone too — Insights
-//     lives inside Expenses on every viewport now.
 //
-// New tab order: Upload | Insights | History
+// 2026-06-27: "Insights" moved back OUT to its own top-level
+// /insights page (reachable from the nav rail), so it's no longer a
+// tab here.
+//
+// Tab order: Upload | History
 //
 // Tab state is externalised in ./tabState — so external callers
 // (router.ts after /upload, openEditExpenseModal after an edit
@@ -20,9 +19,8 @@
 //
 // Permissions: Upload is planner-only (both Manual + Batch sub-
 // modes write to the trip). Relaxers see a friendly "you're a
-// relaxer here" notice on that tab. Insights + History are
-// universally visible — Insights is a read-only chart, History is
-// a read-only ledger.
+// relaxer here" notice on that tab. History is universally visible —
+// it's a read-only ledger.
 
 import { useSyncExternalStore } from 'react';
 import { useActiveTrip } from '../../react/TripContext.js';
@@ -38,7 +36,6 @@ import {
 } from './tabState.js';
 import { UploadTab } from './UploadTab.js';
 import { HistoryTab } from './HistoryTab.js';
-import { Insights } from '../insights/Insights.js';
 // Page-scoped CSS — sub-tab nav + history filter grid + mobile
 // overrides. FIXING_ROADMAP §3.1 third slice. Vite chunks this
 // alongside the Expenses JS bundle so users who never visit
@@ -123,7 +120,6 @@ export function Expenses() {
             </h1>
             <nav className="expenses-tabnav" role="tablist">
                 {tabBtn('upload', t('expenses.tabUpload'))}
-                {tabBtn('insights', t('expenses.tabInsights'))}
                 {tabBtn('history', t('expenses.tabHistory'))}
             </nav>
 
@@ -137,8 +133,6 @@ export function Expenses() {
                     ) : (
                         <UploadTab />
                     )
-                ) : tab === 'insights' ? (
-                    <Insights />
                 ) : (
                     <HistoryTab />
                 )}

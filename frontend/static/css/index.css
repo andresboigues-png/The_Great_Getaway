@@ -1264,19 +1264,6 @@ body.is-signed-out .rail-peek {
     .sidebar-rail.is-open {
         transform: translateX(0) translateY(-50%);
     }
-    /* Right-edge variant: the "swipe past the last tab" (Expenses)
-       gesture opens the SAME island mirrored to the right. Re-anchor to
-       the right edge and flip the slide direction so it parks off-screen
-       to the RIGHT and slides in leftward. Geometry only — the glass
-       fill / dark-mode treatment / item styles are unchanged. */
-    .sidebar-rail.rail-from-right {
-        left: auto;
-        right: 12px;
-        transform: translateX(calc(100% + 16px)) translateY(-50%);
-    }
-    .sidebar-rail.is-open.rail-from-right {
-        transform: translateX(0) translateY(-50%);
-    }
 }
 
 /* ── Mobile trip-controls popover ────────────────────────────────────
