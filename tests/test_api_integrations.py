@@ -753,3 +753,32 @@ def test_enrich_itinerary_normalizes_without_maps_key(monkeypatch):
 
     item = out[0]["morning"]["items"][0]
     assert item["text"] == "Spot Z" and item["verified"] is False
+
+
+def test_generate_itinerary_safety_blocked_is_not_success(
+    client, seed_user, auth_headers, monkeypatch,
+):
+    """MK6 P2: a Gemini HTTP 200 with a SAFETY finishReason and NO parts must
+    NOT be treated as success. The old default of "[]" was truthy, so the route
+    returned {status:success, itinerary:[]} (blank plan, no error) AND still
+    burned the user's daily quota. It must now fall through to a failure."""
+    monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_MAPS_SERVER_KEY", raising=False)
+    blocked_body = {"candidates": [{"finishReason": "SAFETY"}]}
+
+    def fake_post(url, headers=None, json=None, timeout=None, **kwargs):
+        return _FakeGeminiResponse(200, json_body=blocked_body)
+
+    import routes.integrations
+    monkeypatch.setattr(routes.integrations.requests, "post", fake_post)
+
+    res = client.post("/api/generate_itinerary", headers=auth_headers, json={
+        "destination": "Tokyo", "numDays": 1, "gemini_key": "byo-key",
+    })
+    # Must not be a success-with-empty-itinerary; the route surfaces an error.
+    if res.status_code == 200:
+        body = res.get_json()
+        assert not (body.get("status") == "success" and not body.get("itinerary")), \
+            "SAFETY-blocked 200 was treated as success with an empty itinerary"
+    else:
+        assert res.status_code in (429, 502), res.get_data(as_text=True)

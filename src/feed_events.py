@@ -159,6 +159,27 @@ def is_friend_of(cursor, viewer_id, actor_id) -> bool:
     return cursor.fetchone() is not None
 
 
+def is_following(cursor, viewer_id, actor_id) -> bool:
+    """True iff `viewer_id` follows `actor_id` (ONE direction). (MK6 P2)
+
+    The feed's actor pool is one-way follows, so a public trip_* / achievement
+    card IS surfaced to a one-way follower — but engagement was gated on the
+    MUTUAL is_friend_of, so bookmarking/liking those visible cards 404'd for the
+    exact Model-B audience the builder targets. Public-facing event visibility
+    checks use this one-way rule; private trips keep the mutual/member gate.
+    Self always passes.
+    """
+    if not viewer_id or not actor_id:
+        return False
+    if viewer_id == actor_id:
+        return True
+    cursor.execute(
+        "SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = ? LIMIT 1",
+        (viewer_id, actor_id),
+    )
+    return cursor.fetchone() is not None
+
+
 def is_trip_member(cursor, trip_id, user_id) -> bool:
     """True iff `user_id` is an accepted member of `trip_id`. Includes
     the trip owner (they get a synthetic accepted-member row by
@@ -212,7 +233,11 @@ def _visible_to_trip_friends(cursor, components, user_id) -> bool:
     trip = cursor.fetchone()
     if not trip or not trip["pub"]:
         return False
-    return is_friend_of(cursor, user_id, owner_id)
+    # MK6 P2: the trip is PUBLIC here (member/private handled above), and the
+    # builder surfaces its card to ONE-WAY followers — so match that with a
+    # one-way follow check, not the mutual is_friend_of, or the card the viewer
+    # can see is un-bookmarkable (404).
+    return is_following(cursor, user_id, owner_id)
 
 
 def _visible_to_friendship_party(cursor, components, user_id) -> bool:
@@ -310,7 +335,10 @@ def _visible_to_achievement_friends(cursor, components, user_id) -> bool:
     row = cursor.fetchone()
     if not row:
         return False
-    return is_friend_of(cursor, user_id, row["user_id"])
+    # MK6 P2: achievements are a deliberately public-facing social event
+    # surfaced to one-way followers (see the builder), so engagement uses the
+    # one-way follow check to match — not the mutual is_friend_of.
+    return is_following(cursor, user_id, row["user_id"])
 
 
 # ── Engagement-recipient hooks ────────────────────────────────────────

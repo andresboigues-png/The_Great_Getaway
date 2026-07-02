@@ -173,3 +173,15 @@ def test_retry_on_lock_passes_args_through():
 
     assert fn(1, 2, c=3) == (1, 2, 3)
     assert state["calls"] == 2
+
+
+def test_expected_columns_covers_golden_path_columns():
+    """MK6 P2: _EXPECTED_COLUMNS must list every column the golden path relies
+    on, or a stale DB boots clean (CREATE TABLE IF NOT EXISTS no-ops) then 500s.
+    users.is_creator (SELECTed on every login) + categories.updated_at (delta
+    sync) were both missing — this pins them so the drift tripwire covers them."""
+    from database import _EXPECTED_COLUMNS
+    assert "is_creator" in _EXPECTED_COLUMNS["users"], \
+        "users.is_creator missing from the schema-drift tripwire"
+    assert "updated_at" in _EXPECTED_COLUMNS["categories"], \
+        "categories.updated_at missing from the schema-drift tripwire"

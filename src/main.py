@@ -96,6 +96,15 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # checks live in routes/media.py alongside the upload handler.
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
 app.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_SIZE
+# MK6 P2: /api/trips/import restores a whole media-bearing trip, so the 10 MB
+# global cap (sized for single-photo uploads) rejected any export >10 MB with a
+# bare 413 — breaking the export→import round-trip the feature exists for. The
+# route below raises the per-request cap. Kept well under trip_io's 512 MB
+# uncompressed guard on purpose: the import handler buffers the whole body in
+# RAM (file.read()), so a 512 MB request would risk OOM-ing the single PA
+# worker. 64 MB covers a typical media trip; full parity for very large trips
+# needs streaming the upload to a temp file (follow-up).
+IMPORT_MAX_CONTENT_LENGTH = 64 * 1024 * 1024  # 64 MB
 
 # E2E test mode disables rate limits so Playwright can run 30+ tests
 # against the same Flask process without tripping per-IP throttles.
@@ -306,6 +315,16 @@ attach_request_context(app, current_user_id)
 #   Referrer-Policy: strict-origin-when-cross-origin
 #       — outbound link clicks don't leak the full URL (which may
 #         contain trip / user identifiers) to third parties
+
+@app.before_request
+def _raise_import_upload_limit():
+    """MK6 P2: lift the 10 MB body cap for /api/trips/import only, so a media-
+    bearing trip export can actually be re-imported. Runs before the handler
+    touches request.files, so Werkzeug's multipart parser uses the larger cap
+    for this one route; every other route keeps the tight 10 MB default."""
+    if request.method == "POST" and request.path == "/api/trips/import":
+        request.max_content_length = IMPORT_MAX_CONTENT_LENGTH
+
 
 @app.before_request
 def _attach_csp_nonce():

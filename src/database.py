@@ -1114,6 +1114,11 @@ _EXPECTED_COLUMNS = {
         "id", "email", "name", "picture", "bio", "status",
         "home_currency", "home_country", "language", "token_jti",
         "created_at",
+        # MK6 P2: is_creator was missing here, so a stale DB (pre-migration
+        # e2a4c6b8d0f1) booted clean, passed _assert_schema_current, then 500'd
+        # EVERY login — auth.py SELECTs it on the golden path (user-status /
+        # login). The tripwire exists precisely to fail LOUDLY at boot instead.
+        "is_creator",
     ],
     "trips": [
         "id", "user_id", "name", "country", "country_code",
@@ -1181,7 +1186,10 @@ _EXPECTED_COLUMNS = {
         # R3-Round 4: optimistic-concurrency primitive.
         "updated_at",
     ],
-    "categories": ["id", "user_id", "name", "icon", "color"],
+    # MK6 P2: updated_at (migration b2d4f6a8c0e1) drives the per-row category
+    # delta sync; omitting it from the tripwire let a stale DB boot then break
+    # the delta path.
+    "categories": ["id", "user_id", "name", "icon", "color", "updated_at"],
     "budgets": [
         "id", "user_id", "trip_id", "label", "amount", "currency",
         # 2026-05-25 audit B1: filter columns that fresh DBs always had

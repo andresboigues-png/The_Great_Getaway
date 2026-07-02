@@ -247,3 +247,17 @@ def test_import_rejects_newer_format_version(client, seed_user, auth_headers):
     )
     assert res.status_code == 400
     assert "newer version" in res.get_json()["error"]
+
+
+def test_import_body_over_10mb_not_rejected_by_global_cap(client, seed_user, auth_headers):
+    """MK6 P2: /api/trips/import must accept bodies over the 10 MB global cap
+    (up to 64 MB) so a media-bearing export round-trips. An 11 MB non-ZIP body
+    should REACH the handler (→ 400 bad zip), not be 413'd at the global cap."""
+    big = io.BytesIO(b"x" * (11 * 1024 * 1024))  # 11 MB > old 10 MB cap
+    res = client.post(
+        "/api/trips/import", headers=auth_headers,
+        data={"file": (big, "trip.ggtrip.zip")},
+        content_type="multipart/form-data",
+    )
+    assert res.status_code != 413, "11 MB import was 413'd by the 10 MB global cap"
+    assert res.status_code == 400, res.get_data(as_text=True)  # reached handler; bad zip

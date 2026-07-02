@@ -603,3 +603,30 @@ def test_soc5_unshare_cleans_second_level_repost_engagement(client, seed_user):
     assert likes_l1 == 0, "1st-level repost like orphaned"
     assert likes_l2 == 0, "2nd-level repost like orphaned (SOC-5)"
     assert comments_l2 == 0, "2nd-level repost comment orphaned (SOC-5)"
+
+
+def test_one_way_follower_can_bookmark_public_trip_created_card(client, seed_user):
+    """MK6 P2: a public trip_created card is surfaced to a ONE-WAY follower (the
+    feed's actor pool is one-way follows), so bookmarking it must SUCCEED. It
+    used to 404 because engagement gated on MUTUAL follow (is_friend_of) while
+    the builder used one-way — the exact Model-B audience couldn't engage."""
+    owner = "owc"
+    viewer = seed_user
+    _mk_user(owner, "OwnerC", "owc@example.com")
+    _mk_trip("pubc", owner, "Public C", "Italy", is_public=1)
+    _follow(viewer, owner)  # ONE-WAY: viewer follows owner, no follow-back
+    res = client.post("/api/feed/bookmark/trip_created_pubc", headers=_hdr(viewer))
+    assert res.status_code == 200, res.get_data(as_text=True)
+    assert res.get_json().get("bookmarked") is True
+
+
+def test_non_follower_still_cannot_bookmark_trip_created_card(client, seed_user):
+    """The fix must NOT over-open: a user who does NOT follow the owner still
+    can't engage the card (one-way follow is the floor, not 'anyone')."""
+    owner = "owd"
+    viewer = seed_user
+    _mk_user(owner, "OwnerD", "owd@example.com")
+    _mk_trip("pubd", owner, "Public D", "Spain", is_public=1)
+    # No follow relationship at all.
+    res = client.post("/api/feed/bookmark/trip_created_pubd", headers=_hdr(viewer))
+    assert res.status_code == 404, res.get_data(as_text=True)

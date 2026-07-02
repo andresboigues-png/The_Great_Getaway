@@ -971,9 +971,29 @@ def generate_itinerary():
                             raise RuntimeError(f"HTTP {resp.status_code}: {scrub_key(resp.text[:200])}")
 
                     result = resp.json()
-                result_text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "[]")
+                # MK6 P2: default to "" (falsy), NOT "[]". Gemini can answer
+                # HTTP 200 with candidates=[{"finishReason":"SAFETY"}] and no
+                # parts; the old "[]" default was truthy, so `if result_text:
+                # break` treated a blocked/empty generation as SUCCESS — the AI
+                # page rendered a blank plan with no error AND the user's daily
+                # quota was still incremented. Extract defensively, and on an
+                # empty result record the finishReason and fall through to the
+                # next model/key instead of breaking.
+                _cand = (result.get("candidates") or [{}])[0] or {}
+                _parts = (_cand.get("content", {}) or {}).get("parts") or [{}]
+                result_text = ((_parts[0] or {}).get("text") or "")
                 if result_text:
                     break
+                _finish = _cand.get("finishReason") or "no candidate text"
+                last_error = (
+                    f"Gemini returned no content (finishReason="
+                    f"{scrub_key(str(_finish))})"
+                )
+                logger.warning(
+                    "Gemini slot %d model %s: empty/blocked 200 response (%s)",
+                    slot, model, last_error,
+                )
+                continue
             except Exception as e:
                 # R3-Fix #14: scrub the exception string before storing
                 # / logging. `str(e)` may still contain the response
