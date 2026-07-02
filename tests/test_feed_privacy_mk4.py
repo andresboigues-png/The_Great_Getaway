@@ -630,3 +630,66 @@ def test_non_follower_still_cannot_bookmark_trip_created_card(client, seed_user)
     # No follow relationship at all.
     res = client.post("/api/feed/bookmark/trip_created_pubd", headers=_hdr(viewer))
     assert res.status_code == 404, res.get_data(as_text=True)
+
+
+# ── MK6 be-social#21: unshare must null an AUTO-MINTED share_token ────────────
+
+
+def _trip_share_token(trip_id):
+    from database import get_db
+    with get_db() as conn:
+        row = conn.execute("SELECT share_token FROM trips WHERE id = ?", (trip_id,)).fetchone()
+    return row["share_token"] if row else None
+
+
+def test_mk6_unshare_nulls_auto_minted_share_token(client, seed_user):
+    """Sharing a PRIVATE trip auto-mints a share_token (so it surfaces in
+    Explore). Unsharing must null it too — else anyone who captured the token
+    from Explore keeps permanent /api/share/<token> access to the now-private
+    trip."""
+    owner = seed_user
+    _mk_trip("mk6-a", owner, "Private", "Peru", is_public=0)
+    hdr = _hdr(owner)
+    post_id = client.post("/api/feed/share", json={"trip_id": "mk6-a"}, headers=hdr) \
+        .get_json()["post_id"]
+    assert _trip_share_token("mk6-a"), "feed-share should auto-mint a token for a private trip"
+
+    client.delete(f"/api/feed/share/{post_id}", headers=hdr)
+    assert _trip_is_public("mk6-a") == 0
+    assert _trip_share_token("mk6-a") is None, \
+        "auto-minted share_token survived unshare (privacy leak)"
+
+
+def test_mk6_unshare_preserves_explicit_share_token(client, seed_user):
+    """An owner's EXPLICIT share link (token set BEFORE the feed-share) must
+    survive an unshare — only auto-minted tokens are nulled."""
+    from database import get_db
+    owner = seed_user
+    _mk_trip("mk6-b", owner, "HasLink", "Spain", is_public=0)
+    with get_db() as conn:
+        conn.execute("UPDATE trips SET share_token='explicit-tok' WHERE id='mk6-b'")
+        conn.commit()
+    hdr = _hdr(owner)
+    post_id = client.post("/api/feed/share", json={"trip_id": "mk6-b"}, headers=hdr) \
+        .get_json()["post_id"]
+    client.delete(f"/api/feed/share/{post_id}", headers=hdr)
+    assert _trip_share_token("mk6-b") == "explicit-tok", \
+        "unshare destroyed the owner's explicit share link"
+
+
+def test_mk6_explicit_link_after_feedshare_survives_unshare(client, seed_user):
+    """Private trip → feed-share (auto-mints) → owner then creates an EXPLICIT
+    link → unshare must NOT null it (create_share_link clears the auto-mint
+    flag so the owner-managed link is protected)."""
+    owner = seed_user
+    _mk_trip("mk6-c", owner, "LinkAfter", "Italy", is_public=0)
+    hdr = _hdr(owner)
+    post_id = client.post("/api/feed/share", json={"trip_id": "mk6-c"}, headers=hdr) \
+        .get_json()["post_id"]
+    r2 = client.post("/api/trips/mk6-c/share", json={"showCost": False, "showPlans": False},
+                     headers=hdr)
+    assert r2.status_code == 200, r2.data
+    explicit = r2.get_json()["token"]
+    client.delete(f"/api/feed/share/{post_id}", headers=hdr)
+    assert _trip_share_token("mk6-c") == explicit, \
+        "unshare destroyed an explicit link created after a feed-share"

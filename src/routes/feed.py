@@ -658,6 +658,7 @@ def share_trip_to_feed():
         # discoverability. Idempotent + owner-gated: keep any existing
         # token (so a previously-minted share link survives), and never
         # mint on someone else's trip.
+        did_mint_token = False
         if is_owner:
             cursor.execute(
                 "UPDATE trips SET share_token = ?, "
@@ -665,6 +666,11 @@ def share_trip_to_feed():
                 "WHERE id = ? AND share_token IS NULL",
                 (secrets.token_urlsafe(16), trip_id),
             )
+            # MK6 P2: rowcount==1 means the token WAS NULL and we just minted it
+            # (vs. a no-op because an explicit link / prior token already
+            # existed). Recorded on the feed_posts row below so unshare can null
+            # ONLY auto-minted tokens.
+            did_mint_token = cursor.rowcount > 0
         # 2026-05-18 audit H5: race-safe share via the partial UNIQUE
         # index `idx_feed_posts_unique_original_share` on
         # (user_id, trip_id) WHERE repost_of_post_id IS NULL. Two
@@ -677,9 +683,11 @@ def share_trip_to_feed():
         # conflict-resolution path.
         cursor.execute(
             "INSERT OR IGNORE INTO feed_posts "
-            "(user_id, trip_id, repost_of_post_id, caption, trip_was_public) "
-            "VALUES (?, ?, NULL, ?, ?)",
-            (user_id, trip_id, caption, 1 if trip_was_public else 0),
+            "(user_id, trip_id, repost_of_post_id, caption, trip_was_public, "
+            " minted_share_token) "
+            "VALUES (?, ?, NULL, ?, ?, ?)",
+            (user_id, trip_id, caption, 1 if trip_was_public else 0,
+             1 if did_mint_token else 0),
         )
         if cursor.rowcount > 0:
             # Brand-new share: INSERT actually wrote the row.
@@ -773,7 +781,8 @@ def unshare_feed_post(post_id):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT user_id, trip_id, trip_was_public, repost_of_post_id "
+            "SELECT user_id, trip_id, trip_was_public, repost_of_post_id, "
+            "minted_share_token "
             "FROM feed_posts WHERE id = ?",
             (post_id,),
         )
@@ -871,12 +880,26 @@ def unshare_feed_post(post_id):
             )
             other_share = cursor.fetchone()
             if not other_share:
-                cursor.execute(
-                    "UPDATE trips SET is_public = 0, "
-                    "updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
-                    "WHERE id = ? AND user_id = ?",
-                    (row["trip_id"], user_id),
-                )
+                # MK6 P2: if THIS feed-share minted the share_token (private
+                # trip, no prior link), null it alongside is_public — otherwise
+                # anyone who captured the token from Explore during the shared
+                # window keeps permanent /api/share/<token> read + clone access
+                # to the re-privatised trip. An owner's EXPLICIT link
+                # (minted_share_token=0, incl. legacy rows) is left untouched.
+                if row["minted_share_token"]:
+                    cursor.execute(
+                        "UPDATE trips SET is_public = 0, share_token = NULL, "
+                        "updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
+                        "WHERE id = ? AND user_id = ?",
+                        (row["trip_id"], user_id),
+                    )
+                else:
+                    cursor.execute(
+                        "UPDATE trips SET is_public = 0, "
+                        "updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
+                        "WHERE id = ? AND user_id = ?",
+                        (row["trip_id"], user_id),
+                    )
         conn.commit()
     return jsonify({"status": "unshared"})
 

@@ -1250,6 +1250,14 @@ def create_share_link(trip_id):
             "WHERE id = ?",
             (token, 1 if show_cost else 0, 1 if show_plans else 0, trip_id),
         )
+        # MK6 P2: the owner now manages this link EXPLICITLY, so clear the
+        # feed-share "we auto-minted the token" flag for this trip — otherwise a
+        # later unshare of an earlier feed-share would null the owner's explicit
+        # link. (Safe no-op when there are no feed_posts for the trip.)
+        cursor.execute(
+            "UPDATE feed_posts SET minted_share_token = 0 WHERE trip_id = ?",
+            (trip_id,),
+        )
         conn.commit()
     return jsonify({
         "token": token,

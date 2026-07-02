@@ -601,6 +601,11 @@ def init_db():
                 -- share that flipped it gets removed. NULL = nothing
                 -- to restore (legacy row or trip was already public).
                 trip_was_public INTEGER DEFAULT NULL,
+                -- MK6 P2 (be-social#21): did THIS share mint the trip's
+                -- share_token (the trip was private with no link)? Set from the
+                -- mint UPDATE's rowcount. unshare nulls the token only when this
+                -- is 1, so an owner's EXPLICIT share link is never destroyed.
+                minted_share_token INTEGER DEFAULT 0,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE,
                 -- 2026-05-18 audit M3: CASCADE (was SET NULL). Pre-fix,
@@ -1148,6 +1153,8 @@ _EXPECTED_COLUMNS = {
     "feed_posts": [
         "id", "user_id", "trip_id", "repost_of_post_id", "caption",
         "created_at", "trip_was_public",
+        # MK6 P2: tracks whether the feed-share minted the trip's share_token.
+        "minted_share_token",
     ],
     "feed_likes": ["user_id", "event_id", "created_at"],
     "feed_bookmarks": ["user_id", "event_id", "created_at"],
