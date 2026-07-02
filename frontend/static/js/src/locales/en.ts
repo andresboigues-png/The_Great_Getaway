@@ -1445,14 +1445,10 @@ export const en = {
         // rendered a blank <strong> above the meta line.
         noLabelPlaceholder: '(no label)',
         // Tab labels.
-        tabManual: 'Manual Upload',
-        tabBatch: 'Batch Upload',
         tabHistory: 'History',
         tabUpload: 'Upload',
-        tabInsights: 'Insights',
         // Manual-tab verbs in read-only notice.
         readOnlyVerbManual: 'log new expenses',
-        readOnlyVerbBatch: 'import expenses',
         // Read-only / Relaxer notice (shown on Manual + Batch tabs).
         readOnlyTitle: 'Read-only — Relaxer view',
         readOnlyBody: "You're a <strong>Relaxer</strong> on this trip, so you can't {verb} from the <strong>{tab}</strong> tab. Switch to the <strong>History</strong> tab to see what's been added — and ask the trip's planner to promote you if you want to contribute.",

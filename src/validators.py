@@ -90,14 +90,6 @@ _MAX_BUDGET_LABEL_LEN = 120
 _MIN_MONEY = 0.0
 _MAX_MONEY = 1e9
 
-# Latitude / longitude bounds (WGS-84). Trips outside these aren't
-# real locations.
-_MIN_LAT, _MAX_LAT = -90.0, 90.0
-_MIN_LON, _MAX_LON = -180.0, 180.0
-
-# ISO 3166-1 alpha-2 country code shape.
-_COUNTRY_CODE_RE = re.compile(r"^[A-Z]{2}$")
-
 
 class ValidationError(ValueError):
     """Raised when a payload field fails its validation contract.
@@ -275,57 +267,6 @@ def validate_date(value, *, field_name: str = "date") -> str:
     except (ValueError, TypeError):
         raise ValidationError(f"{field_name} must be a valid calendar date")
     return s
-
-
-# ── Geo ──────────────────────────────────────────────────────────────
-
-
-def validate_lat(value) -> Optional[float]:
-    """Validate a WGS-84 latitude. Returns None if value is None.
-    Raises on out-of-range or non-numeric."""
-    if value is None:
-        return None
-    try:
-        f = float(value)
-    except (TypeError, ValueError):
-        raise ValidationError("lat must be a number")
-    if not math.isfinite(f):
-        raise ValidationError("lat must be finite")
-    if not (_MIN_LAT <= f <= _MAX_LAT):
-        raise ValidationError(
-            f"lat must be between {_MIN_LAT} and {_MAX_LAT}",
-        )
-    return f
-
-
-def validate_lng(value) -> Optional[float]:
-    """Validate a WGS-84 longitude. Returns None if value is None."""
-    if value is None:
-        return None
-    try:
-        f = float(value)
-    except (TypeError, ValueError):
-        raise ValidationError("lng must be a number")
-    if not math.isfinite(f):
-        raise ValidationError("lng must be finite")
-    if not (_MIN_LON <= f <= _MAX_LON):
-        raise ValidationError(
-            f"lng must be between {_MIN_LON} and {_MAX_LON}",
-        )
-    return f
-
-
-def validate_country_code(value) -> Optional[str]:
-    """Validate an ISO 3166-1 alpha-2 country code. Returns None if
-    value is None or empty. Raises on bad shape."""
-    if value is None or value == "":
-        return None
-    if not isinstance(value, str):
-        raise ValidationError("countryCode must be a string")
-    code = value.strip().upper()
-    if not _COUNTRY_CODE_RE.match(code):
-        raise ValidationError("countryCode must be 2 letters")
-    return code
 
 
 # ── URLs ─────────────────────────────────────────────────────────────

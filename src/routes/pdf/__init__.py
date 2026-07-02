@@ -95,7 +95,7 @@ from ._render import (
     _parse_day_slot, _photo_grid, _simplify_debts,
     _companion_avatar_color, _companion_card, _companion_grid,
     _section_opener, _expenses_section, _settle_section, _day_card,
-    _summary_stats_row, _toc_entry, _toc_row,
+    _summary_stats_row, _toc_row,
     _BRAND_NAVY, _BRAND_BLUE, _BRAND_PURPLE, _BRAND_GREEN,
     _TEXT_PRIMARY, _TEXT_SECONDARY, _RULE_GREY,
 )

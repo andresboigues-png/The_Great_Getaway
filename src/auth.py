@@ -93,28 +93,6 @@ def _secret() -> str:
     return _secret._dev_fallback
 
 
-def _read_or_init_user_jti(user_id: str) -> str:
-    """Legacy per-user jti store. Pre-2026-05-27 every token shared
-    this single jti, so logout-from-any-device invalidated all of
-    them. Kept around as a fallback for tokens minted before the
-    per-session move (verify_token falls back to this when no
-    auth_sessions row matches a JWT's jti)."""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        row = cursor.execute(
-            "SELECT token_jti FROM users WHERE id = ?", (user_id,),
-        ).fetchone()
-        existing = row["token_jti"] if row else None
-        if existing:
-            return existing
-        new_jti = secrets.token_hex(16)
-        cursor.execute(
-            "UPDATE users SET token_jti = ? WHERE id = ?", (new_jti, user_id),
-        )
-        conn.commit()
-        return new_jti
-
-
 def bump_user_jti(user_id: str) -> str:
     """Rotate the user's legacy `token_jti`. Pre-2026-05-27 this was
     the sole logout primitive (which invalidated every device).

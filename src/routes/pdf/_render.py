@@ -1241,27 +1241,6 @@ def _summary_stats_row(rl, styles, stats: list[tuple[str, str]], page_w, margin_
     return outer
 
 
-def _toc_entry(rl, styles, page_w, margin_lr, number: str, title: str, sub: str, color: str):
-    """One row in the 'What's inside' table-of-contents block on
-    the cover page. Renders as a tinted left edge + number + title
-    + subtitle, in one table row. The left-edge color matches the
-    section's theme color in the document body (blue/purple/etc.)
-    so the reader learns the chapter→color mapping immediately."""
-    return rl.Table(
-        [[
-            rl.Paragraph(_esc(number), styles["dayKicker"]),
-            rl.Paragraph(_esc(title), styles["tocItem"]),
-            rl.Paragraph(_esc(sub), styles["tocItemSub"]),
-        ]],
-        colWidths=[
-            0.7 * rl.cm,
-            5.4 * rl.cm,
-            page_w - 2 * margin_lr - 0.7 * rl.cm - 5.4 * rl.cm,
-        ],
-    ).setStyle  # chain a setStyle call returns None — fix below
-# (Note: setStyle returns None; the wrapper below assigns then returns.)
-
-
 def _toc_row(rl, styles, page_w, margin_lr, number: str, title: str, sub: str, color: str):
     """TOC row used by the cover-page 'What's inside' block. Each
     row is: tinted accent bar | number | title + description.
