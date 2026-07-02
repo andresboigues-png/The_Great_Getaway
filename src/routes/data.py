@@ -159,6 +159,35 @@ def _cleaned_companions_for_sync(cursor, trip_id, raw):
     return _clean_companions_raw(raw, verified_linked_ids=verified)
 
 
+def _tombstoned_trip_ids(cursor, rows) -> set:
+    """Subset of the incoming trip ids that carry a trip_deletes tombstone.
+    The bulk /api/sync loops use this to skip resurrecting a hard-deleted trip
+    (mirrors the per-row upsert_trip guard at trips.py:101). (MK6 P2)"""
+    ids = [r["id"] for r in rows if isinstance(r, dict) and r.get("id")]
+    if not ids:
+        return set()
+    ph = ",".join(["?"] * len(ids))
+    return {
+        row[0] for row in cursor.execute(
+            f"SELECT trip_id FROM trip_deletes WHERE trip_id IN ({ph})", ids,
+        ).fetchall()
+    }
+
+
+def _validated_cover_url(value, user_id):
+    """Gate a synced coverUrl to the caller's own upload (or empty) before it
+    lands in trips.cover_url. Returns None on a bad/foreign/external URL so —
+    paired with COALESCE(excluded.cover_url, cover_url) — the stored cover is
+    preserved rather than overwritten by an attacker-supplied tracking URL.
+    (MK6 P3/security)"""
+    try:
+        return validate_upload_url(
+            value, user_id=user_id, field_name="coverUrl", allow_empty=True,
+        )
+    except ValidationError:
+        return None
+
+
 bp = Blueprint("data", __name__)
 
 
@@ -293,7 +322,16 @@ def sync_data():
         # mutable fields (name, country, day-level data, etc.) flow
         # through. New trip rows (no existing row) make the caller
         # the owner via the INSERT path.
+        # MK6 P2: never resurrect a hard-deleted trip. DELETE /api/trips/<id>
+        # writes a trip_deletes tombstone + cascades the rows, so `existing`
+        # below is None and the bulk INSERT...ON CONFLICT would otherwise
+        # re-create the trip (owned by whoever synced). The per-row upsert_trip
+        # already guards this (trips.py:101); mirror it here with one batched
+        # lookup over the incoming ids. Silent-skip, matching the contract above.
+        _active_tombstoned = _tombstoned_trip_ids(cursor, trips)
         for t in trips:
+            if isinstance(t, dict) and t.get("id") in _active_tombstoned:
+                continue
             cursor.execute(
                 "SELECT user_id, is_public, public_show_expenses, is_archived "
                 "FROM trips WHERE id = ?", (t["id"],),
@@ -379,7 +417,11 @@ def sync_data():
                     documents_json=COALESCE(excluded.documents_json, documents_json),
                     photos_json=COALESCE(excluded.photos_json, photos_json),
                     checklist_json=COALESCE(excluded.checklist_json, checklist_json),
-                    cover_url=excluded.cover_url,
+                    -- MK6 P3: COALESCE like the archived sibling (line ~524) so
+                    -- a partial payload without coverUrl preserves the stored
+                    -- cover instead of NULL-wiping it every 15s. Cover REMOVAL
+                    -- flows only via the per-row TRIP-6 path, not bulk sync.
+                    cover_url=COALESCE(excluded.cover_url, cover_url),
                     -- R4-B1: bump updated_at on every sync UPDATE so the
                     -- R3-R5 stale-edit gate in /api/trips can detect that
                     -- this row moved since the client last read it.
@@ -413,7 +455,10 @@ def sync_data():
                   None,  # documents_json
                   None,  # photos_json
                   None,  # checklist_json
-                  t.get('coverUrl')))
+                  # MK6 P3/security: gate coverUrl to the caller's own upload —
+                  # an unvalidated external URL becomes a tracking pixel served
+                  # to every member + public share viewer.
+                  _validated_cover_url(t.get('coverUrl'), user_id)))
             ensure_owner_member_row(cursor, t['id'], user_id)
             # A public trip needs a share_token to be viewable AND to surface in
             # Explore: /api/feed/explore requires `share_token IS NOT NULL` and
@@ -455,7 +500,12 @@ def sync_data():
         # Sync Archived Trips — same editor-set gate as the active
         # trips block (FIXING_ROADMAP §1.10).
         archived_trips = data.get("archived_trips", [])
+        # MK6 P2: same tombstone guard as the active loop — don't resurrect a
+        # hard-deleted trip via the archived_trips payload.
+        _arch_tombstoned = _tombstoned_trip_ids(cursor, archived_trips)
         for t in archived_trips:
+            if isinstance(t, dict) and t.get("id") in _arch_tombstoned:
+                continue
             cursor.execute(
                 "SELECT user_id, is_public, public_show_expenses, is_archived "
                 "FROM trips WHERE id = ?", (t["id"],),
@@ -543,7 +593,8 @@ def sync_data():
                   None,  # marked_places_json
                   None,  # documents_json
                   None,  # photos_json
-                  t.get('coverUrl')))
+                  # MK6 P3/security: gate coverUrl (see the active loop).
+                  _validated_cover_url(t.get('coverUrl'), user_id)))
             ensure_owner_member_row(cursor, t['id'], user_id)
             # Same as the active-trips loop: a public (here, completed) trip
             # needs a share_token to be viewable + discoverable in Explore. The
@@ -591,7 +642,8 @@ def sync_data():
                     if not isinstance(e, dict) or not e.get('id'):
                         continue
                     existing = cursor.execute(
-                        "SELECT trip_id FROM expenses WHERE id = ?", (e['id'],),
+                        "SELECT trip_id, value, currency, euro_value "
+                        "FROM expenses WHERE id = ?", (e['id'],),
                     ).fetchone()
                     gate_trip_id = existing['trip_id'] if existing else t['id']
                     # R5-B4: set lookup. Note we still use the
@@ -614,6 +666,19 @@ def sync_data():
                     cleaned = _validate_sync_expense(e, user_id)
                     if cleaned is None:
                         continue
+                    # MK6 P3 (MM-1/MM-5): preserve the FROZEN euro_value on a
+                    # re-sync that doesn't change the money, exactly like the
+                    # ACTIVE-expense loop below. The archived sibling was missed,
+                    # so every legacy-client sync re-stamped foreign-currency
+                    # archived expenses at today's FX — silently drifting the
+                    # nominal balances/budgets the money invariant must never
+                    # move.
+                    if (
+                        existing
+                        and abs((existing["value"] or 0) - cleaned['value']) < 1e-9
+                        and (existing["currency"] or "").upper() == cleaned['currency'].upper()
+                    ):
+                        cleaned['euro_value'] = existing["euro_value"]
                     # 2026-05-25 (audit S1): persist splits + is_settlement.
                     # R10-B6a F2: splits now arrive pre-validated.
                     splits_clean = cleaned['splits']
@@ -947,8 +1012,12 @@ def _compute_data_version(cursor, user_id, visible_trip_ids):
     visible set, a membership change (a trip entering/leaving your view via a
     share/accept/revoke) flows through the trip + expense COUNTs automatically.
     Conservative by design: a false 'changed' costs one full fetch, it can
-    never go stale. (Verified the relevant routes bump updated_at: per-row
-    upserts via R8-B4, plus archive/unarchive/share/revoke.)"""
+    never go stale. Probes trips/expenses/settlements/trip_days (scoped) +
+    budgets/categories (per-user) + trip_members + per-trip feed-like counts,
+    covering every field the payload derives. (MK6 P2: trip_members + likes
+    were added — invite-accept / member-remove / like-toggle bump none of the
+    other tables, so the version had been going stale for `members` +
+    `publicLikes`.)"""
     import hashlib
     parts: list[str] = []
 
@@ -1013,6 +1082,28 @@ def _compute_data_version(cursor, user_id, visible_trip_ids):
         probe("e", "expenses", f"trip_id IN ({ph})", visible_trip_ids)
         probe("s", "settlements", f"trip_id IN ({ph})", visible_trip_ids)
         probe("d", "trip_days", f"trip_id IN ({ph})", visible_trip_ids)
+        # MK6 P2: the /api/data payload also carries per-trip `members`
+        # (trip_members ⋈ users) and `publicLikes` (feed_likes on each trip's
+        # original share), but neither table was probed here — and invite
+        # accept / member remove / like toggle bump none of the tables above —
+        # so those changes never moved the version and the knownVersion
+        # short-circuit returned {unchanged} until something else happened to
+        # touch a probed row. Probe both, scoped to the visible trips.
+        # trip_members has no timestamp column, so probe() hashes its rows
+        # (catches add/remove AND invitation_status/role changes).
+        probe("tm", "trip_members", f"trip_id IN ({ph})", visible_trip_ids)
+        cursor.execute(
+            f"SELECT fp.trip_id, COUNT(fl.event_id) "
+            f"FROM feed_posts fp "
+            f"LEFT JOIN feed_likes fl ON fl.event_id = 'share_' || fp.id "
+            f"WHERE fp.repost_of_post_id IS NULL AND fp.trip_id IN ({ph}) "
+            f"GROUP BY fp.trip_id ORDER BY fp.trip_id",
+            visible_trip_ids,
+        )
+        likes_digest = hashlib.sha1(
+            repr([tuple(r) for r in cursor.fetchall()]).encode()
+        ).hexdigest()
+        parts.append(f"pl:{likes_digest}")
     else:
         parts.append("empty")
     probe("b", "budgets", "user_id = ?", [user_id])

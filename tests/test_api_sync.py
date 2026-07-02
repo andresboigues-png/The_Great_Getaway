@@ -965,3 +965,123 @@ def test_user_data_delete_rate_limited(temp_db, seed_user, seed_other_user):
         app.config["RATELIMIT_ENABLED"] = False
         limiter.enabled = _prev_enabled
         limiter.reset()
+
+
+# ── MK6 Wave 6: /api/sync integrity + version-hash coverage ──────────────────
+
+
+def test_data_version_reflects_member_and_like_changes(client, seed_user, auth_headers):
+    """MK6 P2: _compute_data_version must move when trip_members or a trip's
+    feed-likes change — else the knownVersion short-circuit serves a stale
+    {unchanged} and the owner never sees a new member / accepted invite / like."""
+    from database import get_db
+    from routes.data import _compute_data_version
+    _create_trip(client, auth_headers, trip_id="tv")
+    with get_db() as conn:
+        cur = conn.cursor()
+        # Referenced users must exist (FK constraints on trip_members/feed_likes).
+        cur.execute("INSERT INTO users (id, email, name) VALUES ('member-xyz', 'm@x.co', 'M')")
+        cur.execute("INSERT INTO users (id, email, name) VALUES ('liker', 'l@x.co', 'L')")
+        v0 = _compute_data_version(cur, seed_user, ["tv"])
+        cur.execute(
+            "INSERT INTO trip_members (trip_id, user_id, role, invitation_status) "
+            "VALUES ('tv', 'member-xyz', 'planner', 'pending')",
+        )
+        v1 = _compute_data_version(cur, seed_user, ["tv"])
+        assert v1 != v0, "adding a trip member must move the data version"
+        cur.execute(
+            "UPDATE trip_members SET invitation_status='accepted' "
+            "WHERE trip_id='tv' AND user_id='member-xyz'",
+        )
+        v2 = _compute_data_version(cur, seed_user, ["tv"])
+        assert v2 != v1, "accepting an invite must move the data version"
+        cur.execute(
+            "INSERT INTO feed_posts (id, user_id, trip_id) VALUES (99001, ?, 'tv')",
+            (seed_user,),
+        )
+        cur.execute("INSERT INTO feed_likes (user_id, event_id) VALUES ('liker', 'share_99001')")
+        v3 = _compute_data_version(cur, seed_user, ["tv"])
+        assert v3 != v2, "a like on the trip's share must move the data version"
+
+
+def test_sync_without_coverUrl_preserves_stored_cover(client, seed_user, auth_headers):
+    """MK6 P3: a partial /api/sync payload that omits coverUrl must NOT NULL the
+    stored cover (COALESCE), matching the archived loop + per-row TRIP-6 path."""
+    from database import get_db
+    _create_trip(client, auth_headers, trip_id="tc")
+    with get_db() as conn:
+        conn.execute("UPDATE trips SET cover_url = ? WHERE id = 'tc'",
+                     (f"/static/uploads/{seed_user}/cover.jpg",))
+        conn.commit()
+    # Sync the trip with NO coverUrl key (legacy/partial client).
+    res = client.post("/api/sync", headers=auth_headers, json={
+        "trips": [{"id": "tc", "name": "Cover Trip", "country": "PT"}],
+    })
+    assert res.status_code == 200
+    trip = next(t for t in client.get("/api/data", headers=auth_headers)
+                .get_json()["trips"] if t["id"] == "tc")
+    assert trip.get("coverUrl") == f"/static/uploads/{seed_user}/cover.jpg", \
+        "partial sync NULL-wiped the cover"
+
+
+def test_sync_rejects_external_coverUrl(client, seed_user, auth_headers):
+    """MK6 P3/security: a coverUrl pointing at an external host is rejected
+    (would be a tracking pixel served to members + public viewers). With the
+    COALESCE, a rejected URL preserves the stored cover rather than storing it."""
+    from database import get_db
+    _create_trip(client, auth_headers, trip_id="tc2")
+    with get_db() as conn:
+        conn.execute("UPDATE trips SET cover_url = ? WHERE id = 'tc2'",
+                     (f"/static/uploads/{seed_user}/ok.jpg",))
+        conn.commit()
+    res = client.post("/api/sync", headers=auth_headers, json={
+        "trips": [{"id": "tc2", "name": "Cover Trip 2", "country": "PT",
+                   "coverUrl": "https://attacker.example/pixel.png"}],
+    })
+    assert res.status_code == 200
+    trip = next(t for t in client.get("/api/data", headers=auth_headers)
+                .get_json()["trips"] if t["id"] == "tc2")
+    assert "attacker.example" not in (trip.get("coverUrl") or ""), \
+        "external coverUrl was stored (tracking-pixel / SSRF-ish leak)"
+    assert trip.get("coverUrl") == f"/static/uploads/{seed_user}/ok.jpg", \
+        "rejected coverUrl should preserve the stored cover"
+
+
+def test_sync_archived_expense_preserves_frozen_euro_value(client, seed_user, auth_headers):
+    """MK6 P3 (MM-1/MM-5): re-syncing an ARCHIVED trip's foreign-currency
+    expense with UNCHANGED money must preserve the frozen euro_value, not
+    re-stamp it at today's FX — mirroring the active-expense loop + the nominal
+    money invariant. Before the fix the archived loop always recomputed."""
+    import fx_rates
+    import time as _time
+    from database import get_db
+    # Live USD rate so a recompute would yield 90 (100 x 0.9), != the frozen 50.
+    fx_rates._cache = {"EUR": 1.0, "USD": 0.9}
+    fx_rates._cache_set_at = _time.time()
+    try:
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO trips (id, user_id, name, country, is_archived) "
+                "VALUES ('ta', ?, 'Tokyo', 'Japan', 1)", (seed_user,))
+            conn.execute(
+                "INSERT INTO trip_members (trip_id, user_id, role, invitation_status, is_archived) "
+                "VALUES ('ta', ?, 'owner', 'accepted', 1)", (seed_user,))
+            conn.execute(
+                "INSERT INTO expenses (id, trip_id, who, value, currency, euro_value, date) "
+                "VALUES ('ea', 'ta', 'Me', 100, 'USD', 50, '2024-01-01')")
+            conn.commit()
+        res = client.post("/api/sync", headers=auth_headers, json={
+            "archived_trips": [{
+                "id": "ta", "name": "Tokyo", "country": "Japan",
+                "expenses": [{"id": "ea", "who": "Me", "value": 100,
+                              "currency": "USD", "euroValue": 90, "date": "2024-01-01"}],
+            }],
+        })
+        assert res.status_code == 200, res.get_data(as_text=True)
+        with get_db() as conn:
+            row = conn.execute("SELECT euro_value FROM expenses WHERE id='ea'").fetchone()
+        assert abs(row["euro_value"] - 50) < 1e-6, \
+            f"frozen euro_value drifted to {row['euro_value']} on archived re-sync (should stay 50)"
+    finally:
+        fx_rates._cache = {}
+        fx_rates._cache_set_at = 0
