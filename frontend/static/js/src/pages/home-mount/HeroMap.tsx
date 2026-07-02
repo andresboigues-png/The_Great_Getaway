@@ -650,7 +650,10 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
         });
 
         // ── Map search banner wiring ──────────────────────────
-        wireMapSearchBanner({
+        // MK6 P2: capture the unwire fn — wireMapSearchBanner adds a
+        // document-level click listener that outlives this map's DOM, so it
+        // must be removed on unmount or every Home remount leaks a map closure.
+        const unwireMapSearch = wireMapSearchBanner({
             map,
             activeTrip,
             getInfoWindow,
@@ -879,6 +882,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
             // handles them when their containers go away.
             cancelled = true;
             poiTogglesEl?.removeEventListener('click', onPoiTogglesClick);
+            unwireMapSearch();  // MK6 P2: remove the document-level search-close listener
             if (_localTimeClockInterval !== null) {
                 clearInterval(_localTimeClockInterval);
                 setLocalTimeClockInterval(null);

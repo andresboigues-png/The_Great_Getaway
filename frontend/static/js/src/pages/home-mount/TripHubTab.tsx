@@ -70,10 +70,29 @@ export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
     // hydrated here (it's the open active trip) so the paired media
     // write carries real arrays, never a []-placeholder.
     const notesRef = useRef<HTMLTextAreaElement | null>(null);
+    // MK6 P2: the textarea is uncontrolled (defaultValue only applies on
+    // mount), but trip.notes is ALSO written by the day-modal notes autosave
+    // and the 15s /api/data poll. `focusValue` captures what the user started
+    // editing from so a blur-without-typing can't write a stale value back over
+    // a newer one.
+    const notesFocusValue = useRef<string>('');
+    // Re-sync the DOM value when trip.notes changes externally — but NEVER
+    // while the user is mid-edit (focused), or we'd clobber their typing.
+    useEffect(() => {
+        const el = notesRef.current;
+        if (!el || document.activeElement === el) return;
+        const current = activeTrip.notes || '';
+        if (el.value !== current) el.value = current;
+    }, [activeTrip.notes]);
     const saveNotes = () => {
         const el = notesRef.current;
         if (!el) return;
         const next = el.value;
+        // If the user didn't actually change anything since focusing, don't
+        // save — otherwise a concurrent external write (day modal / poll) that
+        // landed while this field was focused would be overwritten by the
+        // stale value the user is looking at.
+        if (next === notesFocusValue.current) return;
         if (next === (activeTrip.notes || '')) return;
         activeTrip.notes = next;
         emit('state:changed');
@@ -142,6 +161,7 @@ export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
                             className="trip-hub__notes"
                             defaultValue={activeTrip.notes || ''}
                             placeholder={t('tripHub.notesPlaceholder')}
+                            onFocus={(e) => { notesFocusValue.current = e.currentTarget.value; }}
                             onBlur={saveNotes}
                             rows={4}
                         />

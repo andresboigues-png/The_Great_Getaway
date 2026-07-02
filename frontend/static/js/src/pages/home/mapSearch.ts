@@ -66,7 +66,7 @@ const _FALLBACK_CAT: PoiCategory = {
  *  safe to call multiple times if home re-renders, since each
  *  call only touches its own DOM nodes (and the previous search
  *  marker is GC'd along with the previous render's DOM tree). */
-export function wireMapSearchBanner(ctx: MapSearchContext): void {
+export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
     const { map, activeTrip, getInfoWindow, getPlacesService, buildInfoWindowHtml, wireInfoWindowMarkButtons } = ctx;
 
     const searchInput = (document.getElementById('homeMapSearchInput') as HTMLInputElement | null);
@@ -74,8 +74,8 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
     const clearBtn = (document.getElementById('homeMapSearchClear') as HTMLButtonElement | null);
     // DSGN-006: polite live region announcing the result count / no-matches.
     const statusEl = (document.getElementById('homeMapSearchStatus') as HTMLElement | null);
-    if (!searchInput || !resultsEl || !clearBtn) return;
-    if (typeof google === 'undefined' || !google.maps?.places?.AutocompleteService) return;
+    if (!searchInput || !resultsEl || !clearBtn) return () => { /* nothing wired */ };
+    if (typeof google === 'undefined' || !google.maps?.places?.AutocompleteService) return () => { /* nothing wired */ };
 
     const autocomplete = new google.maps.places.AutocompleteService();
     let searchMarker: google.maps.Marker | null = null;
@@ -643,9 +643,15 @@ export function wireMapSearchBanner(ctx: MapSearchContext): void {
 
     // Click outside the search wrapper closes the suggestions but
     // keeps the input value (so the user can refine).
-    document.addEventListener('click', (e) => {
+    // MK6 P2: this is a DOCUMENT-level listener, so — unlike the element
+    // listeners above, which die with the search DOM on remount — it OUTLIVES
+    // the DOM and leaks a fresh map closure on every navigate('home'). Name it
+    // and return an unwire function so HeroMap's effect cleanup removes it.
+    const onDocClick = (e: MouseEvent): void => {
         const wrap = document.getElementById('homeMapSearchWrap');
         if (!wrap) return;
         if (!wrap.contains((e.target as Node))) hideResults();
-    });
+    };
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
 }
