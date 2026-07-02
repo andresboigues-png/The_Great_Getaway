@@ -160,6 +160,45 @@ def test_upload_accepts_valid_jpeg(
     # conversion path). Fix verified by code review in src/routes/media.py.
 
 
+def test_upload_rejects_decompression_bomb_warning_band(
+    client, seed_user, auth_headers, tmp_path, monkeypatch,
+):
+    """MK6 P1 regression: an image whose pixel count sits in the 25–50M-px
+    band raises PIL's DecompressionBomb*Warning* (not *Error*). Before the fix
+    the handler caught only the Error, so warning-band images (e.g. a normal
+    48MP phone JPEG) fell through to the bytes-verbatim save and kept their GPS
+    EXIF. The handler must now reject them with 413 and write nothing.
+
+    We shrink MAX_IMAGE_PIXELS so a tiny image lands in the warning band
+    (MAX < pixels <= 2*MAX) without generating a real 30M-px file. media.py
+    installs the warning-as-error filter at import, but pytest resets warnings
+    filters per test, so we reinstate it (inside catch_warnings so it doesn't
+    leak) to reproduce the production environment."""
+    import warnings
+    import main as main_module
+    monkeypatch.setitem(main_module.app.config, 'UPLOAD_FOLDER', str(tmp_path))
+    monkeypatch.setattr(main_module, 'UPLOAD_FOLDER', str(tmp_path))
+
+    from PIL import Image
+    # 12×12 = 144 px lands in (100, 200] → warning band (Error is > 2*MAX).
+    monkeypatch.setattr(Image, 'MAX_IMAGE_PIXELS', 100)
+
+    buf = io.BytesIO()
+    Image.new('RGB', (12, 12), (10, 20, 30)).save(buf, format='JPEG')
+    buf.seek(0)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('error', Image.DecompressionBombWarning)
+        res = client.post("/api/upload", headers=auth_headers, data={
+            "file": (buf, "phonephoto.jpg"),
+        })
+    assert res.status_code == 413, res.get_data(as_text=True)
+    # Nothing should have been persisted to the upload dir.
+    written = list(tmp_path.rglob("*"))
+    written = [p for p in written if p.is_file()]
+    assert written == [], f"bomb image must not persist; found {written}"
+
+
 def test_uploads_anonymous_fetch_404s_for_private_files(
     client, seed_user, auth_headers, tmp_path, monkeypatch,
 ):

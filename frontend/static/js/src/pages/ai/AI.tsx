@@ -32,6 +32,7 @@ import { useActiveTrip } from '../../react/TripContext.js';
 import { useStore } from '../../react/store.js';
 import { canEdit } from '../../permissions.js';
 import { t } from '../../i18n.js';
+import { esc } from '../../utils/dom-helpers.js';
 import { stripEmoji } from '../../icons.js';
 import type { Trip } from '../../types';
 // Page-scoped CSS — AI plan blocks, place cards, generate button,
@@ -117,13 +118,13 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                 <p
                     className="ai-subtitle"
                     // The translation string contains <strong>{country}</strong> so
-                    // the country name renders bold. Passing it through React's
-                    // text path escaped the tags — set them as innerHTML instead.
-                    // Safe because: (a) the surrounding template is a hard-coded
-                    // translation string, not user input, and (b) tripCountry is
-                    // server-validated when set on the trip.
+                    // the country name renders bold — hence dangerouslySetInnerHTML.
+                    // esc() the interpolated country: t() does a raw String()
+                    // substitution and country is user free-text (import writes it
+                    // verbatim). The nonce CSP blocks script execution, but esc()
+                    // still closes stored markup/phishing injection. (MK6)
                     dangerouslySetInnerHTML={{
-                        __html: t('ai.subtitlePlanning', { country: tripCountry }),
+                        __html: t('ai.subtitlePlanning', { country: esc(tripCountry) }),
                     }}
                 />
             </div>

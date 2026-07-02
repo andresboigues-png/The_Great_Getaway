@@ -299,7 +299,14 @@ def upload_file():
             if img_format == 'JPEG' and img.mode not in ('RGB', 'L'):
                 img = img.convert('RGB')
             img.save(out_path, format=img_format, **save_kwargs)
-        except Image.DecompressionBombError:
+        except (Image.DecompressionBombError, Image.DecompressionBombWarning):
+            # MK6 P1: catch the WARNING too, not just the Error. The module
+            # bootstrap promotes DecompressionBombWarning to a raised exception
+            # (simplefilter 'error'), but it is NOT a subclass of
+            # DecompressionBombError — so images in the 25–50M-px band (a normal
+            # 48MP phone photo) used to skip this branch, land in the broad
+            # `except Exception:` below, and get saved bytes-verbatim with EXIF
+            # (incl. GPS) intact. Reject both here.
             # R2 audit fix: REFUSE the upload on a decompression
             # bomb — don't fall back to file.save() (the old code
             # did, which defeated the cap). 413 = "Payload Too Large"
@@ -360,7 +367,10 @@ def upload_file():
             # animation + transparency survive.
             file.stream.seek(0)
             file.save(out_path)
-        except Image.DecompressionBombError:
+        except (Image.DecompressionBombError, Image.DecompressionBombWarning):
+            # MK6 P1: catch the promoted Warning too (see the JPEG/PNG branch) —
+            # a 25–50M-px crafted GIF raises DecompressionBombWarning, not Error,
+            # and would otherwise fall to the bytes-verbatim save below.
             from observability import get_logger
             get_logger(__name__).warning(
                 "upload rejected: decompression bomb from user=%s file=%r ext=%s",

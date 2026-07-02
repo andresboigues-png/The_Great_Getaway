@@ -49,13 +49,26 @@ bundle-stats.html
 # Claude Code local state
 .claude/
 
-# Local databases (SQLite)
+# Local databases (SQLite) + their backups / WAL sidecars.
+# NOTE: `*.db` does NOT match a `.db.bak` suffix — the missing `.bak`
+# pattern is exactly how two DB backups (with a live API key + user PII)
+# got committed and pushed (MK6 P0). Keep every SQLite artifact ignored.
 *.db
+*.db.bak
+*.bak
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
 src/database.db
 
 # Scratch / experimental data
-scratch/algeria.json
+scratch/
 .husky/_
+
+# Audit reports — findings-only working docs, kept untracked (MK5/MK6 convention).
+*audit MK*.md
+Audit MK*.md
 
 # Playwright artifacts
 test-results/

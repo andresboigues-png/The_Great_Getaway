@@ -41,6 +41,7 @@ import {
 } from '../../markedPlaces.js';
 import { openNewTripModal } from '../../modals.js';
 import { showConfirmModal, showLiquidAlert } from '../../utils.js';
+import { esc } from '../../utils/dom-helpers.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import { t, tn } from '../../i18n.js';
 import { stripEmoji } from '../../icons.js';
@@ -449,13 +450,13 @@ export function Todo() {
                         // Subtitle has inline <strong> markup with the trip
                         // name; render via dangerouslySetInnerHTML so the
                         // markup in the locale string lands as actual HTML.
-                        // {trip} interpolation in i18n.ts uses a regex
-                        // String.replace, which is safe — the only injection
-                        // surface is activeTrip.name, which we esc()'d at
-                        // creation. Belt-and-suspenders here: we still trust
-                        // STATE.activeTrip names because the user typed them.
+                        // {trip} interpolation in i18n.ts is a raw String()
+                        // substitution (no HTML escaping), and trip names are
+                        // unescaped user free-text that a shared-trip planner
+                        // can set — so esc() the name here or a name like
+                        // `<img src=x onerror=…>` becomes stored XSS. (MK6 P1)
                         dangerouslySetInnerHTML={{
-                            __html: t('todo.subtitleWithTrip', { trip: activeTrip.name }),
+                            __html: t('todo.subtitleWithTrip', { trip: esc(activeTrip.name) }),
                         }}
                     />
                 </div>
@@ -589,8 +590,9 @@ export function Todo() {
                 <h1 style={titleH1Style}>{stripEmoji(t('todo.title'))}</h1>
                 <p
                     className="td-subtitle"
+                    // esc() the name — see the empty-state subtitle above. (MK6 P1)
                     dangerouslySetInnerHTML={{
-                        __html: t('todo.subtitleWithTrip', { trip: activeTrip.name }),
+                        __html: t('todo.subtitleWithTrip', { trip: esc(activeTrip.name) }),
                     }}
                 />
             </div>
