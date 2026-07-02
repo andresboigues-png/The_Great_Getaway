@@ -119,6 +119,35 @@ def test_block_user_self_rejected(client, seed_user, auth_headers):
     assert res.status_code == 400
 
 
+def test_follow_status_404s_across_a_block(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """MK6 P2: GET /api/follows/<id> must 404 when either party blocks the
+    other — matching the POST path + get_public_profile — so a blocked user
+    can't poll a target's live follower counts, and the 200-here-vs-404-on-
+    profile differential can't confirm the block exists."""
+    # Baseline: no block → readable.
+    assert client.get(
+        f"/api/follows/{seed_other_user}", headers=auth_headers,
+    ).status_code == 200
+    # other_user blocks seed_user.
+    assert client.post(
+        f"/api/blocks/{seed_user}", headers=other_auth_headers,
+    ).status_code == 200
+    # The blocked user (seed_user) now 404s for the blocker's follow status…
+    assert client.get(
+        f"/api/follows/{seed_other_user}", headers=auth_headers,
+    ).status_code == 404
+    # …and symmetrically the blocker 404s for the blocked user.
+    assert client.get(
+        f"/api/follows/{seed_user}", headers=other_auth_headers,
+    ).status_code == 404
+    # Self-status is never block-gated.
+    assert client.get(
+        f"/api/follows/{seed_user}", headers=auth_headers,
+    ).status_code == 200
+
+
 def test_block_drops_existing_follow_in_both_directions(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):

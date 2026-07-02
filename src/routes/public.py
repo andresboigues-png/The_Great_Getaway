@@ -263,6 +263,14 @@ def get_public_trip(trip_id):
                 day['documents'] = json.loads(day.get('documents') or '[]')
             except (json.JSONDecodeError, TypeError):
                 day['documents'] = []
+            # MK6 P2: per-day photos/documents are the planner's uploaded
+            # files — the SAME privacy contract as trip-level media (stripped
+            # at ~197) and per-day notes/tip (~246). They were leaking to
+            # anonymous / non-member viewers of a public trip; only
+            # authenticated members get day media, via /api/data.
+            if not is_member:
+                day['photos'] = []
+                day['documents'] = []
             trip_days.append(day)
 
         # Expense exposure is the granularity gate. Members always

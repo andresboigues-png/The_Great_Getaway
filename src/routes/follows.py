@@ -231,6 +231,15 @@ def get_follow_status(user_id):
         cursor = conn.cursor()
         if not ensure_user_exists(cursor, user_id):
             return jsonify({"error": "Not found"}), 404
+        # MK6 P2: block gate, matching the POST path (line ~112) and
+        # get_public_profile's 404-on-block. Pre-fix a blocked user could
+        # still poll this endpoint for a target's live follower counts, and
+        # the 200-here-vs-404-on-profile differential confirmed the block
+        # existed. Return the same 404 in either block direction.
+        if caller_id and caller_id != user_id:
+            from routes.blocks import is_blocked
+            if is_blocked(cursor, user_id, caller_id) or is_blocked(cursor, caller_id, user_id):
+                return jsonify({"error": "Not found"}), 404
         counts = follower_counts(cursor, user_id)
         following = is_following(cursor, caller_id, user_id) if caller_id else False
         payload = {

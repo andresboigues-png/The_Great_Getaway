@@ -266,6 +266,40 @@ def test_delete_expense_happy_path(client, seed_user, auth_headers):
     assert res.get_json() == {"status": "deleted"}
 
 
+def test_delete_expense_blocked_on_archived_trip(client, seed_user, auth_headers):
+    """MK6 P2: deleting an expense from a trip the caller has archived must be
+    refused (409), mirroring the create path + the settlement DELETE gate.
+    Otherwise deleting a settled expense silently shifts everyone's balances
+    after the trip is 'done'. The row must survive the rejected delete."""
+    from database import get_db
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-arch", "name": "Done Trip"},
+    })
+    client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-arch", "tripId": "trip-arch", "who": "Me", "value": 50,
+            "currency": "EUR", "euroValue": 50, "label": "Lunch", "date": "2026-01-01",
+        },
+    })
+    # Archive the trip for this user (per-user member archive + legacy mirror).
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trip_members SET is_archived = 1 WHERE trip_id = ? AND user_id = ?",
+            ("trip-arch", seed_user),
+        )
+        conn.execute("UPDATE trips SET is_archived = 1 WHERE id = ?", ("trip-arch",))
+        conn.commit()
+
+    res = client.delete("/api/expenses/exp-arch", headers=auth_headers)
+    assert res.status_code == 409, res.get_data(as_text=True)
+    # The expense must still be present (not tombstoned).
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT deleted_at FROM expenses WHERE id = ?", ("exp-arch",),
+        ).fetchone()
+    assert row is not None and row["deleted_at"] is None, "archived delete must be a no-op"
+
+
 def test_delete_expense_idempotent_on_unknown_id(client, seed_user, auth_headers):
     """DELETE on a non-existent expense returns 200 (idempotent), not 404."""
     res = client.delete("/api/expenses/never-existed", headers=auth_headers)

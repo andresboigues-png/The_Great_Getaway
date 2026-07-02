@@ -345,6 +345,43 @@ def test_archived_public_trip_viewable_by_nonmember(client, seed_user):
     )
 
 
+def test_public_trip_strips_day_media_for_nonmembers(client, seed_user):
+    """MK6 P2: /api/public-trip must NOT expose per-day photos/documents to a
+    non-member viewer of a public trip — the same privacy contract as
+    trip-level media and per-day notes/tip. Members (owner) still get them."""
+    from database import get_db
+    owner = "dm-owner"
+    viewer = seed_user
+    _mk_user(owner, "DMOwner", "dm-owner@example.com")
+    _mk_trip("dm-pt", owner, "Day Media PT", "Japan", is_public=1)
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO trip_days (id, trip_id, day_number, name, photos, documents) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("dm-day1", "dm-pt", 1, "Day One",
+             '[{"id":"p1","src":"/static/uploads/dm-owner/secret.jpg"}]',
+             '[{"id":"d1","name":"Boarding pass","url":"/static/uploads/dm-owner/bp.pdf"}]'),
+        )
+        conn.commit()
+
+    # Non-member viewer: day media stripped to empty.
+    res = client.get("/api/public-trip/dm-pt", headers=_hdr(viewer))
+    assert res.status_code == 200, res.data
+    day = res.get_json()["trip"]["tripDays"][0]
+    assert day["photos"] == [], "day photos leaked to a non-member"
+    assert day["documents"] == [], "day documents leaked to a non-member"
+    # Belt-and-suspenders: the secret upload path must not appear anywhere.
+    assert "secret.jpg" not in res.get_data(as_text=True)
+    assert "bp.pdf" not in res.get_data(as_text=True)
+
+    # Owner (member) still receives the day media.
+    owner_res = client.get("/api/public-trip/dm-pt", headers=_hdr(owner))
+    assert owner_res.status_code == 200
+    owner_day = owner_res.get_json()["trip"]["tripDays"][0]
+    assert len(owner_day["photos"]) == 1, "owner must still see their day photos"
+    assert len(owner_day["documents"]) == 1
+
+
 def test_soc2_owner_still_sees_archived_public_trip(client, seed_user):
     """The owner (and accepted members) must keep access to their own
     archived trip — the gate is non-member-only."""

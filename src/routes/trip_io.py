@@ -213,6 +213,19 @@ def export_trip(trip_id):
         else:
             sections["categories"] = []
 
+        # MK6 P2: strip the columns import never restores (server-managed
+        # timestamps/tombstones + account/sharing state) from every exported
+        # row BEFORE they reach the manifest. Import already drops these via
+        # _insert_remapped, so the round-trip is unchanged — but leaving them
+        # in leaked the owner-only `share_token` (plus public_slug / is_public)
+        # to any non-owner member who could export the trip, letting them
+        # reconstruct the private /share/<token> link and keep access after
+        # removal. Symmetric with _RESET_COLUMNS on the import side.
+        for rows in sections.values():
+            for r in rows:
+                for col in _RESET_COLUMNS:
+                    r.pop(col, None)
+
         trip_name = sections["trips"][0].get("name") or "Trip"
 
     # Discover every referenced upload file across all sections.

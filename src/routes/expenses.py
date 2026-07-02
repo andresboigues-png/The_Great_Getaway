@@ -354,6 +354,16 @@ def delete_expense(expense_id):
             # request logger (every request logs status + path) so
             # we haven't lost observability — just specificity.
             return jsonify({"status": "deleted"})
+        # MK6 P2: refuse deletes on a trip the caller has archived, mirroring
+        # the create path (line ~192) and the settlement DELETE gate. Without
+        # this, deleting an expense from an already-settled, archived trip
+        # silently shifts total_spend + everyone's settled balances after the
+        # fact. Safe to 409 here (not leak-y): the caller already passed
+        # can_edit_expenses, so they know the trip exists and is theirs.
+        if is_trip_archived_for(cursor, row["trip_id"], user_id):
+            return jsonify({
+                "error": "Trip is archived — unarchive to edit",
+            }), 409
         # 2026-05-26 (audit SY5): soft-delete via tombstone. A hard
         # DELETE used to be reversible from any peer device whose
         # offline queue still had the row — the next /api/sync POST

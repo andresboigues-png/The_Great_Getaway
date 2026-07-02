@@ -202,7 +202,13 @@ def create_settlement():
         except (TypeError, ValueError):
             euro_value = None
         else:
-            if not math.isfinite(euro_value) or euro_value < 0 or euro_value > 1e9:
+            # MK6 P2: null a ZERO euro_value too, not just negatives. amount is
+            # already validated >= 0.01, so a 0 EUR-equivalent is never a real
+            # settlement — and if left as 0.0 it is NOT None, so it slips past
+            # the S2 "euroValue is required" gate below (which tests `is None`)
+            # and stores a settlement invisible to balance math, letting the
+            # same debt be re-recorded. Mirrors the expense gate's `> 0` rule.
+            if not math.isfinite(euro_value) or euro_value <= 0 or euro_value > 1e9:
                 euro_value = None
     # R3-Fix #6: derive euro_value server-side from live FX. Pre-fix
     # the route trusted the client euroValue verbatim (with only a

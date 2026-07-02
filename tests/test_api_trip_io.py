@@ -98,6 +98,43 @@ def test_export_manifest_shape(client, seed_user, auth_headers, tmp_path, monkey
     assert len([n for n in zf.namelist() if n.startswith("media/")]) == 2
 
 
+def test_export_strips_share_token_and_reset_columns(
+    client, seed_user, auth_headers, tmp_path, monkeypatch,
+):
+    """MK6 P2: the exported trips row must NOT carry the owner-only
+    share_token (nor public_slug / is_public / server timestamps). A non-owner
+    member can export a trip, and a leaked share_token lets them reconstruct
+    the private /share/<token> link. Import discards these columns anyway, so
+    stripping them on export is round-trip-safe."""
+    monkeypatch.setitem(client.application.config, "UPLOAD_FOLDER", str(tmp_path))
+    app = client.application
+    _populate_trip(client, app, auth_headers, seed_user, "trip-rt")
+    # Give the trip a real share_token (as an explicit share link would).
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trips SET share_token = ?, is_public = 1 WHERE id = ?",
+            ("secret-tok-123", "trip-rt"),
+        )
+        conn.commit()
+
+    zf = zipfile.ZipFile(io.BytesIO(_export_zip(client, auth_headers, "trip-rt")))
+    manifest = json.loads(zf.read("manifest.json"))
+    trip_row = manifest["sections"]["trips"][0]
+
+    # share_token (real column) must be stripped; public_slug is in
+    # _RESET_COLUMNS defensively but isn't a real trips column, so it's never
+    # present either way — assert both to lock the contract.
+    for leaked in ("share_token", "public_slug"):
+        assert leaked not in trip_row, f"{leaked} leaked into the export manifest"
+    # Full manifest text must not contain the secret anywhere.
+    assert "secret-tok-123" not in zf.read("manifest.json").decode()
+    # Sharing/account state + server timestamps are reset on export too.
+    for col in ("is_public", "is_archived", "created_at", "updated_at", "deleted_at"):
+        assert col not in trip_row, f"{col} should be stripped from the export"
+    # Sanity: real trip data still rides along.
+    assert trip_row["name"] == "Round Trip"
+
+
 def test_roundtrip_same_account_reuses_category(client, seed_user, auth_headers, tmp_path, monkeypatch):
     monkeypatch.setitem(client.application.config, "UPLOAD_FOLDER", str(tmp_path))
     app = client.application
