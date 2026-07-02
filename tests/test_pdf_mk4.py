@@ -357,3 +357,74 @@ def test_pdf_bug050_settle_party_resolves_full_name_to_first_token():
     assert _resolve_settle_party("Carol Jones", bal) == "Carol Jones"  # unknown → self
     assert _resolve_settle_party("", bal) == ""
     assert _resolve_settle_party(None, bal) == ""
+
+
+# ── MK6 Wave 5: PDF hardening (crash guards, cache budget, SSRF) ──────────────
+
+
+def test_pdf_budget_nonnumeric_amount_does_not_crash():
+    """MK6: a trip-ZIP-imported budget can carry a non-numeric amount (SQLite
+    REAL affinity stores 'abc' as TEXT). The export must NOT 500 — _num coerces
+    to 0.0 instead of an unguarded float() ValueError escaping doc.build."""
+    t = _base_trip(budgets=[
+        {"id": "b1", "label": "Food & Drink", "amount": "abc", "currency": "EUR"},
+    ])
+    b = _build_trip_pdf(t, {"includeBudgets": True})
+    assert b[:4] == b"%PDF", "a bad budget amount must not crash the export"
+
+
+def test_pdf_nonnumeric_split_does_not_crash():
+    """MK6: an expense whose splits JSON holds a non-numeric value (legacy /
+    ZIP-imported row) must not 500 the export — the settle-balance math now
+    coerces split values via _num rather than a bare float()."""
+    t = _base_trip(expenses=[
+        {"id": "e1", "value": 50, "currency": "EUR", "euro_value": 50,
+         "who": "Ana", "splits": {"Ana": "abc", "Bruno": 50}},
+    ])
+    b = _build_trip_pdf(t, {"includeSettlements": True, "includeExpenses": True})
+    assert b[:4] == b"%PDF", "a bad split value must not crash the export"
+
+
+def test_pdf_map_cache_evicts_on_byte_budget():
+    """MK6: the static-map cache must evict on a BYTE budget, not just entry
+    count — the roadmap PNGs are hundreds of KB each, not the ~2 KB the entry
+    cap assumed, so 200 entries could pin 60-160 MB."""
+    from routes.pdf import _maps
+    _maps._map_cache.clear()
+    big = b"x" * (2 * 1024 * 1024)  # 2 MB per entry
+    for i in range(40):             # 80 MB offered, well over the ~24 MB budget
+        _maps._map_cache_put(f"k{i}", big)
+    total = sum(len(c) for _, c in _maps._map_cache.values())
+    assert total <= _maps._MAP_CACHE_MAX_BYTES, f"cache held {total} bytes, over budget"
+    assert len(_maps._map_cache) <= _maps._MAP_CACHE_MAX
+
+
+def test_pdf_photo_fetch_does_not_follow_redirects(monkeypatch):
+    """MK6 (SSRF): the external-photo GET must pass allow_redirects=False so a
+    302 to an internal host isn't followed past _is_public_http_url (which only
+    vets the ORIGINAL url)."""
+    from routes.pdf import _maps
+    captured = {}
+
+    class _FakeResp:
+        ok = False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def iter_content(self, _n):
+            return iter(())
+
+    def fake_get(url, **kwargs):
+        captured.update(kwargs)
+        return _FakeResp()
+
+    # Bypass the public-URL guard so we reach the GET, then capture its kwargs.
+    monkeypatch.setattr(_maps, "_is_public_http_url", lambda u: True)
+    monkeypatch.setattr(_maps.requests, "get", fake_get)
+    _maps._load_photo_png("https://example.com/p.png")
+    assert captured.get("allow_redirects") is False, \
+        "photo GET must set allow_redirects=False (SSRF redirect guard)"

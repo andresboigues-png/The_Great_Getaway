@@ -91,7 +91,7 @@ from ._fonts import (
     _font, _strip_emoji, _try_register_unicode_font, _FONT_CANDIDATES,
 )
 from ._render import (
-    _rl, _styles, _esc, _hr, _image_aspect, _safe_json,
+    _rl, _styles, _esc, _num, _hr, _image_aspect, _safe_json,
     _parse_day_slot, _photo_grid, _simplify_debts,
     _companion_avatar_color, _companion_card, _companion_grid,
     _section_opener, _expenses_section, _settle_section, _day_card,
@@ -520,24 +520,37 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                         # R12-B1: surface silent reportlab image refusal.
                         logger.warning("PDF route-overview image render failed", exc_info=True)
 
+        # MK6 P2: bound the TOTAL per-day network work across the whole export.
+        # Days are capped at 1000, and each renderable day could otherwise
+        # trigger a Static Maps fetch (10s timeout) plus up to 6 photo downloads
+        # + PIL re-encodes — thousands of sequential HTTP calls that block the
+        # single PA worker for minutes and balloon RAM. Cap both aggregates
+        # (photos mirror the trip-gallery _PHOTO_MAX_PER_TRIP budget).
+        _MAX_DAY_PIN_MAPS = 60
+        _day_maps_left = _MAX_DAY_PIN_MAPS
+        _day_photos_left = _PHOTO_MAX_PER_TRIP
         for day in days_renderable:
             if not isinstance(day, dict):
                 continue
-            # Per-day mini-map (opt-in).
+            # Per-day mini-map (opt-in), bounded per export.
             day_map_png = None
-            if opt("includeDayPins"):
+            if opt("includeDayPins") and _day_maps_left > 0:
                 d_lat = day.get("lat")
                 d_lng = day.get("lng")
                 if d_lat is None or d_lng is None:
                     d_lat = trip_row.get("lat")
                     d_lng = trip_row.get("lng")
                 day_map_png = _fetch_day_pin_map(d_lat, d_lng, None)
-            # PDF-4: per-day inline photos (opt-in, off by default).
+                _day_maps_left -= 1
+            # PDF-4: per-day inline photos (opt-in, off by default), bounded
+            # by the remaining per-trip photo budget.
             day_photos: list[bytes] = []
-            if opt("includePhotos", default=False):
+            if opt("includePhotos", default=False) and _day_photos_left > 0:
                 day_photos = _collect_photos(
-                    _safe_json(day.get("photos"), []), limit=6,
+                    _safe_json(day.get("photos"), []),
+                    limit=min(6, _day_photos_left),
                 )
+                _day_photos_left -= len(day_photos)
             # PDF-1: _day_card returns a FLAT list of flowables — header
             # kept-with-first-body, the rest paginating freely. We
             # `extend` (NOT wrap in another KeepTogether) so a page-long
@@ -688,7 +701,11 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             # `amount` is always EUR-normalised at write time — sum THAT
             # for the total so mixed-currency budgets aren't added up as
             # if every figure were already EUR (BUG-21).
-            eur_amount = float(b.get("amount") or 0)
+            # MK6 P2/P3: _num, not bare float() — a trip-ZIP-imported budget
+            # row can carry a non-numeric amount (SQLite REAL stores "abc" as
+            # TEXT), and this runs outside doc.build's try, so an unguarded
+            # float() 500s the whole export.
+            eur_amount = _num(b.get("amount"))
             total_planned_eur += eur_amount
             # Per row, show what the user actually budgeted: their
             # original currency + amount. PDF-6: format with
@@ -702,8 +719,14 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 planned_disp = tr.money(orig_curr, orig_amount)
             else:
                 planned_disp = tr.money(b.get("currency") or "EUR", eur_amount)
+            # MK6 P2: wrap the user-controlled label in a Paragraph (not a raw
+            # string cell). ReportLab only parses entities + uses the registered
+            # Unicode font inside Paragraphs — a raw string cell printed
+            # "Food &amp; Drink" literally and rendered non-Latin labels
+            # (東京 / Москва) as Helvetica boxes. Amount cells stay raw strings
+            # (ASCII numerals + currency codes, unaffected).
             rows.append([
-                _esc(b.get("label") or tr("budget_untitled")),
+                rl.Paragraph(_esc(b.get("label") or tr("budget_untitled")), styles["body"]),
                 planned_disp,
             ])
         rows.append([tr("total_planned"), tr.money("EUR", total_planned_eur)])

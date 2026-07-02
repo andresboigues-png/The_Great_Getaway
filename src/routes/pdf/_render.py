@@ -466,6 +466,18 @@ def _esc(text: Any) -> str:
     )
 
 
+def _num(v: Any, default: float = 0.0) -> float:
+    """Coerce a stored value to float, returning `default` on non-numeric
+    input. PDF story construction runs OUTSIDE doc.build's try/except and the
+    route only catches RuntimeError, so a bare float() on unvalidated data
+    (legacy rows / trip-ZIP-import inserts) turned into a hard HTML 500. Use
+    this for every money/percent conversion during rendering. (MK6 P2)"""
+    try:
+        return float(v or 0)
+    except (TypeError, ValueError):
+        return default
+
+
 def _hr(rl, color: str = _BRAND_BLUE, thickness: float = 2.0):
     """Brand-accent horizontal rule under section headers."""
     return rl.HRFlowable(
@@ -822,11 +834,13 @@ def _settle_section(rl, styles, page_w, margin_lr, expenses: list,
             bal[who] += amount
         splits = _safe_json(e.get("splits"), {})
         if isinstance(splits, dict) and splits:
-            denom = sum(float(v or 0) for v in splits.values()) or 100.0
+            # MK6 P2: _num (not bare float()) — a non-numeric split value
+            # (unvalidated legacy / ZIP-import row) otherwise 500s the export.
+            denom = sum(_num(v) for v in splits.values()) or 100.0
             for person, pct in splits.items():
                 person = (person or "").strip()
                 if person in bal:
-                    bal[person] -= amount * (float(pct or 0) / denom)
+                    bal[person] -= amount * (_num(pct) / denom)
         else:
             share = amount / max(len(roster), 1)
             for p in roster:

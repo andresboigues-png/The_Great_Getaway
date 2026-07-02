@@ -83,11 +83,16 @@ def _place_label_for_index(i: int) -> str:
 # independent — at $2/1000 calls + a few hundred kB of bandwidth
 # each, that's both money and time wasted. The cache is process-
 # level (PA is single-process; multi-worker plans get parallel
-# caches, which is fine — eventual convergence). LRU-evicted at
-# 200 entries (~400 KB at 2 KB avg per cover PNG). TTL 1 hour so
+# caches, which is fine — eventual convergence). TTL 1 hour so
 # a multi-export session reuses; old entries naturally roll out
 # under churn.
 _MAP_CACHE_MAX = 200
+# MK6 P2: also bound by BYTES, not just entry count. These are scale=2
+# roadmap PNGs (up to ~2400x1200), realistically ~200-800 KB each — NOT the
+# ~2 KB the old comment assumed. 200 entries could pin 60-160 MB of resident
+# PNG bytes for an hour, competing with the app's working set on the single
+# PA worker. Evict on whichever cap trips first.
+_MAP_CACHE_MAX_BYTES = 24 * 1024 * 1024  # ~24 MB ceiling
 _MAP_CACHE_TTL_SECONDS = 60 * 60
 _map_cache: "collections.OrderedDict[str, tuple[float, bytes]]" = collections.OrderedDict()
 _map_cache_lock = _threading.Lock()
@@ -134,9 +139,14 @@ def _map_cache_put(key: str, content: bytes) -> None:
     with _map_cache_lock:
         _map_cache[key] = (_time.time(), content)
         _map_cache.move_to_end(key)
-        # Evict oldest until under the cap.
-        while len(_map_cache) > _MAP_CACHE_MAX:
-            _map_cache.popitem(last=False)
+        # Evict oldest until under BOTH the entry cap and the byte budget.
+        # sum() over <=200 small tuples is negligible per put.
+        total = sum(len(c) for _, c in _map_cache.values())
+        while _map_cache and (
+            len(_map_cache) > _MAP_CACHE_MAX or total > _MAP_CACHE_MAX_BYTES
+        ):
+            _, evicted = _map_cache.popitem(last=False)
+            total -= len(evicted)
 
 
 def _can_read_trip(cursor, trip_id: str, user_id: str) -> bool:
@@ -500,7 +510,12 @@ def _load_photo_png(src: str) -> bytes | None:
                 return None
             # Fail-soft capped GET — same `with requests.get(...)` socket
             # discipline + timeout as the map fetchers.
-            with requests.get(src, timeout=10, stream=True) as res:
+            # MK6 P2 (SEC-4): allow_redirects=False. _is_public_http_url only
+            # vetted the ORIGINAL host; without this a 302 to
+            # http://169.254.169.254/ (or an RFC1918 host) would be followed
+            # and its body embedded — an SSRF bypass. The map fetchers already
+            # pin this; the photo GET had been on the requests default (True).
+            with requests.get(src, timeout=10, stream=True, allow_redirects=False) as res:
                 if not res.ok:
                     return None
                 # Enforce the byte cap while streaming so a huge/streaming
