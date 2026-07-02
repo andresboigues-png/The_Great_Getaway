@@ -288,6 +288,14 @@ async function init() {
             // 15s indefinitely.
             if (!STATE.user || document.hidden) return;
             void syncWithServer();
+            // MK6 P1: actually re-pull collaborative data on the tick. Pre-fix
+            // the poll only hit the /api/sync connectivity probe (which applies
+            // NO data) + notifications, so a focused desktop tab never saw a
+            // co-traveller's edits until a manual reload. pullFromServer is
+            // version-gated (server short-circuits an idle window to a tiny
+            // {unchanged} body) and skips its own re-mount when a modal is open,
+            // so this is cheap and non-disruptive.
+            void pullFromServer();
             void fetchNotifications();
             // BUG-061: also drain the outbox on the poll tick so an online-but-
             // transient failure (e.g. the 20s timeout firing while still online)
@@ -312,6 +320,10 @@ async function init() {
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden && STATE.user) {
             void syncWithServer();
+            // MK6 P1: re-pull data on re-focus too — syncWithServer applies
+            // none, so without this a tab backgrounded for minutes/hours shows
+            // its stale snapshot until the next 15s tick (or forever, pre-fix).
+            void pullFromServer();
             void fetchNotifications();
             // BUG-061: drain any pending offline writes on tab re-focus too.
             if (pendingCount() > 0) drainAndNotify();

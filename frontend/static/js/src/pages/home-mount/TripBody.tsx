@@ -41,6 +41,7 @@ import { openDayDetail as _openDayDetailRaw, type HomeTab } from '../home/dayDet
 import { buildPathTabHtml, togglePathCardCollapsed } from '../home/pathTab.js';
 import {
     registerPathSelectionHooks,
+    repaintPathTab,
     resolveSelectedDayId,
     setSelectedDay,
 } from '../home/pathSelection.js';
@@ -109,6 +110,7 @@ function openDayDatePicker(dayId: string): void {
         if (!write || newDate === (day.date || '')) return;
         day.date = newDate;
         emit('state:changed');
+        repaintPathTab();  // MK6 P2: refresh the Path-tab day card's date
         try {
             await upsertDay(day);
         } catch {

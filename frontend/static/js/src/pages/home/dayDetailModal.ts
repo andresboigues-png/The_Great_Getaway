@@ -41,6 +41,7 @@ import { navigate } from '../../router.js';
 import { openTripChecklistModal } from './tripChecklistModal.js';
 import { openDayView } from './dayViewModal.js';
 import { openAccommodationModal } from './accommodationModal.js';
+import { repaintPathTab } from './pathSelection.js';
 import { iconSvg } from '../../icons.js';
 
 
@@ -1324,6 +1325,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             const subEl = root.querySelector('.day-detail-header__subtitle');
             if (subEl) subEl.textContent = formatDayDate(day.date);
             emit('state:changed');
+            repaintPathTab();  // MK6 P2: refresh the Path-tab day card's name/date
             ec();
         };
     }

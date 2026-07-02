@@ -18,6 +18,7 @@ import { esc, formatDayDate } from '../../utils.js';
 import { whenGoogleMapsReady } from '../../googleMapsServices.js';
 import { t, tn } from '../../i18n.js';
 import { buildAccommodationColorMap } from './accommodationColors.js';
+import { repaintPathTab } from './pathSelection.js';
 import type { Trip, TripDay } from '../../types';
 
 
@@ -52,6 +53,7 @@ export const openAccommodationModal = (trip: Trip, opts?: { preselectDayId?: str
 
     const persistDay = (day: TripDay) => {
         emit('state:changed');
+        repaintPathTab();  // MK6 P2: refresh the Path-tab day card's accommodation hint
         void upsertDay(day);
     };
 

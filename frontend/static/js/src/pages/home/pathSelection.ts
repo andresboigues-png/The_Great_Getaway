@@ -90,6 +90,17 @@ export function clearSelectedDay(tripId: string): void {
 }
 
 
+/** Repaint the Path tab's day-card DOM (if the Path tab is mounted; no-op
+ *  otherwise). The `#pathTabInner` content is raw innerHTML built by
+ *  buildPathTabHtml, which a React `state:changed` re-render does NOT touch —
+ *  so modal edits that mutate day fields (rename, re-date, set accommodation)
+ *  must call this after their emit() or the day card shows stale name / date /
+ *  "Stay not set" until the next chip select or remount. (MK6 P2) */
+export function repaintPathTab(): void {
+    if (typeof hooks.repaintPathTab === 'function') hooks.repaintPathTab();
+}
+
+
 /** Persist + remember a day selection. Called on every chip
  *  click, prev/next, keyboard arrow, and swipe gesture.
  *  Triggers a partial repaint of the Path tab via the

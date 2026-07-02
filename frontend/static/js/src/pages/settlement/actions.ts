@@ -656,6 +656,27 @@ function openEditServerSettlementModal(s: Settlement): void {
             message: t('settlement.editServerConfirmBody'),
             confirmText: t('settlement.updateBtn'),
             onConfirm: () => { void (async () => {
+                // MK6 P1: work out the euroValue the re-record needs BEFORE we
+                // delete anything. For a no-rate currency settleDebt refuses
+                // without an explicit euroValue, so the old delete-then-record
+                // order destroyed the settlement and never re-recorded it —
+                // permanent data loss, and the cleared debt reappeared. Scale
+                // the row's frozen euroValue by the amount change (same as the
+                // legacy edit path above: carry the original implied rate, never
+                // fabricate 1:1). If there's no basis to derive one, refuse
+                // WITHOUT deleting so the settlement survives.
+                const settleOpts: { method: string; note: string; euroValue?: number } =
+                    { method, note };
+                if (cur !== 'EUR' && !hasRate(cur)) {
+                    const oldAmount = Number(s.amount) || 0;
+                    const oldEuro = Number(s.euroValue) || 0;
+                    const scaledEuro = oldAmount > 0 ? oldEuro * (amount / oldAmount) : oldEuro;
+                    if (!(scaledEuro > 0)) {
+                        showLiquidAlert(t('settlement.toastNoRateNeedEuro', { currency: cur }));
+                        return;
+                    }
+                    settleOpts.euroValue = Math.round(scaledEuro * 10000) / 10000;
+                }
                 const del = await deleteSettlementOnServer(s.id);
                 if (del.error) {
                     showLiquidAlert(t('settlement.toastSettlementFailed', {
@@ -668,7 +689,7 @@ function openEditServerSettlementModal(s: Settlement): void {
                 STATE.settlements = STATE.settlements.filter((row) => row.id !== s.id);
                 emit(EVENTS.STATE_CHANGED);
                 // Re-record with the edited values via the standard path.
-                await settleDebt(s.tripId, from, to, amount, cur, { method, note });
+                await settleDebt(s.tripId, from, to, amount, cur, settleOpts);
             })(); },
         });
         close();

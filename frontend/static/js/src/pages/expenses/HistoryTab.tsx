@@ -350,12 +350,22 @@ export function HistoryTab() {
                 ) : (
                     filtered.map((e) => {
                         const cat = categories.find((c) => c.id === e.categoryId);
-                        // Convert from the original currency to the user's home
-                        // currency for the blue helper line. Skip the line when
-                        // the expense was already in the home currency.
+                        // Show the original amount in the user's home currency
+                        // for the blue helper line. Skip it when the expense was
+                        // already in the home currency.
+                        // MK6 P2: base this on the FROZEN euroValue (nominal),
+                        // not a live re-conversion of the original foreign
+                        // amount. For a no-rate currency (e.g. VND) the old
+                        // formatHome(e.value, e.currency) fell back to a 1:1 rate
+                        // and printed the raw foreign number (e.g. "≈ €270000");
+                        // the frozen euroValue is the real home-money figure and
+                        // matches what balances/budgets use. `!= null` respects a
+                        // frozen €0. History is not Insights — no FX drift here.
                         const showConverted = e.currency !== homeCurrency;
                         const convertedDisplay = showConverted
-                            ? `≈ ${formatHome(e.value, e.currency)}`
+                            ? `≈ ${e.euroValue != null
+                                ? formatHome(e.euroValue, 'EUR')
+                                : formatHome(e.value, e.currency)}`
                             : '';
                         return (
                             <div
