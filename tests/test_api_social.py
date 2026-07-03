@@ -1790,3 +1790,34 @@ def test_block_sweep_removes_engagement_on_trip_created_card(
     assert client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers).status_code == 200
     assert _b_comment_count() == 0, \
         "block sweep left B's comment on A's trip_created card (visible to third parties)"
+
+
+def test_deleting_one_comment_keeps_notification_for_others(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """MK6 P3: deleting ONE of an author's comments on a post must not wipe the
+    notifications for their still-existing comments — one notif per comment, so
+    removing one comment removes exactly one notif."""
+    from database import get_db
+    trip_id = _create_trip(client, auth_headers, trip_id="t-notif", public=True)
+    event_id = "share_" + str(
+        client.post("/api/feed/share", headers=auth_headers, json={"trip_id": trip_id})
+        .get_json()["post_id"])
+    client.post(f"/api/feed/comment/{event_id}", headers=other_auth_headers, json={"body": "one"})
+    client.post(f"/api/feed/comment/{event_id}", headers=other_auth_headers, json={"body": "two"})
+
+    def _notif_count():
+        with get_db() as conn:
+            return conn.execute(
+                "SELECT COUNT(*) FROM notifications WHERE type='share_commented' "
+                "AND user_id=? AND related_id=?", (seed_user, seed_other_user)).fetchone()[0]
+
+    assert _notif_count() == 2, "two comments should produce two notifications"
+    with get_db() as conn:
+        ids = [r[0] for r in conn.execute(
+            "SELECT id FROM feed_comments WHERE event_id=? AND user_id=? ORDER BY id",
+            (event_id, seed_other_user)).fetchall()]
+    assert client.delete(f"/api/feed/comment/{ids[0]}",
+                         headers=other_auth_headers).status_code == 200
+    assert _notif_count() == 1, \
+        "deleting one comment wiped the notification for the surviving comment too"

@@ -1380,10 +1380,18 @@ def delete_feed_comment(comment_id):
         # actor id; post_id stores the feed_posts.id.
         post_id_for_notif = _post_id_for_event(event_id)
         if post_id_for_notif is not None:
+            # MK6 P3: remove exactly ONE 'share_commented' notification, not all
+            # of this author's. _fire_engagement_notification inserts one row per
+            # comment (keyed only on post_id + related_id, no per-comment id), so
+            # a blanket DELETE wiped the notifications for the author's STILL-
+            # EXISTING comments on the same post. A single-row subquery delete
+            # keeps the recipient's notification count in sync with the surviving
+            # comments (a no-op when there was none — e.g. a self-comment).
             cursor.execute(
-                "DELETE FROM notifications "
-                "WHERE type = 'share_commented' "
-                "  AND post_id = ? AND related_id = ?",
+                "DELETE FROM notifications WHERE id = ("
+                "  SELECT id FROM notifications "
+                "  WHERE type = 'share_commented' AND post_id = ? AND related_id = ? "
+                "  LIMIT 1)",
                 (post_id_for_notif, comment_author),
             )
         conn.commit()

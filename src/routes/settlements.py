@@ -630,10 +630,23 @@ def delete_settlement(settlement_id):
             trip_name = (trip_row["name"] if trip_row else "the trip") or "the trip"
             amount = row["amount"]
             currency = row["currency"] or ""
-            message = (
-                f"{payer_name} reverted a settlement of "
-                f"{amount:g} {currency} on {trip_name}."
-            )
+            if user_id != row["from_user_id"]:
+                # MK6 P3: a THIRD party (trip owner / recorder) reverted it, not
+                # the payer — name the actual deleter so the recipient doesn't
+                # think the payer "un-paid" them. Mirrors the create path's
+                # third-party-recorder message.
+                cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
+                deleter_row = cursor.fetchone()
+                deleter_name = (deleter_row["name"] if deleter_row else "Someone") or "Someone"
+                message = (
+                    f"{deleter_name} reverted the settlement {payer_name} paid you "
+                    f"({amount:g} {currency}) on {trip_name}."
+                )
+            else:
+                message = (
+                    f"{payer_name} reverted a settlement of "
+                    f"{amount:g} {currency} on {trip_name}."
+                )
             cursor.execute(
                 "INSERT INTO notifications "
                 "(user_id, type, title, related_id, message, is_read) "

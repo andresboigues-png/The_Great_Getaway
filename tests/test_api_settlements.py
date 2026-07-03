@@ -796,3 +796,38 @@ def test_create_settlement_nonscalar_ids_return_400_not_500(client, seed_user, a
         "tripId": "t1", "fromUserId": ["u1"], "toUserId": "u2", "amount": 5,
     })
     assert res2.status_code == 400, res2.get_data(as_text=True)
+
+
+def test_settlement_revert_names_the_actual_deleter(client, seed_user, auth_headers):
+    """MK6 P3: when a THIRD party (trip owner / recorder) reverts a settlement,
+    the recipient's notification must name the DELETER, not the payer — else the
+    recipient thinks the payer un-paid them."""
+    from database import get_db
+    charlie, sara, bob = seed_user, "sara-rev", "bob-rev"
+    with get_db() as conn:
+        for uid, nm in ((sara, "Sara"), (bob, "Bob")):
+            conn.execute("INSERT INTO users (id, email, name) VALUES (?,?,?)",
+                         (uid, f"{uid}@e.co", nm))
+        conn.execute("INSERT INTO trips (id, user_id, name) VALUES ('t-rev', ?, 'Lisbon')",
+                     (charlie,))
+        for uid in (charlie, sara, bob):
+            conn.execute("INSERT INTO trip_members (trip_id, user_id, role, invitation_status) "
+                         "VALUES ('t-rev', ?, 'planner', 'accepted')", (uid,))
+        conn.execute(
+            "INSERT INTO settlements (id, trip_id, from_user_id, to_user_id, "
+            "from_name, to_name, amount, currency, euro_value, recorded_by) "
+            "VALUES ('set-rev', 't-rev', ?, ?, 'Sara', 'Bob', 45, 'EUR', 45, ?)",
+            (sara, bob, charlie),
+        )
+        conn.commit()
+    # Charlie (owner + recorder, = seed_user) reverts it.
+    res = client.delete("/api/settlements/set-rev", headers=auth_headers)
+    assert res.status_code == 200, res.get_data(as_text=True)
+    with get_db() as conn:
+        r = conn.execute(
+            "SELECT message FROM notifications WHERE user_id=? AND type='settled_up_reverted'",
+            (bob,)).fetchone()
+    assert r is not None, "recipient should be notified of the revert"
+    assert "reverted the settlement" in r["message"], r["message"]
+    assert not r["message"].startswith("Sara reverted"), \
+        f"revert notif wrongly named the payer instead of the deleter: {r['message']}"
