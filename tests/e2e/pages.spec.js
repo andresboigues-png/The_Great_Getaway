@@ -42,13 +42,20 @@ const PAGES = [
         anchorSelector: '#homeHeroImg, #pathAddDayChip, #tripSelector, #tripSelectorSidebar',
         needsActiveTrip: false,
     },
-    { name: 'feed', navTarget: 'feed', anchorSelector: '.nav-brand', needsActiveTrip: false },
-    { name: 'collections', navTarget: 'collections', anchorSelector: '.nav-brand', needsActiveTrip: false },
-    { name: 'friends', navTarget: 'friends', anchorSelector: '.nav-brand', needsActiveTrip: false },
-    // MK1 Wave D: profile + settings hide the top navbar on MOBILE
-    // (full-screen page chrome), so .nav-brand isn't a valid anchor
-    // there — use each page's own root instead (present on both
-    // viewports), with .nav-brand kept as the desktop fallback.
+    { name: 'feed', navTarget: 'feed', anchorSelector: '.feed-tabs-row, .nav-brand', needsActiveTrip: false },
+    {
+        name: 'collections',
+        navTarget: 'collections',
+        anchorSelector: '.ai-page-header, .nav-brand',
+        needsActiveTrip: false,
+    },
+    { name: 'friends', navTarget: 'friends', anchorSelector: '.ai-page-header, .nav-brand', needsActiveTrip: false },
+    // MK1 Wave D: .nav-brand is NOT visible on the MOBILE navbar in
+    // the current chrome (icons-only top bar), so it can't anchor any
+    // mobile page render — every page anchors on its own root element
+    // (present on both viewports), with .nav-brand as a desktop-only
+    // fallback. (Caught on CI's pristine-DB run; a warm local DB had
+    // masked it.)
     { name: 'profile', navTarget: 'profile', anchorSelector: '.profile-page, .nav-brand', needsActiveTrip: false },
     { name: 'settings', navTarget: 'settings', anchorSelector: '.settings-grid, .nav-brand', needsActiveTrip: false },
     // Trip-scoped pages — render the meaningful state when there's an

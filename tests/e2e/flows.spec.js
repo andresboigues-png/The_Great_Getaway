@@ -1317,14 +1317,12 @@ test.describe('Critical flows — UI-driven (mobile)', () => {
 
     test('mobile trip-switcher opens the trip-controls popover with +New Trip, selector, actions', async ({ page }) => {
         // The trip controls (+New Trip, selector, complete + delete) live
-        // in a popover (#tripControlsPopover). On mobile the navbar compass
-        // (#tripControlsBtn) was REMOVED (2026-05-21, per user request:
-        // "shouldn't be a button in the top banner at all" — it's now
-        // display:none !important ≤720px). The trigger is the in-content
-        // circular-arrow #mobileTripSwitcherBtn beside the trip name
-        // (TripBody.tsx), wired to the SAME popover via the delegated
-        // click handler in nav-chrome.ts. The switcher only renders when a
-        // trip is active, so seed + activate one first.
+        // in a popover (#tripControlsPopover). MK1 Wave D rewrite: the
+        // in-content #mobileTripSwitcherBtn was retired in round 21 —
+        // the mobile trigger is now the centre "Your trip ▾" banner
+        // control (#navTripChange), wired to the SAME popover via the
+        // delegated handler in nav-chrome.ts. Seed + activate a trip
+        // first so the banner shows the trip name.
         const userId = uniqueId('user');
         const auth = await getAuthForApi(page, userId);
         const tripId = await createTripViaApi(page, auth.headers, {
@@ -1345,7 +1343,7 @@ test.describe('Critical flows — UI-driven (mobile)', () => {
         }, tripId);
         await page.goto('/');
 
-        const switcher = page.locator('#mobileTripSwitcherBtn');
+        const switcher = page.locator('#navTripChange');
         const popover = page.locator('#tripControlsPopover');
         await switcher.waitFor({ state: 'visible', timeout: 8000 });
         await expect(popover).toBeHidden();
@@ -1361,9 +1359,12 @@ test.describe('Critical flows — UI-driven (mobile)', () => {
         await expect(popover.locator('#newTripBtnSidebar')).toBeVisible();
         await expect(popover.locator('#tripSelectorSidebar')).toBeVisible();
 
-        // Click outside closes the popover (nav-chrome.ts outside-click
-        // handler: not the switcher + not inside the popover → hide).
-        await page.locator('main#app-container').click({ position: { x: 50, y: 400 } });
+        // Dismiss: on the current mobile layout the popover overlays the
+        // (50,400) point this test used to outside-click — Playwright
+        // correctly refuses a click the popover would intercept. Use the
+        // Escape path instead (nav-chrome.ts wires Escape-dismiss on the
+        // popover — the R6-B5 dialog contract).
+        await page.keyboard.press('Escape');
         await expect(popover).toBeHidden();
     });
 });
