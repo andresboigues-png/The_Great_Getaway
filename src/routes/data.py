@@ -21,7 +21,6 @@ from achievements import (
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
-from fx_rates import compute_euro_value, get_rate_eur
 from helpers import (
     batch_editable_trip_ids,
     batch_expense_writable_trip_ids,
@@ -32,131 +31,16 @@ from helpers import (
     serialize_trip_row,
     unwrap_legacy_plan_text,
 )
+from services.day_writes import SYNC as DAY_SYNC
+from services.day_writes import apply_day_upsert
+from services.expense_writes import SYNC_ACTIVE, SYNC_ARCHIVED, apply_expense_upsert
 from validators import (
     ValidationError,
-    clean_text,
-    validate_currency,
-    validate_date,
-    validate_money,
-    validate_splits,
     validate_upload_url,
 )
 from validators import (
     clean_companions as _clean_companions_raw,
 )
-
-
-def _validate_sync_expense(e: dict, user_id: str) -> dict | None:
-    """R3-Fix #11 + #6: per-row validation for /api/sync expense
-    loops. Pre-fix both loops took every field verbatim — NaN/Inf
-    values, unknown currencies, 10 MB labels, and client-trusted
-    `euroValue` all flowed through. The per-row /api/expenses POST
-    has had this hardening since R2; the bulk-sync loops were missed.
-
-    Returns a validated dict ready for INSERT, OR None when any
-    field fails validation (caller should skip the row — bulk paths
-    can't 400 the whole batch over one bad row).
-
-    R10-B6a F1: now also validates `receiptUrl` ownership (must
-    point at this user's own upload subdir, mirroring the per-row
-    /api/expenses gate) — pre-fix the bulk sync path stored receipt
-    URLs verbatim, so a curl-built payload could point an expense
-    at another user's upload and exfiltrate it via the row.
-
-    R10-B6a F2: now also validates `splits` shape via the shared
-    `validate_splits` helper. Pre-fix the bulk loop stored splits
-    verbatim, so {"sara": "infinity"} or [1, 2, 3] would land in
-    the DB and crash the balance reducer on every subsequent read.
-    """
-    try:
-        # R10-B2 P1-8: allow_zero=False matches the per-row /api/expenses
-        # gate at routes/expenses.py:61. Pre-fix the bulk-sync path used
-        # the default allow_zero=True → a curl-driven CSV import (or a
-        # buggy client) could land €0 ghost expense rows. The single-row
-        # POST path always rejected those; this sibling missed it.
-        value = validate_money(e.get('value', 0), field_name="value", allow_zero=False)
-        currency = validate_currency(e.get('currency'))
-        # R3-Fix #6: server-side euro_value derivation.
-        client_euro_value = validate_money(
-            e.get('euroValue', 0),
-            field_name="euroValue",
-        )
-        euro_value = compute_euro_value(
-            value,
-            currency,
-            client_euro_value=client_euro_value,
-        )
-        # Integration audit MM-2: mirror the per-row /api/expenses C1 gate
-        # (expenses.py) on the bulk-sync path. A non-EUR currency with no live
-        # rate AND no positive client euroValue can't be converted — pre-fix
-        # it stored euro_value=0 (the client default), which then read three
-        # inconsistent ways downstream. Drop the row (silent-skip contract —
-        # the bulk path can't 400 the whole batch over one bad row), exactly as
-        # the single-row POST refuses it.
-        if (
-            currency != "EUR"
-            and get_rate_eur(currency) is None
-            and not (client_euro_value and client_euro_value > 0)
-        ):
-            return None
-        label = clean_text(
-            e.get('label', ''),
-            max_len=200,
-            allow_newlines=False,
-            field_name="label",
-        )
-        who = clean_text(
-            e.get('who', ''),
-            max_len=200,
-            allow_newlines=False,
-            field_name="who",
-        )
-        country = clean_text(
-            e.get('country', '') or '',
-            max_len=120,
-            allow_newlines=False,
-            field_name="country",
-        )
-        category_id = clean_text(
-            e.get('categoryId', '') or '',
-            max_len=120,
-            allow_newlines=False,
-            field_name="categoryId",
-        )
-        # BUG-8: coerce to YYYY-MM-DD or empty. On the bulk sync path we DROP
-        # a garbage date (→ '') rather than reject the whole expense, so a bad
-        # date can't corrupt Insights but the legit expense still syncs.
-        try:
-            date = validate_date(e.get('date', ''))
-        except ValidationError:
-            date = ''
-        # R10-B6a F1: gate receiptUrl ownership before it lands in
-        # the receipt_url column. Bad URL (not owned, not the
-        # accepted prefix shape, non-string) drops the whole row
-        # rather than 400'ing the batch — matches the silent-skip
-        # contract documented above.
-        receipt_url = validate_upload_url(
-            e.get('receiptUrl'),
-            user_id=user_id,
-            field_name="receiptUrl",
-            allow_empty=True,
-        )
-        # R10-B6a F2: gate splits map shape via shared helper.
-        splits_clean = validate_splits(e.get('splits'))
-    except ValidationError:
-        return None
-    return {
-        'value': value,
-        'currency': currency,
-        'euro_value': euro_value,
-        'label': label,
-        'who': who,
-        'country': country,
-        'category_id': category_id,
-        'date': date,
-        'receipt_url': receipt_url,
-        'splits': splits_clean,
-    }
 
 
 def _cleaned_companions_for_sync(cursor, trip_id, raw):
@@ -694,6 +578,18 @@ def sync_data():
             # would rewrite the trip-B expense fields while trip_id
             # stayed at B. Mirror the active-loop pattern: SELECT
             # existing trip_id, gate on THAT for UPDATEs.
+            # MK1 Wave B (T1-1): the whole validate/gate/freeze/upsert
+            # pipeline lives in services/expense_writes.py now, shared
+            # with the per-row POST /api/expenses and the active loop
+            # below. SYNC_ARCHIVED policy = silent-skip, lenient splits
+            # + date, no archived gate (sync IS the archived catch-up
+            # channel), no concurrency gate, planner-only via the
+            # editable_trip_ids set (R5-B4 semantics preserved).
+            # Deliberate fix inherited from the unification: a metadata-
+            # only resync of a no-rate-currency expense now freezes the
+            # stored euro_value instead of being dropped by the old
+            # pre-lookup C1 check in _validate_sync_expense (the Wave 17
+            # ordering fix, applied to this sibling automatically).
             if 'expenses' in t:
                 for e in t['expenses']:
                     # BUG-096: skip a malformed bundled expense (missing id)
@@ -701,104 +597,14 @@ def sync_data():
                     # the parent trip here, so only the id is required.
                     if not isinstance(e, dict) or not e.get('id'):
                         continue
-                    existing = cursor.execute(
-                        "SELECT trip_id, value, currency, euro_value FROM expenses WHERE id = ?",
-                        (e['id'],),
-                    ).fetchone()
-                    gate_trip_id = existing['trip_id'] if existing else t['id']
-                    # R5-B4: set lookup. Note we still use the
-                    # planner-only set (editable_trip_ids), NOT the
-                    # broader expense-writable set — archived-expense
-                    # writes are gated to planners only (matching the
-                    # pre-fix can_edit_trip semantics here).
-                    if gate_trip_id not in editable_trip_ids:
-                        continue
-                    # R3-Fix #11 + #6 + R10-B6a F1/F2: validate every
-                    # field + recompute euro_value server-side. Now
-                    # also validates receiptUrl ownership + splits
-                    # shape via the shared helpers. Pre-fix this loop
-                    # took the client's values verbatim — NaN/Inf,
-                    # unknown currencies, 10MB labels, client-trusted
-                    # euroValue, foreign-user receipt URLs, and
-                    # malformed splits maps all flowed through. Bad
-                    # rows are silently skipped (bulk paths can't 400
-                    # the whole batch).
-                    cleaned = _validate_sync_expense(e, user_id)
-                    if cleaned is None:
-                        continue
-                    # MK6 P3 (MM-1/MM-5): preserve the FROZEN euro_value on a
-                    # re-sync that doesn't change the money, exactly like the
-                    # ACTIVE-expense loop below. The archived sibling was missed,
-                    # so every legacy-client sync re-stamped foreign-currency
-                    # archived expenses at today's FX — silently drifting the
-                    # nominal balances/budgets the money invariant must never
-                    # move.
-                    if (
-                        existing
-                        and abs((existing["value"] or 0) - cleaned['value']) < 1e-9
-                        and (existing["currency"] or "").upper() == cleaned['currency'].upper()
-                    ):
-                        cleaned['euro_value'] = existing["euro_value"]
-                    # 2026-05-25 (audit S1): persist splits + is_settlement.
-                    # R10-B6a F2: splits now arrive pre-validated.
-                    splits_clean = cleaned['splits']
-                    if splits_clean:
-                        import json as _json
-
-                        splits_json = _json.dumps(splits_clean)
-                    else:
-                        splits_json = None
-                    is_settlement = 1 if e.get('isSettlement') else 0
-                    # 2026-05-26 (audit SY5): WHERE guard skips tombstoned
-                    # rows so a peer device's queued archived-trip state
-                    # can't resurrect an expense another device deleted.
-                    #
-                    # R3-Fix #11: SET clause now includes category_id /
-                    # date / country / currency (active path included
-                    # them since R2 audit fix; archived sibling was
-                    # missed → editing those fields on an archived
-                    # expense silently no-op'd on reload).
-                    cursor.execute(
-                        '''
-                        INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits, is_settlement)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ON CONFLICT(id) DO UPDATE SET
-                            who=excluded.who,
-                            category_id=excluded.category_id,
-                            label=excluded.label,
-                            date=excluded.date,
-                            country=excluded.country,
-                            value=excluded.value,
-                            currency=excluded.currency,
-                            euro_value=excluded.euro_value,
-                            receipt_url=excluded.receipt_url,
-                            splits=excluded.splits,
-                            is_settlement=excluded.is_settlement,
-                            -- R4-B1: bump updated_at on every sync UPDATE
-                            -- so the R3-R4 stale-edit gate in /api/expenses
-                            -- can detect that this row moved since the
-                            -- client last read it. See trips block above
-                            -- for the full rationale.
-                            updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
-                        WHERE expenses.deleted_at IS NULL
-                    ''',
-                        (
-                            e['id'],
-                            gate_trip_id,
-                            cleaned['who'],
-                            cleaned['category_id'],
-                            cleaned['label'],
-                            cleaned['date'],
-                            cleaned['country'],
-                            cleaned['value'],
-                            cleaned['currency'],
-                            cleaned['euro_value'],
-                            cleaned['receipt_url'],
-                            splits_json,
-                            is_settlement,
-                        ),
+                    apply_expense_upsert(
+                        cursor,
+                        user_id,
+                        e,
+                        claimed_trip_id=t['id'],
+                        can_write=lambda trip_id: trip_id in editable_trip_ids,
+                        policy=SYNC_ARCHIVED,
                     )
-
         # Commit archived-trips section (plus the inline archived
         # expenses) before moving to active expenses.
         conn.commit()
@@ -816,113 +622,26 @@ def sync_data():
         # checked the *claimed* trip. We now SELECT the existing trip_id
         # first and use IT for the permission check on updates; new
         # inserts gate on the claimed trip as before.
+        # MK1 Wave B (T1-1): unified into services/expense_writes.py —
+        # SYNC_ACTIVE policy keeps this loop's documented contract:
+        # silent-skip on validation/authz failures, lenient splits +
+        # date, no archived gate, opt-in clientUpdatedAt concurrency
+        # (R10-B6d T3: stale rows skip silently, no 409), and the
+        # planner+budgeteer expense_writable_trip_ids set (R5-B4).
         for e in expenses:
             # BUG-096: skip a malformed bulk row (missing id/tripId) instead of
             # subscript KeyError → uncaught 500. Mirrors the partial-sync
             # silent-skip contract the loop already uses for permission gaps.
             if not isinstance(e, dict) or not e.get('id') or not e.get('tripId'):
                 continue
-            existing = cursor.execute(
-                "SELECT trip_id, value, currency, euro_value FROM expenses WHERE id = ?",
-                (e['id'],),
-            ).fetchone()
-            gate_trip_id = existing['trip_id'] if existing else e.get('tripId')
-            # R5-B4: set lookup instead of can_edit_expenses' 2-query
-            # call. Expense writes allow planners + budgeteers.
-            if gate_trip_id not in expense_writable_trip_ids:
-                continue
-            # R3-Fix #11 + #6 + R10-B6a F1/F2: validate every field +
-            # recompute euro_value server-side, validate receiptUrl
-            # ownership, validate splits shape. Silently skip rows
-            # that fail validation.
-            cleaned = _validate_sync_expense(e, user_id)
-            if cleaned is None:
-                continue
-            # Integration audit MM-1/MM-5: preserve the FROZEN euro_value on a
-            # re-sync that doesn't change the money (value+currency unchanged),
-            # mirroring the per-row /api/expenses path. Without this, every
-            # /api/sync re-stamps each foreign expense at today's FX, drifting
-            # all balances/budgets/Insights. Reuse the row's own stored value.
-            if (
-                existing
-                and abs((existing["value"] or 0) - cleaned['value']) < 1e-9
-                and (existing["currency"] or "").upper() == cleaned['currency'].upper()
-            ):
-                cleaned['euro_value'] = existing["euro_value"]
-            # 2026-05-25 (audit S1): persist splits + is_settlement here too,
-            # so a bulk-sync path doesn't silently strip them.
-            # R10-B6a F2: splits now arrive pre-validated.
-            splits_clean = cleaned['splits']
-            if splits_clean:
-                import json as _json
-
-                splits_json = _json.dumps(splits_clean)
-            else:
-                splits_json = None
-            is_settlement = 1 if e.get('isSettlement') else 0
-            # 2026-05-26 (audit SY5): WHERE guard skips tombstoned rows so
-            # a peer device's queued state can't resurrect an expense
-            # another device deleted. Same shape as routes/expenses.py
-            # single-row upsert.
-            # R10-B6d T3: OPTIONAL atomic concurrency gate. Pre-fix the
-            # bulk /api/sync path was the sibling that bypassed the
-            # R8-B4 atomic updated_at WHERE clause (the per-row
-            # /api/expenses endpoint has had it since R8-B4 shipped).
-            # Two tabs writing the same expense via /api/sync still
-            # last-write-wins silently — no 409, no toast.
-            #
-            # Fix is OPT-IN to preserve the legacy contract: if the
-            # client supplies clientUpdatedAt on the row, the UPDATE
-            # only fires when the stored updated_at still matches.
-            # Tests that don't supply clientUpdatedAt see no behavior
-            # change (the `? IS NULL` short-circuit makes the gate a
-            # no-op). Future clients that DO supply it get the same
-            # safety the per-row endpoint provides. Stale writes
-            # silently skip (vs the per-row 409) because /api/sync's
-            # contract is "best-effort batch" — we can't 400 the whole
-            # batch over one stale row, and the offline outbox replay
-            # at the per-row endpoint will catch up cleanly.
-            client_updated_at = e.get('clientUpdatedAt')
-            cursor.execute(
-                '''
-                INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits, is_settlement)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    who=excluded.who,
-                    category_id=excluded.category_id,
-                    label=excluded.label,
-                    date=excluded.date,
-                    country=excluded.country,
-                    value=excluded.value,
-                    currency=excluded.currency,
-                    euro_value=excluded.euro_value,
-                    receipt_url=excluded.receipt_url,
-                    splits=excluded.splits,
-                    is_settlement=excluded.is_settlement,
-                    -- R4-B1: see archived-expenses block above for rationale.
-                    updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
-                WHERE expenses.deleted_at IS NULL
-                  AND (? IS NULL OR expenses.updated_at = ?)
-            ''',
-                (
-                    e['id'],
-                    e['tripId'],
-                    cleaned['who'],
-                    cleaned['category_id'],
-                    cleaned['label'],
-                    cleaned['date'],
-                    cleaned['country'],
-                    cleaned['value'],
-                    cleaned['currency'],
-                    cleaned['euro_value'],
-                    cleaned['receipt_url'],
-                    splits_json,
-                    is_settlement,
-                    client_updated_at,
-                    client_updated_at,
-                ),
+            apply_expense_upsert(
+                cursor,
+                user_id,
+                e,
+                claimed_trip_id=e['tripId'],
+                can_write=lambda trip_id: trip_id in expense_writable_trip_ids,
+                policy=SYNC_ACTIVE,
             )
-
         # Commit active-expenses section before categories.
         conn.commit()
 
@@ -1008,85 +727,41 @@ def sync_data():
         # validate_money/validate_currency/no-rate).
         _ = data.get("budgets")  # accepted-but-ignored (see above)
 
-        # Sync Trip Days
+        # Sync Trip Days — MK1 Wave B (T1-1): unified into
+        # services/day_writes.py, shared with POST /api/days. SYNC policy
+        # keeps this loop's documented contract (silent-skip, no archived
+        # gate, no concurrency gate, NO accommodation columns — legacy
+        # bundles predate them and would null stored values) and adds two
+        # deliberate fixes: dayNumber is validated (bad values skip
+        # instead of binding verbatim) and a UNIQUE(trip_id, day_number)
+        # collision skips the row instead of 500ing the whole sync after
+        # earlier sections committed. Permission stays MK5-P1 IDOR-safe:
+        # the service gates on the EXISTING row's stored trip_id; the
+        # predicate below allows the precomputed editable set plus trips
+        # the caller OWNS (covers one created earlier in this same batch).
         trip_days = data.get("trip_days", [])
+
+        def _can_write_day_trip(trip_id: str) -> bool:
+            if trip_id in editable_trip_ids:
+                return True
+            cursor.execute(
+                "SELECT 1 FROM trips WHERE id = ? AND user_id = ?",
+                (trip_id, user_id),
+            )
+            return cursor.fetchone() is not None
+
         for d in trip_days:
             # BUG-096: skip a malformed bulk row (missing id/tripId) instead of
             # subscript KeyError → uncaught 500 (mirrors the expense loop).
             if not isinstance(d, dict) or not d.get('id') or not d.get('tripId'):
                 continue
-            # SEC (Audit MK5 P1 — IDOR): authorize EVERY day write. The trips
-            # loop above gates on editable_trip_ids, but pre-fix this loop wrote
-            # any (id, tripId) verbatim — a caller could inject or overwrite
-            # days in a stranger's trip via /api/sync. Resolve the effective
-            # trip (an existing day's STORED trip_id — the UPSERT can't re-home
-            # it anyway since trip_id isn't in the SET clause — else the body's
-            # tripId) and skip silently unless the caller may edit it: in the
-            # precomputed editable set (owner + invited planners), or a trip
-            # they OWN (covers one created earlier in this same sync batch).
-            cursor.execute("SELECT trip_id FROM trip_days WHERE id = ?", (d['id'],))
-            _day_row = cursor.fetchone()
-            _target_trip = _day_row['trip_id'] if _day_row else d.get('tripId')
-            if not _target_trip:
-                continue
-            if _target_trip not in editable_trip_ids:
-                cursor.execute(
-                    "SELECT 1 FROM trips WHERE id = ? AND user_id = ?",
-                    (_target_trip, user_id),
-                )
-                if cursor.fetchone() is None:
-                    continue
-            # 2026-05-26 (audit SY5): WHERE guard skips tombstoned trip
-            # days — see routes/days.py for the rationale and migration
-            # b7c8d9e0f1a2_add_tombstone_columns.
-            cursor.execute(
-                '''
-                INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, notes, lat, lng)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    day_number=excluded.day_number,
-                    date=excluded.date,
-                    name=excluded.name,
-                    morning=excluded.morning,
-                    afternoon=excluded.afternoon,
-                    evening=excluded.evening,
-                    tip=excluded.tip,
-                    notes=excluded.notes,
-                    lat=excluded.lat,
-                    lng=excluded.lng,
-                    -- R4-B1: bump updated_at so the R3-R5 stale-edit
-                    -- gate in /api/days can detect a sync poll that
-                    -- moved the row.
-                    updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
-                WHERE trip_days.deleted_at IS NULL
-            ''',
-                (
-                    d['id'],
-                    d['tripId'],
-                    d.get('dayNumber'),
-                    d.get('date'),
-                    d.get('name'),
-                    # Plain text — NOT json.dumps. Legacy code wrapped these
-                    # which round-tripped empty strings as '""' and non-empty
-                    # strings as '"foo"' (extra quotes), surfacing as garbage
-                    # in the day-plan textareas.
-                    d.get('morning', d.get('plan', {}).get('morning', '')) or '',
-                    d.get('afternoon', d.get('plan', {}).get('afternoon', '')) or '',
-                    d.get('evening', d.get('plan', {}).get('evening', '')) or '',
-                    # BUG-1 fix: write `notes` as its own column (was overloaded
-                    # into `tip`, silently losing per-day notes + journaling).
-                    d.get('tip', ''),
-                    d.get('notes', ''),
-                    d.get('lat'),
-                    # The frontend writes `lon` and `lng` interchangeably for
-                    # longitude (legacy naming); the lat column was previously
-                    # being filled with `lon` as a fallback when `lat` was
-                    # missing, which silently corrupted the latitude value.
-                    # FIXING_ROADMAP §2.4: the `or` operator drops legitimate
-                    # values of 0 — the prime meridian (lng=0) and equator
-                    # (lat=0). Explicit `is not None` instead.
-                    d['lng'] if d.get('lng') is not None else d.get('lon'),
-                ),
+            apply_day_upsert(
+                cursor,
+                user_id,
+                d,
+                claimed_trip_id=d['tripId'],
+                can_write=_can_write_day_trip,
+                policy=DAY_SYNC,
             )
 
         conn.commit()

@@ -640,6 +640,16 @@ def test_expense_stale_clientUpdatedAt_returns_409(
     first_updated_at = res.get_json()["updatedAt"]
     assert first_updated_at, "first write should return updatedAt"
 
+    # The updated_at stamp is millisecond-precision (R3-Round 4); two
+    # writes inside the SAME millisecond collide, making the stale gate
+    # undetectable and this test flake on a fast machine (observed once
+    # in a warm full-suite run). Real-world edits are spaced far wider —
+    # nudge past the boundary so the second write always gets a fresh
+    # stamp.
+    import time as _time
+
+    _time.sleep(0.002)
+
     # Second write WITHOUT clientUpdatedAt — legacy path, accepted.
     res2 = client.post(
         "/api/expenses",

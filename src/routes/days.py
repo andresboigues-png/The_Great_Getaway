@@ -8,8 +8,6 @@ card; the 422 in delete_day is belt-and-braces in case a stale client
 or a curl-wielding user fires the request anyway.
 """
 
-import sqlite3
-
 from flask import Blueprint, jsonify
 
 from auth import current_user_id, require_auth
@@ -21,10 +19,11 @@ from helpers import (
 from helpers import (
     can_edit_trip,
     delete_upload_files,
-    is_trip_archived_for,
     json_body,
 )
 from observability import bind_trip_context
+from services.day_writes import PER_ROW as DAY_PER_ROW
+from services.day_writes import apply_day_upsert
 
 bp = Blueprint("days", __name__)
 
@@ -48,176 +47,29 @@ def upsert_day():
         return jsonify({"error": "Missing trip id"}), 400
     bind_trip_context(claimed_trip_id)
 
-    # Audit fix (2026-05-26): validate day_number bounds. Pre-fix the
-    # route happily stored `dayNumber: -5` or `dayNumber: 999999`,
-    # which then broke the renumber heuristic and the "Add Day"
-    # modal's "Day N+1" suggestion (modals.ts:843 computes maxDayNumber
-    # + 1, which goes catastrophic with extreme values). Cap at a
-    # generous 999 — no trip is longer than 999 days.
-    day_number = d.get("dayNumber")
-    if day_number is not None:
-        # BUG-31 (MK2 audit): reject fractional values instead of
-        # silently truncating them. `int(2.5)` is 2, so a `dayNumber: 2.5`
-        # used to land on slot 2 and collide with the real Day 2. Parse
-        # as float first and require a whole number — this still accepts
-        # int 2, float 2.0, and the string "2", but rejects 2.5 / "2.5".
-        try:
-            day_number_f = float(day_number)
-        except (TypeError, ValueError):
-            return jsonify({"error": "dayNumber must be an integer"}), 400
-        if not day_number_f.is_integer():
-            return jsonify({"error": "dayNumber must be a whole number"}), 400
-        day_number_int = int(day_number_f)
-        if day_number_int < 0:
-            return jsonify({"error": "dayNumber must be non-negative"}), 400
-        if day_number_int > 999:
-            return jsonify({"error": "dayNumber must be 999 or less"}), 400
-        d['dayNumber'] = day_number_int
+    # MK1 Wave B (T1-1): dayNumber bounds, the R2 IDOR-safe gate, the
+    # archived-trip 409, the SY5 tombstone guard, R8-B4 concurrency, and
+    # the DAY-1 collision→409 mapping all live in services/day_writes.py
+    # now — ONE implementation shared with /api/sync's trip_days loop.
     with get_db() as conn:
         cursor = conn.cursor()
-        # R2 audit fix: IDOR via claimed-tripId — same shape as the
-        # expenses fix. Gate the permission check on the EXISTING row's
-        # trip_id when the day already exists; only INSERTs fall back to
-        # the client-claimed trip. Without this, a planner on trip A
-        # could POST {id: <day-in-trip-B>, tripId: <A>, dayNumber: 99}
-        # and rewrite day-B's contents (the SET clause overwrites
-        # day_number / date / name / morning / afternoon / evening /
-        # tip / lat / lng).
-        cursor.execute(
-            "SELECT trip_id, updated_at FROM trip_days WHERE id = ?",
-            (day_id,),
+        result = apply_day_upsert(
+            cursor,
+            user_id,
+            d,
+            claimed_trip_id=claimed_trip_id,
+            can_write=lambda trip_id: can_edit_trip(cursor, trip_id, user_id),
+            policy=DAY_PER_ROW,
         )
-        existing = cursor.fetchone()
-        gate_trip_id = existing["trip_id"] if existing else claimed_trip_id
-        if not can_edit_trip(cursor, gate_trip_id, user_id):
-            return jsonify({"error": "Forbidden"}), 403
-        # R3-Fix #18: archive write gate (per-row only; sync exempt).
-        if is_trip_archived_for(cursor, gate_trip_id, user_id):
-            return jsonify(
-                {
-                    "error": "Trip is archived — unarchive to edit",
-                }
-            ), 409
-        # R3-Round 5: optimistic-concurrency gate — same pattern as
-        # the /api/expenses + /api/trips + /api/budgets routes.
-        # R8-B4: now atomic via the ON CONFLICT UPDATE's WHERE clause.
-        client_updated_at = d.get('clientUpdatedAt')
-        try:
-            # 2026-05-26 (audit SY5): WHERE guard mirrors the expense
-            # upsert — `deleted_at IS NULL` makes the ON CONFLICT UPDATE a
-            # no-op for tombstoned rows so a peer device's queued state
-            # can't bring back a day that another device already deleted.
-            # See migration b7c8d9e0f1a2_add_tombstone_columns for the
-            # column rationale.
-            cursor.execute(
-                '''
-                INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, notes, lat, lng, accommodation, accommodation_place_id, accommodation_address, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
-                ON CONFLICT(id) DO UPDATE SET
-                    day_number=excluded.day_number,
-                    date=excluded.date,
-                    name=excluded.name,
-                    morning=excluded.morning,
-                    afternoon=excluded.afternoon,
-                    evening=excluded.evening,
-                    tip=excluded.tip,
-                    notes=excluded.notes,
-                    lat=excluded.lat,
-                    lng=excluded.lng,
-                    accommodation=excluded.accommodation,
-                    accommodation_place_id=excluded.accommodation_place_id,
-                    accommodation_address=excluded.accommodation_address,
-                    updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
-                WHERE trip_days.deleted_at IS NULL
-                  -- R8-B4 atomic staleness gate. See trips.py /
-                  -- expenses.py for the full TOCTOU rationale.
-                  AND (? IS NULL
-                       OR trip_days.updated_at IS NULL
-                       OR trip_days.updated_at = ?)
-            ''',
-                (
-                    day_id,
-                    claimed_trip_id,
-                    d.get('dayNumber'),
-                    d.get('date'),
-                    d.get('name'),
-                    # Plain text — see /api/sync in main.py for the json.dumps fix.
-                    d.get('morning', d.get('plan', {}).get('morning', '')) or '',
-                    d.get('afternoon', d.get('plan', {}).get('afternoon', '')) or '',
-                    d.get('evening', d.get('plan', {}).get('evening', '')) or '',
-                    # BUG-1 fix: `tip` and `notes` are SEPARATE columns. Previously
-                    # `notes` was overloaded into the `tip` fallback, so per-day
-                    # Personal Notes + Journaling silently vanished (the notes
-                    # column was never written) and could resurface mislabeled as
-                    # the Expert Tip. Bind each independently.
-                    d.get('tip', ''),
-                    d.get('notes', ''),
-                    d.get('lat'),
-                    # §2.4 — `or` drops lng=0 (prime meridian). Explicit
-                    # is-not-None instead.
-                    d['lng'] if d.get('lng') is not None else d.get('lon'),
-                    # Wave 2: day accommodation. Bound directly (excluded.X)
-                    # like every other day field — the client always sends the
-                    # full day object, so a set value round-trips and an unset
-                    # one stays NULL.
-                    d.get('accommodation'),
-                    d.get('accommodationPlaceId'),
-                    d.get('accommodationAddress'),
-                    client_updated_at,
-                    client_updated_at,
-                ),
-            )
-            # R8-B4: existing + rowcount==0 = stale OR tombstoned.
-            # Disambiguate via a live re-read of deleted_at (mirrors
-            # the expenses.py shape).
-            if existing and cursor.rowcount == 0:
-                cursor.execute(
-                    "SELECT * FROM trip_days WHERE id = ?",
-                    (day_id,),
-                )
-                live = cursor.fetchone()
-                if live and not live['deleted_at']:
-                    return jsonify(
-                        {
-                            "error": "Stale edit — another device updated this day",
-                            "current": dict(live),
-                        }
-                    ), 409
-                # Tombstoned — silent no-op success (matches the
-                # pre-fix tombstone semantic).
-        except sqlite3.IntegrityError as exc:
-            # Audit fix (2026-05-26): the new partial UNIQUE on
-            # (trip_id, day_number) can fire when two clients race
-            # to insert the same day_number. Surface a 409 rather
-            # than a generic 500 so the frontend can resync + pick
-            # a fresh day_number; the alternative would be a
-            # confused user seeing "internal error" on a routine
-            # multi-tab/multi-planner edit.
-            #
-            # 4.8 audit DAY-1 fix: SQLite's IntegrityError message names
-            # the COLUMNS ("UNIQUE constraint failed: trip_days.trip_id,
-            # trip_days.day_number"), NOT the index — so the original
-            # `idx_trip_days_trip_day_number` substring NEVER matched and
-            # every collision fell through to a raw 500. Match the column
-            # name (keep the index-name check as belt-and-braces).
-            _exc_s = str(exc)
-            if "trip_days.day_number" in _exc_s or "idx_trip_days_trip_day_number" in _exc_s:
-                return jsonify(
-                    {
-                        "error": "A day with that day_number already exists on this trip",
-                    }
-                ), 409
-            raise
-        # R3-Round 5: return the fresh updated_at so the client can
-        # stash it for the next edit. Same shape as expenses/trips.
-        cursor.execute(
-            "SELECT updated_at FROM trip_days WHERE id = ?",
-            (day_id,),
-        )
-        new_row = cursor.fetchone()
-        new_updated_at = new_row['updated_at'] if new_row else None
+        if not result.ok:
+            payload = {"error": result.error}
+            if result.extra:
+                payload.update(result.extra)
+            return jsonify(payload), result.status
         conn.commit()
-    return jsonify({"status": "ok", "updatedAt": new_updated_at})
+    # R3-Round 5: return the fresh updated_at so the client can stash it
+    # for the next edit. Same shape as expenses/trips.
+    return jsonify({"status": "ok", "updatedAt": result.updated_at})
 
 
 @bp.route("/api/days/<day_id>", methods=["DELETE"])
