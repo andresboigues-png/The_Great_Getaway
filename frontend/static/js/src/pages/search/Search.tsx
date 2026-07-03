@@ -152,13 +152,11 @@ export function Search() {
 
     const goToTrip = (trip: Trip, archived: boolean) => {
         if (archived) {
-            // Archived trips don't switch the active tab — they live in
-            // Collections. Navigate there with the trip pre-selected
-            // via STATE.activeDetailId, which Collections reads to
-            // open the detail view.
-            STATE.activeDetailId = trip.id;
-            emit(EVENTS.STATE_CHANGED);
-            navigate('collections');
+            // MK6 P3: archived trips live in Collections. The old code set
+            // STATE.activeDetailId — which NOTHING reads — so the detail never
+            // opened. Mirror mapSearch's goToInternal: viewArchivedDetails
+            // fetches the archived trip's media + mounts its detail view.
+            void import('../collections.js').then((m) => m.viewArchivedDetails(trip.id));
         } else {
             STATE.activeTripId = trip.id;
             emit(EVENTS.STATE_CHANGED);
@@ -192,9 +190,9 @@ export function Search() {
     const goToExpense = (trip: Trip | null, archived: boolean) => {
         if (!trip) return;
         if (archived) {
-            STATE.activeDetailId = trip.id;
-            emit(EVENTS.STATE_CHANGED);
-            navigate('collections');
+            // MK6 P3: see goToTrip — activeDetailId was a dead end; open the
+            // archived detail view directly instead.
+            void import('../collections.js').then((m) => m.viewArchivedDetails(trip.id));
         } else {
             STATE.activeTripId = trip.id;
             emit(EVENTS.STATE_CHANGED);

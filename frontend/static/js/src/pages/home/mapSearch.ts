@@ -200,7 +200,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
             ? `<span style="flex-shrink:0; font-size:0.72rem; color:var(--text-secondary); font-weight:700; margin-left:8px; padding:2px 8px; background:rgba(0,113,227,0.07); border-radius:999px; align-self:center;">${esc(formatDistance(row.distanceMeters))}</span>`
             : '';
         return `
-            <button type="button" class="map-search-row" role="option" id="${OPTION_ID_PREFIX}${i}" aria-selected="false" data-place-id="${esc(row.placeId)}"
+            <button type="button" class="map-search-row" role="option" id="${OPTION_ID_PREFIX}${i}" aria-selected="false" data-place-id="${esc(row.placeId)}" data-title="${esc(row.title)}"
                 style="width:100%; text-align:left; padding:11px 16px; background:transparent; border:0; border-bottom:1px solid rgba(0,0,0,0.05); display:flex; gap:10px; align-items:center; cursor:pointer;">
                 <span style="font-size:1rem; line-height:1.2; flex-shrink:0;">📍</span>
                 <div style="flex:1; min-width:0;">
@@ -255,10 +255,23 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
             placesLoading = false;
             // Stale guard — the input moved on while the search was in flight.
             if (searchInput.value.trim() !== q) return;
-            lastTextResults = status === google.maps.places.PlacesServiceStatus.OK && results ? results : [];
-            placesExpanded = true;
-            paintResults();
-            resultsEl.scrollTop = keepScroll;
+            if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+                lastTextResults = results;
+                placesExpanded = true;
+                paintResults();
+                resultsEl.scrollTop = keepScroll;
+            } else {
+                // MK6 P3: don't cache a non-OK Text Search (OVER_QUERY_LIMIT /
+                // REQUEST_DENIED / network) as an EMPTY result. The old code set
+                // `[]` (truthy) + expanded, so the toggle reused it and never
+                // retried — a silent dead-end with no error. Keep lastTextResults
+                // null so the next "See more" re-fires, and surface the error
+                // like the getDetails path.
+                lastTextResults = null;
+                placesExpanded = false;
+                paintResults();
+                showSearchError(t('map.searchLoadError'));
+            }
         });
     };
 
@@ -521,7 +534,11 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
     const selectRow = (row: HTMLElement | null) => {
         if (!row?.dataset.placeId) return;
         const placeId = row.dataset.placeId;
-        searchInput.value = row.querySelector('div')?.textContent?.trim() || searchInput.value;
+        // MK6 P3: use the stashed title, not querySelector('div').textContent —
+        // the first <div> is the flex WRAPPER holding both the title and the
+        // subtitle (address), so the input got "Eiffel Tower  Paris, France"
+        // (whitespace-mangled). data-title carries just the place name.
+        searchInput.value = row.dataset.title || searchInput.value;
         hideResults();
         fetchDetails(placeId);
     };

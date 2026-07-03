@@ -270,6 +270,15 @@ export function navigate(
     }
     _currentNavController = new AbortController();
 
+    // MK6 P3: a NON-animated nav (rail click, programmatic navigate — no
+    // animDir) never calls beginNavSettle/endNavSettle, so a still-pending
+    // settle from a PRIOR animated swipe (its 340ms fallback timer still
+    // ticking) would keep whenNavSettled() unresolved on THIS new page —
+    // delaying its gated map/chart init by up to 340ms. Resolve any pending
+    // settle now; an animated nav re-arms a fresh one via applyNavAnimation
+    // below (beginNavSettle supersedes).
+    if (!animDir) endNavSettle();
+
     // Stop home's empty-state slideshow if we're leaving home (no-op if it's
     // not running). Old code had a `dashboardInterval` here that home.js
     // assigned to a separate variable, so the timer leaked.

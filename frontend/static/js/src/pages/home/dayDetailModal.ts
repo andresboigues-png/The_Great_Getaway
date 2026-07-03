@@ -709,7 +709,10 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 const items = trip.checklist || [];
                 const remaining = items.filter((i) => !i.done).length;
                 const summary = (root.querySelector('.day-checklist-summary') as HTMLElement | null);
-                if (summary) summary.textContent = `${remaining} of ${items.length} left`;
+                // MK6 P3: reuse the i18n key (like the initial render at ~505),
+                // not a hardcoded English string — the chip was reverting to
+                // English on every toggle in es/fr/pt.
+                if (summary) summary.textContent = t('dayDetail.checklistRemaining', { remaining, total: items.length });
             };
         });
         const manageBtn = (root.querySelector('#dayChecklistManageBtn') as HTMLButtonElement | null);
