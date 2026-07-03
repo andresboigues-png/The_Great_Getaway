@@ -33,7 +33,12 @@ from helpers import (
     unlink_companion_user_from_trip,
 )
 from observability import bind_trip_context
-from validators import clean_companions, is_safe_media_url
+from validators import (
+    ValidationError,
+    clean_companions,
+    is_safe_media_url,
+    validate_upload_url,
+)
 
 
 bp = Blueprint("trips", __name__)
@@ -153,6 +158,24 @@ def upsert_trip():
         client_updated_at = t.get('clientUpdatedAt')
 
         owner_id = existing["user_id"] if existing else user_id
+
+        # MK1 NOW-3: gate coverUrl to the caller's own upload, closing the
+        # asymmetry with /api/sync (data.py _validated_cover_url, MK6
+        # P3/security) — pre-fix this per-row path bound t.get('coverUrl')
+        # RAW, so a crafted POST could store an arbitrary external URL that
+        # every member + public share viewer then fetches (tracking pixel).
+        # Per-row policy is STRICT (400), unlike sync's silent-preserve.
+        # Only validate when the key is PRESENT: absent → the TRIP-6
+        # preserve-CASE below never reads the value; present-but-empty →
+        # normalized to None = the legitimate Remove-cover action.
+        if 'coverUrl' in t:
+            try:
+                t['coverUrl'] = validate_upload_url(
+                    t.get('coverUrl'), user_id=user_id,
+                    field_name="coverUrl", allow_empty=True,
+                )
+            except ValidationError as ve:
+                return jsonify({"error": str(ve)}), 400
 
         # §4.3 multi-country: normalize the incoming `countries` array to
         # upper-case 2-letter ISO codes before persisting. The frontend

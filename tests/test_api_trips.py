@@ -132,33 +132,69 @@ def test_trip_cover_url_optional(client, seed_user, auth_headers):
 
 def test_upsert_trip_preserves_cover_when_payload_omits_it(client, seed_user, auth_headers):
     """4.8 audit TRIP-6: a partial trip edit that OMITS coverUrl must
-    preserve the stored cover, not NULL it."""
-    client.post("/api/trips", headers=auth_headers, json={
+    preserve the stored cover, not NULL it. (Cover seeded from the
+    caller's OWN upload dir — MK1 NOW-3 rejects foreign/external URLs.)"""
+    own_cover = "/static/uploads/test-user-1/c.jpg"
+    seed = client.post("/api/trips", headers=auth_headers, json={
         "trip": {"id": "trip-cov", "name": "T", "country": "FR",
-                 "coverUrl": "/static/uploads/u/c.jpg"},
+                 "coverUrl": own_cover},
     })
+    assert seed.status_code == 200, seed.get_data(as_text=True)
     # Edit WITHOUT the coverUrl key.
     client.post("/api/trips", headers=auth_headers, json={
         "trip": {"id": "trip-cov", "name": "Renamed", "country": "FR"},
     })
     data = client.get("/api/data", headers=auth_headers).get_json()
     trip = next(t for t in data["trips"] if t["id"] == "trip-cov")
-    assert trip["coverUrl"] == "/static/uploads/u/c.jpg", "omitted coverUrl must preserve (TRIP-6)"
+    assert trip["coverUrl"] == own_cover, "omitted coverUrl must preserve (TRIP-6)"
 
 
 def test_upsert_trip_clears_cover_on_explicit_null(client, seed_user, auth_headers):
     """TRIP-6 must not over-preserve: the Edit-Trip 'Remove cover' action
     sends coverUrl:null and MUST clear the stored cover."""
-    client.post("/api/trips", headers=auth_headers, json={
+    own_cover = "/static/uploads/test-user-1/c.jpg"
+    seed = client.post("/api/trips", headers=auth_headers, json={
         "trip": {"id": "trip-cov2", "name": "T", "country": "FR",
-                 "coverUrl": "/static/uploads/u/c.jpg"},
+                 "coverUrl": own_cover},
     })
+    assert seed.status_code == 200, seed.get_data(as_text=True)
     client.post("/api/trips", headers=auth_headers, json={
         "trip": {"id": "trip-cov2", "name": "T", "country": "FR", "coverUrl": None},
     })
     data = client.get("/api/data", headers=auth_headers).get_json()
     trip = next(t for t in data["trips"] if t["id"] == "trip-cov2")
     assert trip["coverUrl"] is None, "explicit null coverUrl must clear the cover (TRIP-6)"
+
+
+def test_upsert_trip_rejects_external_or_foreign_cover_url(client, seed_user, auth_headers):
+    """MK1 NOW-3: POST /api/trips must gate coverUrl through
+    validate_upload_url like /api/sync does (data.py _validated_cover_url,
+    MK6 P3/security). Pre-fix the per-row path stored the raw value, so a
+    crafted payload could plant an external tracking URL fetched by every
+    member + public share viewer. Per-row policy is strict: 400, and an
+    invalid URL on an EDIT must not clobber the stored cover."""
+    own_cover = "/static/uploads/test-user-1/c.jpg"
+    seed = client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-cov3", "name": "T", "country": "FR",
+                 "coverUrl": own_cover},
+    })
+    assert seed.status_code == 200, seed.get_data(as_text=True)
+
+    for bad in (
+        "https://evil.example.com/pixel.gif",   # external tracking URL
+        "/static/uploads/other-user/c.jpg",     # another user's upload
+        "javascript:alert(1)",                  # scheme abuse
+    ):
+        res = client.post("/api/trips", headers=auth_headers, json={
+            "trip": {"id": "trip-cov3", "name": "T", "country": "FR",
+                     "coverUrl": bad},
+        })
+        assert res.status_code == 400, f"{bad!r} must be rejected, got {res.status_code}"
+
+    # The stored (valid) cover survived all rejected edits.
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in data["trips"] if t["id"] == "trip-cov3")
+    assert trip["coverUrl"] == own_cover, "rejected edits must not touch the stored cover"
 
 
 # ── /api/profile/update ──────────────────────────────────────────────────────

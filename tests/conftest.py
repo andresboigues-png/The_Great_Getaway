@@ -16,6 +16,17 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
+# MK1 NOW-2: neutralise Sentry for the whole test session. main.py runs
+# load_dotenv() (override=False) BEFORE setup_sentry(), so a real
+# SENTRY_DSN in the developer's .env had every local pytest run shipping
+# test-generated error events to the PRODUCTION Sentry project (the
+# "Sentry is attempting to send N pending events" trailer after each
+# run). Pre-setting the var to "" here wins: load_dotenv never overrides
+# an existing key, and setup_sentry treats a falsy DSN as opt-out.
+# Module-top (not a fixture) because it must run before ANY test module
+# triggers the `import main` chain.
+os.environ["SENTRY_DSN"] = ""
+
 
 @pytest.fixture
 def temp_db(monkeypatch):
