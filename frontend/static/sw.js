@@ -63,7 +63,11 @@
 // (with the old CSS) and the next network-first fetch repopulates from
 // the fresh file. sw.js is served `Cache-Control: no-cache`
 // (main.py:1223), so this new version is fetched on the next reload.
-const SW_VERSION = 'v6';
+// 2026-07-03: bumped to v7 — MK1 Wave C (T1-6) strategy change: shell
+// fetches force HTTP-cache revalidation (cache:'no-cache'), closing the
+// stale-bundle-after-deploy hole for good. Per the rules above, a
+// strategy edit bumps the version so old shells re-cache fresh.
+const SW_VERSION = 'v7';
 const SHELL_CACHE = `gg-shell-${SW_VERSION}`;
 const API_CACHE = `gg-api-${SW_VERSION}`;
 const UPLOADS_CACHE = `gg-uploads-${SW_VERSION}`;
@@ -240,13 +244,30 @@ async function _putApiResponse(request, response, epochAtStart) {
  *  `keyer` is the per-user cache writer for API responses; passing it
  *  routes both writes + reads through `_userKeyFor`. Shell strategy
  *  calls without a keyer so all clients share the same cache. */
-async function _networkFirst(request, cacheName, keyer) {
+async function _networkFirst(request, cacheName, keyer, opts) {
     // Snapshot the logout epoch at fetch start. The keyer
     // (`_putApiResponse`) uses it to drop writes whose fetch began
     // before a logout-triggered cache wipe — see SY2 notes there.
     const epochAtStart = _logoutEpoch;
     try {
-        const fresh = await fetch(request);
+        // MK1 Wave C (T1-6): `fetch(request)` uses the DEFAULT cache mode,
+        // so the browser's HTTP cache could satisfy the "network" request
+        // without ever contacting the server — PA's static serving sends no
+        // Cache-Control, heuristic freshness kicks in, and "network-first"
+        // silently served yesterday's app.bundle.js as if fresh. THIS was
+        // the mechanism behind the eternal hard-refresh-after-deploy.
+        // `revalidate` forces a conditional request (If-Modified-Since →
+        // cheap 304 when unchanged, fresh bytes when deployed). Navigation
+        // requests can't be cloned with an init dict, so rebuild those from
+        // the URL.
+        let netRequest = request;
+        if (opts && opts.revalidate) {
+            netRequest =
+                request.mode === 'navigate'
+                    ? new Request(request.url, { cache: 'no-cache', credentials: 'include' })
+                    : new Request(request, { cache: 'no-cache' });
+        }
+        const fresh = await fetch(netRequest);
         // Only cache successful responses (avoid caching 401/500
         // pages). The clone is needed because Response bodies are
         // single-use streams.
@@ -362,8 +383,17 @@ self.addEventListener('fetch', (event) => {
     // /static/css/* — network-first with cache fallback. Avoids the
     // "trapped on yesterday's bundle" hazard while keeping offline
     // viability.
+    //
+    // MK1 Wave C (T1-6): shell fetches now FORCE revalidation (see
+    // _networkFirst) so the unversioned app.bundle.js can never be
+    // served stale out of the HTTP cache after a deploy. The vite
+    // chunks + assets are content-hashed (a change mints a NEW
+    // filename), so they skip the revalidation round-trip — their
+    // cache hit is always correct.
     if (url.pathname === '/' || url.pathname.startsWith('/static/')) {
-        event.respondWith(_networkFirst(request, SHELL_CACHE));
+        const immutable =
+            url.pathname.startsWith('/static/js/chunks/') || url.pathname.startsWith('/static/js/assets/');
+        event.respondWith(_networkFirst(request, SHELL_CACHE, undefined, { revalidate: !immutable }));
         return;
     }
 

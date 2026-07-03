@@ -148,6 +148,87 @@ def _looks_like_upload(head: bytes) -> bool:
 # it (tests set a tiny cap to exercise the 507 path).
 _UPLOAD_QUOTA_BYTES = int(os.getenv("GG_UPLOAD_QUOTA_BYTES", str(500 * 1024 * 1024)))
 
+# ── MK1 Wave C (T1-5): server-side image variants ──────────────────────
+# Every static-image upload gets two downscaled siblings so the app stops
+# shipping 10 MB originals to galleries and cards. Variants live in a
+# `_variants/` SUBDIR of the user's upload dir:
+#     /static/uploads/<user>/_variants/<original-name>.<label><ext>
+# That placement is deliberate:
+#   * the Wave-18 quota (`_user_dir_bytes`) scandirs FILES only — variants
+#     don't count against the user's byte quota (they're our optimization,
+#     not their content);
+#   * the orphan sweep iterates files only, so a variant is never swept as
+#     its own orphan — it's removed WITH its original (see
+#     `_remove_variants`, called from the sweep + helpers.delete_upload_files);
+#   * serve_upload's ACL runs on the ORIGINAL path; `?size=` resolves the
+#     variant AFTER the gate, so variants inherit exactly the original's
+#     access control.
+# Animated images (GIF / animated WebP) get NO variants — a static
+# thumbnail of frame 0 would silently kill the animation; they serve the
+# original at every size. PDFs are skipped entirely.
+_VARIANT_DIR = "_variants"
+_VARIANT_SIZES = {"thumb": 320, "display": 1600}
+_VARIANT_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+
+
+def _variant_rel(name: str, label: str) -> str:
+    """Variant filename for an original basename: <name>.<label><ext>."""
+    ext = os.path.splitext(name)[1].lower()
+    return f"{name}.{label}{ext}"
+
+
+def _generate_variants(out_path: str, user_folder: str) -> None:
+    """Best-effort derivation of the thumb/display variants from the
+    file that landed on disk. The saved original is already EXIF-stripped
+    and orientation-baked on the PIL path; on the rare bytes-verbatim
+    fallback path, the re-encode here drops EXIF by default, so a variant
+    never carries GPS the original path was trying to strip."""
+    name = os.path.basename(out_path)
+    ext = os.path.splitext(name)[1].lower()
+    if ext not in _VARIANT_EXTENSIONS:
+        return
+    try:
+        from PIL import Image
+
+        with Image.open(out_path) as img:
+            if getattr(img, "is_animated", False):
+                return
+            img.load()
+            fmt = img.format
+            icc = img.info.get("icc_profile") if hasattr(img, "info") else None
+            vdir = os.path.join(user_folder, _VARIANT_DIR)
+            os.makedirs(vdir, exist_ok=True)
+            for label, edge in _VARIANT_SIZES.items():
+                if max(img.size) <= edge:
+                    # Original is already at/below this size — serving it
+                    # directly is both correct and cheaper than a re-encode.
+                    continue
+                copy = img.copy()
+                copy.thumbnail((edge, edge), Image.LANCZOS)
+                save_kwargs = {}
+                if fmt in ("JPEG", "WEBP"):
+                    save_kwargs["quality"] = 82
+                if icc:
+                    save_kwargs["icc_profile"] = icc
+                if fmt == "JPEG" and copy.mode not in ("RGB", "L"):
+                    copy = copy.convert("RGB")
+                copy.save(os.path.join(vdir, _variant_rel(name, label)), format=fmt, **save_kwargs)
+    except Exception:
+        # Never fail an upload over an optimization.
+        pass
+
+
+def _remove_variants(user_folder: str, name: str) -> None:
+    """Delete the variants belonging to original `name` (used when the
+    original is deleted or swept as an orphan)."""
+    vdir = os.path.join(user_folder, _VARIANT_DIR)
+    for label in _VARIANT_SIZES:
+        try:
+            os.remove(os.path.join(vdir, _variant_rel(name, label)))
+        except OSError:
+            pass
+
+
 # Only reclaim files OLDER than this. A file uploaded seconds ago has a
 # valid URL the client is about to persist into a trip (photos_json /
 # receipt / avatar) via a follow-up /api/sync — sweeping it in that window
@@ -237,6 +318,9 @@ def _reclaim_orphan_bytes(safe_user_dir: str, user_folder: str) -> int:
                 reclaimed += st.st_size
             except OSError:
                 continue
+            # Wave C: an orphaned original takes its variants with it
+            # (they're excluded from the sweep's own file listing).
+            _remove_variants(user_folder, name)
     return reclaimed
 
 
@@ -586,6 +670,11 @@ def upload_file():
             file.save(out_path)
     else:
         file.save(out_path)
+
+    # MK1 Wave C (T1-5): derive downscaled variants from the file that
+    # actually landed on disk. Best-effort — a variant failure must
+    # never fail the upload.
+    _generate_variants(out_path, user_folder)
 
     return jsonify(
         {

@@ -20,6 +20,7 @@
 import { showModal } from '../../components/Modal.js';
 import { esc, q } from '../../utils.js';
 import { t } from '../../i18n.js';
+import { sizedUploadUrl } from '../../utils/mediaUrl';
 
 // §0.4 follow-up — the visual rules for this widget live in
 // `frontend/static/css/index.css` under the `/* §4.9 — photo
@@ -104,7 +105,7 @@ export function openPhotoLightbox(arg: string | string[], startIndex: number = 0
             ? `Photo viewer, ${current + 1} of ${photos.length}`
             : 'Photo viewer',
         innerHTML: `
-            <img id="lbImg" src="${esc(photos[current]!)}" alt="Trip photo" class="lb-img">
+            <img id="lbImg" src="${esc(sizedUploadUrl(photos[current]!, 'display'))}" alt="Trip photo" class="lb-img">
             ${isGallery ? `
                 <!-- Counter chip: top center. Lets the user know
                      where they are in the gallery at a glance. -->
@@ -141,7 +142,7 @@ export function openPhotoLightbox(arg: string | string[], startIndex: number = 0
      *  follow-up: zero inline-style writes from the lightbox path). */
     const repaint = (idx: number) => {
         current = (idx + photos.length) % photos.length;  // wrap defensively
-        img.src = photos[current]!;
+        img.src = sizedUploadUrl(photos[current]!, 'display');
         if (counter) counter.textContent = `${current + 1} / ${photos.length}`;
         if (prevBtn) prevBtn.classList.toggle('lb-nav-btn--hidden', current === 0);
         if (nextBtn) nextBtn.classList.toggle('lb-nav-btn--hidden', current === photos.length - 1);
@@ -149,8 +150,8 @@ export function openPhotoLightbox(arg: string | string[], startIndex: number = 0
         // so the next prev/next nav is instant. Wraps defensively at
         // both edges (already-cached single-photo gallery is a cheap
         // no-op).
-        _preload(photos[current + 1]);
-        _preload(photos[current - 1]);
+        _preload(sizedUploadUrl(photos[current + 1], 'display'));
+        _preload(sizedUploadUrl(photos[current - 1], 'display'));
     };
 
     const next = () => { if (current < photos.length - 1) repaint(current + 1); };

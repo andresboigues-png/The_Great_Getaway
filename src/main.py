@@ -1360,6 +1360,23 @@ def manifest():
 # UPLOAD_FOLDER (which can be remapped via GG_UPLOAD_ROOT for PA), so
 # we serve from there directly rather than via the static_folder
 # subdirectory (which may not be the same path on prod).
+def _send_upload(relpath: str):
+    """MK1 Wave C (T1-5): honour `?size=thumb|display` by serving the
+    downscaled variant when one exists, falling back to the original
+    (PDFs, animated images, pre-variant uploads, or an original already
+    smaller than the requested edge). Called ONLY after serve_upload's
+    ACL has passed on the ORIGINAL path — variants inherit exactly the
+    original's access control. Unknown size values are ignored."""
+    size = request.args.get("size")
+    if size in ("thumb", "display"):
+        head, name = os.path.split(relpath)
+        ext = os.path.splitext(name)[1].lower()
+        variant_rel = os.path.join(head, "_variants", f"{name}.{size}{ext}")
+        if os.path.isfile(os.path.join(UPLOAD_FOLDER, variant_rel)):
+            return send_from_directory(UPLOAD_FOLDER, variant_rel)
+    return send_from_directory(UPLOAD_FOLDER, relpath)
+
+
 @app.route("/static/uploads/<path:relpath>")
 def serve_upload(relpath: str):
     from auth import current_user_id
@@ -1394,7 +1411,7 @@ def serve_upload(relpath: str):
         #      cover (same surface an anonymous viewer gets).
         owner_dir = relpath.split('/', 1)[0]
         if owner_dir == secure_filename(caller_id):
-            return send_from_directory(UPLOAD_FOLDER, relpath)
+            return _send_upload(relpath)
         # Anchored JSON-string match, same shape as the anon cover check.
         _like = f'%"{needle_exact}"%'
         with get_db() as conn:
@@ -1446,7 +1463,7 @@ def serve_upload(relpath: str):
                     (caller_id, owner_id, needle_exact, _like, _like),
                 )
                 if c.fetchone():
-                    return send_from_directory(UPLOAD_FOLDER, relpath)
+                    return _send_upload(relpath)
                 # Receipts, same owner-narrowed shape.
                 c.execute(
                     "SELECT 1 FROM expenses e "
@@ -1462,7 +1479,7 @@ def serve_upload(relpath: str):
                     (caller_id, owner_id, needle_exact),
                 )
                 if c.fetchone():
-                    return send_from_directory(UPLOAD_FOLDER, relpath)
+                    return _send_upload(relpath)
             else:
                 # Fallback: owner_dir didn't map to a real user id (rare
                 # legacy secure_filename-altered path). Use the original
@@ -1476,7 +1493,7 @@ def serve_upload(relpath: str):
                     (caller_id, needle_exact, _like, _like),
                 )
                 if c.fetchone():
-                    return send_from_directory(UPLOAD_FOLDER, relpath)
+                    return _send_upload(relpath)
                 c.execute(
                     "SELECT 1 FROM expenses e "
                     "JOIN trip_members tm ON tm.trip_id = e.trip_id "
@@ -1485,7 +1502,7 @@ def serve_upload(relpath: str):
                     (caller_id, needle_exact),
                 )
                 if c.fetchone():
-                    return send_from_directory(UPLOAD_FOLDER, relpath)
+                    return _send_upload(relpath)
         # Not owner, not a member of any referencing trip → fall through
         # to the public-cover check (a public trip's cover is readable by
         # anyone, authenticated or not). Don't 404 yet.
@@ -1522,7 +1539,7 @@ def serve_upload(relpath: str):
             (needle_exact,),
         )
         if cursor.fetchone():
-            return send_from_directory(UPLOAD_FOLDER, relpath)
+            return _send_upload(relpath)
     # Anonymous + no public-trip reference → 404 (don't differentiate
     # from "file doesn't exist" to avoid leaking the existence of
     # private uploads via status-code differential).

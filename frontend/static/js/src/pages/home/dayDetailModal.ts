@@ -43,6 +43,7 @@ import { openDayView } from './dayViewModal.js';
 import { openAccommodationModal } from './accommodationModal.js';
 import { repaintPathTab } from './pathSelection.js';
 import { iconSvg } from '../../icons.js';
+import { sizedUploadUrl } from '../../utils/mediaUrl';
 
 
 /** What home tabs a Anchor quick-link can navigate to. Matches
@@ -765,7 +766,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             const photos = getPhotosForDay(dayTrip, day.id);
             photoHost.innerHTML = photos.length === 0
                 ? `<p class="day-media__empty">${esc(t('dayDetail.photosEmpty'))}</p>`
-                : photos.map((p) => `<div class="day-media__thumb"><img src="${esc(p.src)}" alt="" referrerpolicy="no-referrer" loading="lazy"><button type="button" class="day-media__remove" data-remove-photo="${esc(p.id || '')}" title="${removeTitle}" aria-label="${removeTitle}">✕</button></div>`).join('');
+                : photos.map((p) => `<div class="day-media__thumb"><img src="${esc(sizedUploadUrl(p.src, 'thumb'))}" alt="" referrerpolicy="no-referrer" loading="lazy"><button type="button" class="day-media__remove" data-remove-photo="${esc(p.id || '')}" title="${removeTitle}" aria-label="${removeTitle}">✕</button></div>`).join('');
         };
         const renderDayDocs = () => {
             if (!docHost) return;

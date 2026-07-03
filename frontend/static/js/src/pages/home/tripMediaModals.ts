@@ -54,6 +54,7 @@ import {
 import { openPdfPreview, looksLikePdfUrl, openPhotoLightbox } from './lightbox.js';
 import { iconSvg } from '../../icons.js';
 import type { Trip, TripPhoto } from '../../types';
+import { sizedUploadUrl } from '../../utils/mediaUrl';
 
 
 /** Documents popup modal — opened from Anchor option button.
@@ -364,7 +365,7 @@ export const openTripPhotosModal = (trip: Trip): void => {
                         : '';
                     if (isImage) {
                         return `
-                            <div class="trip-photo-card" data-photo-id="${esc(p.id)}" data-photo-kind="image" data-photo-source="${esc(p._source || '')}" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background-image:url(${esc(p.src)}); background-size:cover; background-position:center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); cursor:pointer; border:1px solid rgba(0,0,0,0.06);">
+                            <div class="trip-photo-card" data-photo-id="${esc(p.id)}" data-photo-kind="image" data-photo-source="${esc(p._source || '')}" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background-image:url(${esc(sizedUploadUrl(p.src, 'thumb'))}); background-size:cover; background-position:center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); cursor:pointer; border:1px solid rgba(0,0,0,0.06);">
                                 ${dayBadge}
                                 ${removeBtn}
                                 ${dragHandle}

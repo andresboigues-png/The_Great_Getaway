@@ -159,6 +159,13 @@ def delete_upload_files(relpaths: list[str], owner_id: str) -> int:
             if os.path.isfile(full):
                 os.remove(full)
                 removed += 1
+                # MK1 Wave C (T1-5): take the derived thumb/display
+                # variants with the original (they live in _variants/
+                # and are invisible to the quota + orphan sweep, so
+                # this is their only deletion path besides the sweep).
+                from routes.media import _remove_variants
+
+                _remove_variants(user_dir, safe)
         except OSError:
             # Best-effort — disk hiccup must not block the DB delete.
             pass

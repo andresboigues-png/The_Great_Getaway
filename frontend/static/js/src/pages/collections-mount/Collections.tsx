@@ -57,6 +57,7 @@ import {
 import { countryCodeToFlag } from '../../utils/place-names.js';
 import { openNewTripModal } from '../../modals.js';
 import type { Trip } from '../../types';
+import { sizedUploadUrl } from '../../utils/mediaUrl';
 
 
 /** Re-applied to the wrapper div on mount so the existing
@@ -506,7 +507,7 @@ function ArchivedCard({ trip }: { trip: Trip }) {
             >
                 {coverSrc && (
                     <img
-                        src={coverSrc}
+                        src={sizedUploadUrl(coverSrc, 'display')}
                         alt=""
                         data-cover-thumb
                         /* R5-B6 perf: lazy + async decode + intrinsic
@@ -822,7 +823,7 @@ function AlbumStack(
                     slot.src ? (
                         <img
                             key={i}
-                            src={slot.src}
+                            src={sizedUploadUrl(slot.src, 'thumb')}
                             alt=""
                             loading="lazy"
                             decoding="async"
