@@ -49,6 +49,16 @@ _STRINGS: dict[str, dict[str, str]] = {
         "slot_tip": "TIP.",
         "no_plan": "No plan yet for this day.",
         "day": "Day",
+        # AI-suggestions section (MK6 i18n)
+        "ai_kicker": (
+            "Gemini-generated plan kept alongside your hand-edited version. "
+            "Not yet accepted into your day-by-day."
+        ),
+        "meal_breakfast": "BREAKFAST",
+        "meal_lunch": "LUNCH",
+        "meal_dinner": "DINNER",
+        "meal_sights": "SIGHTS",
+        "checklist_general": "General",
         # stats tiles
         "stat_days": "DAYS",
         "stat_companions": "COMPANIONS",
@@ -113,6 +123,15 @@ _STRINGS: dict[str, dict[str, str]] = {
         "slot_tip": "ASTUCE.",
         "no_plan": "Aucun programme pour ce jour.",
         "day": "Jour",
+        "ai_kicker": (
+            "Plan généré par Gemini, conservé à côté de votre version. "
+            "Pas encore intégré à votre jour par jour."
+        ),
+        "meal_breakfast": "PETIT-DÉJEUNER",
+        "meal_lunch": "DÉJEUNER",
+        "meal_dinner": "DÎNER",
+        "meal_sights": "À VOIR",
+        "checklist_general": "Général",
         "stat_days": "JOURS",
         "stat_companions": "COMPAGNONS",
         "stat_places": "LIEUX",
@@ -172,6 +191,15 @@ _STRINGS: dict[str, dict[str, str]] = {
         "slot_tip": "CONSEJO.",
         "no_plan": "Aún no hay plan para este día.",
         "day": "Día",
+        "ai_kicker": (
+            "Plan generado por Gemini, junto a tu versión editada. "
+            "Aún no incorporado a tu día a día."
+        ),
+        "meal_breakfast": "DESAYUNO",
+        "meal_lunch": "ALMUERZO",
+        "meal_dinner": "CENA",
+        "meal_sights": "LUGARES",
+        "checklist_general": "General",
         "stat_days": "DÍAS",
         "stat_companions": "COMPAÑEROS",
         "stat_places": "LUGARES",
@@ -232,6 +260,15 @@ _STRINGS: dict[str, dict[str, str]] = {
         "slot_tip": "DICA.",
         "no_plan": "Ainda não há plano para este dia.",
         "day": "Dia",
+        "ai_kicker": (
+            "Plano gerado pelo Gemini, mantido ao lado da sua versão. "
+            "Ainda não integrado no seu dia a dia."
+        ),
+        "meal_breakfast": "PEQUENO-ALMOÇO",
+        "meal_lunch": "ALMOÇO",
+        "meal_dinner": "JANTAR",
+        "meal_sights": "LOCAIS",
+        "checklist_general": "Geral",
         "stat_days": "DIAS",
         "stat_companions": "COMPANHEIROS",
         "stat_places": "LOCAIS",

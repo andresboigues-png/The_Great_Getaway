@@ -580,3 +580,44 @@ def test_expense_rejects_uncomputable_currency_and_echoes_euro_value(
     finally:
         fx_rates._cache = {}
         fx_rates._cache_set_at = 0.0
+
+
+def test_expense_metadata_edit_of_no_rate_currency_not_falsely_rejected(
+    client, seed_user, auth_headers,
+):
+    """MK6 C1 (gate ordering): the 'euroValue required for an unconvertible
+    currency' gate now sits BELOW the existing-row SELECT, so a label-only
+    edit that reuses the frozen euro_value is exempt. Pre-fix the gate ran
+    BEFORE the lookup and 400'd every metadata edit of a no-rate foreign
+    expense whose edit payload (correctly) omitted euroValue — it couldn't
+    yet know the money was unchanged. USD (has a rate) never exercised this;
+    only a genuinely unconvertible currency does."""
+    import fx_rates
+    import time as _time
+    fx_rates._cache = {"EUR": 1.0, "USD": 0.5}  # JPY absent → no live rate
+    fx_rates._cache_set_at = _time.time()
+    try:
+        trip_id = _create_trip(client, auth_headers, trip_id="trip-mk6")
+        # Initial write of a no-rate expense WITH an explicit euroValue hint
+        # (cold-path accepted) → freezes euro_value.
+        first = client.post("/api/expenses", headers=auth_headers, json={
+            "expense": {"id": "exp-mk6", "tripId": trip_id, "who": "Me",
+                        "value": 270000, "currency": "JPY", "euroValue": 12.5,
+                        "label": "Ryokan", "date": "2026-05-12"},
+        })
+        assert first.status_code == 200, first.get_data(as_text=True)
+        frozen = first.get_json()["euroValue"]
+
+        # Label-only edit: same value+currency, NO euroValue in the payload.
+        # Must succeed (reuse the frozen euro_value), NOT 400.
+        edit = client.post("/api/expenses", headers=auth_headers, json={
+            "expense": {"id": "exp-mk6", "tripId": trip_id, "who": "Me",
+                        "value": 270000, "currency": "JPY",
+                        "label": "Ryokan (2 nights)", "date": "2026-05-12"},
+        })
+        assert edit.status_code == 200, edit.get_data(as_text=True)
+        assert edit.get_json()["euroValue"] == frozen, \
+            "frozen euro_value must survive a no-euroValue metadata edit"
+    finally:
+        fx_rates._cache = {}
+        fx_rates._cache_set_at = 0.0

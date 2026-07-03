@@ -1321,7 +1321,12 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             const nm = (q(er, '#dayEditName') as HTMLInputElement).value.trim();
             const dt = (q(er, '#dayEditDate') as HTMLInputElement).value;
             if (nm) day.name = nm;
-            if (dt) day.date = dt;
+            // MK6 quality: write the date UNCONDITIONALLY so a blanked field
+            // clears it (undated day), matching the day-card calendar picker
+            // (TripBody openDayDatePicker). The old `if (dt)` silently ignored a
+            // cleared date, so Edit could never remove one. (Name stays required
+            // — a nameless day has no other UI to restore it.)
+            day.date = dt;
             await persistNow();
             const titleEl = root.querySelector('.day-detail-header__title');
             if (titleEl) titleEl.textContent = day.name;

@@ -334,6 +334,32 @@ def test_pdf6_t_money_helper():
     assert fr.money("USD", 1100.5) == "USD 1.100,50"
 
 
+def test_pdf_mk6_hardcoded_english_now_localised():
+    """MK6 i18n: strings that used to be hardcoded English in the PDF
+    builder (AI-suggestions kicker, meal slots BREAKFAST/LUNCH/DINNER,
+    SIGHTS, the checklist 'General' fallback, and the budget scope labels
+    Overall/Category budget) now route through _T. Every locale must define
+    each key, and the genuinely-translatable ones must not leak English."""
+    keys = (
+        "ai_kicker", "meal_breakfast", "meal_lunch", "meal_dinner",
+        "meal_sights", "checklist_general", "budget_overall",
+        "budget_category",
+    )
+    en = pdfmod._T("en")
+    for k in keys:
+        assert en(k), f"en missing {k}"
+    for loc in ("fr", "es", "pt"):
+        tr = pdfmod._T(loc)
+        for k in keys:
+            assert tr(k), f"{loc}.ts missing PDF i18n key {k}"
+        # These differ from English in ALL of fr/es/pt (unlike
+        # 'General'/'Geral' or 'General'/'Global' which legitimately
+        # coincide in some locales).
+        for k in ("ai_kicker", "meal_breakfast", "meal_lunch",
+                  "meal_dinner", "meal_sights", "budget_category"):
+            assert tr(k) != en(k), f"{loc}.{k} left as English"
+
+
 def test_pdf_bug049_expenses_show_category_name_not_uuid():
     """Audit MK5 BUG-049: the Expenses table shows the human category name
     (route resolves category_id → category_name), not the opaque UUID."""

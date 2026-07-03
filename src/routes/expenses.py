@@ -121,28 +121,10 @@ def upsert_expense():
     except ValidationError as ve:
         return jsonify({"error": str(ve)}), 400
 
-    # Integration audit C1: refuse to store a bogus euro_value for a non-EUR
-    # currency we can't actually convert. Pre-fix, a currency with no live
-    # Frankfurter rate (VND, EGP, ARS, HRK, ...) froze euro_value to 0 (the
-    # client default) or to the raw foreign amount (1:1 cold-path), which then
-    # read THREE inconsistent ways downstream — budgets €0 (`euroValue || 0`),
-    # balances the raw foreign number (`euroValue || value`), Insights 1:1.
-    # Mirror the settlements gate (settlements.py): require either a live rate
-    # OR an explicit positive client euroValue, so a frozen euro_value is
-    # always a real conversion. The manual form already blocks these via its
-    # hasRate() check, so this only bites the API / CSV-import / legacy paths.
-    if (
-        currency != "EUR"
-        and get_rate_eur(currency) is None
-        and not (client_euro_value and client_euro_value > 0)
-    ):
-        return jsonify({
-            "error": (
-                "euroValue is required for this currency — no live exchange "
-                "rate is available to convert it."
-            ),
-            "currency": currency,
-        }), 400
+    # Integration audit C1: the "euroValue required for a non-EUR currency we
+    # can't convert" gate lives BELOW now (after the existing-row SELECT), so a
+    # metadata-only edit that reuses the frozen euro_value is exempt (MK6
+    # quality: it was a false 400 for the API / CSV-import / legacy paths).
     # `splits_raw` retained below as the source-of-truth dict to
     # serialise (helper returns it normalised; identical keys/values
     # for the legitimate path, just with garbage rejected upstream).
@@ -179,12 +161,33 @@ def upsert_expense():
         # euro_value (server-trusted, so no tamper window), regardless of
         # currency — which also stops a no-rate row's euroValue being mutated
         # by an edit that leaves value+currency alone (MM-5).
-        if (
+        money_unchanged = bool(
             existing
             and abs((existing["value"] or 0) - value) < 1e-9
             and (existing["currency"] or "").upper() == currency.upper()
-        ):
+        )
+        if money_unchanged:
             euro_value = existing["euro_value"]
+        # Integration audit C1 (moved here for MK6 quality): refuse to store a
+        # bogus euro_value for a non-EUR currency we can't convert — a currency
+        # with no live Frankfurter rate (VND, EGP, ARS…) would otherwise freeze
+        # euro_value to 0 / the raw foreign amount, read three inconsistent ways
+        # downstream. Require a live rate OR an explicit positive client
+        # euroValue. But SKIP the gate when money is unchanged: that path reuses
+        # the stored (already-real) euro_value above, so demanding a client
+        # conversion the server discards was a false 400 on a label-only edit.
+        elif (
+            currency != "EUR"
+            and get_rate_eur(currency) is None
+            and not (client_euro_value and client_euro_value > 0)
+        ):
+            return jsonify({
+                "error": (
+                    "euroValue is required for this currency — no live exchange "
+                    "rate is available to convert it."
+                ),
+                "currency": currency,
+            }), 400
         # R3-Fix #18: refuse writes to a trip the caller has archived
         # for themselves. The /api/sync bulk path is exempt (it's the
         # catch-up channel for archived state from a freshly-installed

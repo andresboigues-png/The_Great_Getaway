@@ -569,10 +569,7 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 rl, styles, page_w, margin_lr,
                 number="✦",
                 title=tr("sec_ai"),
-                kicker=(
-                    "Gemini-generated plan kept alongside your hand-edited "
-                    "version. Not yet accepted into your day-by-day."
-                ),
+                kicker=tr("ai_kicker"),
                 color=_BRAND_PURPLE,
             ))
             for day in ai_plan_extra:
@@ -598,9 +595,9 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                     spaceBefore=0, spaceAfter=8,
                 ))
                 for slot_name, slot_label in (
-                    ("breakfast", "BREAKFAST"),
-                    ("lunch", "LUNCH"),
-                    ("dinner", "DINNER"),
+                    ("breakfast", tr("meal_breakfast")),
+                    ("lunch", tr("meal_lunch")),
+                    ("dinner", tr("meal_dinner")),
                 ):
                     slot = day.get(slot_name)
                     if isinstance(slot, dict):
@@ -613,7 +610,7 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                             inner.append(rl.Paragraph(_esc(why), styles["muted"]))
                 sights = day.get("sights")
                 if isinstance(sights, list) and sights:
-                    inner.append(rl.Paragraph("SIGHTS", styles["slotLabel"]))
+                    inner.append(rl.Paragraph(tr("meal_sights"), styles["slotLabel"]))
                     for s in sights:
                         if isinstance(s, dict):
                             nm = s.get("name") or s.get("text") or ""
@@ -649,7 +646,7 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         for t in todos:
             if not isinstance(t, dict):
                 continue
-            cat = t.get("category") or "General"
+            cat = t.get("category") or tr("checklist_general")
             by_cat.setdefault(cat, []).append(t)
         for cat, items in by_cat.items():
             cat_inner: list[Any] = [
@@ -1160,6 +1157,9 @@ def export_trip_pdf(trip_id: str):
             (trip["user_id"],),
         )
         _cat_name = {r["id"]: r["name"] for r in cursor.fetchall()}
+        # MK6 i18n: scope labels ("Overall"/"Category budget") must
+        # follow the requested locale, same as _build_trip_pdf below.
+        tr = _T(_norm_locale(options.get("locale") or options.get("lang")))
         for b in budget_rows:
             if (b.get("label") or "").strip():
                 continue  # respect an explicit label if one ever exists
@@ -1167,9 +1167,9 @@ def export_trip_pdf(trip_id: str):
             if cat_id and _cat_name.get(cat_id):
                 scope_label = _cat_name[cat_id]
             elif cat_id:
-                scope_label = "Category budget"
+                scope_label = tr("budget_category")
             else:
-                scope_label = "Overall"
+                scope_label = tr("budget_overall")
             owner = (b.get("owner_name") or "").strip()
             b["label"] = f"{scope_label} · {owner}" if owner else scope_label
         trip["budgets"] = budget_rows
