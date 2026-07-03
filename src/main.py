@@ -143,12 +143,16 @@ limiter.init_app(app)
 def _is_dev_env() -> bool:
     """Mirror auth.py's dev-detection so the prod-only boot guards
     below stay consistent with the JWT-secret guard. Dev/test if ANY
-    of: FLASK_ENV=development, FLASK_DEBUG=1, GG_ALLOW_TEST_LOGIN=1,
-    or running under pytest."""
+    of: FLASK_ENV=development, FLASK_DEBUG=1, or running under pytest.
+
+    MK6 (GG_ALLOW_TEST_LOGIN blast-radius fix): dropped GG_ALLOW_TEST_LOGIN
+    from this set. That flag only unlocks the test-login shortcut; letting
+    it also skip the CLIENT_ID_GOOGLE_AUTH fail-fast + expose dev-only
+    routes widened its blast radius. The Playwright dev server sets
+    FLASK_ENV=development explicitly (playwright.config.js)."""
     return (
         os.getenv("FLASK_ENV") == "development"
         or os.getenv("FLASK_DEBUG") == "1"
-        or os.getenv("GG_ALLOW_TEST_LOGIN") == "1"
         or os.getenv("PYTEST_CURRENT_TEST") is not None
     )
 

@@ -57,14 +57,24 @@ export default defineConfig({
         // GG_ALLOW_TEST_LOGIN unlocks the /api/auth/google
         // `test:<user_id>` shortcut that helpers.js's loginAsTestUser
         // hits. GG_E2E disables rate limits so 30+ parallel tests
-        // don't trip per-IP throttles. They're separate flags so an
-        // accidental GG_ALLOW_TEST_LOGIN leak into another env can't
-        // also disable all rate limits. Both off by default —
-        // production deploys would never set either.
+        // don't trip per-IP throttles. FLASK_ENV=development selects the
+        // dev behaviours the harness needs — the ephemeral JWT-secret
+        // fallback (no GG_JWT_SECRET in CI) and the localhost-http cookie
+        // (Secure omitted so Chrome saves it) — plus skipping the
+        // CLIENT_ID_GOOGLE_AUTH boot guard.
+        //
+        // MK6: these are deliberately SEPARATE flags. Pre-fix,
+        // GG_ALLOW_TEST_LOGIN alone implied all of the above, so one
+        // stray test-login env var in prod would silently weaken the JWT
+        // secret + drop the cookie Secure flag. Now GG_ALLOW_TEST_LOGIN
+        // does nothing but gate the test-login route; the dev relaxations
+        // ride on FLASK_ENV, and rate-limit disabling on GG_E2E. All
+        // three are off by default — production sets none of them.
         env: {
             ...process.env,
             GG_ALLOW_TEST_LOGIN: '1',
             GG_E2E: '1',
+            FLASK_ENV: 'development',
         },
     },
 });

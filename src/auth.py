@@ -64,8 +64,15 @@ def _secret() -> str:
     issued by worker A failed verification on worker B — manifesting
     as flaky 401s the user couldn't reproduce. The dev fallback is
     safe ONLY in single-process dev/test scenarios, so we gate it
-    on FLASK_ENV (or GG_ALLOW_TEST_LOGIN, which the Playwright
-    harness sets).
+    on FLASK_ENV / FLASK_DEBUG / pytest.
+
+    MK6 (GG_ALLOW_TEST_LOGIN blast-radius fix): this dev-detection
+    no longer keys off GG_ALLOW_TEST_LOGIN. That flag exists ONLY to
+    unlock the `test:<id>` login shortcut — letting it also silently
+    swap in a weak, per-worker ephemeral JWT secret meant one misplaced
+    test-login env var quietly turned a prod deploy's tokens forgeable.
+    The Playwright harness now sets FLASK_ENV=development explicitly for
+    the dev behaviours it needs (playwright.config.js).
     """
     s = os.getenv("GG_JWT_SECRET")
     if s:
@@ -73,7 +80,6 @@ def _secret() -> str:
     is_dev = (
         os.getenv("FLASK_ENV") == "development"
         or os.getenv("FLASK_DEBUG") == "1"
-        or os.getenv("GG_ALLOW_TEST_LOGIN") == "1"
         or os.getenv("PYTEST_CURRENT_TEST") is not None
     )
     if not is_dev:
@@ -374,11 +380,17 @@ def _cookie_secure_flag() -> bool:
     In any non-dev environment, force Secure=True unconditionally. Only a
     genuine local-dev context (where the request also isn't secure) is
     allowed to omit it, so Chrome still saves the cookie over http://localhost.
+
+    MK6 (GG_ALLOW_TEST_LOGIN blast-radius fix): keyed on FLASK_ENV /
+    FLASK_DEBUG / pytest only — NOT GG_ALLOW_TEST_LOGIN. Enabling the
+    test-login shortcut must not also drop the session cookie's Secure
+    flag (which would let it leak over a plain-HTTP downgrade). The
+    Playwright harness sets FLASK_ENV=development for the localhost-http
+    cookie behaviour it needs.
     """
     is_dev = (
         os.getenv("FLASK_ENV") == "development"
         or os.getenv("FLASK_DEBUG") == "1"
-        or os.getenv("GG_ALLOW_TEST_LOGIN") == "1"
         or os.getenv("PYTEST_CURRENT_TEST") is not None
     )
     if not is_dev:
