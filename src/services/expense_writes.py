@@ -129,6 +129,13 @@ def apply_expense_upsert(
     uniformly, not in the callers.
     """
     expense_id = e.get("id")
+    # Parity-audit hardening (Wave B follow-up): a dict/list id is truthy
+    # (passes the callers' guards) but unbindable — the existing-row
+    # SELECT raised sqlite3.ProgrammingError → 500 mid-batch on the sync
+    # paths whenever every other field validated. Same str-gate the
+    # settlements route got in MK6 Wave 10.
+    if not isinstance(expense_id, str) or not expense_id:
+        return _shared_fail(policy.strict, "Missing expense id", 400)
 
     # ── field validation (R2 hardening + R3-Fix #11 + R10-B6a F1/F2) ──
     try:

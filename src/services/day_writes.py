@@ -98,6 +98,10 @@ def apply_day_upsert(
     import sqlite3
 
     day_id = d.get("id")
+    # Parity-audit hardening: unbindable (dict/list) ids crashed the
+    # SELECT with a 500 — same str-gate as the expense service.
+    if not isinstance(day_id, str) or not day_id:
+        return _fail(policy.strict, "Missing day id", 400)
 
     # ── dayNumber bounds (audit 2026-05-26 + BUG-31 fractional) ──
     # Cap 0..999; reject fractions instead of silently truncating
@@ -121,7 +125,11 @@ def apply_day_upsert(
     cursor.execute("SELECT trip_id FROM trip_days WHERE id = ?", (day_id,))
     existing = cursor.fetchone()
     gate_trip_id = existing["trip_id"] if existing else claimed_trip_id
-    if not gate_trip_id:
+    # Falsy gate_trip_id (legacy row with NULL trip_id): the bulk path
+    # skips (old sync behavior); the strict path falls through to
+    # can_write(None) → False → 403, matching the old per-row route
+    # exactly (parity-audit fix — an earlier draft returned 400 here).
+    if not gate_trip_id and not policy.strict:
         return _fail(policy.strict, "Missing trip id", 400)
     if not can_write(gate_trip_id):
         return _fail(policy.strict, "Forbidden", 403)
