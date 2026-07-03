@@ -58,6 +58,11 @@ class BadgeDef:
     label: str
     description: str
     check: Callable[..., Optional[dict]]
+    # MK6 P3: a "milestone" badge that, once earned, is NEVER soft-revoked even
+    # if its check later returns None (the underlying row was deleted). Used for
+    # first_share / first_settle_up — "earning sticks", per their docstrings.
+    # Threshold badges (N friends, N trips) stay revocable and leave this False.
+    sticky: bool = False
 
 
 # ── Individual rules ─────────────────────────────────────────────────
@@ -541,6 +546,8 @@ BADGES: list[BadgeDef] = [
         label="Storyteller",
         description="Shared your first trip on the feed.",
         check=_check_first_share,
+        sticky=True,  # MK6 P3: a first-time milestone — unsharing later must
+                      # not soft-revoke it ("earning sticks", per the docstring).
     ),
     BadgeDef(
         id="first_settle_up",
@@ -548,6 +555,7 @@ BADGES: list[BadgeDef] = [
         label="Square Deal",
         description="Closed the loop on a settle-up.",
         check=_check_first_settle_up,
+        sticky=True,  # MK6 P3: milestone — deleting the settlement doesn't revoke.
     ),
     # ── §4.4 badge-variety expansion (2026-05-17) ─────────────────
     # Appended to the registry tail so profile badge strips re-render
@@ -727,7 +735,11 @@ def check_user_achievements(cursor, user_id: str) -> list[dict]:
             # Rule no longer (or not yet) passes. Queue a soft-revoke
             # if the user had previously earned it AND it's currently
             # active. Already-revoked rows stay revoked (no churn).
-            if badge.id in active_earned:
+            # MK6 P3: milestone badges are STICKY — once earned they never
+            # revoke, even if the underlying row (a feed_post / settlement) is
+            # later deleted. Without this, unsharing your only trip stripped the
+            # Storyteller badge you'd already been notified about + shown off.
+            if badge.id in active_earned and not badge.sticky:
                 to_revoke.append(badge.id)
             continue
         ctx_json = json.dumps(context) if context else None

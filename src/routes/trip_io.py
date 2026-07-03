@@ -394,15 +394,21 @@ def import_trip():
         # fresh name; build old-URL -> new-URL so we can rewrite references.
         # We read by the arc path from the manifest but write to a path WE
         # generate (uuid name), so a crafted arc can't traverse the filesystem.
+        # MK6 P3: generate the remap (new uuid names) but DON'T write files yet.
+        # Pre-fix, media was written to disk BEFORE the DB transaction; if an
+        # insert raised (get_db rolls back, so no trip row is created) the files
+        # orphaned under /static/uploads/<user>/ with nothing referencing them —
+        # unreclaimable growth from a crafted manifest that passes the envelope
+        # checks but fails an insert. Deferring the writes until AFTER commit
+        # means a rollback leaves nothing on disk. The names are deterministic,
+        # so the DB rows can reference the final URLs before the bytes land.
         url_remap: dict[str, str] = {}
+        pending_writes: list[tuple[str, str]] = []  # (arc, disk_path)
         for old_url, arc in media_manifest.items():
-            try:
-                data = zf.read(arc)
-            except KeyError:
+            if arc not in zf.namelist():
                 continue
             new_name = uuid.uuid4().hex + _safe_ext(arc)
-            with open(os.path.join(user_dir, new_name), "wb") as fh:
-                fh.write(data)
+            pending_writes.append((arc, os.path.join(user_dir, new_name)))
             url_remap[old_url] = f"/static/uploads/{user_id}/{new_name}"
 
         new_trip_id = uuid.uuid4().hex
@@ -502,5 +508,20 @@ def import_trip():
                 )
 
             conn.commit()
+
+        # MK6 P3: the transaction committed — NOW write the media bytes
+        # (deferred from before the txn so a rollback leaves no orphaned files).
+        # Still inside `with zf:` so the archive is readable. A write failure
+        # here leaves the trip with one 404'ing image — a far better outcome
+        # than an on-disk file with no referencing DB row.
+        for arc, disk_path in pending_writes:
+            try:
+                with open(disk_path, "wb") as fh:
+                    fh.write(zf.read(arc))
+            except Exception:
+                current_app.logger.warning(
+                    "trip import %s: media write failed for %s",
+                    new_trip_id, disk_path, exc_info=True,
+                )
 
     return jsonify({"status": "imported", "tripId": new_trip_id})

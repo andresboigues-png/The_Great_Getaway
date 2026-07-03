@@ -1552,6 +1552,13 @@ def delete_user_data():
             # §4.5: settlements scoped to the owned trip — cleaned alongside
             # expenses + days so a factory-reset is genuinely complete.
             cursor.execute(f"DELETE FROM settlements WHERE trip_id IN ({placeholders})", owned_trip_ids)
+            # MK6 P3: also delete OTHER members' budgets scoped to these trips,
+            # matching the single-trip delete route (trips.py:361). budgets FK is
+            # ON DELETE SET NULL, so without this the trips-delete below nulls
+            # their trip_id — silently turning a per-trip budget into a global
+            # "all trips" budget on the other member's account (fake permanent
+            # overspend). The caller's own budgets are wiped by user_id below.
+            cursor.execute(f"DELETE FROM budgets WHERE trip_id IN ({placeholders})", owned_trip_ids)
 
         # Tables scoped directly by user_id.
         cursor.execute("DELETE FROM trips WHERE user_id = ?", (user_id,))

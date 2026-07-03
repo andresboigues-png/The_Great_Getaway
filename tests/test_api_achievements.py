@@ -989,3 +989,18 @@ def test_achievements_rule_failure_doesnt_poison_sweep(client, seed_user, auth_h
     assert "first_trip" in ids
     # The broken rule didn't earn the user a badge.
     assert "explosive_test_badge" not in ids
+
+
+def test_first_share_badge_is_sticky_after_unshare(client, seed_user, auth_headers):
+    """MK6 P3: the first_share (Storyteller) milestone badge must NOT be soft-
+    revoked when the user unshares their only trip — earning a milestone sticks."""
+    trip_id = _create_trip(client, auth_headers, trip_id="t-badge", public=True)
+    post_id = client.post("/api/feed/share", headers=auth_headers,
+                          json={"trip_id": trip_id}).get_json()["post_id"]
+    # /api/data runs the achievement sweep → earns first_share.
+    ach = [a["badgeId"] for a in client.get("/api/data", headers=auth_headers).get_json()["achievements"]]
+    assert "first_share" in ach, "sharing should earn the Storyteller badge"
+    # Unshare (delete the only feed_post), then re-run the sweep via /api/data.
+    client.delete(f"/api/feed/share/{post_id}", headers=auth_headers)
+    ach2 = [a["badgeId"] for a in client.get("/api/data", headers=auth_headers).get_json()["achievements"]]
+    assert "first_share" in ach2, "first_share was soft-revoked after unshare (should be sticky)"

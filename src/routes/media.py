@@ -242,6 +242,10 @@ def upload_file():
             # Trigger decode validation early so DecompressionBomb
             # fires before the save (which buffers pixel data).
             img.load()
+            # MK6 P3: capture animated-WebP status NOW, before exif_transpose
+            # below replaces `img` with a single-frame copy (which would report
+            # is_animated=False). Used at the save step to preserve animation.
+            _animated_webp = ext == '.webp' and getattr(img, 'is_animated', False)
             # R10-B6a MA1: bake EXIF Orientation into the pixel data
             # BEFORE we strip the EXIF dict on save. iPhone photos
             # taken in portrait carry the rotation as an EXIF
@@ -298,7 +302,18 @@ def upload_file():
             # name out_path was already rewritten to.
             if img_format == 'JPEG' and img.mode not in ('RGB', 'L'):
                 img = img.convert('RGB')
-            img.save(out_path, format=img_format, **save_kwargs)
+            # MK6 P3: an ANIMATED WebP must not go through the single-frame
+            # re-encode — img.save() without save_all writes only frame 0, so
+            # every viewer sees a frozen first frame. The decompression-bomb
+            # check already ran (img.load() above), so write the ORIGINAL bytes
+            # verbatim, mirroring the GIF branch (same EXIF trade-off) to keep
+            # the animation. (`_animated_webp` was captured before the transpose
+            # above flattened `img` to one frame.)
+            if _animated_webp:
+                file.stream.seek(0)
+                file.save(out_path)
+            else:
+                img.save(out_path, format=img_format, **save_kwargs)
         except (Image.DecompressionBombError, Image.DecompressionBombWarning):
             # MK6 P1: catch the WARNING too, not just the Error. The module
             # bootstrap promotes DecompressionBombWarning to a raised exception

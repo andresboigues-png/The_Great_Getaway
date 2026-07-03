@@ -577,3 +577,24 @@ def test_trip_media_works_for_budgeteer_role(
     body = res.get_json()
     assert body["tripId"] == trip_id
     assert body["photos"] == []
+
+
+def test_upload_preserves_animated_webp(client, seed_user, auth_headers, tmp_path, monkeypatch):
+    """MK6 P3: an animated WebP must keep all its frames — the single-frame PIL
+    re-encode was flattening it to frame 0 (frozen for every viewer)."""
+    import main as main_module
+    monkeypatch.setitem(main_module.app.config, 'UPLOAD_FOLDER', str(tmp_path))
+    monkeypatch.setattr(main_module, 'UPLOAD_FOLDER', str(tmp_path))
+    from PIL import Image
+    frames = [Image.new("RGB", (16, 16), c) for c in ((255, 0, 0), (0, 255, 0), (0, 0, 255))]
+    buf = io.BytesIO()
+    frames[0].save(buf, format="WEBP", save_all=True, append_images=frames[1:],
+                   duration=100, loop=0)
+    buf.seek(0)
+    res = client.post("/api/upload", headers=auth_headers, data={"file": (buf, "anim.webp")})
+    assert res.status_code == 200, res.get_data(as_text=True)
+    saved_files = list(tmp_path.rglob("*.webp"))
+    assert saved_files, "no .webp file was written"
+    saved = Image.open(saved_files[0])
+    assert getattr(saved, "is_animated", False), "animated WebP was flattened to a single frame"
+    assert saved.n_frames == 3

@@ -1104,3 +1104,24 @@ def test_sync_skips_malformed_trip_rows_without_500(client, seed_user, auth_head
     ids = {t["id"] for t in client.get("/api/data", headers=auth_headers).get_json()["trips"]}
     assert "good" in ids and "nocountry" in ids
     assert "noname" not in ids, "malformed (no-name) trip must be skipped, not created"
+
+
+def test_factory_reset_deletes_other_members_trip_budgets(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """MK6 P3: factory-reset must DELETE other members' budgets scoped to the
+    owner's trips, not let the trips-delete null their trip_id (FK SET NULL) —
+    which silently converts a per-trip budget into a global 'all trips' one."""
+    from database import get_db
+    _create_trip(client, auth_headers, trip_id="t-fr")  # owned by A (seed_user)
+    with get_db() as conn:
+        conn.execute("INSERT INTO trip_members (trip_id, user_id, role, invitation_status) "
+                     "VALUES ('t-fr', ?, 'planner', 'accepted')", (seed_other_user,))
+        conn.execute("INSERT INTO budgets (id, user_id, trip_id, label, amount, currency) "
+                     "VALUES ('b-fr', ?, 't-fr', 'Food', 500, 'EUR')", (seed_other_user,))
+        conn.commit()
+    assert client.delete("/api/user-data", headers=auth_headers).status_code == 200
+    with get_db() as conn:
+        row = conn.execute("SELECT trip_id FROM budgets WHERE id='b-fr'").fetchone()
+    assert row is None, \
+        "B's trip-scoped budget survived A's factory reset (trip_id nulled → global budget)"
