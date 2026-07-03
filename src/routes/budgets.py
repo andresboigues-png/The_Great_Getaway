@@ -33,7 +33,10 @@ def upsert_budget():
     data = json_body()
     user_id = current_user_id()
     b = data.get("budget")
-    if not b:
+    # MK6 P3: isinstance check, not just truthiness — json_body() only coerces
+    # the ROOT to a dict, so a truthy non-dict ({"budget":"x"} / [1]) otherwise
+    # reaches b.get("id") → AttributeError → 500. Mirrors expenses.py's BUG-22.
+    if not isinstance(b, dict):
         return jsonify({"error": "Missing data"}), 400
     budget_id = b.get("id")
     if not budget_id:

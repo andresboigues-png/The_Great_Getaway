@@ -783,3 +783,16 @@ def test_settlement_delete_409_when_trip_archived_for_actor(
     )
     body = delete_res.get_json()
     assert "archived" in (body.get("error") or "").lower()
+
+
+def test_create_settlement_nonscalar_ids_return_400_not_500(client, seed_user, auth_headers):
+    """MK6 P3: a non-string id (dict/list) must be a clean 400, not an uncaught
+    sqlite3.ProgrammingError when bound into the trip_member_role query → 500."""
+    res = client.post("/api/settlements", headers=auth_headers, json={
+        "tripId": {"a": 1}, "fromUserId": "u1", "toUserId": "u2", "amount": 5,
+    })
+    assert res.status_code == 400, res.get_data(as_text=True)
+    res2 = client.post("/api/settlements", headers=auth_headers, json={
+        "tripId": "t1", "fromUserId": ["u1"], "toUserId": "u2", "amount": 5,
+    })
+    assert res2.status_code == 400, res2.get_data(as_text=True)

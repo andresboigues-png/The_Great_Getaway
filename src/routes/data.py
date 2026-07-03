@@ -330,7 +330,14 @@ def sync_data():
         # lookup over the incoming ids. Silent-skip, matching the contract above.
         _active_tombstoned = _tombstoned_trip_ids(cursor, trips)
         for t in trips:
-            if isinstance(t, dict) and t.get("id") in _active_tombstoned:
+            # MK6 P3 (BUG-096 parity): skip malformed rows. A non-dict entry or
+            # one missing id/name would otherwise KeyError/TypeError below → a
+            # 500 AFTER an earlier section already committed (half-applied sync,
+            # stack trace every 15s). The expense + day loops have this guard;
+            # the trips loops were the unguarded siblings.
+            if not isinstance(t, dict) or not t.get("id") or not t.get("name"):
+                continue
+            if t.get("id") in _active_tombstoned:
                 continue
             cursor.execute(
                 "SELECT user_id, is_public, public_show_expenses, is_archived "
@@ -430,7 +437,7 @@ def sync_data():
                     -- saw stored == client (both stale) and passed the
                     -- gate, blind-overwriting the sync-delivered state.
                     updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
-            ''', (t['id'], user_id, t['name'], t['country'],
+            ''', (t['id'], user_id, t['name'], t.get('country'),
                   _active_is_archived,
                   1 if t.get('isPublic') else 0,
                   1 if t.get('publicShowExpenses') else 0,
@@ -504,7 +511,10 @@ def sync_data():
         # hard-deleted trip via the archived_trips payload.
         _arch_tombstoned = _tombstoned_trip_ids(cursor, archived_trips)
         for t in archived_trips:
-            if isinstance(t, dict) and t.get("id") in _arch_tombstoned:
+            # MK6 P3 (BUG-096 parity): skip malformed rows — see the active loop.
+            if not isinstance(t, dict) or not t.get("id") or not t.get("name"):
+                continue
+            if t.get("id") in _arch_tombstoned:
                 continue
             cursor.execute(
                 "SELECT user_id, is_public, public_show_expenses, is_archived "
@@ -574,7 +584,7 @@ def sync_data():
                     cover_url=COALESCE(excluded.cover_url, cover_url),
                     -- R4-B1: see active-trips block above for rationale.
                     updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
-            ''', (t['id'], user_id, t['name'], t['country'],
+            ''', (t['id'], user_id, t['name'], t.get('country'),
                   _arch_is_archived,
                   1 if t.get('isPublic') else 0,
                   1 if t.get('publicShowExpenses') else 0,

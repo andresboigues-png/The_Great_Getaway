@@ -1321,3 +1321,35 @@ def test_list_sessions_excludes_expired_jwt_rows(client, seed_user, auth_headers
     labels = {s.get("deviceLabel") for s in res.get_json()["sessions"]}
     assert "Fresh device" in labels, "a recent session must be listed"
     assert "Old device" not in labels, "an expired (>30d) session must be hidden (BUG-022)"
+
+
+def test_auth_google_relogin_preserves_custom_avatar(client, monkeypatch):
+    """MK6 P3: a Google re-login must NOT clobber a custom uploaded profile
+    picture. /api/profile/update persists a /static/uploads/<uid>/... URL; a
+    bare picture=excluded.picture reset it to the Google lh3 URL every login."""
+    monkeypatch.setenv("CLIENT_ID_GOOGLE_AUTH", "client-id-test")
+    monkeypatch.delenv("GG_ALLOW_TEST_LOGIN", raising=False)
+    fake_idinfo = {
+        "sub": "avatar-uid", "email": "av@example.com", "email_verified": True,
+        "name": "Av", "picture": "https://lh3.googleusercontent.com/orig.jpg",
+    }
+    import routes.auth
+    monkeypatch.setattr(routes.auth.id_token, "verify_oauth2_token",
+                        lambda *a, **k: fake_idinfo)
+
+    r1 = client.post("/api/auth/google", json={"token": "valid.google.token"})
+    assert r1.status_code == 200
+    assert r1.get_json()["user"]["picture"] == "https://lh3.googleusercontent.com/orig.jpg"
+
+    from database import get_db
+    with get_db() as conn:
+        conn.execute("UPDATE users SET picture = ? WHERE id = ?",
+                     ("/static/uploads/avatar-uid/me.jpg", "avatar-uid"))
+        conn.commit()
+
+    r2 = client.post("/api/auth/google", json={"token": "valid.google.token"})
+    assert r2.status_code == 200
+    with get_db() as conn:
+        pic = conn.execute("SELECT picture FROM users WHERE id = ?", ("avatar-uid",)).fetchone()[0]
+    assert pic == "/static/uploads/avatar-uid/me.jpg", \
+        "Google re-login clobbered the user's custom uploaded avatar"

@@ -247,7 +247,16 @@ def google_auth():
                 VALUES (?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
-                    picture=excluded.picture
+                    -- MK6 P3: keep a CUSTOM uploaded avatar across re-logins.
+                    -- /api/profile/update persists a /static/uploads/<uid>/...
+                    -- URL into users.picture; a bare picture=excluded.picture
+                    -- reset it to the Google lh3 URL on every login, silently
+                    -- reverting the user's chosen photo. Only overwrite when the
+                    -- stored value ISN'T a custom upload.
+                    picture=CASE
+                        WHEN users.picture LIKE '/static/uploads/%' THEN users.picture
+                        ELSE excluded.picture
+                    END
             ''', (user_id, email, name, picture))
 
             cursor.execute("SELECT bio, status, home_currency, home_country, language, is_creator FROM users WHERE id = ?", (user_id,))

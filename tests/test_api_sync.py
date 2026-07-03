@@ -1085,3 +1085,22 @@ def test_sync_archived_expense_preserves_frozen_euro_value(client, seed_user, au
     finally:
         fx_rates._cache = {}
         fx_rates._cache_set_at = 0
+
+
+def test_sync_skips_malformed_trip_rows_without_500(client, seed_user, auth_headers):
+    """MK6 P3: a malformed trip row (non-dict, or missing name) in /api/sync
+    must be silently SKIPPED, not KeyError/TypeError → 500 (which, because the
+    handler commits per-section, would leave a half-applied sync). BUG-096
+    parity with the expense/day loops."""
+    res = client.post("/api/sync", headers=auth_headers, json={
+        "trips": [
+            {"id": "good", "name": "Good", "country": "PT"},
+            {"id": "noname"},          # missing name → must be skipped
+            "not-a-dict",              # non-dict → must be skipped
+            {"id": "nocountry", "name": "NoCountry"},  # missing country is fine
+        ],
+    })
+    assert res.status_code == 200, res.get_data(as_text=True)
+    ids = {t["id"] for t in client.get("/api/data", headers=auth_headers).get_json()["trips"]}
+    assert "good" in ids and "nocountry" in ids
+    assert "noname" not in ids, "malformed (no-name) trip must be skipped, not created"

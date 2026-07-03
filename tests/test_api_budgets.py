@@ -403,3 +403,13 @@ def test_budget_upsert_rejects_cross_user_id(
         assert row["amount"] == 300
         assert row["currency"] == "EUR"
         assert row["user_id"] == seed_user
+
+
+def test_upsert_budget_nondict_returns_400_not_500(client, seed_user, auth_headers):
+    """MK6 P3: a truthy non-dict `budget` (string / list) must be a clean 400,
+    not an uncaught AttributeError at b.get('id') → 500 (BUG-22 parity)."""
+    assert client.post("/api/budgets", headers=auth_headers,
+                       json={"budget": "x"}).status_code == 400
+    assert client.post("/api/budgets", headers=auth_headers,
+                       json={"budget": [1]}).status_code == 400
+    assert client.post("/api/budgets", headers=auth_headers, json=[1, 2]).status_code == 400

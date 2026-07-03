@@ -165,7 +165,11 @@ def create_settlement():
     note = (body.get("note") or "").strip() or None
 
     # ── Validation ────────────────────────────────────────────────
-    if not trip_id or not from_user_id or not to_user_id:
+    # MK6 P3: require STRINGS, not just truthiness — json_body() permits nested
+    # non-scalars, so a dict/list id would pass `not x` and then crash sqlite
+    # parameter binding (ProgrammingError → 500) when bound into the
+    # trip_member_role query below.
+    if not all(isinstance(x, str) and x for x in (trip_id, from_user_id, to_user_id)):
         return jsonify({"error": "tripId, fromUserId, toUserId are required"}), 400
     bind_trip_context(trip_id)
     if from_user_id == to_user_id:
