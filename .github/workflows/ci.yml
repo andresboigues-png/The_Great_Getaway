@@ -8,8 +8,8 @@ name: CI
 # dev server to even boot).
 #
 # Bootstrapping Linux visual baselines: trigger the
-# `visual-baselines-bootstrap` workflow manually (Actions tab →
-# "Visual baselines bootstrap" → Run workflow). It runs
+# `visual-baselines-bootstrap` workflow manually (Actions tab ‚Üí
+# "Visual baselines bootstrap" ‚Üí Run workflow). It runs
 # `--update-snapshots` and uploads the new -linux.png files as an
 # artifact you can download + commit.
 
@@ -65,9 +65,21 @@ jobs:
             # vendor-react, per-page chunks, and first-paint estimate
             # all stay under their gzip budgets (see
             # scripts/check-bundle-size.mjs). Failing the gate
-            # signals a meaningful regression — review the diff and
+            # signals a meaningful regression ‚Äî review the diff and
             # either trim or raise the cap intentionally.
             - run: npm run check:bundle-size
+
+    ruff:
+        name: Python lint (ruff)
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: '3.12'
+            - run: pip install ruff==0.15.20
+            - run: python -m ruff check src tests migrations
+            - run: python -m ruff format --check src tests migrations
 
     pytest:
         name: pytest API suite
@@ -78,13 +90,16 @@ jobs:
               with:
                   python-version: '3.12'
                   cache: 'pip'
-            - run: pip install -r requirements.txt pytest pytest-cov pypdf
-            # `--cov-fail-under=80` — coverage gate stepped
-            # 60→80→85→90→92 across N+8 / N+9 as the suite grew from
-            # 54 → 157 tests. Codebase now sits at ~95% with the
+            # MK1 Wave A: install the PINNED dev set (requirements-dev.txt
+            # chains -r requirements.txt) instead of the former ad-hoc
+            # unpinned `pytest pytest-cov pypdf` tail.
+            - run: pip install -r requirements-dev.txt
+            # `--cov-fail-under=80` ‚Äî coverage gate stepped
+            # 60‚Üí80‚Üí85‚Üí90‚Üí92 across N+8 / N+9 as the suite grew from
+            # 54 ‚Üí 157 tests. Codebase now sits at ~95% with the
             # remaining gaps being defensive guards + boot-time
             # branches that are infeasible to reach from a Flask
-            # test client. 92% leaves ~3pp headroom — tight but
+            # test client. 92% leaves ~3pp headroom ‚Äî tight but
             # right for a mature suite (a 3pp drop = ~40 uncovered
             # lines, definitely a real regression signal).
             - run: |
@@ -99,11 +114,19 @@ jobs:
                   name: coverage-report
                   path: .coverage
                   retention-days: 7
+                  # upload-artifact v4 skips dotfiles by default ‚Äî this is
+                  # why every run annotated "No files were found: .coverage".
+                  include-hidden-files: true
 
     e2e:
         name: Playwright smoke + flows
         runs-on: ubuntu-latest
-        timeout-minutes: 10
+        # MK1 Wave A: was 10 ‚Äî the suite outgrew it (7 stale tests
+        # time out against the redesigned UI + ~100 tests total), so
+        # the job was KILLED mid-run on every push and reported
+        # "cancelled" instead of naming its failures. 20 lets it
+        # finish and report; the stale tests get rewritten in Wave D.
+        timeout-minutes: 20
         steps:
             - uses: actions/checkout@v4
 
@@ -127,7 +150,7 @@ jobs:
 
             # CI=true tells the playwright config to do a fresh server boot
             # (no `reuseExistingServer`). `test:e2e:nonvisual` skips the
-            # visual.spec.js suite — that runs in the separate `visual` job
+            # visual.spec.js suite ‚Äî that runs in the separate `visual` job
             # below so a missing Linux baseline doesn't block smoke + flows.
             - name: Run e2e tests (smoke + flows)
               env:
@@ -150,7 +173,7 @@ jobs:
         # Linux baselines were bootstrapped via the visual-baselines-
         # bootstrap workflow (artefact `linux-visual-baselines`,
         # 20 PNGs committed alongside this `false` flip). The job now
-        # behaves like a normal blocker — a CSS edit that changes a
+        # behaves like a normal blocker ‚Äî a CSS edit that changes a
         # button's color, a shadow's offset, etc. turns CI red within
         # ~30 seconds with the side-by-side diff visible in the
         # uploaded `visual-regression-report` artifact below.
