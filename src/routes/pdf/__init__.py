@@ -277,9 +277,11 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         topPadding=0,
         bottomPadding=0,
     )
-    doc.addPageTemplates([
-        rl.PageTemplate(id="trip", frames=[frame], onPage=_draw_chrome),
-    ])
+    doc.addPageTemplates(
+        [
+            rl.PageTemplate(id="trip", frames=[frame], onPage=_draw_chrome),
+        ]
+    )
 
     story: list[Any] = []
 
@@ -338,9 +340,7 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         date_line = ""
 
     story.append(rl.Spacer(1, 0.6 * rl.cm))
-    story.append(
-        rl.Paragraph(tr("trip_plan_kicker"), styles["kicker"])
-    )
+    story.append(rl.Paragraph(tr("trip_plan_kicker"), styles["kicker"]))
     story.append(
         rl.HRFlowable(
             width="22%",
@@ -374,11 +374,13 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 # ~10% empty cell space on the right.
                 full_w = page_w - 2 * margin_lr
                 aspect = _image_aspect(map_png)
-                story.append(rl.Image(
-                    io.BytesIO(map_png),
-                    width=full_w,
-                    height=full_w / aspect,  # exact aspect → no distortion
-                ))
+                story.append(
+                    rl.Image(
+                        io.BytesIO(map_png),
+                        width=full_w,
+                        height=full_w / aspect,  # exact aspect → no distortion
+                    )
+                )
                 story.append(rl.Spacer(1, 0.6 * rl.cm))
             except Exception:
                 # Reportlab refuses bad image bytes silently —
@@ -416,68 +418,92 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
     toc_entries: list[tuple[str, str, str, str]] = []
     n = 1
     if opt("includeDays") and days_renderable:
-        toc_entries.append((
-            f"{n:02d}", tr("sec_days"),
-            f"{len(days_renderable)} · {tr('stat_days').lower()}",
-            _BRAND_BLUE,
-        ))
+        toc_entries.append(
+            (
+                f"{n:02d}",
+                tr("sec_days"),
+                f"{len(days_renderable)} · {tr('stat_days').lower()}",
+                _BRAND_BLUE,
+            )
+        )
         n += 1
     todos = _safe_json(trip_row.get("checklist_json"), [])
     if opt("includeTodos") and todos:
-        toc_entries.append((
-            f"{n:02d}", tr("sec_checklist"),
-            f"{len(todos)}",
-            _BRAND_PURPLE,
-        ))
+        toc_entries.append(
+            (
+                f"{n:02d}",
+                tr("sec_checklist"),
+                f"{len(todos)}",
+                _BRAND_PURPLE,
+            )
+        )
         n += 1
     budgets = trip_row.get("budgets") or []
     if opt("includeBudgets") and budgets:
-        toc_entries.append((
-            f"{n:02d}", tr("sec_budgets"),
-            f"{len(budgets)}",
-            _BRAND_GREEN,
-        ))
+        toc_entries.append(
+            (
+                f"{n:02d}",
+                tr("sec_budgets"),
+                f"{len(budgets)}",
+                _BRAND_GREEN,
+            )
+        )
         n += 1
     if opt("includeExpenses", default=False) and expenses:
-        toc_entries.append((
-            f"{n:02d}", tr("sec_expenses"),
-            f"{len(expenses)}",
-            _BRAND_GREEN,
-        ))
+        toc_entries.append(
+            (
+                f"{n:02d}",
+                tr("sec_expenses"),
+                f"{len(expenses)}",
+                _BRAND_GREEN,
+            )
+        )
         n += 1
     if opt("includeSettlements", default=False) and (expenses or settlements):
-        toc_entries.append((
-            f"{n:02d}", tr("sec_settle"), "",
-            _BRAND_GREEN,
-        ))
+        toc_entries.append(
+            (
+                f"{n:02d}",
+                tr("sec_settle"),
+                "",
+                _BRAND_GREEN,
+            )
+        )
         n += 1
     if opt("includeCompanions") and companions:
-        toc_entries.append((
-            f"{n:02d}", tr("sec_companions"),
-            f"{len(companions)}",
-            _BRAND_PURPLE,
-        ))
+        toc_entries.append(
+            (
+                f"{n:02d}",
+                tr("sec_companions"),
+                f"{len(companions)}",
+                _BRAND_PURPLE,
+            )
+        )
         n += 1
     if opt("includeMarkedPlaces") and marked_places:
-        toc_entries.append((
-            f"{n:02d}", tr("sec_places"),
-            f"{len(marked_places)}",
-            _BRAND_BLUE,
-        ))
+        toc_entries.append(
+            (
+                f"{n:02d}",
+                tr("sec_places"),
+                f"{len(marked_places)}",
+                _BRAND_BLUE,
+            )
+        )
         n += 1
-    if opt("includePhotos", default=False) and (trip_photos or any(
-        isinstance(d, dict) and d.get("photos") for d in days_renderable
-    )):
-        toc_entries.append((
-            f"{n:02d}", tr("sec_photos"), "",
-            _BRAND_PURPLE,
-        ))
+    if opt("includePhotos", default=False) and (
+        trip_photos or any(isinstance(d, dict) and d.get("photos") for d in days_renderable)
+    ):
+        toc_entries.append(
+            (
+                f"{n:02d}",
+                tr("sec_photos"),
+                "",
+                _BRAND_PURPLE,
+            )
+        )
         n += 1
 
     if toc_entries:
-        story.append(
-            rl.Paragraph(tr("whats_inside"), styles["kicker"])
-        )
+        story.append(rl.Paragraph(tr("whats_inside"), styles["kicker"]))
         for entry in toc_entries:
             story.append(_toc_row(rl, styles, page_w, margin_lr, *entry))
             story.append(rl.Spacer(1, 0.18 * rl.cm))
@@ -491,17 +517,22 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
     # days dropped) so the cover stats / TOC see the same count.
     if opt("includeDays") and days_renderable:
         story.append(rl.PageBreak())
-        story.extend(_section_opener(
-            rl, styles, page_w, margin_lr,
-            number=f"{section_num:02d}",
-            title=tr("sec_days"),
-            kicker=(
-                f"{tr('sec_days')} — "
-                f"{tr('slot_morning').lower()} · {tr('slot_afternoon').lower()} · "
-                f"{tr('slot_evening').lower()}"
-            ),
-            color=_BRAND_BLUE,
-        ))
+        story.extend(
+            _section_opener(
+                rl,
+                styles,
+                page_w,
+                margin_lr,
+                number=f"{section_num:02d}",
+                title=tr("sec_days"),
+                kicker=(
+                    f"{tr('sec_days')} — "
+                    f"{tr('slot_morning').lower()} · {tr('slot_afternoon').lower()} · "
+                    f"{tr('slot_evening').lower()}"
+                ),
+                color=_BRAND_BLUE,
+            )
+        )
         section_num += 1
 
         # Hero overview map — pins for every day that has coords.
@@ -547,15 +578,19 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                         ov_aspect = _image_aspect(overview_png)
                         _n = len(pins)
                         _ov_key = "days_overview_map_one" if _n == 1 else "days_overview_map_many"
-                        story.append(rl.Paragraph(
-                            tr(_ov_key).replace("{n}", str(_n)),
-                            styles["kicker"],
-                        ))
-                        story.append(rl.Image(
-                            io.BytesIO(overview_png),
-                            width=full_w,
-                            height=full_w / ov_aspect,
-                        ))
+                        story.append(
+                            rl.Paragraph(
+                                tr(_ov_key).replace("{n}", str(_n)),
+                                styles["kicker"],
+                            )
+                        )
+                        story.append(
+                            rl.Image(
+                                io.BytesIO(overview_png),
+                                width=full_w,
+                                height=full_w / ov_aspect,
+                            )
+                        )
                         story.append(rl.Spacer(1, 0.7 * rl.cm))
                     except Exception:
                         # R12-B1: surface silent reportlab image refusal.
@@ -597,22 +632,35 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             # `extend` (NOT wrap in another KeepTogether) so a page-long
             # journal day flows across pages instead of crashing the
             # whole export on an un-splittable single Table cell.
-            story.extend(_day_card(
-                rl, styles, page_w, margin_lr, day, day_map_png, tr,
-                day_photos=day_photos,
-            ))
+            story.extend(
+                _day_card(
+                    rl,
+                    styles,
+                    page_w,
+                    margin_lr,
+                    day,
+                    day_map_png,
+                    tr,
+                    day_photos=day_photos,
+                )
+            )
 
         # Optionally append the LLM-generated layer the frontend
         # forwarded along (lives in localStorage; not in the DB).
         if ai_plan_extra:
             story.append(rl.PageBreak())
-            story.extend(_section_opener(
-                rl, styles, page_w, margin_lr,
-                number="✦",
-                title=tr("sec_ai"),
-                kicker=tr("ai_kicker"),
-                color=_BRAND_PURPLE,
-            ))
+            story.extend(
+                _section_opener(
+                    rl,
+                    styles,
+                    page_w,
+                    margin_lr,
+                    number="✦",
+                    title=tr("sec_ai"),
+                    kicker=tr("ai_kicker"),
+                    color=_BRAND_PURPLE,
+                )
+            )
             for day in ai_plan_extra:
                 if not isinstance(day, dict):
                     continue
@@ -631,10 +679,15 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 if kicker_text:
                     inner.append(rl.Paragraph(_esc(kicker_text), styles["dayKicker"]))
                 inner.append(rl.Paragraph(_esc(ai_title), styles["dayTitle"]))
-                inner.append(rl.HRFlowable(
-                    width="100%", thickness=0.6, color=_RULE_GREY,
-                    spaceBefore=0, spaceAfter=8,
-                ))
+                inner.append(
+                    rl.HRFlowable(
+                        width="100%",
+                        thickness=0.6,
+                        color=_RULE_GREY,
+                        spaceBefore=0,
+                        spaceAfter=8,
+                    )
+                )
                 for slot_name, slot_label in (
                     ("breakfast", tr("meal_breakfast")),
                     ("lunch", tr("meal_lunch")),
@@ -659,28 +712,37 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                         elif isinstance(s, str):
                             inner.append(rl.Paragraph(f"• {_esc(s)}", styles["body"]))
                 card = rl.Table([[inner]], colWidths=[page_w - 2 * margin_lr])
-                card.setStyle(rl.TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, -1), rl.colors.HexColor("#fbf7ff")),
-                    ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor("#e9d8fd")),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 14),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 14),
-                    ("TOPPADDING", (0, 0), (-1, -1), 12),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ]))
+                card.setStyle(
+                    rl.TableStyle(
+                        [
+                            ("BACKGROUND", (0, 0), (-1, -1), rl.colors.HexColor("#fbf7ff")),
+                            ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor("#e9d8fd")),
+                            ("LEFTPADDING", (0, 0), (-1, -1), 14),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+                            ("TOPPADDING", (0, 0), (-1, -1), 12),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+                            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ]
+                    )
+                )
                 story.append(rl.KeepTogether([card, rl.Spacer(1, 0.35 * rl.cm)]))
 
     # ── TO-DOs ──
     todos = _safe_json(trip_row.get("checklist_json"), [])
     if opt("includeTodos") and todos:
         story.append(rl.PageBreak())
-        story.extend(_section_opener(
-            rl, styles, page_w, margin_lr,
-            number=f"{section_num:02d}",
-            title=tr("sec_checklist"),
-            kicker="",
-            color=_BRAND_PURPLE,
-        ))
+        story.extend(
+            _section_opener(
+                rl,
+                styles,
+                page_w,
+                margin_lr,
+                number=f"{section_num:02d}",
+                title=tr("sec_checklist"),
+                kicker="",
+                color=_BRAND_PURPLE,
+            )
+        )
         section_num += 1
         # Group by category if items have one; else flat list.
         by_cat: dict[str, list[dict]] = {}
@@ -698,34 +760,42 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 marker = "☑" if done else "☐"
                 body = it.get("text") or it.get("name") or ""
                 style = styles["muted"] if done else styles["body"]
-                cat_inner.append(
-                    rl.Paragraph(f"{marker}  {_esc(body)}", style)
-                )
+                cat_inner.append(rl.Paragraph(f"{marker}  {_esc(body)}", style))
             cat_card = rl.Table(
-                [[cat_inner]], colWidths=[page_w - 2 * margin_lr],
+                [[cat_inner]],
+                colWidths=[page_w - 2 * margin_lr],
             )
-            cat_card.setStyle(rl.TableStyle([
-                ("BACKGROUND", (0, 0), (-1, -1), rl.colors.HexColor("#fdfafe")),
-                ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor(_RULE_GREY)),
-                ("LEFTPADDING", (0, 0), (-1, -1), 14),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 14),
-                ("TOPPADDING", (0, 0), (-1, -1), 10),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ]))
+            cat_card.setStyle(
+                rl.TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, -1), rl.colors.HexColor("#fdfafe")),
+                        ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor(_RULE_GREY)),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 14),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+                        ("TOPPADDING", (0, 0), (-1, -1), 10),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ]
+                )
+            )
             story.append(rl.KeepTogether([cat_card, rl.Spacer(1, 0.3 * rl.cm)]))
 
     # ── BUDGETS ──
     budgets = trip_row.get("budgets") or []
     if opt("includeBudgets") and budgets:
         story.append(rl.PageBreak())
-        story.extend(_section_opener(
-            rl, styles, page_w, margin_lr,
-            number=f"{section_num:02d}",
-            title=tr("sec_budgets"),
-            kicker="",
-            color=_BRAND_GREEN,
-        ))
+        story.extend(
+            _section_opener(
+                rl,
+                styles,
+                page_w,
+                margin_lr,
+                number=f"{section_num:02d}",
+                title=tr("sec_budgets"),
+                kicker="",
+                color=_BRAND_GREEN,
+            )
+        )
         section_num += 1
         # Each budget's planned amount alongside the trip's TOTAL spend
         # (one number, footer row) so the reader still gets the
@@ -763,35 +833,48 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             # "Food &amp; Drink" literally and rendered non-Latin labels
             # (東京 / Москва) as Helvetica boxes. Amount cells stay raw strings
             # (ASCII numerals + currency codes, unaffected).
-            rows.append([
-                rl.Paragraph(_esc(b.get("label") or tr("budget_untitled")), styles["body"]),
-                planned_disp,
-            ])
+            rows.append(
+                [
+                    rl.Paragraph(_esc(b.get("label") or tr("budget_untitled")), styles["body"]),
+                    planned_disp,
+                ]
+            )
         rows.append([tr("total_planned"), tr.money("EUR", total_planned_eur)])
         if trip_row.get("total_spend_eur") is not None:
-            rows.append([
-                tr("actual_spend"),
-                tr.money("EUR", trip_row["total_spend_eur"]),
-            ])
+            rows.append(
+                [
+                    tr("actual_spend"),
+                    tr.money("EUR", trip_row["total_spend_eur"]),
+                ]
+            )
         col_w = [(page_w - 2 * margin_lr) * 0.6, (page_w - 2 * margin_lr) * 0.4]
         budget_table = rl.Table(rows, colWidths=col_w)
         last = len(rows) - 1
-        budget_table.setStyle(rl.TableStyle([
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 10),
-            ("TEXTCOLOR", (0, 0), (-1, 0), rl.colors.HexColor(_BRAND_NAVY)),
-            ("TEXTCOLOR", (0, 1), (-1, -1), rl.colors.HexColor(_TEXT_PRIMARY)),
-            ("BACKGROUND", (0, 0), (-1, 0), rl.colors.HexColor("#f4f4f5")),
-            ("LINEBELOW", (0, 0), (-1, 0), 1, rl.colors.HexColor(_RULE_GREY)),
-            ("LINEABOVE", (0, -1), (-1, -1), 1, rl.colors.HexColor(_RULE_GREY)),
-            ("FONTNAME", (0, last - 1), (-1, last), "Helvetica-Bold"),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -3), [rl.colors.white, rl.colors.HexColor("#fafafa")]),
-            ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 8),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-        ]))
+        budget_table.setStyle(
+            rl.TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 10),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), rl.colors.HexColor(_BRAND_NAVY)),
+                    ("TEXTCOLOR", (0, 1), (-1, -1), rl.colors.HexColor(_TEXT_PRIMARY)),
+                    ("BACKGROUND", (0, 0), (-1, 0), rl.colors.HexColor("#f4f4f5")),
+                    ("LINEBELOW", (0, 0), (-1, 0), 1, rl.colors.HexColor(_RULE_GREY)),
+                    ("LINEABOVE", (0, -1), (-1, -1), 1, rl.colors.HexColor(_RULE_GREY)),
+                    ("FONTNAME", (0, last - 1), (-1, last), "Helvetica-Bold"),
+                    (
+                        "ROWBACKGROUNDS",
+                        (0, 1),
+                        (-1, -3),
+                        [rl.colors.white, rl.colors.HexColor("#fafafa")],
+                    ),
+                    ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
         story.append(budget_table)
 
     # ── EXPENSES (PDF-2) ──
@@ -802,18 +885,30 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
     # by date, with per-currency subtotals + an EUR grand total.
     if opt("includeExpenses", default=False) and expenses:
         story.append(rl.PageBreak())
-        story.extend(_section_opener(
-            rl, styles, page_w, margin_lr,
-            number=f"{section_num:02d}",
-            title=tr("sec_expenses"),
-            kicker="",
-            color=_BRAND_GREEN,
-        ))
+        story.extend(
+            _section_opener(
+                rl,
+                styles,
+                page_w,
+                margin_lr,
+                number=f"{section_num:02d}",
+                title=tr("sec_expenses"),
+                kicker="",
+                color=_BRAND_GREEN,
+            )
+        )
         section_num += 1
-        story.extend(_expenses_section(
-            rl, styles, page_w, margin_lr, expenses, tr,
-            total_spend_eur=trip_row.get("total_spend_eur"),
-        ))
+        story.extend(
+            _expenses_section(
+                rl,
+                styles,
+                page_w,
+                margin_lr,
+                expenses,
+                tr,
+                total_spend_eur=trip_row.get("total_spend_eur"),
+            )
+        )
 
     # ── SETTLE UP (PDF-3) ──
     # The group-trip "who owes whom" story was entirely absent. We
@@ -823,28 +918,47 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
     # show simplified transfers, and list the recorded settlements.
     if opt("includeSettlements", default=False) and (expenses or settlements):
         story.append(rl.PageBreak())
-        story.extend(_section_opener(
-            rl, styles, page_w, margin_lr,
-            number=f"{section_num:02d}",
-            title=tr("sec_settle"),
-            kicker="",
-            color=_BRAND_GREEN,
-        ))
+        story.extend(
+            _section_opener(
+                rl,
+                styles,
+                page_w,
+                margin_lr,
+                number=f"{section_num:02d}",
+                title=tr("sec_settle"),
+                kicker="",
+                color=_BRAND_GREEN,
+            )
+        )
         section_num += 1
-        story.extend(_settle_section(
-            rl, styles, page_w, margin_lr, expenses, settlements, companions, tr,
-        ))
+        story.extend(
+            _settle_section(
+                rl,
+                styles,
+                page_w,
+                margin_lr,
+                expenses,
+                settlements,
+                companions,
+                tr,
+            )
+        )
 
     # ── COMPANIONS ──
     if opt("includeCompanions") and companions:
         story.append(rl.PageBreak())
-        story.extend(_section_opener(
-            rl, styles, page_w, margin_lr,
-            number=f"{section_num:02d}",
-            title=tr("sec_companions"),
-            kicker="",
-            color=_BRAND_PURPLE,
-        ))
+        story.extend(
+            _section_opener(
+                rl,
+                styles,
+                page_w,
+                margin_lr,
+                number=f"{section_num:02d}",
+                title=tr("sec_companions"),
+                kicker="",
+                color=_BRAND_PURPLE,
+            )
+        )
         section_num += 1
         # Pretty avatar grid — each companion gets a colored
         # initials tile + name/role on the right, 2 per row.
@@ -853,13 +967,18 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
     # ── MARKED PLACES ──
     if opt("includeMarkedPlaces") and marked_places:
         story.append(rl.PageBreak())
-        story.extend(_section_opener(
-            rl, styles, page_w, margin_lr,
-            number=f"{section_num:02d}",
-            title=tr("sec_places"),
-            kicker="",
-            color=_BRAND_BLUE,
-        ))
+        story.extend(
+            _section_opener(
+                rl,
+                styles,
+                page_w,
+                margin_lr,
+                number=f"{section_num:02d}",
+                title=tr("sec_places"),
+                kicker="",
+                color=_BRAND_BLUE,
+            )
+        )
         section_num += 1
 
         # Overview map of all marked places with letter-labeled
@@ -897,11 +1016,13 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                     # marker bounds auto-fit.
                     full_w = page_w - 2 * margin_lr
                     places_aspect = _image_aspect(places_map_png)
-                    story.append(rl.Image(
-                        io.BytesIO(places_map_png),
-                        width=full_w,
-                        height=full_w / places_aspect,
-                    ))
+                    story.append(
+                        rl.Image(
+                            io.BytesIO(places_map_png),
+                            width=full_w,
+                            height=full_w / places_aspect,
+                        )
+                    )
                     story.append(rl.Spacer(1, 0.6 * rl.cm))
                 except Exception:
                     # R12-B1: surface silent reportlab image refusal.
@@ -917,9 +1038,14 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             # Left column = a small letter badge matching the map pin
             letter_para = rl.Paragraph(
                 f'<para alignment="center"><font color="white" size="13"><b>{_esc(label)}</b></font></para>',
-                rl.ParagraphStyle("GGLetter", fontName=_font(bold=True),
-                                  fontSize=13, leading=15, alignment=1,
-                                  textColor=rl.colors.white),
+                rl.ParagraphStyle(
+                    "GGLetter",
+                    fontName=_font(bold=True),
+                    fontSize=13,
+                    leading=15,
+                    alignment=1,
+                    textColor=rl.colors.white,
+                ),
             )
             place_info: list[Any] = [
                 rl.Paragraph(_esc(nm), styles["dayTitle"]),
@@ -934,19 +1060,23 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                     page_w - 2 * margin_lr - place_letter_w,
                 ],
             )
-            place_card.setStyle(rl.TableStyle([
-                ("BACKGROUND", (0, 0), (0, 0), rl.colors.HexColor(_BRAND_BLUE)),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("ALIGN", (0, 0), (0, 0), "CENTER"),
-                ("BACKGROUND", (1, 0), (-1, -1), rl.colors.HexColor("#fafbff")),
-                ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor(_RULE_GREY)),
-                ("LEFTPADDING", (1, 0), (1, 0), 12),
-                ("RIGHTPADDING", (1, 0), (1, 0), 10),
-                ("TOPPADDING", (1, 0), (1, 0), 10),
-                ("BOTTOMPADDING", (1, 0), (1, 0), 10),
-                ("TOPPADDING", (0, 0), (0, 0), 0),
-                ("BOTTOMPADDING", (0, 0), (0, 0), 0),
-            ]))
+            place_card.setStyle(
+                rl.TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (0, 0), rl.colors.HexColor(_BRAND_BLUE)),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("ALIGN", (0, 0), (0, 0), "CENTER"),
+                        ("BACKGROUND", (1, 0), (-1, -1), rl.colors.HexColor("#fafbff")),
+                        ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor(_RULE_GREY)),
+                        ("LEFTPADDING", (1, 0), (1, 0), 12),
+                        ("RIGHTPADDING", (1, 0), (1, 0), 10),
+                        ("TOPPADDING", (1, 0), (1, 0), 10),
+                        ("BOTTOMPADDING", (1, 0), (1, 0), 10),
+                        ("TOPPADDING", (0, 0), (0, 0), 0),
+                        ("BOTTOMPADDING", (0, 0), (0, 0), 0),
+                    ]
+                )
+            )
             story.append(rl.KeepTogether([place_card, rl.Spacer(1, 0.18 * rl.cm)]))
 
     # ── PHOTOS (PDF-4) ──
@@ -963,11 +1093,10 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         # Photos with no dayId / a non-rendered day (e.g. Day 0 anchor) always
         # fall through to the gallery.
         if opt("includeDays") and days_renderable:
-            _renderable_day_ids = {
-                d.get("id") for d in days_renderable if isinstance(d, dict)
-            }
+            _renderable_day_ids = {d.get("id") for d in days_renderable if isinstance(d, dict)}
             _gallery_src = [
-                p for p in trip_photos
+                p
+                for p in trip_photos
                 if not (isinstance(p, dict) and p.get("dayId") in _renderable_day_ids)
             ]
         else:
@@ -979,13 +1108,18 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 photos_section_flowables.append(grid)
     if photos_section_flowables:
         story.append(rl.PageBreak())
-        story.extend(_section_opener(
-            rl, styles, page_w, margin_lr,
-            number=f"{section_num:02d}",
-            title=tr("sec_photos"),
-            kicker="",
-            color=_BRAND_PURPLE,
-        ))
+        story.extend(
+            _section_opener(
+                rl,
+                styles,
+                page_w,
+                margin_lr,
+                number=f"{section_num:02d}",
+                title=tr("sec_photos"),
+                kicker="",
+                color=_BRAND_PURPLE,
+            )
+        )
         section_num += 1
         story.extend(photos_section_flowables)
 
@@ -1006,21 +1140,39 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         or len(marked_places) > 0
         or bool(photos_section_flowables)
     )
-    no_sections_selected = not any(opt(k, default=(k not in (
-        "includeExpenses", "includeSettlements", "includePhotos",
-    ))) for k in (
-        "includeDays", "includeTodos", "includeBudgets",
-        "includeExpenses", "includeSettlements",
-        "includeCompanions", "includeMarkedPlaces", "includePhotos",
-    ))
+    no_sections_selected = not any(
+        opt(
+            k,
+            default=(
+                k
+                not in (
+                    "includeExpenses",
+                    "includeSettlements",
+                    "includePhotos",
+                )
+            ),
+        )
+        for k in (
+            "includeDays",
+            "includeTodos",
+            "includeBudgets",
+            "includeExpenses",
+            "includeSettlements",
+            "includeCompanions",
+            "includeMarkedPlaces",
+            "includePhotos",
+        )
+    )
     if no_sections_selected or not has_renderable_content:
         # No content sections selected, OR every selected section is
         # empty — render the cover as the only page + a soft hint.
         story.append(rl.Spacer(1, 1.0 * rl.cm))
-        story.append(rl.Paragraph(
-            f"<i>{_esc(tr('cover_only'))}</i>",
-            styles["muted"],
-        ))
+        story.append(
+            rl.Paragraph(
+                f"<i>{_esc(tr('cover_only'))}</i>",
+                styles["muted"],
+            )
+        )
 
     # R3-Round 3 fix: wrap doc.build in try/except. A pathological
     # per-day notes field (~30k+ chars) can raise ReportLab's
@@ -1032,8 +1184,10 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         doc.build(story)
     except Exception as e:
         from observability import get_logger
+
         get_logger(__name__).warning(
-            "PDF doc.build failed: %s", e,
+            "PDF doc.build failed: %s",
+            e,
         )
         raise RuntimeError(
             "PDF generation failed — likely a section too long to fit "
@@ -1284,7 +1438,8 @@ def export_trip_pdf(trip_id: str):
     # specific coordinates are recoverable via the DB if a real
     # debug needs them.
     days_with_coords = sum(
-        1 for d in (trip.get("days") or [])
+        1
+        for d in (trip.get("days") or [])
         if isinstance(d, dict) and d.get("lat") is not None and d.get("lng") is not None
     )
     logger.debug(
@@ -1314,10 +1469,12 @@ def export_trip_pdf(trip_id: str):
         # bad layouts (e.g. day-card too tall for the frame). Other
         # exception types bubble — Flask's logger captures them.
         return jsonify({"error": str(e)}), 500
-    safe_name = "".join(
-        c if (c.isalnum() or c in " -_") else "_"
-        for c in (trip.get("name") or "trip")
-    ).strip() or "trip"
+    safe_name = (
+        "".join(
+            c if (c.isalnum() or c in " -_") else "_" for c in (trip.get("name") or "trip")
+        ).strip()
+        or "trip"
+    )
     safe_name = safe_name.replace(" ", "_")
     return send_file(
         io.BytesIO(pdf_bytes),

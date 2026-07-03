@@ -18,6 +18,7 @@ but for an alpha-stage product the simple model is enough.
 The column is nullable. issue_token() lazily fills it on first call
 per user, so we don't need a data backfill.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

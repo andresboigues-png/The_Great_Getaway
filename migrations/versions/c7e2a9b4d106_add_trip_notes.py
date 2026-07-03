@@ -17,6 +17,7 @@ public-trip read path strips it (the /share/<token> path never selects
 it). Pre-existing rows get NULL, which the frontend renders as an empty
 notes box — no backfill needed.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

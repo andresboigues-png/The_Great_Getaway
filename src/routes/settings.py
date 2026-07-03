@@ -77,16 +77,19 @@ def _apply_category_deltas(user_id: str, data: dict):
         for cat in upserts_in:
             if not isinstance(cat, dict):
                 return jsonify({"error": "upsert entry must be an object"}), 400
-            cat_id = clean_text(cat.get("id"), max_len=64, allow_newlines=False,
-                                field_name="category id")
+            cat_id = clean_text(
+                cat.get("id"), max_len=64, allow_newlines=False, field_name="category id"
+            )
             if not cat_id:
                 return jsonify({"error": "category id is required"}), 400
-            name = clean_text(cat.get("name"), max_len=64, allow_newlines=False,
-                              field_name="category name")
+            name = clean_text(
+                cat.get("name"), max_len=64, allow_newlines=False, field_name="category name"
+            )
             if not name:
                 return jsonify({"error": "category name is required"}), 400
-            icon = clean_text(cat.get("icon", ""), max_len=8, allow_newlines=False,
-                              field_name="category icon")
+            icon = clean_text(
+                cat.get("icon", ""), max_len=8, allow_newlines=False, field_name="category icon"
+            )
             color = cat.get("color", "#007aff")
             if not isinstance(color, str) or not _CATEGORY_COLOR_RE.match(color):
                 color = "#007aff"
@@ -94,8 +97,9 @@ def _apply_category_deltas(user_id: str, data: dict):
         for d in deletes_in:
             if not isinstance(d, dict):
                 return jsonify({"error": "delete entry must be an object"}), 400
-            cat_id = clean_text(d.get("id"), max_len=64, allow_newlines=False,
-                                field_name="category id")
+            cat_id = clean_text(
+                d.get("id"), max_len=64, allow_newlines=False, field_name="category id"
+            )
             if not cat_id:
                 return jsonify({"error": "delete id is required"}), 400
             cleaned_deletes.append((cat_id, _coerce_ts(d.get("deletedAt"))))
@@ -160,14 +164,21 @@ def _apply_category_deltas(user_id: str, data: dict):
             "SELECT id, name, icon, color, updated_at FROM categories WHERE user_id = ? ORDER BY name",
             (user_id,),
         ).fetchall()
-    return jsonify({
-        "status": "ok",
-        "categories": [
-            {"id": r["id"], "name": r["name"], "icon": r["icon"],
-             "color": r["color"], "updatedAt": r["updated_at"]}
-            for r in rows
-        ],
-    })
+    return jsonify(
+        {
+            "status": "ok",
+            "categories": [
+                {
+                    "id": r["id"],
+                    "name": r["name"],
+                    "icon": r["icon"],
+                    "color": r["color"],
+                    "updatedAt": r["updated_at"],
+                }
+                for r in rows
+            ],
+        }
+    )
 
 
 @bp.route("/api/categories", methods=["POST"])
@@ -212,7 +223,9 @@ def sync_categories():
             if not isinstance(cat, dict):
                 return jsonify({"error": "category entry must be an object"}), 400
             cat_id = clean_text(
-                cat.get("id"), max_len=64, allow_newlines=False,
+                cat.get("id"),
+                max_len=64,
+                allow_newlines=False,
                 field_name="category id",
             )
             if not cat_id:
@@ -221,13 +234,17 @@ def sync_categories():
                 return jsonify({"error": f"duplicate category id: {cat_id}"}), 400
             seen_ids.add(cat_id)
             name = clean_text(
-                cat.get("name"), max_len=64, allow_newlines=False,
+                cat.get("name"),
+                max_len=64,
+                allow_newlines=False,
                 field_name="category name",
             )
             if not name:
                 return jsonify({"error": "category name is required"}), 400
             icon = clean_text(
-                cat.get("icon", ""), max_len=8, allow_newlines=False,
+                cat.get("icon", ""),
+                max_len=8,
+                allow_newlines=False,
                 field_name="category icon",
             )
             color = cat.get("color", "#007aff")
@@ -317,9 +334,11 @@ def update_profile():
             payload["status"] = ""
         else:
             if not isinstance(raw_status, str) or raw_status not in _ALLOWED_STATUS:
-                return jsonify({
-                    "error": "status must be one of the allowed values or empty",
-                }), 400
+                return jsonify(
+                    {
+                        "error": "status must be one of the allowed values or empty",
+                    }
+                ), 400
 
     # Validate the picture value before letting it touch the DB.
     if "picture" in payload:
@@ -341,7 +360,8 @@ def update_profile():
             with get_db() as _conn:
                 _c = _conn.cursor()
                 _c.execute(
-                    "SELECT picture FROM users WHERE id = ?", (user_id,),
+                    "SELECT picture FROM users WHERE id = ?",
+                    (user_id,),
                 )
                 _row = _c.fetchone()
                 if _row and _row["picture"] == pic:
@@ -357,6 +377,7 @@ def update_profile():
         # don't break. New abuse vectors are blocked because any NEW
         # upload lands in the caller's own subdir.
         from werkzeug.utils import secure_filename
+
         safe_user_dir = secure_filename(user_id) or "anon"
         owned_prefix = f"/static/uploads/{safe_user_dir}/"
         legacy_prefix = "/static/uploads/"
@@ -365,12 +386,14 @@ def update_profile():
             pic.startswith(legacy_prefix)
             # No further subdir = legacy flat layout. If there's a
             # subdir component, require it to match the caller (above).
-            and "/" not in pic[len(legacy_prefix):]
+            and "/" not in pic[len(legacy_prefix) :]
         )
         if not (is_owned_local or is_legacy_local or is_google or is_empty):
-            return jsonify({
-                "error": "picture URL must be your own upload (or empty)",
-            }), 403
+            return jsonify(
+                {
+                    "error": "picture URL must be your own upload (or empty)",
+                }
+            ), 403
 
     # i18n session 3 — language follows the user across devices.
     # Allowlist matches the Locale union in i18n.ts; anything else
@@ -379,9 +402,11 @@ def update_profile():
     if "language" in payload:
         lang = payload.get("language")
         if lang is not None and lang not in ("en", "pt", "es", "fr"):
-            return jsonify({
-                "error": "language must be one of en, pt, es, fr (or null)",
-            }), 400
+            return jsonify(
+                {
+                    "error": "language must be one of en, pt, es, fr (or null)",
+                }
+            ), 400
 
     # Home country — accept either a string matching one of the
     # COUNTRIES list values (validated client-side via the dropdown),

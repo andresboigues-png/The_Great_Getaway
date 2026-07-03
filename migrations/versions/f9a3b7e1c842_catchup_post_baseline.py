@@ -87,9 +87,7 @@ def upgrade() -> None:
     # NULL-able then backfill. New INSERTs in /api/friends/* stamp
     # created_at explicitly.
     _add_column("friends", "created_at", "DATETIME")
-    op.execute(
-        "UPDATE friends SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL"
-    )
+    op.execute("UPDATE friends SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
 
     # ── Feed (social) tables ──────────────────────────────────────────
     op.execute("""
@@ -194,23 +192,19 @@ def upgrade() -> None:
         "CREATE INDEX IF NOT EXISTS idx_feed_bookmarks_event ON feed_bookmarks(event_id)",
         "CREATE INDEX IF NOT EXISTS idx_feed_posts_user ON feed_posts(user_id)",
         "CREATE INDEX IF NOT EXISTS idx_feed_posts_trip ON feed_posts(trip_id)",
-        "CREATE INDEX IF NOT EXISTS idx_feed_comments_event "
-        "ON feed_comments(event_id, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_feed_comments_event ON feed_comments(event_id, created_at)",
         "CREATE INDEX IF NOT EXISTS idx_friends_user_status ON friends(user_id, status)",
         "CREATE INDEX IF NOT EXISTS idx_notifications_user_created "
         "ON notifications(user_id, created_at)",
-        "CREATE INDEX IF NOT EXISTS idx_trip_members_trip_user "
-        "ON trip_members(trip_id, user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_trip_members_trip_user ON trip_members(trip_id, user_id)",
         "CREATE INDEX IF NOT EXISTS idx_expenses_trip ON expenses(trip_id)",
         "CREATE INDEX IF NOT EXISTS idx_trip_days_trip ON trip_days(trip_id)",
         # §4.5 settlements + §4.4 achievements + §4.7 follows
         "CREATE INDEX IF NOT EXISTS idx_settlements_trip ON settlements(trip_id)",
         "CREATE INDEX IF NOT EXISTS idx_user_achievements_user "
         "ON user_achievements(user_id, badge_id)",
-        "CREATE INDEX IF NOT EXISTS idx_follows_followee "
-        "ON follows(followee_id)",
-        "CREATE INDEX IF NOT EXISTS idx_follows_follower "
-        "ON follows(follower_id)",
+        "CREATE INDEX IF NOT EXISTS idx_follows_followee ON follows(followee_id)",
+        "CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows(follower_id)",
     ]
     for ddl in indexes:
         op.execute(ddl)

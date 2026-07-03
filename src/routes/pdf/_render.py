@@ -42,6 +42,7 @@ _RULE_GREY = "#e5e7eb"
 # ── reportlab imports — kept local so the import cost only lands on
 # the (rare) PDF-export request, not on every Flask boot.
 
+
 def _rl():
     """Lazily import every reportlab symbol we need. Returns a
     namespace with everything attached so call sites stay readable."""
@@ -148,7 +149,6 @@ def _styles(rl):
             # `text-transform: uppercase` directly so callers
             # uppercase the string themselves.
         ),
-
         # ── Section openers (page-1 of every chapter) ────────────
         "sectionNumber": rl.ParagraphStyle(
             "GGSectionNumber",
@@ -180,7 +180,6 @@ def _styles(rl):
             spaceBefore=0,
             spaceAfter=18,
         ),
-
         # ── Day cards ────────────────────────────────────────────
         "dayKicker": rl.ParagraphStyle(
             "GGDayKicker",
@@ -225,7 +224,6 @@ def _styles(rl):
             spaceBefore=4,
             spaceAfter=2,
         ),
-
         # ── Body copy ────────────────────────────────────────────
         "body": rl.ParagraphStyle(
             "GGBody",
@@ -257,7 +255,6 @@ def _styles(rl):
             spaceBefore=4,
             spaceAfter=2,
         ),
-
         # ── Cover stats tiles ────────────────────────────────────
         "stat": rl.ParagraphStyle(
             "GGStat",
@@ -278,7 +275,6 @@ def _styles(rl):
             alignment=1,
             spaceAfter=0,
         ),
-
         # ── TOC entries on the cover ─────────────────────────────
         "tocItem": rl.ParagraphStyle(
             "GGTocItem",
@@ -328,6 +324,7 @@ def _parse_day_slot(raw: str) -> list[dict] | None:
     format by the presence of "Why:" — plain user notes without that
     marker get None back so we don't garble them."""
     import re
+
     global _WHY_RE, _FACT_RE
     if _WHY_RE is None:
         _WHY_RE = re.compile(r"\bWhy\s*:\s*", re.IGNORECASE)
@@ -393,6 +390,7 @@ def _image_aspect(png_bytes: bytes) -> float:
     "assume 2:1" default."""
     try:
         from PIL import Image as _PILImage
+
         with _PILImage.open(io.BytesIO(png_bytes)) as im:
             w, h = im.size
             if h > 0:
@@ -442,13 +440,17 @@ def _photo_grid(rl, photos: list[bytes], full_w: float, cols: int = 3):
             col_widths.append(gap)
         col_widths.append(cell_w)
     grid = rl.Table(rows, colWidths=col_widths)
-    grid.setStyle(rl.TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), gap / 2),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), gap / 2),
-    ]))
+    grid.setStyle(
+        rl.TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), gap / 2),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), gap / 2),
+            ]
+        )
+    )
     return grid
 
 
@@ -459,11 +461,7 @@ def _esc(text: Any) -> str:
     if text is None:
         return ""
     s = _strip_emoji(str(text))
-    return (
-        s.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-    )
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def _num(v: Any, default: float = 0.0) -> float:
@@ -511,7 +509,16 @@ def _companion_avatar_color(name: str) -> str:
     return palette[h]
 
 
-def _companion_card(rl, styles, page_w, margin_lr, name: str, role: str = "", chip_w: float | None = None, tr: _T | None = None):
+def _companion_card(
+    rl,
+    styles,
+    page_w,
+    margin_lr,
+    name: str,
+    role: str = "",
+    chip_w: float | None = None,
+    tr: _T | None = None,
+):
     """A "contact card"-style chip for a companion — colored
     avatar tile with the person's initials in white, then their
     name (bold) and optional role (muted) on the right. Designed
@@ -550,25 +557,29 @@ def _companion_card(rl, styles, page_w, margin_lr, name: str, role: str = "", ch
         [[avatar_para, info_flowables]],
         colWidths=[avatar_w, info_w],
     )
-    chip.setStyle(rl.TableStyle([
-        # Avatar tile — solid colored square (no native rounded
-        # corners in Table cells, but at this size the square reads
-        # as "tile/badge" cleanly enough).
-        ("BACKGROUND", (0, 0), (0, 0), rl.colors.HexColor(color)),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("ALIGN", (0, 0), (0, 0), "CENTER"),
-        ("LEFTPADDING", (0, 0), (0, 0), 0),
-        ("RIGHTPADDING", (0, 0), (0, 0), 0),
-        ("TOPPADDING", (0, 0), (0, 0), 8),
-        ("BOTTOMPADDING", (0, 0), (0, 0), 8),
-        ("LEFTPADDING", (1, 0), (1, 0), 12),
-        ("RIGHTPADDING", (1, 0), (1, 0), 8),
-        ("TOPPADDING", (1, 0), (1, 0), 6),
-        ("BOTTOMPADDING", (1, 0), (1, 0), 6),
-        # Outer card border so the chip reads as a unit
-        ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor(_RULE_GREY)),
-        ("BACKGROUND", (1, 0), (-1, -1), rl.colors.white),
-    ]))
+    chip.setStyle(
+        rl.TableStyle(
+            [
+                # Avatar tile — solid colored square (no native rounded
+                # corners in Table cells, but at this size the square reads
+                # as "tile/badge" cleanly enough).
+                ("BACKGROUND", (0, 0), (0, 0), rl.colors.HexColor(color)),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ALIGN", (0, 0), (0, 0), "CENTER"),
+                ("LEFTPADDING", (0, 0), (0, 0), 0),
+                ("RIGHTPADDING", (0, 0), (0, 0), 0),
+                ("TOPPADDING", (0, 0), (0, 0), 8),
+                ("BOTTOMPADDING", (0, 0), (0, 0), 8),
+                ("LEFTPADDING", (1, 0), (1, 0), 12),
+                ("RIGHTPADDING", (1, 0), (1, 0), 8),
+                ("TOPPADDING", (1, 0), (1, 0), 6),
+                ("BOTTOMPADDING", (1, 0), (1, 0), 6),
+                # Outer card border so the chip reads as a unit
+                ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor(_RULE_GREY)),
+                ("BACKGROUND", (1, 0), (-1, -1), rl.colors.white),
+            ]
+        )
+    )
     return chip
 
 
@@ -596,7 +607,9 @@ def _companion_grid(rl, styles, page_w, margin_lr, companions: list, tr: _T | No
         if isinstance(c, dict):
             nm = c.get("name") or ""
             role = c.get("role") or ""
-            chips.append(_companion_card(rl, styles, page_w, margin_lr, nm, role, chip_w=chip_w, tr=tr))
+            chips.append(
+                _companion_card(rl, styles, page_w, margin_lr, nm, role, chip_w=chip_w, tr=tr)
+            )
         elif isinstance(c, str):
             chips.append(_companion_card(rl, styles, page_w, margin_lr, c, chip_w=chip_w, tr=tr))
 
@@ -611,17 +624,23 @@ def _companion_grid(rl, styles, page_w, margin_lr, companions: list, tr: _T | No
             rows.append([left, "", right])
         grid = rl.Table(rows, colWidths=[col_w, gap, col_w])
 
-    grid.setStyle(rl.TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ]))
+    grid.setStyle(
+        rl.TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
     return grid
 
 
-def _section_opener(rl, styles, page_w, margin_lr, number: str, title: str, kicker: str, color: str):
+def _section_opener(
+    rl, styles, page_w, margin_lr, number: str, title: str, kicker: str, color: str
+):
     """A magazine-style section opener — big "01" number, section
     title underneath, small-caps tagline, then a thick accent rule.
     Returned as a list of flowables; caller is responsible for
@@ -647,8 +666,9 @@ def _section_opener(rl, styles, page_w, margin_lr, number: str, title: str, kick
     ]
 
 
-def _expenses_section(rl, styles, page_w, margin_lr, expenses: list, tr: _T,
-                      total_spend_eur: float | None):
+def _expenses_section(
+    rl, styles, page_w, margin_lr, expenses: list, tr: _T, total_spend_eur: float | None
+):
     """PDF-2: itemised expenses as a paginating multi-row table.
 
     Columns: Date · Description · Category · Amount (original currency) ·
@@ -661,8 +681,10 @@ def _expenses_section(rl, styles, page_w, margin_lr, expenses: list, tr: _T,
 
     def _key(e):
         return str(e.get("date") or "")
-    rows_data = [e for e in expenses if isinstance(e, dict)
-                 and not int(e.get("is_settlement") or 0)]
+
+    rows_data = [
+        e for e in expenses if isinstance(e, dict) and not int(e.get("is_settlement") or 0)
+    ]
     rows_data.sort(key=_key)
 
     if not rows_data:
@@ -670,12 +692,15 @@ def _expenses_section(rl, styles, page_w, margin_lr, expenses: list, tr: _T,
         return flow
 
     header = [
-        tr("col_date"), tr("col_description"), tr("col_category"),
-        tr("col_amount"), tr("col_eur"),
+        tr("col_date"),
+        tr("col_description"),
+        tr("col_category"),
+        tr("col_amount"),
+        tr("col_eur"),
     ]
-    table_rows: list[list[Any]] = [[
-        rl.Paragraph(f"<b>{_esc(h)}</b>", styles["muted"]) for h in header
-    ]]
+    table_rows: list[list[Any]] = [
+        [rl.Paragraph(f"<b>{_esc(h)}</b>", styles["muted"]) for h in header]
+    ]
     per_currency: dict[str, float] = {}
     total_eur = 0.0
     for e in rows_data:
@@ -695,29 +720,45 @@ def _expenses_section(rl, styles, page_w, margin_lr, expenses: list, tr: _T,
         label = e.get("label") or tr("exp_no_label")
         # BUG-049: prefer the route-resolved human name (category_name) over the
         # opaque category_id UUID. Falls back to the raw id / legacy slug.
-        cat = e.get("category_name") or e.get("category_id") or e.get("category") or tr("exp_uncategorised")
-        table_rows.append([
-            rl.Paragraph(_esc(tr.date(e.get("date"))), styles["muted"]),
-            rl.Paragraph(_esc(label), styles["body"]),
-            rl.Paragraph(_esc(str(cat)), styles["muted"]),
-            rl.Paragraph(_esc(tr.money(cur, val_f)), styles["muted"]),
-            rl.Paragraph(_esc(tr.money("EUR", ev_f)), styles["muted"]),
-        ])
+        cat = (
+            e.get("category_name")
+            or e.get("category_id")
+            or e.get("category")
+            or tr("exp_uncategorised")
+        )
+        table_rows.append(
+            [
+                rl.Paragraph(_esc(tr.date(e.get("date"))), styles["muted"]),
+                rl.Paragraph(_esc(label), styles["body"]),
+                rl.Paragraph(_esc(str(cat)), styles["muted"]),
+                rl.Paragraph(_esc(tr.money(cur, val_f)), styles["muted"]),
+                rl.Paragraph(_esc(tr.money("EUR", ev_f)), styles["muted"]),
+            ]
+        )
 
     avail = page_w - 2 * margin_lr
     col_w = [avail * 0.16, avail * 0.34, avail * 0.20, avail * 0.16, avail * 0.14]
     table = rl.Table(table_rows, colWidths=col_w, repeatRows=1)
-    table.setStyle(rl.TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), rl.colors.HexColor("#f4f4f5")),
-        ("LINEBELOW", (0, 0), (-1, 0), 1, rl.colors.HexColor(_RULE_GREY)),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [rl.colors.white, rl.colors.HexColor("#fafafa")]),
-        ("ALIGN", (3, 0), (-1, -1), "RIGHT"),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-    ]))
+    table.setStyle(
+        rl.TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), rl.colors.HexColor("#f4f4f5")),
+                ("LINEBELOW", (0, 0), (-1, 0), 1, rl.colors.HexColor(_RULE_GREY)),
+                (
+                    "ROWBACKGROUNDS",
+                    (0, 1),
+                    (-1, -1),
+                    [rl.colors.white, rl.colors.HexColor("#fafafa")],
+                ),
+                ("ALIGN", (3, 0), (-1, -1), "RIGHT"),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
     flow.append(table)
     flow.append(rl.Spacer(1, 0.4 * rl.cm))
 
@@ -726,24 +767,32 @@ def _expenses_section(rl, styles, page_w, margin_lr, expenses: list, tr: _T,
     flow.append(rl.Paragraph(tr("exp_subtotals"), styles["slotLabel"]))
     sub_rows: list[list[Any]] = []
     for cur in sorted(per_currency):
-        sub_rows.append([
-            rl.Paragraph(_esc(cur), styles["body"]),
-            rl.Paragraph(_esc(tr.money(cur, per_currency[cur])), styles["body"]),
-        ])
+        sub_rows.append(
+            [
+                rl.Paragraph(_esc(cur), styles["body"]),
+                rl.Paragraph(_esc(tr.money(cur, per_currency[cur])), styles["body"]),
+            ]
+        )
     eur_total_val = total_eur if total_spend_eur is None else float(total_spend_eur)
-    sub_rows.append([
-        rl.Paragraph(f"<b>{_esc(tr('exp_total_eur'))}</b>", styles["body"]),
-        rl.Paragraph(f"<b>{_esc(tr.money('EUR', eur_total_val))}</b>", styles["body"]),
-    ])
+    sub_rows.append(
+        [
+            rl.Paragraph(f"<b>{_esc(tr('exp_total_eur'))}</b>", styles["body"]),
+            rl.Paragraph(f"<b>{_esc(tr.money('EUR', eur_total_val))}</b>", styles["body"]),
+        ]
+    )
     sub_table = rl.Table(sub_rows, colWidths=[avail * 0.6, avail * 0.4])
-    sub_table.setStyle(rl.TableStyle([
-        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
-        ("LINEABOVE", (0, -1), (-1, -1), 1, rl.colors.HexColor(_RULE_GREY)),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ]))
+    sub_table.setStyle(
+        rl.TableStyle(
+            [
+                ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+                ("LINEABOVE", (0, -1), (-1, -1), 1, rl.colors.HexColor(_RULE_GREY)),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
     flow.append(sub_table)
     return flow
 
@@ -766,8 +815,9 @@ def _resolve_settle_party(nm, bal: dict) -> str:
     return first if first in bal else nm
 
 
-def _settle_section(rl, styles, page_w, margin_lr, expenses: list,
-                    settlements: list, companions: list, tr: _T):
+def _settle_section(
+    rl, styles, page_w, margin_lr, expenses: list, settlements: list, companions: list, tr: _T
+):
     """PDF-3: per-currency net balances + suggested transfers + the list
     of recorded settlements.
 
@@ -912,22 +962,26 @@ def _settle_section(rl, styles, page_w, margin_lr, expenses: list,
             if abs(v) < 0.01:
                 continue
             tag = tr("settle_is_owed") if v > 0 else tr("settle_owes")
-            bal_rows.append([
-                rl.Paragraph(_esc(person), styles["body"]),
-                rl.Paragraph(
-                    f"{_esc(tag)} {_esc(tr.money(cur, abs(v)))}", styles["muted"]
-                ),
-            ])
+            bal_rows.append(
+                [
+                    rl.Paragraph(_esc(person), styles["body"]),
+                    rl.Paragraph(f"{_esc(tag)} {_esc(tr.money(cur, abs(v)))}", styles["muted"]),
+                ]
+            )
         if bal_rows:
             avail = page_w - 2 * margin_lr
             bt = rl.Table(bal_rows, colWidths=[avail * 0.4, avail * 0.6])
-            bt.setStyle(rl.TableStyle([
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 0), (-1, -1), 3),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-            ]))
+            bt.setStyle(
+                rl.TableStyle(
+                    [
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                        ("TOPPADDING", (0, 0), (-1, -1), 3),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                    ]
+                )
+            )
             flow.append(bt)
         # Suggested minimal transfers.
         transfers = _simplify_debts(bal)
@@ -935,10 +989,12 @@ def _settle_section(rl, styles, page_w, margin_lr, expenses: list,
             flow.append(rl.Spacer(1, 0.15 * rl.cm))
             flow.append(rl.Paragraph(tr("settle_transfers"), styles["dayKicker"]))
             for frm, to, amt in transfers:
-                flow.append(rl.Paragraph(
-                    f"{_esc(frm)} → {_esc(to)}: <b>{_esc(tr.money(cur, amt))}</b>",
-                    styles["body"],
-                ))
+                flow.append(
+                    rl.Paragraph(
+                        f"{_esc(frm)} → {_esc(to)}: <b>{_esc(tr.money(cur, amt))}</b>",
+                        styles["body"],
+                    )
+                )
         flow.append(rl.Spacer(1, 0.35 * rl.cm))
 
     if not any_balance:
@@ -949,11 +1005,13 @@ def _settle_section(rl, styles, page_w, margin_lr, expenses: list,
         flow.append(rl.Spacer(1, 0.2 * rl.cm))
         flow.append(rl.Paragraph(tr("settle_recorded"), styles["slotLabel"]))
         for frm, to, cur, amt in recorded:
-            flow.append(rl.Paragraph(
-                f"{_esc(frm)} {_esc(tr('settle_paid'))} {_esc(to)} — "
-                f"{_esc(tr.money(cur, amt))}",
-                styles["muted"],
-            ))
+            flow.append(
+                rl.Paragraph(
+                    f"{_esc(frm)} {_esc(tr('settle_paid'))} {_esc(to)} — "
+                    f"{_esc(tr.money(cur, amt))}",
+                    styles["muted"],
+                )
+            )
     return flow
 
 
@@ -988,8 +1046,16 @@ def _simplify_debts(balances: dict[str, float]) -> list[tuple[str, str, float]]:
     return out
 
 
-def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | None,
-              tr: _T, day_photos: list[bytes] | None = None):
+def _day_card(
+    rl,
+    styles,
+    page_w,
+    margin_lr,
+    day: dict,
+    day_map_png: bytes | None,
+    tr: _T,
+    day_photos: list[bytes] | None = None,
+):
     """Render one day as a flat list of flowables (PDF-1 fix).
 
     PRE-MK4 this wrapped the entire day in a SINGLE-CELL `Table([[inner]])`
@@ -1027,9 +1093,7 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
 
     header_right_flowables: list[Any] = []
     if kicker_text:
-        header_right_flowables.append(
-            rl.Paragraph(_esc(kicker_text), styles["dayKicker"])
-        )
+        header_right_flowables.append(rl.Paragraph(_esc(kicker_text), styles["dayKicker"]))
     header_right_flowables.append(
         rl.Paragraph(_esc(name_text or f"{tr('day')} {badge_label}"), styles["dayTitle"])
     )
@@ -1038,9 +1102,14 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
     # Same visual language as the marked-places A/B/C letter badge.
     badge_para = rl.Paragraph(
         f'<para alignment="center"><font color="white" size="22"><b>{_esc(badge_label or "•")}</b></font></para>',
-        rl.ParagraphStyle("GGDayBadge", fontName=_font(bold=True),
-                          fontSize=22, leading=24, alignment=1,
-                          textColor=rl.colors.white),
+        rl.ParagraphStyle(
+            "GGDayBadge",
+            fontName=_font(bold=True),
+            fontSize=22,
+            leading=24,
+            alignment=1,
+            textColor=rl.colors.white,
+        ),
     )
     # Header is now a TOP-LEVEL flowable (not nested in an outer card
     # cell), so it spans the full content width. The blue badge cell +
@@ -1053,21 +1122,25 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
         [[badge_para, header_right_flowables]],
         colWidths=[badge_w, full_w - badge_w],
     )
-    header_row.setStyle(rl.TableStyle([
-        ("BACKGROUND", (0, 0), (0, 0), rl.colors.HexColor(_BRAND_BLUE)),
-        ("BACKGROUND", (1, 0), (1, 0), rl.colors.HexColor("#fafbff")),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("ALIGN", (0, 0), (0, 0), "CENTER"),
-        ("LEFTPADDING", (0, 0), (0, 0), 0),
-        ("RIGHTPADDING", (0, 0), (0, 0), 0),
-        ("TOPPADDING", (0, 0), (0, 0), 14),
-        ("BOTTOMPADDING", (0, 0), (0, 0), 14),
-        ("LEFTPADDING", (1, 0), (1, 0), 14),
-        ("RIGHTPADDING", (1, 0), (1, 0), 8),
-        ("TOPPADDING", (1, 0), (1, 0), 6),
-        ("BOTTOMPADDING", (1, 0), (1, 0), 6),
-        ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor(_RULE_GREY)),
-    ]))
+    header_row.setStyle(
+        rl.TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (0, 0), rl.colors.HexColor(_BRAND_BLUE)),
+                ("BACKGROUND", (1, 0), (1, 0), rl.colors.HexColor("#fafbff")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ALIGN", (0, 0), (0, 0), "CENTER"),
+                ("LEFTPADDING", (0, 0), (0, 0), 0),
+                ("RIGHTPADDING", (0, 0), (0, 0), 0),
+                ("TOPPADDING", (0, 0), (0, 0), 14),
+                ("BOTTOMPADDING", (0, 0), (0, 0), 14),
+                ("LEFTPADDING", (1, 0), (1, 0), 14),
+                ("RIGHTPADDING", (1, 0), (1, 0), 8),
+                ("TOPPADDING", (1, 0), (1, 0), 6),
+                ("BOTTOMPADDING", (1, 0), (1, 0), 6),
+                ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor(_RULE_GREY)),
+            ]
+        )
+    )
 
     # `header_block` = header kept with the first body element so a day's
     # title is never orphaned at the bottom of a page. `body` = the rest,
@@ -1113,19 +1186,27 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
         items = _parse_day_slot(val)
         if items:
             for it in items:
-                body.append(rl.Paragraph(
-                    _esc(it["name"]), styles["slotItemTitle"],
-                ))
+                body.append(
+                    rl.Paragraph(
+                        _esc(it["name"]),
+                        styles["slotItemTitle"],
+                    )
+                )
                 if it["why"]:
-                    body.append(rl.Paragraph(
-                        _esc(it["why"]), styles["body"],
-                    ))
+                    body.append(
+                        rl.Paragraph(
+                            _esc(it["why"]),
+                            styles["body"],
+                        )
+                    )
                 if it["fact"]:
-                    body.append(rl.Paragraph(
-                        f'<font color="{_BRAND_BLUE}"><b>★</b></font>'
-                        f'  <i>{_esc(it["fact"])}</i>',
-                        styles["muted"],
-                    ))
+                    body.append(
+                        rl.Paragraph(
+                            f'<font color="{_BRAND_BLUE}"><b>★</b></font>'
+                            f'  <i>{_esc(it["fact"])}</i>',
+                            styles["muted"],
+                        )
+                    )
                 body.append(rl.Spacer(1, 0.15 * rl.cm))
         else:
             body_text = _esc(val).replace("\n", "<br/>")
@@ -1137,31 +1218,35 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
         items = _parse_day_slot(notes)
         if items:
             for it in items:
-                body.append(rl.Paragraph(
-                    _esc(it["name"]), styles["slotItemTitle"],
-                ))
+                body.append(
+                    rl.Paragraph(
+                        _esc(it["name"]),
+                        styles["slotItemTitle"],
+                    )
+                )
                 if it["why"]:
-                    body.append(rl.Paragraph(
-                        _esc(it["why"]), styles["body"],
-                    ))
+                    body.append(
+                        rl.Paragraph(
+                            _esc(it["why"]),
+                            styles["body"],
+                        )
+                    )
                 if it["fact"]:
-                    body.append(rl.Paragraph(
-                        f'<font color="{_BRAND_BLUE}"><b>★</b></font>'
-                        f'  <i>{_esc(it["fact"])}</i>',
-                        styles["muted"],
-                    ))
+                    body.append(
+                        rl.Paragraph(
+                            f'<font color="{_BRAND_BLUE}"><b>★</b></font>'
+                            f'  <i>{_esc(it["fact"])}</i>',
+                            styles["muted"],
+                        )
+                    )
                 body.append(rl.Spacer(1, 0.15 * rl.cm))
         else:
-            body.append(
-                rl.Paragraph(_esc(notes).replace("\n", "<br/>"), styles["body"])
-            )
+            body.append(rl.Paragraph(_esc(notes).replace("\n", "<br/>"), styles["body"]))
         any_slot = True
 
     tip = day.get("tip")
     if isinstance(tip, str) and tip.strip():
-        body.append(
-            rl.Paragraph(f"<b>{tr('slot_tip')}</b>  {_esc(tip)}", styles["tip"])
-        )
+        body.append(rl.Paragraph(f"<b>{tr('slot_tip')}</b>  {_esc(tip)}", styles["tip"]))
         any_slot = True
 
     # PDF-4: per-day photo thumbnails laid out in a grid, after the plan.
@@ -1172,9 +1257,7 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
             body.append(grid)
 
     if not any_slot and not day_photos:
-        body.append(
-            rl.Paragraph(f"<i>{_esc(tr('no_plan'))}</i>", styles["muted"])
-        )
+        body.append(rl.Paragraph(f"<i>{_esc(tr('no_plan'))}</i>", styles["muted"]))
 
     # PDF-1: header kept with the FIRST body flowable (so a title never
     # orphans), then the remaining body flows as independent top-level
@@ -1183,11 +1266,15 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
     # crashed long-journal days.
     flowables: list[Any] = []
     if body:
-        flowables.append(rl.KeepTogether([
-            header_row,
-            rl.Spacer(1, 0.3 * rl.cm),
-            body[0],
-        ]))
+        flowables.append(
+            rl.KeepTogether(
+                [
+                    header_row,
+                    rl.Spacer(1, 0.3 * rl.cm),
+                    body[0],
+                ]
+            )
+        )
         flowables.extend(body[1:])
     else:
         flowables.append(header_row)
@@ -1222,16 +1309,20 @@ def _summary_stats_row(rl, styles, stats: list[tuple[str, str]], page_w, margin_
             ],
             colWidths=[tile_w],
         )
-        inner.setStyle(rl.TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), rl.colors.HexColor("#f0f6ff")),
-            ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor("#d6e4ff")),
-            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, 0), 14),
-            ("BOTTOMPADDING", (0, 0), (-1, 0), 4),
-            ("TOPPADDING", (0, 1), (-1, 1), 0),
-            ("BOTTOMPADDING", (0, 1), (-1, 1), 12),
-        ]))
+        inner.setStyle(
+            rl.TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), rl.colors.HexColor("#f0f6ff")),
+                    ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor("#d6e4ff")),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, 0), 14),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 4),
+                    ("TOPPADDING", (0, 1), (-1, 1), 0),
+                    ("BOTTOMPADDING", (0, 1), (-1, 1), 12),
+                ]
+            )
+        )
         tile_cells.append(inner)
 
     # Outer table places tiles side-by-side with a spacer column
@@ -1245,13 +1336,17 @@ def _summary_stats_row(rl, styles, stats: list[tuple[str, str]], page_w, margin_
         row.append(tile)
         col_widths.append(tile_w)
     outer = rl.Table([row], colWidths=col_widths)
-    outer.setStyle(rl.TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-    ]))
+    outer.setStyle(
+        rl.TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
+    )
     return outer
 
 
@@ -1263,32 +1358,38 @@ def _toc_row(rl, styles, page_w, margin_lr, number: str, title: str, sub: str, c
     bold 9pt digits with 8pt left padding, so it wrapped to two
     lines ("0" over "1") in the output."""
     t = rl.Table(
-        [[
-            "",
-            rl.Paragraph(
-                f'<b><font color="{color}" size="13">{_esc(number)}</font></b>',
-                styles["body"],
-            ),
+        [
             [
-                rl.Paragraph(_esc(title), styles["tocItem"]),
-                rl.Paragraph(_esc(sub), styles["tocItemSub"]),
-            ],
-        ]],
+                "",
+                rl.Paragraph(
+                    f'<b><font color="{color}" size="13">{_esc(number)}</font></b>',
+                    styles["body"],
+                ),
+                [
+                    rl.Paragraph(_esc(title), styles["tocItem"]),
+                    rl.Paragraph(_esc(sub), styles["tocItemSub"]),
+                ],
+            ]
+        ],
         colWidths=[
             0.20 * rl.cm,
             1.6 * rl.cm,
             page_w - 2 * margin_lr - 1.8 * rl.cm,
         ],
     )
-    t.setStyle(rl.TableStyle([
-        ("BACKGROUND", (0, 0), (0, 0), rl.colors.HexColor(color)),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 8),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-        ("LEFTPADDING", (1, 0), (1, -1), 10),
-    ]))
+    t.setStyle(
+        rl.TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (0, 0), rl.colors.HexColor(color)),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("LEFTPADDING", (1, 0), (1, -1), 10),
+            ]
+        )
+    )
     return t
 
 

@@ -27,6 +27,7 @@ nor any day-pin reverse-geocode data). Null is treated the same as
 empty by the read path so the column can be left unset for legacy
 rows; the upsert always writes either an array or `[]`.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

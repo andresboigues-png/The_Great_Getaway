@@ -38,6 +38,7 @@ from extensions import limiter
 # the "switch to JPEG" message.
 try:
     import pillow_heif
+
     pillow_heif.register_heif_opener()
     _HEIF_AVAILABLE = True
 except Exception:
@@ -53,6 +54,7 @@ try:
     import warnings as _warnings
 
     from PIL import Image as _PILImageBootstrap
+
     # 25M px ≈ 5000×5000 — generous for any phone camera, tight enough
     # to refuse a 30k×30k bomb (~3.6GB raw pixels). The default ~178M
     # px PIL ships with is too loose for a public upload surface.
@@ -70,7 +72,13 @@ bp = Blueprint("media", __name__)
 
 ALLOWED_UPLOAD_EXTENSIONS = {
     # images
-    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif',
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.gif',
+    '.webp',
+    '.heic',
+    '.heif',
     # documents (trip tickets, bookings)
     '.pdf',
 }
@@ -79,9 +87,16 @@ ALLOWED_UPLOAD_EXTENSIONS = {
 # and ISO/IEC 14496-12. Anything else (e.g. avif via av01) is rejected
 # until we explicitly opt in — keeps the surface area small.
 _HEIF_BRANDS = (
-    b'heic', b'heix', b'hevc', b'hevx',
-    b'heim', b'heis', b'hevm', b'hevs',
-    b'mif1', b'msf1',
+    b'heic',
+    b'heix',
+    b'hevc',
+    b'hevx',
+    b'heim',
+    b'heis',
+    b'hevm',
+    b'hevs',
+    b'mif1',
+    b'msf1',
 )
 
 # Simple-prefix magic numbers for the formats whose first bytes are
@@ -89,10 +104,11 @@ _HEIF_BRANDS = (
 # HEIC/HEIF are NOT simple prefixes — see _looks_like_upload below
 # for the structural checks they need.
 _SIMPLE_PREFIX_SIGNATURES = (
-    b'\xff\xd8\xff',                 # JPEG
-    b'\x89PNG\r\n\x1a\n',            # PNG
-    b'GIF87a', b'GIF89a',            # GIF
-    b'%PDF-',                        # PDF
+    b'\xff\xd8\xff',  # JPEG
+    b'\x89PNG\r\n\x1a\n',  # PNG
+    b'GIF87a',
+    b'GIF89a',  # GIF
+    b'%PDF-',  # PDF
 )
 
 
@@ -115,18 +131,10 @@ def _looks_like_upload(head: bytes) -> bool:
     if any(head.startswith(sig) for sig in _SIMPLE_PREFIX_SIGNATURES):
         return True
     # WebP — RIFF header + WEBP marker at offset 8.
-    if (
-        len(head) >= 12
-        and head.startswith(b'RIFF')
-        and head[8:12] == b'WEBP'
-    ):
+    if len(head) >= 12 and head.startswith(b'RIFF') and head[8:12] == b'WEBP':
         return True
     # HEIF/HEIC — ftyp box at offset 4 + recognised brand at offset 8.
-    if (
-        len(head) >= 12
-        and head[4:8] == b'ftyp'
-        and head[8:12] in _HEIF_BRANDS
-    ):
+    if len(head) >= 12 and head[4:8] == b'ftyp' and head[8:12] in _HEIF_BRANDS:
         return True
     return False
 
@@ -206,10 +214,7 @@ def _reclaim_orphan_bytes(safe_user_dir: str, user_folder: str) -> int:
     cutoff = time.time() - _ORPHAN_GRACE_SECONDS
     reclaimed = 0
     try:
-        names = [
-            e.name for e in os.scandir(user_folder)
-            if e.is_file(follow_symlinks=False)
-        ]
+        names = [e.name for e in os.scandir(user_folder) if e.is_file(follow_symlinks=False)]
     except FileNotFoundError:
         return 0
 
@@ -333,14 +338,16 @@ def upload_file():
     if used + incoming > _UPLOAD_QUOTA_BYTES:
         used -= _reclaim_orphan_bytes(safe_user_dir, user_folder)
         if used + incoming > _UPLOAD_QUOTA_BYTES:
-            return jsonify({
-                "error": (
-                    "Storage limit reached — delete some photos or documents "
-                    "to free space, then try again."
-                ),
-                "quotaBytes": _UPLOAD_QUOTA_BYTES,
-                "usedBytes": max(used, 0),
-            }), 507
+            return jsonify(
+                {
+                    "error": (
+                        "Storage limit reached — delete some photos or documents "
+                        "to free space, then try again."
+                    ),
+                    "quotaBytes": _UPLOAD_QUOTA_BYTES,
+                    "usedBytes": max(used, 0),
+                }
+            ), 507
 
     # Audit fix (2026-05-26): strip EXIF GPS from JPEG/PNG/WebP
     # uploads before persisting. Pre-fix the file was saved bytes-
@@ -364,13 +371,15 @@ def upload_file():
     # message so the user has actionable feedback.
     if ext in {'.heic', '.heif'}:
         if not _HEIF_AVAILABLE:
-            return jsonify({
-                "error": (
-                    "HEIC photos aren't supported yet. On iPhone, switch "
-                    "Settings → Camera → Formats to 'Most Compatible' so "
-                    "new shots upload as JPEG."
-                ),
-            }), 415
+            return jsonify(
+                {
+                    "error": (
+                        "HEIC photos aren't supported yet. On iPhone, switch "
+                        "Settings → Camera → Formats to 'Most Compatible' so "
+                        "new shots upload as JPEG."
+                    ),
+                }
+            ), 415
         # MK4 audit MED-5: rewrite the on-disk filename + returned URL
         # extension to `.jpg`. The bytes saved below are a re-encoded
         # JPEG (img_format='JPEG' for .heic/.heif), so a `.heic` suffix
@@ -389,6 +398,7 @@ def upload_file():
     if ext in {'.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'}:
         try:
             from PIL import Image, ImageOps
+
             # R4-B3: the MAX_IMAGE_PIXELS cap + DecompressionBombWarning
             # → Error conversion now live at module top (see lines ~45-58)
             # so they don't leak process-wide state on every request.
@@ -440,9 +450,12 @@ def upload_file():
             # (browsers, lightbox, PDF builder) don't know HEIC; the
             # extension-to-format map below collapses both to JPEG.
             ext_to_format = {
-                '.jpg': 'JPEG', '.jpeg': 'JPEG',
-                '.png': 'PNG', '.webp': 'WEBP',
-                '.heic': 'JPEG', '.heif': 'JPEG',
+                '.jpg': 'JPEG',
+                '.jpeg': 'JPEG',
+                '.png': 'PNG',
+                '.webp': 'WEBP',
+                '.heic': 'JPEG',
+                '.heif': 'JPEG',
             }
             img_format = ext_to_format.get(ext) or img.format or 'JPEG'
             # If we're converting HEIC → JPEG we MUST pass the EXIF
@@ -486,13 +499,18 @@ def upload_file():
             # user_id and the upload's claimed filename so a
             # repeated DoS attempt is attributable in incident review.
             from observability import get_logger
+
             get_logger(__name__).warning(
                 "upload rejected: decompression bomb from user=%s file=%r ext=%s",
-                user_id, getattr(file, 'filename', '?'), ext,
+                user_id,
+                getattr(file, 'filename', '?'),
+                ext,
             )
-            return jsonify({
-                "error": "Image dimensions too large to process",
-            }), 413
+            return jsonify(
+                {
+                    "error": "Image dimensions too large to process",
+                }
+            ), 413
         except Exception:
             # BUG-042: for HEIC/HEIF, out_path was rewritten to .jpg BEFORE the
             # encode (above), so saving the original bytes here would persist HEIC
@@ -502,13 +520,17 @@ def upload_file():
             # lenient save-the-original fallback (their extension matches).
             if ext in ('.heic', '.heif'):
                 from observability import get_logger
+
                 get_logger(__name__).warning(
                     "HEIC->JPEG encode failed for user=%s file=%r; refusing",
-                    user_id, getattr(file, 'filename', '?'),
+                    user_id,
+                    getattr(file, 'filename', '?'),
                 )
-                return jsonify({
-                    "error": "Couldn't convert this HEIC photo — please upload a JPEG or PNG.",
-                }), 415
+                return jsonify(
+                    {
+                        "error": "Couldn't convert this HEIC photo — please upload a JPEG or PNG.",
+                    }
+                ), 415
             file.stream.seek(0)
             file.save(out_path)
     elif ext == '.gif':
@@ -530,6 +552,7 @@ def upload_file():
         # caught before the bytes touch disk.
         try:
             from PIL import Image
+
             file.stream.seek(0)
             img = Image.open(file.stream)
             img.load()  # triggers DecompressionBombError if bomb
@@ -542,13 +565,18 @@ def upload_file():
             # a 25–50M-px crafted GIF raises DecompressionBombWarning, not Error,
             # and would otherwise fall to the bytes-verbatim save below.
             from observability import get_logger
+
             get_logger(__name__).warning(
                 "upload rejected: decompression bomb from user=%s file=%r ext=%s",
-                user_id, getattr(file, 'filename', '?'), ext,
+                user_id,
+                getattr(file, 'filename', '?'),
+                ext,
             )
-            return jsonify({
-                "error": "Image dimensions too large to process",
-            }), 413
+            return jsonify(
+                {
+                    "error": "Image dimensions too large to process",
+                }
+            ), 413
         except Exception:
             # PIL couldn't open it (corrupted GIF, unsupported
             # variant). Fall back to bytes-verbatim — same shape as
@@ -559,7 +587,9 @@ def upload_file():
     else:
         file.save(out_path)
 
-    return jsonify({
-        "url": f"/static/uploads/{safe_user_dir}/{filename}",
-        "name": file.filename,
-    })
+    return jsonify(
+        {
+            "url": f"/static/uploads/{safe_user_dir}/{filename}",
+            "name": file.filename,
+        }
+    )

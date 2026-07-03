@@ -175,9 +175,13 @@ def _follow(cursor, follower_id: str, followee_id: str, source: str) -> bool:
                 "INSERT INTO notifications "
                 "(user_id, type, title, related_id, message, is_read) "
                 "VALUES (?, ?, ?, ?, ?, 0)",
-                (followee_id, source,
-                 'New follower' if source == 'followed_you' else 'Friend Request',
-                 follower_id, f"{actor_name} started following you."),
+                (
+                    followee_id,
+                    source,
+                    'New follower' if source == 'followed_you' else 'Friend Request',
+                    follower_id,
+                    f"{actor_name} started following you.",
+                ),
             )
     return is_new
 
@@ -326,7 +330,8 @@ def list_friends():
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute('''
+        cursor.execute(
+            '''
             SELECT u.id, u.name, u.email, u.picture
             FROM follows f1
             JOIN follows f2
@@ -335,7 +340,9 @@ def list_friends():
             JOIN users u ON u.id = f1.followee_id
             WHERE f1.follower_id = ?
             ORDER BY u.name
-        ''', (user_id,))
+        ''',
+            (user_id,),
+        )
         friends = [
             {
                 "id": row["id"],

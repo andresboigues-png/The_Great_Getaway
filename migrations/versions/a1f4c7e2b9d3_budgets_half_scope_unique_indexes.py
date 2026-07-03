@@ -29,6 +29,7 @@ consequences.
 Idempotency-guarded (CREATE UNIQUE INDEX IF NOT EXISTS) per R4-B5
 convention.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

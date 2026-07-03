@@ -78,10 +78,13 @@ def _validate_sync_expense(e: dict, user_id: str) -> dict | None:
         currency = validate_currency(e.get('currency'))
         # R3-Fix #6: server-side euro_value derivation.
         client_euro_value = validate_money(
-            e.get('euroValue', 0), field_name="euroValue",
+            e.get('euroValue', 0),
+            field_name="euroValue",
         )
         euro_value = compute_euro_value(
-            value, currency, client_euro_value=client_euro_value,
+            value,
+            currency,
+            client_euro_value=client_euro_value,
         )
         # Integration audit MM-2: mirror the per-row /api/expenses C1 gate
         # (expenses.py) on the bulk-sync path. A non-EUR currency with no live
@@ -97,19 +100,27 @@ def _validate_sync_expense(e: dict, user_id: str) -> dict | None:
         ):
             return None
         label = clean_text(
-            e.get('label', ''), max_len=200, allow_newlines=False,
+            e.get('label', ''),
+            max_len=200,
+            allow_newlines=False,
             field_name="label",
         )
         who = clean_text(
-            e.get('who', ''), max_len=200, allow_newlines=False,
+            e.get('who', ''),
+            max_len=200,
+            allow_newlines=False,
             field_name="who",
         )
         country = clean_text(
-            e.get('country', '') or '', max_len=120, allow_newlines=False,
+            e.get('country', '') or '',
+            max_len=120,
+            allow_newlines=False,
             field_name="country",
         )
         category_id = clean_text(
-            e.get('categoryId', '') or '', max_len=120, allow_newlines=False,
+            e.get('categoryId', '') or '',
+            max_len=120,
+            allow_newlines=False,
             field_name="categoryId",
         )
         # BUG-8: coerce to YYYY-MM-DD or empty. On the bulk sync path we DROP
@@ -125,8 +136,10 @@ def _validate_sync_expense(e: dict, user_id: str) -> dict | None:
         # rather than 400'ing the batch — matches the silent-skip
         # contract documented above.
         receipt_url = validate_upload_url(
-            e.get('receiptUrl'), user_id=user_id,
-            field_name="receiptUrl", allow_empty=True,
+            e.get('receiptUrl'),
+            user_id=user_id,
+            field_name="receiptUrl",
+            allow_empty=True,
         )
         # R10-B6a F2: gate splits map shape via shared helper.
         splits_clean = validate_splits(e.get('splits'))
@@ -170,8 +183,10 @@ def _tombstoned_trip_ids(cursor, rows) -> set:
         return set()
     ph = ",".join(["?"] * len(ids))
     return {
-        row[0] for row in cursor.execute(
-            f"SELECT trip_id FROM trip_deletes WHERE trip_id IN ({ph})", ids,
+        row[0]
+        for row in cursor.execute(
+            f"SELECT trip_id FROM trip_deletes WHERE trip_id IN ({ph})",
+            ids,
         ).fetchall()
     }
 
@@ -184,7 +199,10 @@ def _validated_cover_url(value, user_id):
     (MK6 P3/security)"""
     try:
         return validate_upload_url(
-            value, user_id=user_id, field_name="coverUrl", allow_empty=True,
+            value,
+            user_id=user_id,
+            field_name="coverUrl",
+            allow_empty=True,
         )
     except ValidationError:
         return None
@@ -241,16 +259,15 @@ def sync_data():
     # multi-key payloads count as one log line) so we can see who's
     # still using the bulk path. Doesn't change behavior; observability
     # only.
-    noisy_keys = {
-        k for k in data.keys()
-        if k not in ("categories",) and data.get(k)
-    }
+    noisy_keys = {k for k in data.keys() if k not in ("categories",) and data.get(k)}
     if noisy_keys:
         try:
             from observability import get_logger
+
             get_logger(__name__).info(
                 "deprecated /api/sync bulk-write keys present user=%s keys=%s",
-                user_id, sorted(noisy_keys),
+                user_id,
+                sorted(noisy_keys),
             )
         except Exception:
             # Logging failure must never fail the request — the bulk
@@ -276,19 +293,23 @@ def sync_data():
     # ambiguous input.
     if isinstance(trips, list) and isinstance(archived_trips_preview, list):
         active_ids = {t["id"] for t in trips if isinstance(t, dict) and t.get("id")}
-        archived_ids = {t["id"] for t in archived_trips_preview if isinstance(t, dict) and t.get("id")}
+        archived_ids = {
+            t["id"] for t in archived_trips_preview if isinstance(t, dict) and t.get("id")
+        }
         overlap = active_ids & archived_ids
         if overlap:
             offending = sorted(overlap)[0]
-            return jsonify({
-                "error": (
-                    f"Trip {offending!r} appears in both 'trips' and "
-                    "'archived_trips'. Each trip must belong to exactly "
-                    "one list. Pre-§2.6 the server silently flipped the "
-                    "archive flag in this case; now we reject so the "
-                    "client can fix its state."
-                ),
-            }), 400
+            return jsonify(
+                {
+                    "error": (
+                        f"Trip {offending!r} appears in both 'trips' and "
+                        "'archived_trips'. Each trip must belong to exactly "
+                        "one list. Pre-§2.6 the server silently flipped the "
+                        "archive flag in this case; now we reject so the "
+                        "client can fix its state."
+                    ),
+                }
+            ), 400
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -343,7 +364,8 @@ def sync_data():
                 continue
             cursor.execute(
                 "SELECT user_id, is_public, public_show_expenses, is_archived "
-                "FROM trips WHERE id = ?", (t["id"],),
+                "FROM trips WHERE id = ?",
+                (t["id"],),
             )
             existing = cursor.fetchone()
             # R5-B4: set lookup instead of can_edit_trip's 2-query call.
@@ -372,7 +394,8 @@ def sync_data():
                 countries_raw = t.get('tripCountries')
             countries_json = (
                 json.dumps([c for c in countries_raw if isinstance(c, str)])
-                if isinstance(countries_raw, list) else None
+                if isinstance(countries_raw, list)
+                else None
             )
             # BUG-098: trips.is_archived is the share/clone gate's source of
             # truth and is OWNER-ONLY (the dedicated archive route mirrors it
@@ -382,10 +405,12 @@ def sync_data():
             # flows to their trip_members row below.
             _owner_row = existing is None or existing["user_id"] == user_id
             _active_is_archived = (
-                (1 if t.get('is_archived') else 0) if _owner_row
+                (1 if t.get('is_archived') else 0)
+                if _owner_row
                 else (1 if existing["is_archived"] else 0)
             )
-            cursor.execute('''
+            cursor.execute(
+                '''
                 INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
                                    public_show_expenses,
                                    place_id, lat, lng, viewport_json, place_types, country_code,
@@ -439,35 +464,46 @@ def sync_data():
                     -- saw stored == client (both stale) and passed the
                     -- gate, blind-overwriting the sync-delivered state.
                     updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
-            ''', (t['id'], user_id, t['name'], t.get('country'),
-                  _active_is_archived,
-                  1 if t.get('isPublic') else 0,
-                  1 if t.get('publicShowExpenses') else 0,
-                  t.get('placeId'),
-                  t.get('lat'),
-                  t.get('lng'),
-                  json.dumps(t['viewport']) if t.get('viewport') else None,
-                  json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
-                  t.get('countryCode'),
-                  countries_json,
-                  json.dumps(_cleaned_companions_for_sync(cursor, t.get('id'), t.get('companions'))) if isinstance(t.get('companions'), list) else None,
-                  # 4.8 audit TRIP-3: /api/sync MUST NOT write the 4 heavy
-                  # media columns — they have a dedicated write path
-                  # (POST /api/trips/<id>/media). Pass None so COALESCE
-                  # preserves existing media on UPDATE and starts NULL (=[])
-                  # on INSERT, even if a legacy/defensive client still ships
-                  # these keys with a stale/empty array. Mirrors upsert_trip
-                  # and makes the media-isolation invariant structural here
-                  # too, rather than depending on the client never sending
-                  # the key.
-                  None,  # marked_places_json — see POST /api/trips/<id>/media
-                  None,  # documents_json
-                  None,  # photos_json
-                  None,  # checklist_json
-                  # MK6 P3/security: gate coverUrl to the caller's own upload —
-                  # an unvalidated external URL becomes a tracking pixel served
-                  # to every member + public share viewer.
-                  _validated_cover_url(t.get('coverUrl'), user_id)))
+            ''',
+                (
+                    t['id'],
+                    user_id,
+                    t['name'],
+                    t.get('country'),
+                    _active_is_archived,
+                    1 if t.get('isPublic') else 0,
+                    1 if t.get('publicShowExpenses') else 0,
+                    t.get('placeId'),
+                    t.get('lat'),
+                    t.get('lng'),
+                    json.dumps(t['viewport']) if t.get('viewport') else None,
+                    json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
+                    t.get('countryCode'),
+                    countries_json,
+                    json.dumps(
+                        _cleaned_companions_for_sync(cursor, t.get('id'), t.get('companions'))
+                    )
+                    if isinstance(t.get('companions'), list)
+                    else None,
+                    # 4.8 audit TRIP-3: /api/sync MUST NOT write the 4 heavy
+                    # media columns — they have a dedicated write path
+                    # (POST /api/trips/<id>/media). Pass None so COALESCE
+                    # preserves existing media on UPDATE and starts NULL (=[])
+                    # on INSERT, even if a legacy/defensive client still ships
+                    # these keys with a stale/empty array. Mirrors upsert_trip
+                    # and makes the media-isolation invariant structural here
+                    # too, rather than depending on the client never sending
+                    # the key.
+                    None,  # marked_places_json — see POST /api/trips/<id>/media
+                    None,  # documents_json
+                    None,  # photos_json
+                    None,  # checklist_json
+                    # MK6 P3/security: gate coverUrl to the caller's own upload —
+                    # an unvalidated external URL becomes a tracking pixel served
+                    # to every member + public share viewer.
+                    _validated_cover_url(t.get('coverUrl'), user_id),
+                ),
+            )
             ensure_owner_member_row(cursor, t['id'], user_id)
             # A public trip needs a share_token to be viewable AND to surface in
             # Explore: /api/feed/explore requires `share_token IS NOT NULL` and
@@ -496,8 +532,7 @@ def sync_data():
             # events + admin stats). Active-trips block — usually
             # is_archived=0, but the payload is the authority.
             cursor.execute(
-                "UPDATE trip_members SET is_archived = ? "
-                "WHERE trip_id = ? AND user_id = ?",
+                "UPDATE trip_members SET is_archived = ? WHERE trip_id = ? AND user_id = ?",
                 (1 if t.get('is_archived') else 0, t['id'], user_id),
             )
 
@@ -520,7 +555,8 @@ def sync_data():
                 continue
             cursor.execute(
                 "SELECT user_id, is_public, public_show_expenses, is_archived "
-                "FROM trips WHERE id = ?", (t["id"],),
+                "FROM trips WHERE id = ?",
+                (t["id"],),
             )
             existing = cursor.fetchone()
             # R5-B4: set lookup instead of can_edit_trip's 2-query call.
@@ -537,7 +573,8 @@ def sync_data():
                 arch_countries_raw = t.get('tripCountries')
             arch_countries_json = (
                 json.dumps([c for c in arch_countries_raw if isinstance(c, str)])
-                if isinstance(arch_countries_raw, list) else None
+                if isinstance(arch_countries_raw, list)
+                else None
             )
             # BUG-098: same owner-only gate as the active loop. A non-owner
             # planner must not force the shared trips.is_archived column (the
@@ -546,7 +583,8 @@ def sync_data():
             # normally; a non-owner leaves the stored value untouched.
             _arch_owner_row = existing is None or existing["user_id"] == user_id
             _arch_is_archived = 1 if _arch_owner_row else (1 if existing["is_archived"] else 0)
-            cursor.execute('''
+            cursor.execute(
+                '''
                 INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
                                    public_show_expenses,
                                    place_id, lat, lng, viewport_json, place_types, country_code,
@@ -586,27 +624,38 @@ def sync_data():
                     cover_url=COALESCE(excluded.cover_url, cover_url),
                     -- R4-B1: see active-trips block above for rationale.
                     updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
-            ''', (t['id'], user_id, t['name'], t.get('country'),
-                  _arch_is_archived,
-                  1 if t.get('isPublic') else 0,
-                  1 if t.get('publicShowExpenses') else 0,
-                  t.get('placeId'),
-                  t.get('lat'),
-                  t.get('lng'),
-                  json.dumps(t['viewport']) if t.get('viewport') else None,
-                  json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
-                  t.get('countryCode'),
-                  arch_countries_json,
-                  json.dumps(_cleaned_companions_for_sync(cursor, t.get('id'), t.get('companions'))) if isinstance(t.get('companions'), list) else None,
-                  # 4.8 audit TRIP-3: media columns are write-isolated to
-                  # POST /api/trips/<id>/media — pass None here so a sync
-                  # poll can never clobber them (mirrors the active loop +
-                  # upsert_trip).
-                  None,  # marked_places_json
-                  None,  # documents_json
-                  None,  # photos_json
-                  # MK6 P3/security: gate coverUrl (see the active loop).
-                  _validated_cover_url(t.get('coverUrl'), user_id)))
+            ''',
+                (
+                    t['id'],
+                    user_id,
+                    t['name'],
+                    t.get('country'),
+                    _arch_is_archived,
+                    1 if t.get('isPublic') else 0,
+                    1 if t.get('publicShowExpenses') else 0,
+                    t.get('placeId'),
+                    t.get('lat'),
+                    t.get('lng'),
+                    json.dumps(t['viewport']) if t.get('viewport') else None,
+                    json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
+                    t.get('countryCode'),
+                    arch_countries_json,
+                    json.dumps(
+                        _cleaned_companions_for_sync(cursor, t.get('id'), t.get('companions'))
+                    )
+                    if isinstance(t.get('companions'), list)
+                    else None,
+                    # 4.8 audit TRIP-3: media columns are write-isolated to
+                    # POST /api/trips/<id>/media — pass None here so a sync
+                    # poll can never clobber them (mirrors the active loop +
+                    # upsert_trip).
+                    None,  # marked_places_json
+                    None,  # documents_json
+                    None,  # photos_json
+                    # MK6 P3/security: gate coverUrl (see the active loop).
+                    _validated_cover_url(t.get('coverUrl'), user_id),
+                ),
+            )
             ensure_owner_member_row(cursor, t['id'], user_id)
             # Same as the active-trips loop: a public (here, completed) trip
             # needs a share_token to be viewable + discoverable in Explore. The
@@ -629,8 +678,7 @@ def sync_data():
             # legacy `trips.is_archived=1` mirror above stays during the
             # column-deprecation window.
             cursor.execute(
-                "UPDATE trip_members SET is_archived = 1 "
-                "WHERE trip_id = ? AND user_id = ?",
+                "UPDATE trip_members SET is_archived = 1 WHERE trip_id = ? AND user_id = ?",
                 (t['id'], user_id),
             )
 
@@ -654,8 +702,8 @@ def sync_data():
                     if not isinstance(e, dict) or not e.get('id'):
                         continue
                     existing = cursor.execute(
-                        "SELECT trip_id, value, currency, euro_value "
-                        "FROM expenses WHERE id = ?", (e['id'],),
+                        "SELECT trip_id, value, currency, euro_value FROM expenses WHERE id = ?",
+                        (e['id'],),
                     ).fetchone()
                     gate_trip_id = existing['trip_id'] if existing else t['id']
                     # R5-B4: set lookup. Note we still use the
@@ -696,6 +744,7 @@ def sync_data():
                     splits_clean = cleaned['splits']
                     if splits_clean:
                         import json as _json
+
                         splits_json = _json.dumps(splits_clean)
                     else:
                         splits_json = None
@@ -709,7 +758,8 @@ def sync_data():
                     # them since R2 audit fix; archived sibling was
                     # missed → editing those fields on an archived
                     # expense silently no-op'd on reload).
-                    cursor.execute('''
+                    cursor.execute(
+                        '''
                         INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits, is_settlement)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(id) DO UPDATE SET
@@ -731,10 +781,23 @@ def sync_data():
                             -- for the full rationale.
                             updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
                         WHERE expenses.deleted_at IS NULL
-                    ''', (e['id'], gate_trip_id, cleaned['who'], cleaned['category_id'],
-                          cleaned['label'], cleaned['date'], cleaned['country'],
-                          cleaned['value'], cleaned['currency'], cleaned['euro_value'],
-                          cleaned['receipt_url'], splits_json, is_settlement))
+                    ''',
+                        (
+                            e['id'],
+                            gate_trip_id,
+                            cleaned['who'],
+                            cleaned['category_id'],
+                            cleaned['label'],
+                            cleaned['date'],
+                            cleaned['country'],
+                            cleaned['value'],
+                            cleaned['currency'],
+                            cleaned['euro_value'],
+                            cleaned['receipt_url'],
+                            splits_json,
+                            is_settlement,
+                        ),
+                    )
 
         # Commit archived-trips section (plus the inline archived
         # expenses) before moving to active expenses.
@@ -792,6 +855,7 @@ def sync_data():
             splits_clean = cleaned['splits']
             if splits_clean:
                 import json as _json
+
                 splits_json = _json.dumps(splits_clean)
             else:
                 splits_json = None
@@ -819,7 +883,8 @@ def sync_data():
             # batch over one stale row, and the offline outbox replay
             # at the per-row endpoint will catch up cleanly.
             client_updated_at = e.get('clientUpdatedAt')
-            cursor.execute('''
+            cursor.execute(
+                '''
                 INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits, is_settlement)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
@@ -838,11 +903,25 @@ def sync_data():
                     updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
                 WHERE expenses.deleted_at IS NULL
                   AND (? IS NULL OR expenses.updated_at = ?)
-            ''', (e['id'], e['tripId'], cleaned['who'], cleaned['category_id'],
-                  cleaned['label'], cleaned['date'], cleaned['country'],
-                  cleaned['value'], cleaned['currency'], cleaned['euro_value'],
-                  cleaned['receipt_url'], splits_json, is_settlement,
-                  client_updated_at, client_updated_at))
+            ''',
+                (
+                    e['id'],
+                    e['tripId'],
+                    cleaned['who'],
+                    cleaned['category_id'],
+                    cleaned['label'],
+                    cleaned['date'],
+                    cleaned['country'],
+                    cleaned['value'],
+                    cleaned['currency'],
+                    cleaned['euro_value'],
+                    cleaned['receipt_url'],
+                    splits_json,
+                    is_settlement,
+                    client_updated_at,
+                    client_updated_at,
+                ),
+            )
 
         # Commit active-expenses section before categories.
         conn.commit()
@@ -858,19 +937,27 @@ def sync_data():
             # silently bypassing overspend warnings on a scoped budget.
             kept_ids = {cat['id'] for cat in categories if cat.get('id')}
             cursor.execute(
-                "SELECT id FROM categories WHERE user_id = ?", (user_id,),
+                "SELECT id FROM categories WHERE user_id = ?",
+                (user_id,),
             )
-            doomed_cat_ids = [
-                r["id"] for r in cursor.fetchall() if r["id"] not in kept_ids
-            ]
+            doomed_cat_ids = [r["id"] for r in cursor.fetchall() if r["id"] not in kept_ids]
             cursor.execute("DELETE FROM categories WHERE user_id = ?", (user_id,))
             for cat in categories:
-                cursor.execute('''
+                cursor.execute(
+                    '''
                     INSERT INTO categories (id, user_id, name, icon, color)
                     VALUES (?, ?, ?, ?, ?)
                     ON CONFLICT(id, user_id) DO UPDATE SET
                         name=excluded.name, icon=excluded.icon, color=excluded.color
-                ''', (cat['id'], user_id, cat['name'], cat.get('icon', ''), cat.get('color', '#007aff')))
+                ''',
+                    (
+                        cat['id'],
+                        user_id,
+                        cat['name'],
+                        cat.get('icon', ''),
+                        cat.get('color', '#007aff'),
+                    ),
+                )
             # Null out references on the deleted categories. Scoped to
             # this user's data so we never touch other users' rows.
             if doomed_cat_ids:
@@ -952,7 +1039,8 @@ def sync_data():
             # 2026-05-26 (audit SY5): WHERE guard skips tombstoned trip
             # days — see routes/days.py for the rationale and migration
             # b7c8d9e0f1a2_add_tombstone_columns.
-            cursor.execute('''
+            cursor.execute(
+                '''
                 INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, notes, lat, lng)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
@@ -971,27 +1059,35 @@ def sync_data():
                     -- moved the row.
                     updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
                 WHERE trip_days.deleted_at IS NULL
-            ''', (d['id'], d['tripId'], d.get('dayNumber'), d.get('date'), d.get('name'),
-                  # Plain text — NOT json.dumps. Legacy code wrapped these
-                  # which round-tripped empty strings as '""' and non-empty
-                  # strings as '"foo"' (extra quotes), surfacing as garbage
-                  # in the day-plan textareas.
-                  d.get('morning', d.get('plan', {}).get('morning', '')) or '',
-                  d.get('afternoon', d.get('plan', {}).get('afternoon', '')) or '',
-                  d.get('evening', d.get('plan', {}).get('evening', '')) or '',
-                  # BUG-1 fix: write `notes` as its own column (was overloaded
-                  # into `tip`, silently losing per-day notes + journaling).
-                  d.get('tip', ''),
-                  d.get('notes', ''),
-                  d.get('lat'),
-                  # The frontend writes `lon` and `lng` interchangeably for
-                  # longitude (legacy naming); the lat column was previously
-                  # being filled with `lon` as a fallback when `lat` was
-                  # missing, which silently corrupted the latitude value.
-                  # FIXING_ROADMAP §2.4: the `or` operator drops legitimate
-                  # values of 0 — the prime meridian (lng=0) and equator
-                  # (lat=0). Explicit `is not None` instead.
-                  d['lng'] if d.get('lng') is not None else d.get('lon')))
+            ''',
+                (
+                    d['id'],
+                    d['tripId'],
+                    d.get('dayNumber'),
+                    d.get('date'),
+                    d.get('name'),
+                    # Plain text — NOT json.dumps. Legacy code wrapped these
+                    # which round-tripped empty strings as '""' and non-empty
+                    # strings as '"foo"' (extra quotes), surfacing as garbage
+                    # in the day-plan textareas.
+                    d.get('morning', d.get('plan', {}).get('morning', '')) or '',
+                    d.get('afternoon', d.get('plan', {}).get('afternoon', '')) or '',
+                    d.get('evening', d.get('plan', {}).get('evening', '')) or '',
+                    # BUG-1 fix: write `notes` as its own column (was overloaded
+                    # into `tip`, silently losing per-day notes + journaling).
+                    d.get('tip', ''),
+                    d.get('notes', ''),
+                    d.get('lat'),
+                    # The frontend writes `lon` and `lng` interchangeably for
+                    # longitude (legacy naming); the lat column was previously
+                    # being filled with `lon` as a fallback when `lat` was
+                    # missing, which silently corrupted the latitude value.
+                    # FIXING_ROADMAP §2.4: the `or` operator drops legitimate
+                    # values of 0 — the prime meridian (lng=0) and equator
+                    # (lat=0). Explicit `is not None` instead.
+                    d['lng'] if d.get('lng') is not None else d.get('lon'),
+                ),
+            )
 
         conn.commit()
 
@@ -1031,6 +1127,7 @@ def _compute_data_version(cursor, user_id, visible_trip_ids):
     other tables, so the version had been going stale for `members` +
     `publicLikes`.)"""
     import hashlib
+
     parts: list[str] = []
 
     # Column sets differ across tables (and between the test baseline schema and
@@ -1074,9 +1171,7 @@ def _compute_data_version(cursor, user_id, visible_trip_ids):
                 sql += f" WHERE {where}"
             sql += " ORDER BY rowid"
             cursor.execute(sql, scope_params)
-            digest = hashlib.sha1(
-                repr([tuple(r) for r in cursor.fetchall()]).encode()
-            ).hexdigest()
+            digest = hashlib.sha1(repr([tuple(r) for r in cursor.fetchall()]).encode()).hexdigest()
             parts.append(f"{label}:{digest}")
             return
         sql = f"SELECT MAX({ts}), COUNT(*) FROM {table}"
@@ -1153,7 +1248,8 @@ def get_data():
         # (any accepted member row in trip_members). The legacy
         # trip_collaborators table is unioned in too so existing rows
         # don't fall off the radar before being migrated.
-        cursor.execute('''
+        cursor.execute(
+            '''
             SELECT t.*
             FROM trips t
             WHERE t.user_id = ?
@@ -1167,7 +1263,9 @@ def get_data():
             FROM trips t
             JOIN trip_collaborators c ON c.trip_id = t.id
             WHERE c.user_id = ?
-        ''', (user_id, user_id, user_id))
+        ''',
+            (user_id, user_id, user_id),
+        )
         trips_rows = cursor.fetchall()
 
         # FIXING_ROADMAP §1.7: batch the per-trip lookups instead of
@@ -1290,7 +1388,7 @@ def get_data():
             # see None/0/False so the UI renders the "no share link" state
             # (which is the truth from their perspective — only the owner
             # controls the link).
-            is_owner = (t.get('ownerId') == user_id)
+            is_owner = t.get('ownerId') == user_id
             raw_token = t.pop('share_token', None)
             raw_views = t.pop('share_views', 0)
             raw_show_cost = t.pop('share_show_cost', 0)
@@ -1349,8 +1447,7 @@ def get_data():
         if trip_ids:
             placeholders = ','.join(['?'] * len(trip_ids))
             cursor.execute(
-                f"SELECT * FROM expenses "
-                f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL",
+                f"SELECT * FROM expenses WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL",
                 trip_ids,
             )
             expenses = [serialize_expense_row(row) for row in cursor.fetchall()]
@@ -1385,6 +1482,7 @@ def get_data():
                 trip_ids,
             )
             from routes.settlements import serialize_settlement_row
+
             settlements = [serialize_settlement_row(row) for row in cursor.fetchall()]
 
         # Get categories. `updatedAt` (camelCase, from updated_at) is the
@@ -1393,8 +1491,14 @@ def get_data():
         # `?since=` compare is direct — no strftime conversion. Deletions
         # ride the category_deletes tombstone table (also epoch-ms INTEGER).
         def _cat_row(r):
-            return {"id": r["id"], "name": r["name"], "icon": r["icon"],
-                    "color": r["color"], "updatedAt": r["updated_at"]}
+            return {
+                "id": r["id"],
+                "name": r["name"],
+                "icon": r["icon"],
+                "color": r["color"],
+                "updatedAt": r["updated_at"],
+            }
+
         cursor.execute(
             "SELECT id, name, icon, color, updated_at FROM categories WHERE user_id = ?",
             (user_id,),
@@ -1414,14 +1518,19 @@ def get_data():
 
         def _budget_row(r):
             return {
-                'id': r['id'], 'tripId': r['trip_id'], 'label': r['label'],
-                'amount': r['amount'], 'currency': r['currency'],
-                'categoryId': r['category_id'], 'user': r['owner_name'],
+                'id': r['id'],
+                'tripId': r['trip_id'],
+                'label': r['label'],
+                'amount': r['amount'],
+                'currency': r['currency'],
+                'categoryId': r['category_id'],
+                'user': r['owner_name'],
                 'originalAmount': r['original_amount'],
                 'originalCurrency': r['original_currency'],
                 # R3-Round 5: stamp for client-side optimistic concurrency.
                 'updatedAt': r['updated_at'],
             }
+
         cursor.execute(_budget_cols, (user_id,))
         budgets = [_budget_row(r) for r in cursor.fetchall()]
 
@@ -1433,8 +1542,7 @@ def get_data():
         if trip_ids:
             placeholders = ','.join(['?'] * len(trip_ids))
             cursor.execute(
-                f"SELECT * FROM trip_days "
-                f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL",
+                f"SELECT * FROM trip_days WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL",
                 trip_ids,
             )
         else:
@@ -1496,6 +1604,7 @@ def get_data():
         # conditional `if newly_earned` skipped commit when ONLY
         # revocations happened, leaving DELETEs uncommitted.
         from achievements import _should_run_achievement_check
+
         newly_earned: list[dict] = []
         if _should_run_achievement_check(user_id):
             newly_earned = check_user_achievements(cursor, user_id)
@@ -1504,17 +1613,19 @@ def get_data():
             conn.commit()
         achievements = list_user_achievements(cursor, user_id)
 
-        return jsonify({
-            "trips": trips,
-            "expenses": expenses,
-            "settlements": settlements,
-            "categories": categories,
-            "budgets": budgets,
-            "tripDays": trip_days,
-            "achievements": achievements,
-            "newlyEarnedAchievements": newly_earned,
-            "version": current_version,
-        })
+        return jsonify(
+            {
+                "trips": trips,
+                "expenses": expenses,
+                "settlements": settlements,
+                "categories": categories,
+                "budgets": budgets,
+                "tripDays": trip_days,
+                "achievements": achievements,
+                "newlyEarnedAchievements": newly_earned,
+                "version": current_version,
+            }
+        )
 
 
 @bp.route("/api/user-data", methods=["DELETE"])
@@ -1547,13 +1658,23 @@ def delete_user_data():
 
         if owned_trip_ids:
             placeholders = ",".join(["?"] * len(owned_trip_ids))
-            cursor.execute(f"DELETE FROM expenses WHERE trip_id IN ({placeholders})", owned_trip_ids)
-            cursor.execute(f"DELETE FROM trip_days WHERE trip_id IN ({placeholders})", owned_trip_ids)
-            cursor.execute(f"DELETE FROM trip_members WHERE trip_id IN ({placeholders})", owned_trip_ids)
-            cursor.execute(f"DELETE FROM trip_collaborators WHERE trip_id IN ({placeholders})", owned_trip_ids)
+            cursor.execute(
+                f"DELETE FROM expenses WHERE trip_id IN ({placeholders})", owned_trip_ids
+            )
+            cursor.execute(
+                f"DELETE FROM trip_days WHERE trip_id IN ({placeholders})", owned_trip_ids
+            )
+            cursor.execute(
+                f"DELETE FROM trip_members WHERE trip_id IN ({placeholders})", owned_trip_ids
+            )
+            cursor.execute(
+                f"DELETE FROM trip_collaborators WHERE trip_id IN ({placeholders})", owned_trip_ids
+            )
             # §4.5: settlements scoped to the owned trip — cleaned alongside
             # expenses + days so a factory-reset is genuinely complete.
-            cursor.execute(f"DELETE FROM settlements WHERE trip_id IN ({placeholders})", owned_trip_ids)
+            cursor.execute(
+                f"DELETE FROM settlements WHERE trip_id IN ({placeholders})", owned_trip_ids
+            )
             # MK6 P3: also delete OTHER members' budgets scoped to these trips,
             # matching the single-trip delete route (trips.py:361). budgets FK is
             # ON DELETE SET NULL, so without this the trips-delete below nulls
@@ -1618,16 +1739,20 @@ def delete_user_data():
         # All scoped strictly to the caller; symmetric clean-up for
         # blocks mirrors follows/friends.
         cursor.execute(
-            "DELETE FROM auth_sessions WHERE user_id = ?", (user_id,),
+            "DELETE FROM auth_sessions WHERE user_id = ?",
+            (user_id,),
         )
         cursor.execute(
-            "DELETE FROM feed_likes WHERE user_id = ?", (user_id,),
+            "DELETE FROM feed_likes WHERE user_id = ?",
+            (user_id,),
         )
         cursor.execute(
-            "DELETE FROM feed_comments WHERE user_id = ?", (user_id,),
+            "DELETE FROM feed_comments WHERE user_id = ?",
+            (user_id,),
         )
         cursor.execute(
-            "DELETE FROM feed_bookmarks WHERE user_id = ?", (user_id,),
+            "DELETE FROM feed_bookmarks WHERE user_id = ?",
+            (user_id,),
         )
         # R10-B6b S2: snapshot post_ids before the feed_posts DELETE so
         # we can sweep notifications keyed on those posts. Pre-fix the
@@ -1640,7 +1765,8 @@ def delete_user_data():
         # feed.py post-delete); the factory-reset bulk path was the
         # missed sibling.
         cursor.execute(
-            "SELECT id FROM feed_posts WHERE user_id = ?", (user_id,),
+            "SELECT id FROM feed_posts WHERE user_id = ?",
+            (user_id,),
         )
         doomed_post_ids = [row["id"] for row in cursor.fetchall()]
         if doomed_post_ids:
@@ -1660,7 +1786,8 @@ def delete_user_data():
         # The user may have reposts of OTHER users' originals — those
         # are also `user_id = ?` so the same DELETE catches them.
         cursor.execute(
-            "DELETE FROM feed_posts WHERE user_id = ?", (user_id,),
+            "DELETE FROM feed_posts WHERE user_id = ?",
+            (user_id,),
         )
         cursor.execute(
             "DELETE FROM blocks WHERE blocker_id = ? OR blocked_id = ?",
@@ -1677,8 +1804,7 @@ def delete_user_data():
         # parsing every trip's JSON; for each candidate parse,
         # strip the link, write back.
         cursor.execute(
-            "SELECT id, companions_json FROM trips "
-            "WHERE companions_json LIKE ?",
+            "SELECT id, companions_json FROM trips WHERE companions_json LIKE ?",
             (f'%"{user_id}"%',),
         )
         for row in cursor.fetchall():
@@ -1718,9 +1844,11 @@ def delete_user_data():
 
     from flask import current_app
     from werkzeug.utils import secure_filename
+
     safe_user_dir = secure_filename(user_id) or "anon"
     user_folder = os.path.join(
-        current_app.config.get('UPLOAD_FOLDER', ''), safe_user_dir,
+        current_app.config.get('UPLOAD_FOLDER', ''),
+        safe_user_dir,
     )
     if user_folder and os.path.isdir(user_folder):
         shutil.rmtree(user_folder, ignore_errors=True)

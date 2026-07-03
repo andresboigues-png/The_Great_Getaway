@@ -24,6 +24,7 @@ Backfill: every row's `updated_at` is initialised to its
 `updated_at` field treat the row as freshly-touched and won't
 trip the 409 on their first edit).
 """
+
 from collections.abc import Sequence
 
 from alembic import op

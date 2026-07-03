@@ -52,6 +52,7 @@ class BadgeDef:
         earned row. Keys vary per badge — the renderer reads the badge's
         documented fields. Empty dict is fine for context-less badges.
     """
+
     id: str
     emoji: str
     label: str
@@ -190,9 +191,11 @@ def _country_count(cursor, user_id) -> int:
 
 def _make_globe_trotter_check(threshold: int):
     """Factory — different thresholds share one body."""
+
     def _check(cursor, user_id):
         n = _country_count(cursor, user_id)
         return {"countryCount": n} if n >= threshold else None
+
     return _check
 
 
@@ -232,6 +235,7 @@ def _check_social_butterfly(cursor, user_id):
     the legacy `friends` table; now it counts mutuals (the natural
     "friend"-equivalent under the follows-only graph)."""
     from social import mutuals_of
+
     count = len(mutuals_of(cursor, user_id))
     return {"friendCount": count} if count >= 3 else None
 
@@ -252,8 +256,7 @@ def _check_first_settle_up(cursor, user_id):
     `settlements` table that just landed. Demonstrates the §3.6 registry
     + §4.5 schema both ship value in concert."""
     cursor.execute(
-        "SELECT 1 FROM settlements "
-        "WHERE from_user_id = ? OR to_user_id = ? LIMIT 1",
+        "SELECT 1 FROM settlements WHERE from_user_id = ? OR to_user_id = ? LIMIT 1",
         (user_id, user_id),
     )
     return {} if cursor.fetchone() else None
@@ -474,9 +477,7 @@ def _check_back_to_back(cursor, user_id):
             # Malformed YYYY-MM from a corrupted created_at — skip
             # the pair rather than raise.
             continue
-        adjacent = (y1 == y2 and m1 + 1 == m2) or (
-            y1 + 1 == y2 and m1 == 12 and m2 == 1
-        )
+        adjacent = (y1 == y2 and m1 + 1 == m2) or (y1 + 1 == y2 and m1 == 12 and m2 == 1)
         if adjacent:
             return {"firstMonth": months[i], "secondMonth": months[i + 1]}
     return None
@@ -546,7 +547,7 @@ BADGES: list[BadgeDef] = [
         description="Shared your first trip on the feed.",
         check=_check_first_share,
         sticky=True,  # MK6 P3: a first-time milestone — unsharing later must
-                      # not soft-revoke it ("earning sticks", per the docstring).
+        # not soft-revoke it ("earning sticks", per the docstring).
     ),
     BadgeDef(
         id="first_settle_up",
@@ -644,10 +645,11 @@ def _should_run_achievement_check(user_id: str) -> bool:
     perf optimization; tests need every poll to re-evaluate.
     """
     import os as _os
-    if _os.environ.get("GG_DISABLE_ACHIEVEMENT_THROTTLE") \
-       or _os.environ.get("PYTEST_CURRENT_TEST"):
+
+    if _os.environ.get("GG_DISABLE_ACHIEVEMENT_THROTTLE") or _os.environ.get("PYTEST_CURRENT_TEST"):
         return True
     import time as _time
+
     now = _time.time()
     last = _last_achievement_check.get(user_id, 0.0)
     if now - last < _ACHIEVEMENT_CHECK_TTL_SECONDS:
@@ -767,13 +769,15 @@ def check_user_achievements(cursor, user_id: str) -> list[dict]:
             # If a parallel poll already inserted, rowcount is 0 — we
             # skip the "newly earned" return so we don't double-notify.
             if cursor.rowcount > 0:
-                newly_earned.append({
-                    "badgeId": badge.id,
-                    "context": context,
-                    "label": badge.label,
-                    "emoji": badge.emoji,
-                    "description": badge.description,
-                })
+                newly_earned.append(
+                    {
+                        "badgeId": badge.id,
+                        "context": context,
+                        "label": badge.label,
+                        "emoji": badge.emoji,
+                        "description": badge.description,
+                    }
+                )
         except Exception:
             logger.warning(
                 "achievement insert failed: %s",
@@ -863,12 +867,14 @@ def list_user_achievements(cursor, user_id: str) -> list[dict]:
             context = json.loads(row["context_json"]) if row["context_json"] else {}
         except (json.JSONDecodeError, TypeError):
             context = {}
-        out.append({
-            "badgeId": row["badge_id"],
-            "earnedAt": row["earned_at"],
-            "context": context,
-            "label": bdef.label if bdef else row["badge_id"],
-            "emoji": bdef.emoji if bdef else "🏅",
-            "description": bdef.description if bdef else "",
-        })
+        out.append(
+            {
+                "badgeId": row["badge_id"],
+                "earnedAt": row["earned_at"],
+                "context": context,
+                "label": bdef.label if bdef else row["badge_id"],
+                "emoji": bdef.emoji if bdef else "🏅",
+                "description": bdef.description if bdef else "",
+            }
+        )
     return out

@@ -190,9 +190,16 @@ def create_settlement():
         return jsonify({"error": "amount exceeds the maximum allowed"}), 400
     try:
         currency = validate_currency(currency)
-        note = clean_text(
-            note, max_len=500, allow_newlines=True, field_name="note",
-        ) if note is not None else None
+        note = (
+            clean_text(
+                note,
+                max_len=500,
+                allow_newlines=True,
+                field_name="note",
+            )
+            if note is not None
+            else None
+        )
     except ValidationError as ve:
         return jsonify({"error": str(ve)}), 400
     if not note:
@@ -220,7 +227,8 @@ def create_settlement():
     # cold path (no live rate, uncommon currency) still uses the
     # client hint as a fallback — same posture as compute_euro_value.
     server_euro_value = compute_euro_value(
-        amount_f, currency,
+        amount_f,
+        currency,
         client_euro_value=euro_value,
     )
     # 2026-05-26 (audit S2): for non-EUR settlements, also require
@@ -233,10 +241,12 @@ def create_settlement():
     if currency != "EUR":
         rate = get_rate_eur(currency)
         if rate is None and euro_value is None:
-            return jsonify({
-                "error": "euroValue is required for non-EUR settlements",
-                "currency": currency,
-            }), 400
+            return jsonify(
+                {
+                    "error": "euroValue is required for non-EUR settlements",
+                    "currency": currency,
+                }
+            ), 400
     euro_value = server_euro_value
 
     with get_db() as conn:
@@ -255,9 +265,11 @@ def create_settlement():
             return jsonify({"error": "Not a member of this trip"}), 403
         is_party = user_id == from_user_id or user_id == to_user_id
         if not is_party and caller_role != "planner":
-            return jsonify({
-                "error": "Only the payer, recipient, or a trip planner can record this settlement",
-            }), 403
+            return jsonify(
+                {
+                    "error": "Only the payer, recipient, or a trip planner can record this settlement",
+                }
+            ), 403
         if not _is_accepted_member(cursor, trip_id, from_user_id):
             return jsonify({"error": "fromUserId is not a member of this trip"}), 400
         if not _is_accepted_member(cursor, trip_id, to_user_id):
@@ -267,9 +279,11 @@ def create_settlement():
         # settled_up feed event; the user already considered the
         # trip "closed."
         if is_trip_archived_for(cursor, trip_id, user_id):
-            return jsonify({
-                "error": "Trip is archived — unarchive to record new settlements",
-            }), 409
+            return jsonify(
+                {
+                    "error": "Trip is archived — unarchive to record new settlements",
+                }
+            ), 409
 
         # BUG-24 (MK2 persona audit) + integration audit B2/B3: reject
         # grossly-oversized settlements server-side. Logging €10,000 against
@@ -330,25 +344,29 @@ def create_settlement():
                 # B2: spend-grounded cap, with prior F→to settlements subtracted.
                 settlement_cap = total_spend * 1.01 + 0.5 - already_paid_from_to
                 if euro_value > settlement_cap:
-                    return jsonify({
-                        "error": (
-                            "This settlement is larger than what's still "
-                            "outstanding for this trip — log the expenses "
-                            "first, or double-check the amount."
-                        ),
-                        "maxEur": round(max(settlement_cap, 0), 2),
-                    }), 400
+                    return jsonify(
+                        {
+                            "error": (
+                                "This settlement is larger than what's still "
+                                "outstanding for this trip — log the expenses "
+                                "first, or double-check the amount."
+                            ),
+                            "maxEur": round(max(settlement_cap, 0), 2),
+                        }
+                    ), 400
             elif euro_value > _ZERO_SPEND_SETTLEMENT_SANITY_EUR:
                 # B3: zero-spend trip — allow off-app debt logging, but never
                 # a clearly-absurd amount that would skew aggregate views.
-                return jsonify({
-                    "error": (
-                        "This settlement looks too large to be real — "
-                        "double-check the amount, or log the trip's "
-                        "expenses so the balance can be calculated."
-                    ),
-                    "maxEur": float(_ZERO_SPEND_SETTLEMENT_SANITY_EUR),
-                }), 400
+                return jsonify(
+                    {
+                        "error": (
+                            "This settlement looks too large to be real — "
+                            "double-check the amount, or log the trip's "
+                            "expenses so the balance can be calculated."
+                        ),
+                        "maxEur": float(_ZERO_SPEND_SETTLEMENT_SANITY_EUR),
+                    }
+                ), 400
 
         # 2026-05-26 (audit S1 + S6): snapshot party display names at
         # insert time. Pre-fix, the balance math resolved names from
@@ -378,6 +396,7 @@ def create_settlement():
         # INSERT failures (concurrent writers, FK glitches). Same
         # pattern as `_clone_trip_record` in trips.py.
         import sqlite3
+
         settlement_id = None
         for _attempt in range(5):
             candidate = _settlement_id()
@@ -410,9 +429,11 @@ def create_settlement():
             # Five collisions in a row is astronomically unlikely;
             # surface a clean error instead of letting the next
             # IntegrityError bubble up as a 500.
-            return jsonify({
-                "error": "Could not allocate a settlement id, please retry",
-            }), 503
+            return jsonify(
+                {
+                    "error": "Could not allocate a settlement id, please retry",
+                }
+            ), 503
 
         # Notification to the recipient (skip self-pay where caller IS
         # the recipient — they don't need to be told something they
@@ -423,33 +444,25 @@ def create_settlement():
         # the payer — a blocked user shouldn't reach the blocker's
         # bell, even indirectly through a third-party recorder.
         from routes.blocks import is_blocked
+
         notify_recipient = (
             user_id != to_user_id
             and not is_blocked(cursor, to_user_id, user_id)
             and not is_blocked(cursor, to_user_id, from_user_id)
         )
         if notify_recipient:
-            cursor.execute(
-                "SELECT name FROM users WHERE id = ?", (from_user_id,)
-            )
+            cursor.execute("SELECT name FROM users WHERE id = ?", (from_user_id,))
             from_row = cursor.fetchone()
             from_name = (from_row["name"] if from_row else "Someone") or "Someone"
-            cursor.execute(
-                "SELECT name FROM trips WHERE id = ?", (trip_id,)
-            )
+            cursor.execute("SELECT name FROM trips WHERE id = ?", (trip_id,))
             trip_row = cursor.fetchone()
             trip_name = (trip_row["name"] if trip_row else "the trip") or "the trip"
             if user_id != from_user_id:
                 # Recorder is a third party — surface their name so
                 # the recipient knows to confirm with the actual payer.
-                cursor.execute(
-                    "SELECT name FROM users WHERE id = ?", (user_id,)
-                )
+                cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
                 recorder_row = cursor.fetchone()
-                recorder_name = (
-                    (recorder_row["name"] if recorder_row else "Someone")
-                    or "Someone"
-                )
+                recorder_name = (recorder_row["name"] if recorder_row else "Someone") or "Someone"
                 message = (
                     f"{recorder_name} recorded that {from_name} paid you "
                     f"{amount_f:g} {currency} for {trip_name} — confirm with them."
@@ -467,9 +480,7 @@ def create_settlement():
 
         # Re-read for the response so created_at + row defaults are
         # reflected.
-        cursor.execute(
-            "SELECT * FROM settlements WHERE id = ?", (settlement_id,)
-        )
+        cursor.execute("SELECT * FROM settlements WHERE id = ?", (settlement_id,))
         row = cursor.fetchone()
 
     logger.info(
@@ -501,8 +512,7 @@ def list_settlements_for_trip(trip_id):
             # trips exist — mirrors the public-trip endpoint's policy.
             return jsonify({"error": "Not found"}), 404
         cursor.execute(
-            "SELECT * FROM settlements WHERE trip_id = ? "
-            "ORDER BY created_at DESC",
+            "SELECT * FROM settlements WHERE trip_id = ? ORDER BY created_at DESC",
             (trip_id,),
         )
         rows = [serialize_settlement_row(r) for r in cursor.fetchall()]
@@ -538,9 +548,7 @@ def delete_settlement(settlement_id):
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM settlements WHERE id = ?", (settlement_id,)
-        )
+        cursor.execute("SELECT * FROM settlements WHERE id = ?", (settlement_id,))
         row = cursor.fetchone()
         if not row:
             return jsonify({"error": "Not found"}), 404
@@ -550,11 +558,7 @@ def delete_settlement(settlement_id):
         # Audit MK5 BUG-054: also allow the RECORDER (recorded_by) to delete the
         # row they created. Pre-fix rows have NULL recorded_by → no match, so
         # they keep the old owner/payer-only rule.
-        if (
-            user_id != owner_id
-            and user_id != row["from_user_id"]
-            and user_id != row["recorded_by"]
-        ):
+        if user_id != owner_id and user_id != row["from_user_id"] and user_id != row["recorded_by"]:
             return jsonify({"error": "Forbidden"}), 403
         # R10-B6e F5: archive write gate. Deleting a settlement on an
         # archived trip would resurface the original debt + fire a
@@ -567,9 +571,11 @@ def delete_settlement(settlement_id):
         # gate, so two members on different archive states resolve
         # independently.
         if is_trip_archived_for(cursor, row["trip_id"], user_id):
-            return jsonify({
-                "error": "Trip is archived — unarchive to delete settlements",
-            }), 409
+            return jsonify(
+                {
+                    "error": "Trip is archived — unarchive to delete settlements",
+                }
+            ), 409
 
         # R12-B3: snapshot the full row into the append-only audit
         # trail BEFORE the hard delete. Closes the repudiation gap —
@@ -610,6 +616,7 @@ def delete_settlement(settlement_id):
         # R5-B2: also skip if the recipient blocked the deleter or
         # the original payer — same block-respect rule as create.
         from routes.blocks import is_blocked
+
         recipient_id = row["to_user_id"]
         if (
             recipient_id
@@ -617,14 +624,10 @@ def delete_settlement(settlement_id):
             and not is_blocked(cursor, recipient_id, user_id)
             and not is_blocked(cursor, recipient_id, row["from_user_id"])
         ):
-            cursor.execute(
-                "SELECT name FROM users WHERE id = ?", (row["from_user_id"],)
-            )
+            cursor.execute("SELECT name FROM users WHERE id = ?", (row["from_user_id"],))
             payer_row = cursor.fetchone()
             payer_name = (payer_row["name"] if payer_row else "Someone") or "Someone"
-            cursor.execute(
-                "SELECT name FROM trips WHERE id = ?", (row["trip_id"],)
-            )
+            cursor.execute("SELECT name FROM trips WHERE id = ?", (row["trip_id"],))
             trip_row = cursor.fetchone()
             trip_name = (trip_row["name"] if trip_row else "the trip") or "the trip"
             amount = row["amount"]
@@ -643,8 +646,7 @@ def delete_settlement(settlement_id):
                 )
             else:
                 message = (
-                    f"{payer_name} reverted a settlement of "
-                    f"{amount:g} {currency} on {trip_name}."
+                    f"{payer_name} reverted a settlement of {amount:g} {currency} on {trip_name}."
                 )
             cursor.execute(
                 "INSERT INTO notifications "

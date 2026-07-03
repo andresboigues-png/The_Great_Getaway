@@ -35,6 +35,7 @@ Downgrade drops the index; the dedupe step is irreversible (we
 can't rebuild the deleted dupes from data we no longer have, and
 they were duplicates anyway).
 """
+
 from collections.abc import Sequence
 
 from alembic import op

@@ -22,6 +22,7 @@ ANSI standard — so "all trips → all categories → all users → €500" can
 only exist ONCE per user. That's the desired behaviour: an "everywhere"
 budget is a single global ceiling, not a stack.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

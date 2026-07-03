@@ -5,7 +5,6 @@ test logic changed). Shared fixtures (client, auth_headers, seed_user,
 ...) come from tests/conftest.py.
 """
 
-
 import json
 
 from tests.conftest import _create_trip, _make_friends, _seed_member
@@ -43,6 +42,7 @@ def _archive_all_trips(user_id):
     without this backfill."""
     from database import get_db
     from helpers import ensure_owner_member_row
+
     with get_db() as conn:
         cursor = conn.cursor()
         # Legacy mirror — keep updating until the column is fully
@@ -54,13 +54,13 @@ def _archive_all_trips(user_id):
         # Per-user — backfill the owner row for each owned trip,
         # then flip it to archived.
         cursor.execute(
-            "SELECT id FROM trips WHERE user_id = ?", (user_id,),
+            "SELECT id FROM trips WHERE user_id = ?",
+            (user_id,),
         )
         for row in cursor.fetchall():
             ensure_owner_member_row(cursor, row['id'], user_id)
             cursor.execute(
-                "UPDATE trip_members SET is_archived = 1 "
-                "WHERE trip_id = ? AND user_id = ?",
+                "UPDATE trip_members SET is_archived = 1 WHERE trip_id = ? AND user_id = ?",
                 (row['id'], user_id),
             )
         conn.commit()
@@ -112,13 +112,16 @@ def test_achievements_globe_trotter_tiers(client, seed_user, auth_headers):
     10/25 tiers don't fire until those thresholds — confirm we get
     exactly the right tier."""
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
-        for i, (name, code) in enumerate([
-            ("Lisbon, Portugal", "PT"),
-            ("Tokyo, Japan", "JP"),
-            ("Paris, France", "FR"),
-        ]):
+        for i, (name, code) in enumerate(
+            [
+                ("Lisbon, Portugal", "PT"),
+                ("Tokyo, Japan", "JP"),
+                ("Paris, France", "FR"),
+            ]
+        ):
             c.execute(
                 "INSERT INTO trips (id, user_id, name, country, country_code) "
                 "VALUES (?, ?, ?, ?, ?)",
@@ -152,6 +155,7 @@ def test_achievements_globe_trotter_counts_multi_country_legs(client, seed_user,
     import json as _json
 
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
         # Trip 1: Iberia (PT + ES)
@@ -159,8 +163,12 @@ def test_achievements_globe_trotter_counts_multi_country_legs(client, seed_user,
             "INSERT INTO trips (id, user_id, name, country, country_code, "
             "trip_countries_json) VALUES (?, ?, ?, ?, ?, ?)",
             (
-                "trip-multi-iberia", seed_user, "Iberia tour",
-                "Portugal", "PT", _json.dumps(["PT", "ES"]),
+                "trip-multi-iberia",
+                seed_user,
+                "Iberia tour",
+                "Portugal",
+                "PT",
+                _json.dumps(["PT", "ES"]),
             ),
         )
         # Trip 2: East Asia (JP + KR)
@@ -168,8 +176,12 @@ def test_achievements_globe_trotter_counts_multi_country_legs(client, seed_user,
             "INSERT INTO trips (id, user_id, name, country, country_code, "
             "trip_countries_json) VALUES (?, ?, ?, ?, ?, ?)",
             (
-                "trip-multi-asia", seed_user, "East Asia",
-                "Japan", "JP", _json.dumps(["JP", "KR"]),
+                "trip-multi-asia",
+                seed_user,
+                "East Asia",
+                "Japan",
+                "JP",
+                _json.dumps(["JP", "KR"]),
             ),
         )
         conn.commit()
@@ -177,11 +189,13 @@ def test_achievements_globe_trotter_counts_multi_country_legs(client, seed_user,
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = {a["badgeId"] for a in data["achievements"]}
-    assert "globe_trotter_3" in ids, \
+    assert "globe_trotter_3" in ids, (
         f"4-country count from 2 multi-country trips should unlock globe_trotter_3; badges={ids!r}"
+    )
     gt3 = next(a for a in data["achievements"] if a["badgeId"] == "globe_trotter_3")
-    assert gt3["context"].get("countryCount") == 4, \
+    assert gt3["context"].get("countryCount") == 4, (
         f"countryCount should reflect every leg; got {gt3['context'].get('countryCount')!r}"
+    )
 
 
 def test_achievements_globe_trotter_dedupes_primary_and_array(client, seed_user, auth_headers):
@@ -194,14 +208,18 @@ def test_achievements_globe_trotter_dedupes_primary_and_array(client, seed_user,
     import json as _json
 
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
         c.execute(
             "INSERT INTO trips (id, user_id, name, country, country_code, "
             "trip_countries_json) VALUES (?, ?, ?, ?, ?, ?)",
             (
-                "trip-dedupe", seed_user, "Iberia tour",
-                "Portugal", "PT",
+                "trip-dedupe",
+                seed_user,
+                "Iberia tour",
+                "Portugal",
+                "PT",
                 # Primary deliberately included in the array too —
                 # mirrors what the HeroMap loop persists in production.
                 _json.dumps(["PT", "ES"]),
@@ -216,14 +234,16 @@ def test_achievements_globe_trotter_dedupes_primary_and_array(client, seed_user,
     # context when a higher threshold fires would be cleaner; instead,
     # we just confirm that the badge DIDN'T fire (count=2, below 3).
     ids = {a["badgeId"] for a in data["achievements"]}
-    assert "globe_trotter_3" not in ids, \
+    assert "globe_trotter_3" not in ids, (
         f"deduped count of 2 shouldn't unlock the 3-threshold badge; badges={ids!r}"
+    )
 
 
 def test_achievements_repeat_country(client, seed_user, auth_headers):
     """Two trips in the same country (by country_code) unlocks the
     Local Hero badge. Encourages domestic / repeat-destination travel."""
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
         for i in range(2):
@@ -249,6 +269,7 @@ def test_achievements_social_butterfly(client, seed_user, auth_headers):
     rewired to insert two `follows` rows per pair since `mutuals_of`
     is the new authority for the count."""
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
         for i in range(3):
@@ -285,19 +306,26 @@ def test_achievements_social_butterfly(client, seed_user, auth_headers):
 
 
 def test_achievements_first_settle_up_uses_45_table(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """The first_settle_up badge reads the new §4.5 settlements table
     — proves the §3.6 + §4.5 + §4.4 layers compose end-to-end."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-ach-settle")
     _seed_member(trip_id, seed_other_user, role="relaxer")
-    client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_other_user,
-        "toUserId": seed_user,
-        "amount": 10.0,
-        "currency": "EUR",
-    })
+    client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 10.0,
+            "currency": "EUR",
+        },
+    )
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = [a["badgeId"] for a in data["achievements"]]
@@ -311,6 +339,7 @@ def test_achievements_globe_trotter_50_only_at_threshold(client, seed_user, auth
     """The 50-country tier only fires at ≥50 distinct countries. 49 →
     no globe_trotter_50; 50 → fires + context carries countryCount."""
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
         # Insert 49 distinct-country ARCHIVED trips. globe_trotter_50
@@ -354,6 +383,7 @@ def test_achievements_longest_trip_threshold(client, seed_user, auth_headers):
     Below the threshold: no badge. At threshold: badge + context
     carries (tripId, tripName, days)."""
     from database import get_db
+
     trip_id = _create_trip(client, auth_headers, trip_id="trip-long-1", name="Long Haul")
     _archive_all_trips(seed_user)
 
@@ -394,6 +424,7 @@ def test_achievements_priciest_trip_threshold(client, seed_user, auth_headers):
     trip. The threshold uses sum(expenses.euro_value) — cross-currency
     sums survive."""
     from database import get_db
+
     trip_id = _create_trip(client, auth_headers, trip_id="trip-spend-1", name="Splurge Trip")
     _archive_all_trips(seed_user)
 
@@ -496,6 +527,7 @@ def test_achievements_intra_country_3(client, seed_user, auth_headers):
     country (by country_code). Strictly stronger than repeat_country
     (≥2)."""
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
         # 2 Portugal trips — below threshold, but repeat_country fires.
@@ -541,13 +573,11 @@ def test_achievements_back_to_back_consecutive_months(client, seed_user, auth_he
     with get_db() as conn:
         c = conn.cursor()
         c.execute(
-            "INSERT INTO trips (id, user_id, name, country, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO trips (id, user_id, name, country, created_at) VALUES (?, ?, ?, ?, ?)",
             ("trip-bb-jan", seed_user, "January trip", "X", "2025-01-15 10:00:00"),
         )
         c.execute(
-            "INSERT INTO trips (id, user_id, name, country, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO trips (id, user_id, name, country, created_at) VALUES (?, ?, ?, ?, ?)",
             ("trip-bb-mar", seed_user, "March trip", "X", "2025-03-15 10:00:00"),
         )
         conn.commit()
@@ -560,8 +590,7 @@ def test_achievements_back_to_back_consecutive_months(client, seed_user, auth_he
     # Add a February trip — now Jan/Feb are adjacent.
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO trips (id, user_id, name, country, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO trips (id, user_id, name, country, created_at) VALUES (?, ?, ?, ?, ?)",
             ("trip-bb-feb", seed_user, "February trip", "X", "2025-02-15 10:00:00"),
         )
         conn.commit()
@@ -581,16 +610,15 @@ def test_achievements_back_to_back_crosses_year_boundary(client, seed_user, auth
     the obvious "y2 == y1 + 0 AND m2 == m1 + 1" check would miss it
     without the explicit year-rollover branch."""
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
         c.execute(
-            "INSERT INTO trips (id, user_id, name, country, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO trips (id, user_id, name, country, created_at) VALUES (?, ?, ?, ?, ?)",
             ("trip-bb-dec", seed_user, "December trip", "X", "2024-12-15 10:00:00"),
         )
         c.execute(
-            "INSERT INTO trips (id, user_id, name, country, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO trips (id, user_id, name, country, created_at) VALUES (?, ?, ?, ?, ?)",
             ("trip-bb-jan-next", seed_user, "January trip", "X", "2025-01-15 10:00:00"),
         )
         conn.commit()
@@ -613,6 +641,7 @@ def test_achievements_notification_on_unlock(client, seed_user, auth_headers):
     client.get("/api/data", headers=auth_headers)  # detection + insert
 
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
         c.execute(
@@ -636,7 +665,10 @@ def test_achievements_notification_on_unlock(client, seed_user, auth_headers):
 
 
 def test_achievements_on_public_profile(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """A signed-in viewer fetching their OWN public profile sees
     their earned badges. R3-Round 2 #36 narrowed the public
@@ -658,7 +690,9 @@ def test_achievements_on_public_profile(
 
 
 def test_achievements_hidden_from_anonymous_profile_viewer(
-    client, seed_user, auth_headers,
+    client,
+    seed_user,
+    auth_headers,
 ):
     """R3-Round 2 #36: anonymous viewers (no auth) get an empty
     achievements array on /api/public-profile/<id> — strangers
@@ -672,12 +706,15 @@ def test_achievements_hidden_from_anonymous_profile_viewer(
     res = client.get(f"/api/public-profile/{seed_user}")
     assert res.status_code == 200
     payload = res.get_json()
-    assert payload["achievements"] == [], \
-        "anonymous viewer should not see the badge list"
+    assert payload["achievements"] == [], "anonymous viewer should not see the badge list"
 
 
 def test_achievements_feed_event_for_friends(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """When a friend earns a badge it appears in the caller's feed as
     `achievement_unlocked`. Verifies the §3.6 registry's
@@ -710,6 +747,7 @@ def test_achievements_revoked_when_trip_unarchived(client, seed_user, auth_heade
     (per-user, the audit-H1+H4 fix), so the unarchive simulation toggles
     that column instead of the legacy `trips.is_archived` mirror."""
     from database import get_db
+
     trip_id = _create_trip(client, auth_headers, trip_id="trip-revoke-1")
     _archive_all_trips(seed_user)
 
@@ -727,15 +765,15 @@ def test_achievements_revoked_when_trip_unarchived(client, seed_user, auth_heade
     # drops to 0 and the badge should disappear.
     with get_db() as conn:
         conn.execute(
-            "UPDATE trip_members SET is_archived = 0 "
-            "WHERE trip_id = ? AND user_id = ?",
+            "UPDATE trip_members SET is_archived = 0 WHERE trip_id = ? AND user_id = ?",
             (trip_id, seed_user),
         )
         conn.commit()
 
     data = client.get("/api/data", headers=auth_headers).get_json()
-    assert "archivist" not in [a["badgeId"] for a in data["achievements"]], \
+    assert "archivist" not in [a["badgeId"] for a in data["achievements"]], (
         "archivist should be revoked once the only archived trip is restored"
+    )
     # Revoke is silent — no fresh notification, no entry in newlyEarned.
     assert "archivist" not in [a["badgeId"] for a in data["newlyEarnedAchievements"]]
 
@@ -748,24 +786,28 @@ def test_achievements_revoked_when_trip_unarchived(client, seed_user, auth_heade
     # rows just by archive-toggling.
     with get_db() as conn:
         conn.execute(
-            "UPDATE trip_members SET is_archived = 1 "
-            "WHERE trip_id = ? AND user_id = ?",
+            "UPDATE trip_members SET is_archived = 1 WHERE trip_id = ? AND user_id = ?",
             (trip_id, seed_user),
         )
         conn.commit()
 
     data = client.get("/api/data", headers=auth_headers).get_json()
-    assert "archivist" in [a["badgeId"] for a in data["achievements"]], \
+    assert "archivist" in [a["badgeId"] for a in data["achievements"]], (
         "re-archiving should re-activate the soft-revoked badge"
-    assert "archivist" not in [a["badgeId"] for a in data["newlyEarnedAchievements"]], \
+    )
+    assert "archivist" not in [a["badgeId"] for a in data["newlyEarnedAchievements"]], (
         "R5-B3: re-earn is silent — no fresh newly-earned, no re-toast"
+    )
 
 
-def test_achievements_globe_trotter_revoked_when_country_unarchived(client, seed_user, auth_headers):
+def test_achievements_globe_trotter_revoked_when_country_unarchived(
+    client, seed_user, auth_headers
+):
     """globe_trotter_3 should revoke when un-archiving one of the trips
     drops the distinct-country count below 3. The other badges (first_trip,
     archivist) survive because at least one archived trip remains."""
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
         for i, code in enumerate(["PT", "JP", "FR"]):
@@ -801,7 +843,11 @@ def test_achievements_globe_trotter_revoked_when_country_unarchived(client, seed
 
 
 def test_achievements_joint_trip_counts_for_both_owner_and_member(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """2026-05-18 audit H4: members earn badges from trips they JOINED
     (not just trips they OWN). Owner creates a trip; other user joins
@@ -813,6 +859,7 @@ def test_achievements_joint_trip_counts_for_both_owner_and_member(
     which is owner-only, so a planner of a 5-country group trip
     would never earn globe_trotter_3 from it."""
     from database import get_db
+
     trip_id = _create_trip(client, other_auth_headers, trip_id="trip-joint")
 
     # Seed the other user as an accepted planner via direct
@@ -833,34 +880,40 @@ def test_achievements_joint_trip_counts_for_both_owner_and_member(
     # membership regardless of archive state.
     _archive_all_trips(seed_other_user)
     owner_data = client.get("/api/data", headers=other_auth_headers).get_json()
-    assert "archivist" in [a["badgeId"] for a in owner_data["achievements"]], \
+    assert "archivist" in [a["badgeId"] for a in owner_data["achievements"]], (
         "owner should earn archivist after archiving their copy"
+    )
 
     # MEMBER (seed_user) has not archived their copy yet → archivist
     # should NOT fire. `first_trip` WILL fire here because just being
     # an accepted member is enough — that's the welcome-aboard badge
     # by design.
     member_data = client.get("/api/data", headers=auth_headers).get_json()
-    assert "archivist" not in [a["badgeId"] for a in member_data["achievements"]], \
+    assert "archivist" not in [a["badgeId"] for a in member_data["achievements"]], (
         "member should NOT earn archivist until they archive their copy"
+    )
 
     # Now the member archives their copy → they earn archivist
     # INDEPENDENTLY of the owner's archive state. This is the joint-
     # trip semantic: both users get credit for the same trip.
     with get_db() as conn:
         conn.execute(
-            "UPDATE trip_members SET is_archived = 1 "
-            "WHERE trip_id = ? AND user_id = ?",
+            "UPDATE trip_members SET is_archived = 1 WHERE trip_id = ? AND user_id = ?",
             (trip_id, seed_user),
         )
         conn.commit()
     member_data = client.get("/api/data", headers=auth_headers).get_json()
-    assert "archivist" in [a["badgeId"] for a in member_data["achievements"]], \
+    assert "archivist" in [a["badgeId"] for a in member_data["achievements"]], (
         "member should earn archivist independently after archiving their copy"
+    )
 
 
 def test_achievements_globe_trotter_credits_member_for_joint_multi_country_trip(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """The 2026-05-18 H4 fix shifted globe_trotter_* to count any
     archived membership, not just owned trips. A non-owner planner
@@ -898,15 +951,15 @@ def test_achievements_globe_trotter_credits_member_for_joint_multi_country_trip(
     # single shared trip's three countries.
     with get_db() as conn:
         conn.execute(
-            "UPDATE trip_members SET is_archived = 1 "
-            "WHERE trip_id = ? AND user_id = ?",
+            "UPDATE trip_members SET is_archived = 1 WHERE trip_id = ? AND user_id = ?",
             ("trip-joint-multi", seed_user),
         )
         conn.commit()
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = {a["badgeId"] for a in data["achievements"]}
-    assert "globe_trotter_3" in ids, \
+    assert "globe_trotter_3" in ids, (
         "non-owner member should earn globe_trotter_3 from a joint 3-country trip"
+    )
     gt3 = next(a for a in data["achievements"] if a["badgeId"] == "globe_trotter_3")
     assert gt3["context"].get("countryCount") == 3
 
@@ -924,12 +977,14 @@ def test_achievements_revoked_when_trip_deleted(client, seed_user, auth_headers)
     Permanent deletion is the stronger version of unarchive — once
     deleted, the trip can't be restored, so the badge stays revoked."""
     from database import get_db
+
     trip_id = _create_trip(client, auth_headers, trip_id="trip-del-revoke")
     _archive_all_trips(seed_user)
 
     data = client.get("/api/data", headers=auth_headers).get_json()
-    assert "first_trip" in [a["badgeId"] for a in data["achievements"]], \
+    assert "first_trip" in [a["badgeId"] for a in data["achievements"]], (
         "archived trip should earn first_trip before deletion"
+    )
 
     # Permanent delete via the API (covers the full handler including
     # the post-delete check_user_achievements call).
@@ -940,8 +995,9 @@ def test_achievements_revoked_when_trip_deleted(client, seed_user, auth_headers)
     # ran inside the delete transaction, not waiting for the next
     # /api/data tick to catch up.
     data = client.get("/api/data", headers=auth_headers).get_json()
-    assert "first_trip" not in [a["badgeId"] for a in data["achievements"]], \
+    assert "first_trip" not in [a["badgeId"] for a in data["achievements"]], (
         "first_trip should be revoked the instant the only earning trip is deleted"
+    )
 
     # Direct DB sanity: the row exists but is soft-revoked
     # (revoked_at IS NOT NULL). R5-B3: changed from hard-DELETE to
@@ -949,19 +1005,19 @@ def test_achievements_revoked_when_trip_deleted(client, seed_user, auth_headers)
     # — see test_achievements_revoked_when_trip_unarchived.
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT badge_id, revoked_at FROM user_achievements "
-            "WHERE user_id = ?",
+            "SELECT badge_id, revoked_at FROM user_achievements WHERE user_id = ?",
             (seed_user,),
         ).fetchall()
-    first_trip_row = next(
-        (r for r in rows if r["badge_id"] == "first_trip"), None
-    )
+    first_trip_row = next((r for r in rows if r["badge_id"] == "first_trip"), None)
     assert first_trip_row is not None, "soft-revoked row should still exist"
-    assert first_trip_row["revoked_at"] is not None, \
+    assert first_trip_row["revoked_at"] is not None, (
         "first_trip should be soft-revoked (revoked_at stamped)"
+    )
 
 
-def test_achievements_rule_failure_doesnt_poison_sweep(client, seed_user, auth_headers, monkeypatch):
+def test_achievements_rule_failure_doesnt_poison_sweep(
+    client, seed_user, auth_headers, monkeypatch
+):
     """If one badge rule raises, the detection loop logs + skips it
     and the OTHER rules still run. Without this guard a future bad
     rule would block every user's badge earning until shipped fix."""
@@ -996,12 +1052,19 @@ def test_first_share_badge_is_sticky_after_unshare(client, seed_user, auth_heade
     """MK6 P3: the first_share (Storyteller) milestone badge must NOT be soft-
     revoked when the user unshares their only trip — earning a milestone sticks."""
     trip_id = _create_trip(client, auth_headers, trip_id="t-badge", public=True)
-    post_id = client.post("/api/feed/share", headers=auth_headers,
-                          json={"trip_id": trip_id}).get_json()["post_id"]
+    post_id = client.post(
+        "/api/feed/share", headers=auth_headers, json={"trip_id": trip_id}
+    ).get_json()["post_id"]
     # /api/data runs the achievement sweep → earns first_share.
-    ach = [a["badgeId"] for a in client.get("/api/data", headers=auth_headers).get_json()["achievements"]]
+    ach = [
+        a["badgeId"]
+        for a in client.get("/api/data", headers=auth_headers).get_json()["achievements"]
+    ]
     assert "first_share" in ach, "sharing should earn the Storyteller badge"
     # Unshare (delete the only feed_post), then re-run the sweep via /api/data.
     client.delete(f"/api/feed/share/{post_id}", headers=auth_headers)
-    ach2 = [a["badgeId"] for a in client.get("/api/data", headers=auth_headers).get_json()["achievements"]]
+    ach2 = [
+        a["badgeId"]
+        for a in client.get("/api/data", headers=auth_headers).get_json()["achievements"]
+    ]
     assert "first_share" in ach2, "first_share was soft-revoked after unshare (should be sticky)"

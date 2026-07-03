@@ -63,13 +63,51 @@ def scrub_key(text: str | None) -> str:
 # Any code not on this list is rejected at write time — silently
 # falling back to rate=1 (the pre-fix behaviour) lets an EGP 100
 # expense get stored as €100 with no warning.
-_ALLOWED_CURRENCIES = frozenset({
-    "EUR", "USD", "GBP", "JPY", "CHF", "AUD", "CAD", "CNY", "HKD",
-    "SGD", "SEK", "NOK", "DKK", "MXN", "BRL", "INR", "KRW", "TRY",
-    "NZD", "ZAR", "PLN", "CZK", "HUF", "RON", "BGN", "HRK", "ISK",
-    "ILS", "AED", "SAR", "THB", "IDR", "MYR", "PHP", "VND", "EGP",
-    "ARS", "CLP", "COP", "PEN", "TWD",
-})
+_ALLOWED_CURRENCIES = frozenset(
+    {
+        "EUR",
+        "USD",
+        "GBP",
+        "JPY",
+        "CHF",
+        "AUD",
+        "CAD",
+        "CNY",
+        "HKD",
+        "SGD",
+        "SEK",
+        "NOK",
+        "DKK",
+        "MXN",
+        "BRL",
+        "INR",
+        "KRW",
+        "TRY",
+        "NZD",
+        "ZAR",
+        "PLN",
+        "CZK",
+        "HUF",
+        "RON",
+        "BGN",
+        "HRK",
+        "ISK",
+        "ILS",
+        "AED",
+        "SAR",
+        "THB",
+        "IDR",
+        "MYR",
+        "PHP",
+        "VND",
+        "EGP",
+        "ARS",
+        "CLP",
+        "COP",
+        "PEN",
+        "TWD",
+    }
+)
 
 # Maximum lengths for free-text fields. Generous enough that no
 # legitimate user content gets cut, tight enough that a 10MB payload
@@ -111,7 +149,10 @@ def _strip_all_controls(s: str) -> str:
 
 
 def clean_text(
-    value, *, max_len: int, allow_newlines: bool = False,
+    value,
+    *,
+    max_len: int,
+    allow_newlines: bool = False,
     field_name: str = "value",
 ) -> str:
     """Coerce a JSON value to a clean string. Returns the empty
@@ -121,8 +162,7 @@ def clean_text(
         return ""
     if not isinstance(value, str):
         raise ValidationError(f"{field_name} must be a string")
-    cleaned = (_strip_controls(value) if allow_newlines
-               else _strip_all_controls(value))
+    cleaned = _strip_controls(value) if allow_newlines else _strip_all_controls(value)
     cleaned = cleaned.strip()
     if len(cleaned) > max_len:
         raise ValidationError(
@@ -134,8 +174,7 @@ def clean_text(
 # ── Money ────────────────────────────────────────────────────────────
 
 
-def validate_money(value, *, field_name: str = "value",
-                   allow_zero: bool = True) -> float:
+def validate_money(value, *, field_name: str = "value", allow_zero: bool = True) -> float:
     """Coerce to a finite float in (0, _MAX_MONEY] (or [0, _MAX_MONEY]
     if allow_zero). Raises ValidationError on NaN, ±Infinity, negative,
     non-numeric strings, or absurdly large values."""
@@ -157,7 +196,10 @@ def validate_money(value, *, field_name: str = "value",
 
 
 def validate_splits(
-    value, *, field_name: str = "splits", require_full: bool = False,
+    value,
+    *,
+    field_name: str = "splits",
+    require_full: bool = False,
 ) -> dict | None:
     """Validate an expense `splits` map. Returns:
       - None when value is None / "" / {} (caller falls back to the
@@ -259,6 +301,7 @@ def validate_date(value, *, field_name: str = "date") -> str:
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
         raise ValidationError(f"{field_name} must be a date (YYYY-MM-DD)")
     from datetime import date as _date
+
     try:
         y, m, d = (int(p) for p in s.split("-"))
         _date(y, m, d)  # rejects impossible dates like 2026-13-40
@@ -271,8 +314,12 @@ def validate_date(value, *, field_name: str = "date") -> str:
 
 
 def validate_upload_url(
-    value, *, user_id: str, allow_google: bool = False,
-    field_name: str = "url", allow_empty: bool = True,
+    value,
+    *,
+    user_id: str,
+    allow_google: bool = False,
+    field_name: str = "url",
+    allow_empty: bool = True,
 ) -> str | None:
     """Validate a URL that should point at an upload owned by the
     caller. Accepts:
@@ -302,6 +349,7 @@ def validate_upload_url(
         return url
     # secure_filename is from werkzeug — strips path separators etc.
     from werkzeug.utils import secure_filename
+
     safe_user_dir = secure_filename(user_id) or "anon"
     owned_prefix = f"/static/uploads/{safe_user_dir}/"
     legacy_prefix = "/static/uploads/"
@@ -309,7 +357,7 @@ def validate_upload_url(
         return url
     if (
         url.startswith(legacy_prefix)
-        and "/" not in url[len(legacy_prefix):]
+        and "/" not in url[len(legacy_prefix) :]
         and url != legacy_prefix
     ):
         # Legacy flat layout — only accept paths with NO further subdir.
@@ -397,6 +445,7 @@ def clean_companions(comps, verified_linked_ids=None):
         # NFC normalise so visually-identical Unicode (decomposed vs
         # composed) doesn't dupe.
         import unicodedata
+
         name = unicodedata.normalize("NFC", name)[:_MAX_NAME_LEN]
         # Case-fold dedupe — same shape as the frontend's modal-level
         # check, mirrored server-side so a curl bypass can't sneak in
@@ -416,10 +465,12 @@ def clean_companions(comps, verified_linked_ids=None):
             if linked not in verified_linked_ids:
                 linked = None
         link_status = c.get("linkStatus") if isinstance(c.get("linkStatus"), str) else None
-        out.append({
-            "name": name,
-            "linkedUserId": linked,
-            "linkStatus": link_status,
-        })
+        out.append(
+            {
+                "name": name,
+                "linkedUserId": linked,
+                "linkStatus": link_status,
+            }
+        )
     # Cap total length — no one needs 1000 companions on one trip.
     return out[:200]

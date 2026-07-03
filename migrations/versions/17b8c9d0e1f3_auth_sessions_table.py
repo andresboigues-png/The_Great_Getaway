@@ -28,6 +28,7 @@ users.token_jti — so existing-tab tokens keep working until they
 naturally expire (30 days) or get revoked via the legacy
 bump_user_jti path.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -52,8 +53,7 @@ def upgrade() -> None:
         )
     """)
     op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_auth_sessions_user "
-        "ON auth_sessions(user_id, revoked_at)"
+        "CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id, revoked_at)"
     )
 
 

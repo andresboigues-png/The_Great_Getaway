@@ -30,23 +30,59 @@ def _populate_trip(client, app, headers, user_id, trip_id):
     """Build a fully-loaded trip and return (receipt_url, photo_url)."""
     _create_trip(client, headers, trip_id=trip_id, name="Round Trip")
     # A category so the import's match/create + FK-remap path is exercised.
-    client.post("/api/sync", headers=headers, json={
-        "categories": [{"id": "cat-food", "name": "Food", "icon": "🍔", "color": "#ff0000"}],
-    })
-    client.post("/api/days", headers=headers, json={"day": {
-        "id": "day-1", "tripId": trip_id, "dayNumber": 1,
-        "name": "Day One", "date": "2026-02-01",
-    }})
+    client.post(
+        "/api/sync",
+        headers=headers,
+        json={
+            "categories": [{"id": "cat-food", "name": "Food", "icon": "🍔", "color": "#ff0000"}],
+        },
+    )
+    client.post(
+        "/api/days",
+        headers=headers,
+        json={
+            "day": {
+                "id": "day-1",
+                "tripId": trip_id,
+                "dayNumber": 1,
+                "name": "Day One",
+                "date": "2026-02-01",
+            }
+        },
+    )
     receipt = _seed_media_file(app, user_id, "receipt.jpg")
-    client.post("/api/expenses", headers=headers, json={"expense": {
-        "id": "exp-1", "tripId": trip_id, "who": "Me", "value": 50,
-        "currency": "EUR", "euroValue": 50, "label": "Lunch",
-        "date": "2026-02-01", "categoryId": "cat-food", "receiptUrl": receipt,
-    }})
-    client.post("/api/budgets", headers=headers, json={"budget": {
-        "id": "bud-1", "tripId": trip_id, "label": "Food",
-        "categoryId": "cat-food", "amount": 200, "currency": "EUR",
-    }})
+    client.post(
+        "/api/expenses",
+        headers=headers,
+        json={
+            "expense": {
+                "id": "exp-1",
+                "tripId": trip_id,
+                "who": "Me",
+                "value": 50,
+                "currency": "EUR",
+                "euroValue": 50,
+                "label": "Lunch",
+                "date": "2026-02-01",
+                "categoryId": "cat-food",
+                "receiptUrl": receipt,
+            }
+        },
+    )
+    client.post(
+        "/api/budgets",
+        headers=headers,
+        json={
+            "budget": {
+                "id": "bud-1",
+                "tripId": trip_id,
+                "label": "Food",
+                "categoryId": "cat-food",
+                "amount": 200,
+                "currency": "EUR",
+            }
+        },
+    )
     # Insert the settlement directly: the endpoint requires both parties to be
     # accepted trip members (anti-fabrication gate), which a single-user test
     # trip can't satisfy — and we're exercising export/import, not settlement
@@ -60,12 +96,16 @@ def _populate_trip(client, app, headers, user_id, trip_id):
         )
         conn.commit()
     photo = _seed_media_file(app, user_id, "photo.jpg")
-    client.post(f"/api/trips/{trip_id}/media", headers=headers, json={
-        "photos": [{"id": "p1", "src": photo, "caption": "Beach"}],
-        "documents": [{"id": "doc1", "name": "Passport", "url": photo}],
-        "markedPlaces": [{"id": "mp1", "name": "Cafe", "lat": 48.85, "lng": 2.35}],
-        "checklist": [{"id": "c1", "body": "Pack", "done": False}],
-    })
+    client.post(
+        f"/api/trips/{trip_id}/media",
+        headers=headers,
+        json={
+            "photos": [{"id": "p1", "src": photo, "caption": "Beach"}],
+            "documents": [{"id": "doc1", "name": "Passport", "url": photo}],
+            "markedPlaces": [{"id": "mp1", "name": "Cafe", "lat": 48.85, "lng": 2.35}],
+            "checklist": [{"id": "c1", "body": "Pack", "done": False}],
+        },
+    )
     return receipt, photo
 
 
@@ -99,7 +139,11 @@ def test_export_manifest_shape(client, seed_user, auth_headers, tmp_path, monkey
 
 
 def test_export_strips_share_token_and_reset_columns(
-    client, seed_user, auth_headers, tmp_path, monkeypatch,
+    client,
+    seed_user,
+    auth_headers,
+    tmp_path,
+    monkeypatch,
 ):
     """MK6 P2: the exported trips row must NOT carry the owner-only
     share_token (nor public_slug / is_public / server timestamps). A non-owner
@@ -135,14 +179,17 @@ def test_export_strips_share_token_and_reset_columns(
     assert trip_row["name"] == "Round Trip"
 
 
-def test_roundtrip_same_account_reuses_category(client, seed_user, auth_headers, tmp_path, monkeypatch):
+def test_roundtrip_same_account_reuses_category(
+    client, seed_user, auth_headers, tmp_path, monkeypatch
+):
     monkeypatch.setitem(client.application.config, "UPLOAD_FOLDER", str(tmp_path))
     app = client.application
     receipt, photo = _populate_trip(client, app, auth_headers, seed_user, "trip-rt")
     data = _export_zip(client, auth_headers, "trip-rt")
 
     res = client.post(
-        "/api/trips/import", headers=auth_headers,
+        "/api/trips/import",
+        headers=auth_headers,
         data={"file": (io.BytesIO(data), "trip.ggtrip.zip")},
         content_type="multipart/form-data",
     )
@@ -156,22 +203,32 @@ def test_roundtrip_same_account_reuses_category(client, seed_user, auth_headers,
 
     with get_db() as conn:
         c = conn.cursor()
-        assert c.execute("SELECT user_id FROM trips WHERE id=?", (new_id,)).fetchone()[0] == seed_user
+        assert (
+            c.execute("SELECT user_id FROM trips WHERE id=?", (new_id,)).fetchone()[0] == seed_user
+        )
         for table in ("trip_days", "expenses", "budgets", "settlements"):
             n = c.execute(f"SELECT COUNT(*) FROM {table} WHERE trip_id=?", (new_id,)).fetchone()[0]
             assert n == 1, f"{table} count={n}"
         # Same account already owns "Food" → category REUSED (not duplicated).
-        assert c.execute("SELECT COUNT(*) FROM categories WHERE user_id=?", (seed_user,)).fetchone()[0] == 1
-        exp = c.execute("SELECT id, category_id, receipt_url FROM expenses WHERE trip_id=?", (new_id,)).fetchone()
-        assert exp["id"] != "exp-1"                       # fresh id
-        assert exp["category_id"] == "cat-food"           # reused category
+        assert (
+            c.execute("SELECT COUNT(*) FROM categories WHERE user_id=?", (seed_user,)).fetchone()[0]
+            == 1
+        )
+        exp = c.execute(
+            "SELECT id, category_id, receipt_url FROM expenses WHERE trip_id=?", (new_id,)
+        ).fetchone()
+        assert exp["id"] != "exp-1"  # fresh id
+        assert exp["category_id"] == "cat-food"  # reused category
         # Receipt URL rewritten to a re-saved copy that exists on disk.
         assert exp["receipt_url"].startswith(f"/static/uploads/{seed_user}/")
         assert exp["receipt_url"] != receipt
         rel = exp["receipt_url"].replace("/static/uploads/", "")
         assert os.path.isfile(os.path.join(str(tmp_path), rel))
         # Settlement names preserved; linked account ids cleared.
-        st = c.execute("SELECT from_user_id, to_user_id, from_name, to_name FROM settlements WHERE trip_id=?", (new_id,)).fetchone()
+        st = c.execute(
+            "SELECT from_user_id, to_user_id, from_name, to_name FROM settlements WHERE trip_id=?",
+            (new_id,),
+        ).fetchone()
         assert st["from_user_id"] is None and st["to_user_id"] is None
         assert st["from_name"] == "Ana" and st["to_name"] == "Bruno"
 
@@ -185,7 +242,13 @@ def test_roundtrip_same_account_reuses_category(client, seed_user, auth_headers,
 
 
 def test_import_cross_account_creates_owned_copy(
-    client, seed_user, auth_headers, seed_other_user, other_auth_headers, tmp_path, monkeypatch,
+    client,
+    seed_user,
+    auth_headers,
+    seed_other_user,
+    other_auth_headers,
+    tmp_path,
+    monkeypatch,
 ):
     """User 2 imports User 1's exported trip: a brand-new trip owned by user 2,
     a fresh category owned by user 2, media re-homed under user 2's dir."""
@@ -195,7 +258,8 @@ def test_import_cross_account_creates_owned_copy(
     data = _export_zip(client, auth_headers, "trip-rt")
 
     res = client.post(
-        "/api/trips/import", headers=other_auth_headers,
+        "/api/trips/import",
+        headers=other_auth_headers,
         data={"file": (io.BytesIO(data), "trip.ggtrip.zip")},
         content_type="multipart/form-data",
     )
@@ -204,18 +268,27 @@ def test_import_cross_account_creates_owned_copy(
 
     with get_db() as conn:
         c = conn.cursor()
-        assert c.execute("SELECT user_id FROM trips WHERE id=?", (new_id,)).fetchone()[0] == seed_other_user
+        assert (
+            c.execute("SELECT user_id FROM trips WHERE id=?", (new_id,)).fetchone()[0]
+            == seed_other_user
+        )
         # A NEW "Food" category was created for user 2 (id differs from user 1's).
-        cat = c.execute("SELECT id, name FROM categories WHERE user_id=?", (seed_other_user,)).fetchone()
+        cat = c.execute(
+            "SELECT id, name FROM categories WHERE user_id=?", (seed_other_user,)
+        ).fetchone()
         assert cat["name"] == "Food" and cat["id"] != "cat-food"
-        exp = c.execute("SELECT category_id, receipt_url FROM expenses WHERE trip_id=?", (new_id,)).fetchone()
+        exp = c.execute(
+            "SELECT category_id, receipt_url FROM expenses WHERE trip_id=?", (new_id,)
+        ).fetchone()
         assert exp["category_id"] == cat["id"]
         assert exp["receipt_url"].startswith(f"/static/uploads/{seed_other_user}/")
         rel = exp["receipt_url"].replace("/static/uploads/", "")
         assert os.path.isfile(os.path.join(str(tmp_path), rel))
 
 
-def test_export_requires_membership(client, seed_user, auth_headers, seed_other_user, other_auth_headers, tmp_path, monkeypatch):
+def test_export_requires_membership(
+    client, seed_user, auth_headers, seed_other_user, other_auth_headers, tmp_path, monkeypatch
+):
     monkeypatch.setitem(client.application.config, "UPLOAD_FOLDER", str(tmp_path))
     _create_trip(client, auth_headers, trip_id="trip-priv", name="Private")
     # Non-member can't export — same 404 the trip would 404-as-not-found.
@@ -225,7 +298,8 @@ def test_export_requires_membership(client, seed_user, auth_headers, seed_other_
 
 def test_import_rejects_non_zip(client, seed_user, auth_headers):
     res = client.post(
-        "/api/trips/import", headers=auth_headers,
+        "/api/trips/import",
+        headers=auth_headers,
         data={"file": (io.BytesIO(b"not a zip"), "x.zip")},
         content_type="multipart/form-data",
     )
@@ -235,13 +309,21 @@ def test_import_rejects_non_zip(client, seed_user, auth_headers):
 def test_import_rejects_newer_format_version(client, seed_user, auth_headers):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr("manifest.json", json.dumps({
-            "format": "gg.trip", "formatVersion": 999,
-            "sections": {"trips": [{"id": "x", "name": "Future"}]}, "media": {},
-        }))
+        zf.writestr(
+            "manifest.json",
+            json.dumps(
+                {
+                    "format": "gg.trip",
+                    "formatVersion": 999,
+                    "sections": {"trips": [{"id": "x", "name": "Future"}]},
+                    "media": {},
+                }
+            ),
+        )
     buf.seek(0)
     res = client.post(
-        "/api/trips/import", headers=auth_headers,
+        "/api/trips/import",
+        headers=auth_headers,
         data={"file": (buf, "future.ggtrip.zip")},
         content_type="multipart/form-data",
     )
@@ -255,7 +337,8 @@ def test_import_body_over_10mb_not_rejected_by_global_cap(client, seed_user, aut
     should REACH the handler (→ 400 bad zip), not be 413'd at the global cap."""
     big = io.BytesIO(b"x" * (11 * 1024 * 1024))  # 11 MB > old 10 MB cap
     res = client.post(
-        "/api/trips/import", headers=auth_headers,
+        "/api/trips/import",
+        headers=auth_headers,
         data={"file": (big, "trip.ggtrip.zip")},
         content_type="multipart/form-data",
     )

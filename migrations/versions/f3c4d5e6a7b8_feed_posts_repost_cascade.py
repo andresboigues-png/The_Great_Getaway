@@ -44,6 +44,7 @@ deleted, FK CASCADE on trip_id will sweep them.
 Downgrade is not supported — reverting to SET NULL re-opens the
 orphan path. Same forward-only posture as e1b8d2a3c4f5.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -55,7 +56,11 @@ depends_on: str | Sequence[str] | None = None
 
 
 _FEED_POSTS_COLUMNS = [
-    "id", "user_id", "trip_id", "repost_of_post_id", "caption",
+    "id",
+    "user_id",
+    "trip_id",
+    "repost_of_post_id",
+    "caption",
     "created_at",
 ]
 
@@ -78,23 +83,14 @@ def upgrade() -> None:
         """
     )
     cols = ", ".join(_FEED_POSTS_COLUMNS)
-    op.execute(
-        f"INSERT INTO feed_posts ({cols}) SELECT {cols} FROM _old_feed_posts"
-    )
+    op.execute(f"INSERT INTO feed_posts ({cols}) SELECT {cols} FROM _old_feed_posts")
     op.execute("DROP TABLE _old_feed_posts")
 
     # Re-create every index that hung off feed_posts (DROP TABLE
     # dropped them with it).
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_feed_posts_user ON feed_posts(user_id)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_feed_posts_trip ON feed_posts(trip_id)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_feed_posts_repost "
-        "ON feed_posts(repost_of_post_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_feed_posts_user ON feed_posts(user_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_feed_posts_trip ON feed_posts(trip_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_feed_posts_repost ON feed_posts(repost_of_post_id)")
     op.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_feed_posts_unique_original_share "
         "ON feed_posts(user_id, trip_id) WHERE repost_of_post_id IS NULL"
@@ -103,6 +99,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     raise NotImplementedError(
-        "Reverting to ON DELETE SET NULL re-opens the orphan-repost "
-        "path. Roll forward, not back."
+        "Reverting to ON DELETE SET NULL re-opens the orphan-repost path. Roll forward, not back."
     )

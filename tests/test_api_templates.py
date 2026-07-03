@@ -13,6 +13,7 @@ from tests.conftest import _create_trip
 # ── helpers ──────────────────────────────────────────────────────────
 def _make_creator(user_id):
     from database import get_db
+
     with get_db() as conn:
         conn.execute("UPDATE users SET is_creator = 1 WHERE id = ?", (user_id,))
         conn.commit()
@@ -22,6 +23,7 @@ def _seed_dev_user():
     """A user whose email is the hardcoded dev/admin address — always a
     creator + the only account that may grant creator status."""
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
@@ -29,6 +31,7 @@ def _seed_dev_user():
         )
         conn.commit()
     from auth import issue_token
+
     return "dev-user", {"Authorization": f"Bearer {issue_token('dev-user')}"}
 
 
@@ -40,6 +43,7 @@ def _seed_rich_source_trip(client, headers, owner_id, trip_id="src-trip"):
     assertions unambiguous."""
     _create_trip(client, headers, trip_id=trip_id, name="Paris")
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
         c.execute(
@@ -60,8 +64,17 @@ def _seed_rich_source_trip(client, headers, owner_id, trip_id="src-trip"):
             "INSERT INTO trip_days (id, trip_id, day_number, date, name, "
             "morning, afternoon, evening, tip) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            ("d-day1", trip_id, 1, "2025-06-01", "Day 1",
-             "Visit Louvre", "Lunch at cafe", "Eiffel Tower", "Bring water"),
+            (
+                "d-day1",
+                trip_id,
+                1,
+                "2025-06-01",
+                "Day 1",
+                "Visit Louvre",
+                "Lunch at cafe",
+                "Eiffel Tower",
+                "Bring water",
+            ),
         )
         c.execute(
             "INSERT INTO expenses (id, trip_id, who, label, value, currency, euro_value) "
@@ -74,6 +87,7 @@ def _seed_rich_source_trip(client, headers, owner_id, trip_id="src-trip"):
 
 def _read_snapshot(code):
     from database import get_db
+
     with get_db() as conn:
         row = conn.execute(
             "SELECT snapshot_json FROM trip_templates WHERE code = ?", (code,)
@@ -85,9 +99,14 @@ def _read_snapshot(code):
 def test_create_template_requires_creator(client, seed_user, auth_headers):
     """A non-creator (the default seed user) is 403'd on create + list."""
     _create_trip(client, auth_headers, trip_id="t1", name="Trip")
-    res = client.post("/api/templates", headers=auth_headers, json={
-        "name": "T", "sourceTripId": "t1",
-    })
+    res = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "T",
+            "sourceTripId": "t1",
+        },
+    )
     assert res.status_code == 403
     assert client.get("/api/templates", headers=auth_headers).status_code == 403
 
@@ -96,10 +115,17 @@ def test_create_template_requires_creator(client, seed_user, auth_headers):
 def test_snapshot_copies_shareable_strips_sensitive(client, seed_user, auth_headers):
     _make_creator(seed_user)
     _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src1")
-    res = client.post("/api/templates", headers=auth_headers, json={
-        "name": "Paris Template", "sourceTripId": "src1",
-        "includePlans": True, "includePlaces": True, "includeChecklist": True,
-    })
+    res = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Paris Template",
+            "sourceTripId": "src1",
+            "includePlans": True,
+            "includePlaces": True,
+            "includeChecklist": True,
+        },
+    )
     assert res.status_code == 200
     code = res.get_json()["template"]["code"]
 
@@ -129,18 +155,34 @@ def test_snapshot_excludes_accommodation(client, seed_user, auth_headers):
     _make_creator(seed_user)
     _create_trip(client, auth_headers, trip_id="acc-src", name="Lyon")
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "INSERT INTO trip_days (id, trip_id, day_number, name, lat, lng, "
             "accommodation, accommodation_place_id, accommodation_address) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            ("acc-d1", "acc-src", 1, "Day 1", 45.76, 4.83,
-             "HOTELSENTINEL", "PLACEIDSENTINEL", "ADDRSENTINEL"),
+            (
+                "acc-d1",
+                "acc-src",
+                1,
+                "Day 1",
+                45.76,
+                4.83,
+                "HOTELSENTINEL",
+                "PLACEIDSENTINEL",
+                "ADDRSENTINEL",
+            ),
         )
         conn.commit()
-    res = client.post("/api/templates", headers=auth_headers, json={
-        "name": "Lyon Template", "sourceTripId": "acc-src", "includePlans": True,
-    })
+    res = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Lyon Template",
+            "sourceTripId": "acc-src",
+            "includePlans": True,
+        },
+    )
     assert res.status_code == 200
     snap = _read_snapshot(res.get_json()["template"]["code"])
     blob = json.dumps(snap)
@@ -157,16 +199,26 @@ def test_public_templates_requires_auth(client):
 
 
 def test_public_templates_browsable_by_any_user(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """The Discover feed is open to ANY signed-in user (not just creators).
     Each entry carries its creator's identity + destination for the page's
     grouping — but never the snapshot internals."""
     _make_creator(seed_user)
     _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="pub-src")
-    res = client.post("/api/templates", headers=auth_headers, json={
-        "name": "Paris Getaway", "sourceTripId": "pub-src", "includePlans": True,
-    })
+    res = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Paris Getaway",
+            "sourceTripId": "pub-src",
+            "includePlans": True,
+        },
+    )
     assert res.status_code == 200
     # A NON-creator browses the feed (creator gate must NOT apply here).
     res2 = client.get("/api/templates/public", headers=other_auth_headers)
@@ -191,9 +243,14 @@ def test_template_defaults_public(client, seed_user, auth_headers):
     preserves the pre-toggle 'everything is listed on Discover' behaviour."""
     _make_creator(seed_user)
     _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src-def")
-    tpl = client.post("/api/templates", headers=auth_headers, json={
-        "name": "Default", "sourceTripId": "src-def",
-    }).get_json()["template"]
+    tpl = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Default",
+            "sourceTripId": "src-def",
+        },
+    ).get_json()["template"]
     assert tpl["isPublic"] is True
 
 
@@ -203,12 +260,24 @@ def test_public_feed_excludes_unlisted_templates(client, seed_user, auth_headers
     _make_creator(seed_user)
     _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src-pub")
     _create_trip(client, auth_headers, trip_id="src-unl", name="Hidden")
-    pub = client.post("/api/templates", headers=auth_headers, json={
-        "name": "Listed", "sourceTripId": "src-pub", "isPublic": True,
-    }).get_json()["template"]
-    unl = client.post("/api/templates", headers=auth_headers, json={
-        "name": "HiddenTpl", "sourceTripId": "src-unl", "isPublic": False,
-    }).get_json()["template"]
+    pub = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Listed",
+            "sourceTripId": "src-pub",
+            "isPublic": True,
+        },
+    ).get_json()["template"]
+    unl = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "HiddenTpl",
+            "sourceTripId": "src-unl",
+            "isPublic": False,
+        },
+    ).get_json()["template"]
     assert pub["isPublic"] is True
     assert unl["isPublic"] is False
     feed = client.get("/api/templates/public", headers=auth_headers).get_json()["templates"]
@@ -221,13 +290,23 @@ def test_template_update_can_unlist(client, seed_user, auth_headers):
     """Toggling isPublic=false on update drops the template from the feed."""
     _make_creator(seed_user)
     _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src-tog")
-    tpl = client.post("/api/templates", headers=auth_headers, json={
-        "name": "Toggler", "sourceTripId": "src-tog",
-    }).get_json()["template"]
+    tpl = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Toggler",
+            "sourceTripId": "src-tog",
+        },
+    ).get_json()["template"]
     assert tpl["isPublic"] is True
-    upd = client.put(f"/api/templates/{tpl['id']}", headers=auth_headers, json={
-        "sourceTripId": "src-tog", "isPublic": False,
-    }).get_json()["template"]
+    upd = client.put(
+        f"/api/templates/{tpl['id']}",
+        headers=auth_headers,
+        json={
+            "sourceTripId": "src-tog",
+            "isPublic": False,
+        },
+    ).get_json()["template"]
     assert upd["isPublic"] is False
     feed = client.get("/api/templates/public", headers=auth_headers).get_json()["templates"]
     assert "Toggler" not in {x["name"] for x in feed}
@@ -239,6 +318,7 @@ def test_create_from_template_dates_days_from_start(client, seed_user, auth_head
     _make_creator(seed_user)
     _create_trip(client, auth_headers, trip_id="dated-src", name="Trip")
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
         for n in (1, 2, 3):
@@ -247,12 +327,22 @@ def test_create_from_template_dates_days_from_start(client, seed_user, auth_head
                 (f"dd{n}", "dated-src", n, f"Day {n}"),
             )
         conn.commit()
-    code = client.post("/api/templates", headers=auth_headers, json={
-        "name": "Dated", "sourceTripId": "dated-src", "includePlans": True,
-    }).get_json()["template"]["code"]
-    res = client.post(f"/api/templates/{code}/create", headers=auth_headers, json={
-        "startDate": "2026-07-10",
-    })
+    code = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Dated",
+            "sourceTripId": "dated-src",
+            "includePlans": True,
+        },
+    ).get_json()["template"]["code"]
+    res = client.post(
+        f"/api/templates/{code}/create",
+        headers=auth_headers,
+        json={
+            "startDate": "2026-07-10",
+        },
+    )
     assert res.status_code == 200
     new_trip_id = res.get_json()["tripId"]
     data = client.get("/api/data", headers=auth_headers).get_json()
@@ -268,15 +358,22 @@ def test_create_from_template_without_start_leaves_dates_blank(client, seed_user
     _make_creator(seed_user)
     _create_trip(client, auth_headers, trip_id="undated-src", name="Trip")
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "INSERT INTO trip_days (id, trip_id, day_number, name) VALUES (?, ?, ?, ?)",
             ("ud1", "undated-src", 1, "Day 1"),
         )
         conn.commit()
-    code = client.post("/api/templates", headers=auth_headers, json={
-        "name": "Undated", "sourceTripId": "undated-src", "includePlans": True,
-    }).get_json()["template"]["code"]
+    code = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Undated",
+            "sourceTripId": "undated-src",
+            "includePlans": True,
+        },
+    ).get_json()["template"]["code"]
     res = client.post(f"/api/templates/{code}/create", headers=auth_headers)
     assert res.status_code == 200
     new_trip_id = res.get_json()["tripId"]
@@ -288,10 +385,17 @@ def test_create_from_template_without_start_leaves_dates_blank(client, seed_user
 def test_snapshot_toggles_off_omit_sections(client, seed_user, auth_headers):
     _make_creator(seed_user)
     _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src2")
-    res = client.post("/api/templates", headers=auth_headers, json={
-        "name": "Bare", "sourceTripId": "src2",
-        "includePlans": False, "includePlaces": False, "includeChecklist": False,
-    })
+    res = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Bare",
+            "sourceTripId": "src2",
+            "includePlans": False,
+            "includePlaces": False,
+            "includeChecklist": False,
+        },
+    )
     assert res.status_code == 200
     snap = _read_snapshot(res.get_json()["template"]["code"])
     assert snap["days"] == []
@@ -301,14 +405,25 @@ def test_snapshot_toggles_off_omit_sections(client, seed_user, auth_headers):
 
 # ── instantiation ────────────────────────────────────────────────────
 def test_create_from_template_makes_owned_trip_without_expenses(
-    client, seed_user, auth_headers, seed_other_user, other_auth_headers,
+    client,
+    seed_user,
+    auth_headers,
+    seed_other_user,
+    other_auth_headers,
 ):
     _make_creator(seed_user)
     _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src3")
-    code = client.post("/api/templates", headers=auth_headers, json={
-        "name": "Paris", "sourceTripId": "src3",
-        "includePlans": True, "includePlaces": True, "includeChecklist": True,
-    }).get_json()["template"]["code"]
+    code = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Paris",
+            "sourceTripId": "src3",
+            "includePlans": True,
+            "includePlaces": True,
+            "includeChecklist": True,
+        },
+    ).get_json()["template"]["code"]
 
     # A DIFFERENT user instantiates.
     res = client.post(f"/api/templates/{code}/create", headers=other_auth_headers)
@@ -317,21 +432,29 @@ def test_create_from_template_makes_owned_trip_without_expenses(
     assert new_id
 
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
         # Owned by the instantiator.
         owner = c.execute("SELECT user_id FROM trips WHERE id = ?", (new_id,)).fetchone()["user_id"]
         assert owner == seed_other_user
         # No expenses copied.
-        ec = c.execute("SELECT COUNT(*) n FROM expenses WHERE trip_id = ?", (new_id,)).fetchone()["n"]
+        ec = c.execute("SELECT COUNT(*) n FROM expenses WHERE trip_id = ?", (new_id,)).fetchone()[
+            "n"
+        ]
         assert ec == 0
         # Days copied with dates blanked, plan text intact.
-        days = c.execute("SELECT date, morning FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL", (new_id,)).fetchall()
+        days = c.execute(
+            "SELECT date, morning FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL",
+            (new_id,),
+        ).fetchall()
         assert len(days) == 1
         assert days[0]["date"] is None
         assert days[0]["morning"] == "Visit Louvre"
         # use_count incremented.
-        uc = c.execute("SELECT use_count FROM trip_templates WHERE code = ?", (code,)).fetchone()["use_count"]
+        uc = c.execute("SELECT use_count FROM trip_templates WHERE code = ?", (code,)).fetchone()[
+            "use_count"
+        ]
         assert uc == 1
 
     # Media (markedPlaces + checklist) present via the media read path —
@@ -355,10 +478,17 @@ def test_update_template_keeps_code_and_resnapshots(client, seed_user, auth_head
     _make_creator(seed_user)
     _create_trip(client, auth_headers, trip_id="upd-src", name="Lisbon")
 
-    created = client.post("/api/templates", headers=auth_headers, json={
-        "name": "Lisbon", "sourceTripId": "upd-src",
-        "includePlans": True, "includePlaces": True, "includeChecklist": True,
-    }).get_json()["template"]
+    created = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Lisbon",
+            "sourceTripId": "upd-src",
+            "includePlans": True,
+            "includePlaces": True,
+            "includeChecklist": True,
+        },
+    ).get_json()["template"]
     tmpl_id = created["id"]
     code = created["code"]
 
@@ -370,14 +500,22 @@ def test_update_template_keeps_code_and_resnapshots(client, seed_user, auth_head
     # The creator NOW adds a to-do place (pinned to a specific day + slot)
     # and a checklist item to the SOURCE trip.
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "UPDATE trips SET marked_places_json = ?, checklist_json = ? WHERE id = ?",
             (
-                json.dumps([{
-                    "id": "p9", "name": "Belém Tower", "forManual": True,
-                    "dayId": "old-day-7", "timeOfDay": "morning",
-                }]),
+                json.dumps(
+                    [
+                        {
+                            "id": "p9",
+                            "name": "Belém Tower",
+                            "forManual": True,
+                            "dayId": "old-day-7",
+                            "timeOfDay": "morning",
+                        }
+                    ]
+                ),
                 json.dumps([{"id": "k9", "body": "Buy Lisboa card", "done": True}]),
                 "upd-src",
             ),
@@ -385,10 +523,17 @@ def test_update_template_keeps_code_and_resnapshots(client, seed_user, auth_head
         conn.commit()
 
     # Edit the template (same toggles) → re-snapshot.
-    res = client.put(f"/api/templates/{tmpl_id}", headers=auth_headers, json={
-        "name": "Lisbon", "sourceTripId": "upd-src",
-        "includePlans": True, "includePlaces": True, "includeChecklist": True,
-    })
+    res = client.put(
+        f"/api/templates/{tmpl_id}",
+        headers=auth_headers,
+        json={
+            "name": "Lisbon",
+            "sourceTripId": "upd-src",
+            "includePlans": True,
+            "includePlaces": True,
+            "includeChecklist": True,
+        },
+    )
     assert res.status_code == 200
     # THE GUARANTEE: code is unchanged so a friend's shared code keeps working.
     assert res.get_json()["template"]["code"] == code
@@ -414,12 +559,20 @@ def test_revoked_creator_can_delete_own_template(client, seed_user, auth_headers
     user's templates intentionally stay live — but they must still be able to
     remove them. The old _is_creator gate on DELETE locked them out forever."""
     from database import get_db
+
     _make_creator(seed_user)
     _create_trip(client, auth_headers, trip_id="del-src", name="Porto")
-    tmpl_id = client.post("/api/templates", headers=auth_headers, json={
-        "name": "Porto", "sourceTripId": "del-src",
-        "includePlans": True, "includePlaces": True, "includeChecklist": True,
-    }).get_json()["template"]["id"]
+    tmpl_id = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Porto",
+            "sourceTripId": "del-src",
+            "includePlans": True,
+            "includePlaces": True,
+            "includeChecklist": True,
+        },
+    ).get_json()["template"]["id"]
     # Admin revokes the user's creator status (templates intentionally stay live).
     with get_db() as conn:
         conn.execute("UPDATE users SET is_creator = 0 WHERE id = ?", (seed_user,))
@@ -429,7 +582,8 @@ def test_revoked_creator_can_delete_own_template(client, seed_user, auth_headers
     assert res.status_code == 200, res.get_data(as_text=True)
     with get_db() as conn:
         row = conn.execute(
-            "SELECT id FROM trip_templates WHERE id = ?", (tmpl_id,),
+            "SELECT id FROM trip_templates WHERE id = ?",
+            (tmpl_id,),
         ).fetchone()
     assert row is None, "template should be removed from the DB"
 
@@ -437,10 +591,17 @@ def test_revoked_creator_can_delete_own_template(client, seed_user, auth_headers
 def test_preview_public_no_auth_safe_and_404(client, seed_user, auth_headers):
     _make_creator(seed_user)
     _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src4")
-    code = client.post("/api/templates", headers=auth_headers, json={
-        "name": "Paris", "sourceTripId": "src4",
-        "includePlans": True, "includePlaces": True, "includeChecklist": True,
-    }).get_json()["template"]["code"]
+    code = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Paris",
+            "sourceTripId": "src4",
+            "includePlans": True,
+            "includePlaces": True,
+            "includeChecklist": True,
+        },
+    ).get_json()["template"]["code"]
 
     # No auth header → still works (public).
     res = client.get(f"/api/templates/preview/{code}")
@@ -461,9 +622,14 @@ def test_preview_public_no_auth_safe_and_404(client, seed_user, auth_headers):
 def test_preview_normalizes_code(client, seed_user, auth_headers):
     _make_creator(seed_user)
     _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src5")
-    code = client.post("/api/templates", headers=auth_headers, json={
-        "name": "Paris", "sourceTripId": "src5",
-    }).get_json()["template"]["code"]
+    code = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Paris",
+            "sourceTripId": "src5",
+        },
+    ).get_json()["template"]["code"]
     # Lowercase + dash separator (how a UI might display / a user might type).
     dashed_lower = (code[:4] + "-" + code[4:]).lower()
     assert client.get(f"/api/templates/preview/{dashed_lower}").status_code == 200
@@ -472,16 +638,26 @@ def test_preview_normalizes_code(client, seed_user, auth_headers):
 # ── dev-only creator grant ───────────────────────────────────────────
 def test_grant_creator_dev_only(client, seed_user, auth_headers):
     # Non-dev caller forbidden.
-    res = client.post("/api/admin/creator", headers=auth_headers, json={
-        "userId": "test-user-1", "isCreator": True,
-    })
+    res = client.post(
+        "/api/admin/creator",
+        headers=auth_headers,
+        json={
+            "userId": "test-user-1",
+            "isCreator": True,
+        },
+    )
     assert res.status_code == 403
 
     # Dev caller can grant; user-status then reflects isCreator.
     _dev_id, dev_headers = _seed_dev_user()
-    res = client.post("/api/admin/creator", headers=dev_headers, json={
-        "userId": "test-user-1", "isCreator": True,
-    })
+    res = client.post(
+        "/api/admin/creator",
+        headers=dev_headers,
+        json={
+            "userId": "test-user-1",
+            "isCreator": True,
+        },
+    )
     assert res.status_code == 200
     assert res.get_json()["isCreator"] is True
 
@@ -490,9 +666,14 @@ def test_grant_creator_dev_only(client, seed_user, auth_headers):
 
     # Granted user can now create templates.
     _create_trip(client, auth_headers, trip_id="t-after-grant", name="Trip")
-    res = client.post("/api/templates", headers=auth_headers, json={
-        "name": "T", "sourceTripId": "t-after-grant",
-    })
+    res = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "T",
+            "sourceTripId": "t-after-grant",
+        },
+    )
     assert res.status_code == 200
 
 
@@ -508,9 +689,14 @@ def test_public_preview_page_renders(client, seed_user, auth_headers):
     valid code, and 404 for a bad one — no auth needed."""
     _make_creator(seed_user)
     _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src6")
-    code = client.post("/api/templates", headers=auth_headers, json={
-        "name": "Paris", "sourceTripId": "src6",
-    }).get_json()["template"]["code"]
+    code = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Paris",
+            "sourceTripId": "src6",
+        },
+    ).get_json()["template"]["code"]
 
     res = client.get(f"/t/{code}")
     assert res.status_code == 200
@@ -525,21 +711,34 @@ def test_public_preview_page_renders(client, seed_user, auth_headers):
 
 
 def test_create_template_rejects_non_owned_trip(
-    client, seed_user, auth_headers, seed_other_user, other_auth_headers,
+    client,
+    seed_user,
+    auth_headers,
+    seed_other_user,
+    other_auth_headers,
 ):
     """A creator can only template their OWN trip — someone else's trip id
     returns 404 (no existence leak)."""
     _make_creator(seed_user)
     # Trip owned by user-2.
     _create_trip(client, other_auth_headers, trip_id="others-trip", name="Theirs")
-    res = client.post("/api/templates", headers=auth_headers, json={
-        "name": "Steal", "sourceTripId": "others-trip",
-    })
+    res = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Steal",
+            "sourceTripId": "others-trip",
+        },
+    )
     assert res.status_code == 404
 
 
 def test_instantiated_marked_places_normalized_to_manual(
-    client, seed_user, auth_headers, seed_other_user, other_auth_headers,
+    client,
+    seed_user,
+    auth_headers,
+    seed_other_user,
+    other_auth_headers,
 ):
     """A creator's AI-sourced marked places must NOT keep source='ai' in a
     template — otherwise the new owner's first Accept Plan (dropAITaggedPlaces)
@@ -548,20 +747,44 @@ def test_instantiated_marked_places_normalized_to_manual(
     _make_creator(seed_user)
     _create_trip(client, auth_headers, trip_id="srcAI", name="Lisbon")
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "UPDATE trips SET marked_places_json = ? WHERE id = ?",
-            (json.dumps([
-                {"id": "a1", "name": "Belém Tower", "forManual": True,
-                 "source": "ai", "dayId": "old-d1", "timeOfDay": "morning"},
-                {"id": "a2", "name": "Time Out Market", "forManual": True, "source": "manual"},
-            ]), "srcAI"),
+            (
+                json.dumps(
+                    [
+                        {
+                            "id": "a1",
+                            "name": "Belém Tower",
+                            "forManual": True,
+                            "source": "ai",
+                            "dayId": "old-d1",
+                            "timeOfDay": "morning",
+                        },
+                        {
+                            "id": "a2",
+                            "name": "Time Out Market",
+                            "forManual": True,
+                            "source": "manual",
+                        },
+                    ]
+                ),
+                "srcAI",
+            ),
         )
         conn.commit()
-    code = client.post("/api/templates", headers=auth_headers, json={
-        "name": "Lisbon", "sourceTripId": "srcAI",
-        "includePlans": True, "includePlaces": True, "includeChecklist": True,
-    }).get_json()["template"]["code"]
+    code = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Lisbon",
+            "sourceTripId": "srcAI",
+            "includePlans": True,
+            "includePlaces": True,
+            "includeChecklist": True,
+        },
+    ).get_json()["template"]["code"]
 
     # The frozen snapshot is already normalized (and dayId/timeOfDay stripped).
     snap = _read_snapshot(code)
@@ -572,7 +795,8 @@ def test_instantiated_marked_places_normalized_to_manual(
     # The instantiated trip's media reads source='manual' too → survives the
     # new owner's first Accept Plan.
     new_id = client.post(
-        f"/api/templates/{code}/create", headers=other_auth_headers,
+        f"/api/templates/{code}/create",
+        headers=other_auth_headers,
     ).get_json()["tripId"]
     media = client.get(f"/api/trips/{new_id}/media", headers=other_auth_headers).get_json()
     assert len(media.get("markedPlaces") or []) == 2
@@ -591,6 +815,7 @@ def test_login_response_includes_isCreator(client, monkeypatch):
     assert res.get_json()["user"]["isCreator"] is False
     # Grant creator, log in again → the LOGIN response reflects it immediately.
     from database import get_db
+
     with get_db() as conn:
         conn.execute("UPDATE users SET is_creator = 1 WHERE id = ?", ("test-creator-login",))
         conn.commit()

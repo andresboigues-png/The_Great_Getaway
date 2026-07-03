@@ -50,9 +50,13 @@ def test_delete_frees_unique_scope_slot_for_recreate(client, auth_headers):
     # category, owner) slot, so a NEW budget with the SAME scope but a fresh
     # id is accepted — the tombstone is keyed by the OLD id, so it doesn't
     # block the new one.
-    _post_budget(client, auth_headers, _budget("b3", label="Transport", categoryId="cat-x", user="Alex"))
+    _post_budget(
+        client, auth_headers, _budget("b3", label="Transport", categoryId="cat-x", user="Alex")
+    )
     assert client.delete("/api/budgets/b3", headers=auth_headers).status_code == 200
-    res = _post_budget(client, auth_headers, _budget("b4", label="Transport2", categoryId="cat-x", user="Alex"))
+    res = _post_budget(
+        client, auth_headers, _budget("b4", label="Transport2", categoryId="cat-x", user="Alex")
+    )
     assert res.status_code == 200, res.get_json()
     ids = _budget_ids(client, auth_headers)
     assert "b4" in ids and "b3" not in ids

@@ -15,20 +15,28 @@ def test_companion_self_link_persists_but_bogus_link_stripped(client, seed_user,
 
     # Upsert with a SELF-linked companion ("Andi" = the owner) plus an
     # unverified one ("Ghost") whose link must be coerced to None.
-    res = client.post("/api/trips", headers=auth_headers, json={"trip": {
-        "id": trip_id, "name": "Atlanta", "country": "USA",
-        "companions": [
-            {"name": "Andi", "linkedUserId": seed_user},
-            {"name": "Ghost", "linkedUserId": "no-such-user"},
-        ],
-    }})
+    res = client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {
+                "id": trip_id,
+                "name": "Atlanta",
+                "country": "USA",
+                "companions": [
+                    {"name": "Andi", "linkedUserId": seed_user},
+                    {"name": "Ghost", "linkedUserId": "no-such-user"},
+                ],
+            }
+        },
+    )
     assert res.status_code == 200
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     trip = next(t for t in data["trips"] if t["id"] == trip_id)
     comps = {c["name"]: c for c in trip["companions"]}
-    assert comps["Andi"]["linkedUserId"] == seed_user      # self-link kept
-    assert comps["Ghost"]["linkedUserId"] is None          # bogus link stripped
+    assert comps["Andi"]["linkedUserId"] == seed_user  # self-link kept
+    assert comps["Ghost"]["linkedUserId"] is None  # bogus link stripped
 
 
 def test_companion_unlink_persists(client, seed_user, auth_headers):
@@ -39,12 +47,26 @@ def test_companion_unlink_persists(client, seed_user, auth_headers):
     base = {"id": trip_id, "name": "Atlanta", "country": "USA"}
 
     # Link, then unlink.
-    client.post("/api/trips", headers=auth_headers, json={"trip": {
-        **base, "companions": [{"name": "Andi", "linkedUserId": seed_user}],
-    }})
-    client.post("/api/trips", headers=auth_headers, json={"trip": {
-        **base, "companions": [{"name": "Andi"}],  # linkedUserId cleared
-    }})
+    client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {
+                **base,
+                "companions": [{"name": "Andi", "linkedUserId": seed_user}],
+            }
+        },
+    )
+    client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {
+                **base,
+                "companions": [{"name": "Andi"}],  # linkedUserId cleared
+            }
+        },
+    )
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     trip = next(t for t in data["trips"] if t["id"] == trip_id)

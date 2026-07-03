@@ -5,7 +5,6 @@ test logic changed). Shared fixtures (client, auth_headers, seed_user,
 ...) come from tests/conftest.py.
 """
 
-
 import io
 
 import pytest
@@ -17,6 +16,7 @@ from tests.conftest import _create_trip
 # (Settings → "Export trip PDF" + the share-page CTA), so a regression here
 # would be silent until a user complains. R11 audit agent #5 flagged this
 # as P0.
+
 
 def test_pdf_export_404_for_unknown_trip(client, seed_user, auth_headers):
     """Bogus trip_id → 404. The route's ACL check fires AFTER the SELECT,
@@ -31,7 +31,11 @@ def test_pdf_export_404_for_unknown_trip(client, seed_user, auth_headers):
 
 
 def test_pdf_export_403_for_non_member_private_trip(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """Owner creates a private trip; non-member tries to export PDF → 403.
     PDF must respect the same read-gate as /api/trips/<id> and
@@ -46,7 +50,9 @@ def test_pdf_export_403_for_non_member_private_trip(
 
 
 def test_pdf_export_413_on_oversize_options_payload(
-    client, seed_user, auth_headers,
+    client,
+    seed_user,
+    auth_headers,
 ):
     """R2 audit fix: options payload >64KB → 413 (pdf.py:2181).
     Pre-fix a 5MB aiPlan tied up the single-thread PA worker."""
@@ -58,13 +64,14 @@ def test_pdf_export_413_on_oversize_options_payload(
         headers=auth_headers,
         json=huge_options,
     )
-    assert res.status_code == 413, (
-        f"oversize options payload must 413; got {res.status_code}"
-    )
+    assert res.status_code == 413, f"oversize options payload must 413; got {res.status_code}"
 
 
 def test_pdf_export_clamps_aiPlan_to_100_entries(
-    client, seed_user, auth_headers, monkeypatch,
+    client,
+    seed_user,
+    auth_headers,
+    monkeypatch,
 ):
     """R2 audit fix: aiPlan > 100 entries gets truncated to 100 in-place
     (pdf.py:2191). The route still 200s — we're testing the silent clamp
@@ -90,7 +97,9 @@ def test_pdf_export_clamps_aiPlan_to_100_entries(
 
 
 def test_pdf_export_invalid_options_payload(
-    client, seed_user, auth_headers,
+    client,
+    seed_user,
+    auth_headers,
 ):
     """Non-dict options that bypass Flask's JSON parsing fall into the
     `Invalid options payload` 400 branch (pdf.py:2180). Test the
@@ -110,7 +119,9 @@ def test_pdf_export_invalid_options_payload(
 
 
 def test_pdf_budget_table_labels_and_original_currency(
-    client, seed_user, auth_headers,
+    client,
+    seed_user,
+    auth_headers,
 ):
     """BUG-21 (MK2 audit): the PDF budget table must (a) derive a label
     from the budget's scope instead of printing "Untitled", and (b) show
@@ -125,13 +136,21 @@ def test_pdf_budget_table_labels_and_original_currency(
     trip_id = _create_trip(client, auth_headers, trip_id="trip-pdf-budget")
     # Trip-total budget (categoryId 'all' → "Overall"), typed as USD so
     # the per-row currency must read USD while the total is EUR.
-    bud = client.post("/api/budgets", headers=auth_headers, json={
-        "budget": {
-            "id": "bud-pdf-1", "tripId": trip_id,
-            "categoryId": "all", "user": "all",
-            "amount": 1000, "originalAmount": 1100, "originalCurrency": "USD",
+    bud = client.post(
+        "/api/budgets",
+        headers=auth_headers,
+        json={
+            "budget": {
+                "id": "bud-pdf-1",
+                "tripId": trip_id,
+                "categoryId": "all",
+                "user": "all",
+                "amount": 1000,
+                "originalAmount": 1100,
+                "originalCurrency": "USD",
+            },
         },
-    })
+    )
     assert bud.status_code in (200, 201), bud.get_data(as_text=True)
 
     res = client.post(
@@ -143,8 +162,7 @@ def test_pdf_budget_table_labels_and_original_currency(
         pytest.skip(f"PDF builder returned {res.status_code} (offline map fetch?)")
 
     text = "\n".join(
-        (page.extract_text() or "")
-        for page in pypdf.PdfReader(io.BytesIO(res.get_data())).pages
+        (page.extract_text() or "") for page in pypdf.PdfReader(io.BytesIO(res.get_data())).pages
     )
     assert "Untitled" not in text, "budget must not render as 'Untitled'"
     assert "Overall" in text, "trip-total budget should derive the 'Overall' label"

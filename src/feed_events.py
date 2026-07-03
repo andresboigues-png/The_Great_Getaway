@@ -62,6 +62,7 @@ class FeedContext:
     follow + themselves), used by IN (...) clauses in builders that
     fan out from a known set of actors.
     """
+
     user_id: str
     actor_ids: list  # follower's follow-set + themselves, de-duplicated
     actor_lookup: dict  # actor_id → {id, name, picture}
@@ -110,6 +111,7 @@ class FeedEventType:
                        — the default for everything except share and
                        repost.
     """
+
     name: str
     id_pattern: re.Pattern
     visibility_check: Callable[..., bool]
@@ -251,9 +253,8 @@ def _visible_to_friendship_party(cursor, components, user_id) -> bool:
     viewer_user_id, other_user_id = components
     if user_id in (viewer_user_id, other_user_id):
         return True
-    return (
-        is_friend_of(cursor, user_id, viewer_user_id)
-        or is_friend_of(cursor, user_id, other_user_id)
+    return is_friend_of(cursor, user_id, viewer_user_id) or is_friend_of(
+        cursor, user_id, other_user_id
     )
 
 
@@ -297,6 +298,7 @@ def _visible_to_post_friends(cursor, components, user_id) -> bool:
     author = row["user_id"]
     if user_id != author:
         from routes.blocks import is_blocked
+
         if is_blocked(cursor, author, user_id) or is_blocked(cursor, user_id, author):
             return False
     return True
@@ -327,8 +329,7 @@ def _visible_to_achievement_friends(cursor, components, user_id) -> bool:
     achievement_id = int(components[0])
     # 4.8 audit SOCIAL-4: don't let a revoked badge stay engageable.
     cursor.execute(
-        "SELECT user_id FROM user_achievements "
-        "WHERE id = ? AND revoked_at IS NULL LIMIT 1",
+        "SELECT user_id FROM user_achievements WHERE id = ? AND revoked_at IS NULL LIMIT 1",
         (achievement_id,),
     )
     row = cursor.fetchone()
@@ -473,29 +474,35 @@ def _build_friend_created_trip(cursor, ctx: FeedContext) -> list:
         kind = row["evt_kind"]
         trip_dict = {"id": row["id"], "name": row["name"], "country": row["country"]}
         if kind == "created":
-            events.append({
-                "id": f"trip_created_{row['id']}",
-                "type": "friend_created_trip",
-                "actor": actor,
-                "trip": trip_dict,
-                "when": row["when_ts"],
-            })
+            events.append(
+                {
+                    "id": f"trip_created_{row['id']}",
+                    "type": "friend_created_trip",
+                    "actor": actor,
+                    "trip": trip_dict,
+                    "when": row["when_ts"],
+                }
+            )
         elif kind == "archived":
-            events.append({
-                "id": f"trip_archived_{row['id']}",
-                "type": "friend_archived_trip",
-                "actor": actor,
-                "trip": trip_dict,
-                "when": row["when_ts"],
-            })
+            events.append(
+                {
+                    "id": f"trip_archived_{row['id']}",
+                    "type": "friend_archived_trip",
+                    "actor": actor,
+                    "trip": trip_dict,
+                    "when": row["when_ts"],
+                }
+            )
         else:  # 'joined'
-            events.append({
-                "id": f"trip_joined_{row['id']}_{row['actor_id']}",
-                "type": "friend_joined_trip",
-                "actor": actor,
-                "trip": trip_dict,
-                "when": row["when_ts"],
-            })
+            events.append(
+                {
+                    "id": f"trip_joined_{row['id']}_{row['actor_id']}",
+                    "type": "friend_joined_trip",
+                    "actor": actor,
+                    "trip": trip_dict,
+                    "when": row["when_ts"],
+                }
+            )
     return events
 
 
@@ -522,7 +529,8 @@ def _build_new_friendship(cursor, ctx: FeedContext) -> list:
 
     Event id stays `friendship_<caller>_<other>` for back-compat with
     the visibility check resolver."""
-    cursor.execute('''
+    cursor.execute(
+        '''
         SELECT u.id, u.name, u.picture,
                MAX(f1.created_at, f2.created_at) AS mutual_at
         FROM follows f1
@@ -533,15 +541,19 @@ def _build_new_friendship(cursor, ctx: FeedContext) -> list:
         WHERE f1.follower_id = ?
           AND MAX(f1.created_at, f2.created_at) >= datetime('now', '-30 days')
         ORDER BY mutual_at DESC
-    ''', (ctx.user_id,))
+    ''',
+        (ctx.user_id,),
+    )
     events = []
     for row in cursor.fetchall():
-        events.append({
-            "id": f"friendship_{ctx.user_id}_{row['id']}",
-            "type": "new_friendship",
-            "actor": {"id": row["id"], "name": row["name"], "picture": row["picture"]},
-            "when": row["mutual_at"],
-        })
+        events.append(
+            {
+                "id": f"friendship_{ctx.user_id}_{row['id']}",
+                "type": "new_friendship",
+                "actor": {"id": row["id"], "name": row["name"], "picture": row["picture"]},
+                "when": row["mutual_at"],
+            }
+        )
     return events
 
 
@@ -551,7 +563,8 @@ def _build_friend_shared_trip(cursor, ctx: FeedContext) -> list:
     if not ctx.actor_ids:
         return []
     placeholders = ",".join(["?"] * len(ctx.actor_ids))
-    cursor.execute(f'''
+    cursor.execute(
+        f'''
         SELECT fp.id, fp.user_id AS sharer_id, fp.trip_id, fp.created_at, fp.caption,
                u.name AS sharer_name, u.picture AS sharer_picture,
                t.name AS trip_name, t.country AS trip_country
@@ -568,18 +581,30 @@ def _build_friend_shared_trip(cursor, ctx: FeedContext) -> list:
           -- again the card returns naturally (non-destructive).
           AND COALESCE(t.is_public, 0) = 1
         ORDER BY fp.created_at DESC
-    ''', ctx.actor_ids)
+    ''',
+        ctx.actor_ids,
+    )
     events = []
     for row in cursor.fetchall():
-        events.append({
-            "id": f"share_{row['id']}",
-            "type": "friend_shared_trip",
-            "actor": {"id": row['sharer_id'], "name": row['sharer_name'], "picture": row['sharer_picture']},
-            "trip": {"id": row['trip_id'], "name": row['trip_name'], "country": row['trip_country']},
-            "post_id": row['id'],
-            "caption": row['caption'],
-            "when": row['created_at'],
-        })
+        events.append(
+            {
+                "id": f"share_{row['id']}",
+                "type": "friend_shared_trip",
+                "actor": {
+                    "id": row['sharer_id'],
+                    "name": row['sharer_name'],
+                    "picture": row['sharer_picture'],
+                },
+                "trip": {
+                    "id": row['trip_id'],
+                    "name": row['trip_name'],
+                    "country": row['trip_country'],
+                },
+                "post_id": row['id'],
+                "caption": row['caption'],
+                "when": row['created_at'],
+            }
+        )
     return events
 
 
@@ -590,7 +615,8 @@ def _build_friend_reposted_trip(cursor, ctx: FeedContext) -> list:
     if not ctx.actor_ids:
         return []
     placeholders = ",".join(["?"] * len(ctx.actor_ids))
-    cursor.execute(f'''
+    cursor.execute(
+        f'''
         SELECT fp.id, fp.user_id AS reposter_id, fp.trip_id, fp.created_at,
                u.name AS reposter_name, u.picture AS reposter_picture,
                t.name AS trip_name, t.country AS trip_country,
@@ -622,19 +648,35 @@ def _build_friend_reposted_trip(cursor, ctx: FeedContext) -> list:
           -- public (same rationale as the share builder above).
           AND COALESCE(t.is_public, 0) = 1
         ORDER BY fp.created_at DESC
-    ''', list(ctx.actor_ids) + [ctx.user_id, ctx.user_id])
+    ''',
+        list(ctx.actor_ids) + [ctx.user_id, ctx.user_id],
+    )
     events = []
     for row in cursor.fetchall():
-        events.append({
-            "id": f"repost_{row['id']}",
-            "type": "friend_reposted_trip",
-            "actor": {"id": row['reposter_id'], "name": row['reposter_name'], "picture": row['reposter_picture']},
-            "original_sharer": {"id": row['original_sharer_id'], "name": row['original_sharer_name'], "picture": row['original_sharer_picture']},
-            "trip": {"id": row['trip_id'], "name": row['trip_name'], "country": row['trip_country']},
-            "post_id": row['id'],
-            "caption": row['original_caption'],
-            "when": row['created_at'],
-        })
+        events.append(
+            {
+                "id": f"repost_{row['id']}",
+                "type": "friend_reposted_trip",
+                "actor": {
+                    "id": row['reposter_id'],
+                    "name": row['reposter_name'],
+                    "picture": row['reposter_picture'],
+                },
+                "original_sharer": {
+                    "id": row['original_sharer_id'],
+                    "name": row['original_sharer_name'],
+                    "picture": row['original_sharer_picture'],
+                },
+                "trip": {
+                    "id": row['trip_id'],
+                    "name": row['trip_name'],
+                    "country": row['trip_country'],
+                },
+                "post_id": row['id'],
+                "caption": row['original_caption'],
+                "when": row['created_at'],
+            }
+        )
     return events
 
 
@@ -671,8 +713,7 @@ def _build_settled_up(cursor, ctx: FeedContext) -> list:
         "  AND s.to_user_id   NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?) "
         "  AND s.to_user_id   NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?) "
         "ORDER BY s.created_at DESC",
-        (ctx.user_id, ctx.user_id,
-         ctx.user_id, ctx.user_id, ctx.user_id, ctx.user_id),
+        (ctx.user_id, ctx.user_id, ctx.user_id, ctx.user_id, ctx.user_id, ctx.user_id),
     )
     events = []
     for row in cursor.fetchall():
@@ -686,21 +727,23 @@ def _build_settled_up(cursor, ctx: FeedContext) -> list:
             "name": row["to_name"],
             "picture": row["to_picture"],
         }
-        events.append({
-            "id": f"settled_up_{row['id']}",
-            "type": "settled_up",
-            "actor": actor,
-            "recipient": recipient,
-            "trip": {
-                "id": row["trip_id"],
-                "name": row["trip_name"],
-                "country": row["trip_country"],
-            },
-            "amount": row["amount"],
-            "currency": row["currency"],
-            "note": row["note"],
-            "when": row["created_at"],
-        })
+        events.append(
+            {
+                "id": f"settled_up_{row['id']}",
+                "type": "settled_up",
+                "actor": actor,
+                "recipient": recipient,
+                "trip": {
+                    "id": row["trip_id"],
+                    "name": row["trip_name"],
+                    "country": row["trip_country"],
+                },
+                "amount": row["amount"],
+                "currency": row["currency"],
+                "note": row["note"],
+                "when": row["created_at"],
+            }
+        )
     return events
 
 
@@ -742,18 +785,20 @@ def _build_achievement_unlocked(cursor, ctx: FeedContext) -> list:
         if not actor:
             continue
         bdef = BADGES_BY_ID.get(row["badge_id"])
-        events.append({
-            "id": f"achievement_{row['id']}",
-            "type": "achievement_unlocked",
-            "actor": actor,
-            "badge": {
-                "id": row["badge_id"],
-                "label": bdef.label if bdef else row["badge_id"],
-                "emoji": bdef.emoji if bdef else "🏅",
-                "description": bdef.description if bdef else "",
-            },
-            "when": row["earned_at"],
-        })
+        events.append(
+            {
+                "id": f"achievement_{row['id']}",
+                "type": "achievement_unlocked",
+                "actor": actor,
+                "badge": {
+                    "id": row["badge_id"],
+                    "label": bdef.label if bdef else row["badge_id"],
+                    "emoji": bdef.emoji if bdef else "🏅",
+                    "description": bdef.description if bdef else "",
+                },
+                "when": row["earned_at"],
+            }
+        )
     return events
 
 
@@ -1147,7 +1192,8 @@ def build_feed_context(cursor, user_id: str) -> FeedContext:
     # incoming direction). Now we add a second NOT IN that excludes
     # blockers of the caller too. Matches the bidirectional shape
     # used by get_public_profile / get_public_trip / fetch_share_payload.
-    cursor.execute('''
+    cursor.execute(
+        '''
         SELECT u.id, u.name, u.picture
         FROM users u
         JOIN follows f ON u.id = f.followee_id
@@ -1158,17 +1204,16 @@ def build_feed_context(cursor, user_id: str) -> FeedContext:
           AND u.id NOT IN (
               SELECT blocker_id FROM blocks WHERE blocked_id = ?
           )
-    ''', (user_id, user_id, user_id))
+    ''',
+        (user_id, user_id, user_id),
+    )
     followed_rows = [dict(r) for r in cursor.fetchall()]
     followed_ids = [f["id"] for f in followed_rows]
     followed_lookup = {f["id"]: f for f in followed_rows}
 
     cursor.execute("SELECT id, name, picture FROM users WHERE id = ?", (user_id,))
     me_row = cursor.fetchone()
-    me_lookup = (
-        dict(me_row) if me_row
-        else {"id": user_id, "name": "You", "picture": None}
-    )
+    me_lookup = dict(me_row) if me_row else {"id": user_id, "name": "You", "picture": None}
     actor_lookup = {**followed_lookup, user_id: me_lookup}
     actor_ids = list(set(followed_ids + [user_id]))
     return FeedContext(

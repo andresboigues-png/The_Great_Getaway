@@ -23,6 +23,7 @@ Additive, DEFAULT 0: legacy rows read as "did not mint" (safe — we never
 null a token we can't prove we minted). Mirrored in database.py init_db for
 fresh installs.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

@@ -31,6 +31,7 @@ Three audit findings from the 2026-05-18 full-stack sweep:
    so the historical roster reads correctly in the new-friendship
    feed builder's 30-day window check.
 """
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -44,10 +45,7 @@ def upgrade() -> None:
     # ── (3) Backfill any pre-existing NULL friends.created_at so the
     # 30-day window check in the new-friendship feed builder doesn't
     # silently drop legacy rows. Cheap one-shot UPDATE.
-    op.execute(
-        "UPDATE friends SET created_at = CURRENT_TIMESTAMP "
-        "WHERE created_at IS NULL"
-    )
+    op.execute("UPDATE friends SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
 
     # ── (1) Restore the DEFAULT CURRENT_TIMESTAMP on friends.created_at.
     # SQLite doesn't support ALTER COLUMN, so the only path is a table
@@ -90,14 +88,8 @@ def upgrade() -> None:
     # ── (2) Cover-index the FK referencing columns that previously
     # forced a full scan on cascade. `IF NOT EXISTS` so this migration
     # is safe to re-run.
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_feed_comments_user "
-        "ON feed_comments(user_id)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_feed_posts_repost "
-        "ON feed_posts(repost_of_post_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_feed_comments_user ON feed_comments(user_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_feed_posts_repost ON feed_posts(repost_of_post_id)")
 
 
 def downgrade() -> None:

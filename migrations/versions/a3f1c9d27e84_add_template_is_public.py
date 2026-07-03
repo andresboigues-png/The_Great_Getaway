@@ -10,6 +10,7 @@ showing on Discover exactly as before — the column adds an OPT-OUT, not
 a behaviour change. A creator can flip a template to unlisted so it's
 reachable only via its /t/<code> share link.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

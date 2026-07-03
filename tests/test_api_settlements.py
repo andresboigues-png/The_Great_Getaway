@@ -5,12 +5,15 @@ test logic changed). Shared fixtures (client, auth_headers, seed_user,
 ...) come from tests/conftest.py.
 """
 
-
 from tests.conftest import _befriend, _create_trip, _seed_member
 
 
 def test_settlement_party_fk_set_null_on_user_delete(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """R3-Fix #5: pre-fix, settlements.from_user_id and to_user_id
     were ON DELETE CASCADE. When the from-party deleted their account,
@@ -24,20 +27,38 @@ def test_settlement_party_fk_set_null_on_user_delete(
     # as planner; Bruno accepts. Both are now accepted members — the
     # route gates settlements on both parties being accepted.
     trip_id = _create_trip(client, auth_headers, trip_id="trip-fk-settle")
-    client.post("/api/trips/invite", headers=auth_headers, json={
-        "trip_id": trip_id,
-        "target_user_id": seed_other_user,
-        "role": "planner",
-    })
-    client.post("/api/trips/invite/respond", headers=other_auth_headers, json={
-        "trip_id": trip_id, "accept": True,
-    })
+    client.post(
+        "/api/trips/invite",
+        headers=auth_headers,
+        json={
+            "trip_id": trip_id,
+            "target_user_id": seed_other_user,
+            "role": "planner",
+        },
+    )
+    client.post(
+        "/api/trips/invite/respond",
+        headers=other_auth_headers,
+        json={
+            "trip_id": trip_id,
+            "accept": True,
+        },
+    )
     # Ana records a settlement: Ana paid Bruno €50.
-    res = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id, "fromName": "Ana", "toName": "Bruno",
-        "fromUserId": seed_user, "toUserId": seed_other_user,
-        "amount": 50, "currency": "EUR", "euroValue": 50,
-    })
+    res = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromName": "Ana",
+            "toName": "Bruno",
+            "fromUserId": seed_user,
+            "toUserId": seed_other_user,
+            "amount": 50,
+            "currency": "EUR",
+            "euroValue": 50,
+        },
+    )
     assert res.status_code == 201, res.get_json()
     settlement_id = res.get_json()["settlement"]["id"]
 
@@ -48,10 +69,10 @@ def test_settlement_party_fk_set_null_on_user_delete(
     # The settlement row STILL EXISTS — to_user_id is now NULL,
     # to_name snapshot preserved.
     from database import get_db
+
     with get_db() as conn:
         row = conn.execute(
-            "SELECT id, from_user_id, to_user_id, from_name, to_name "
-            "FROM settlements WHERE id = ?",
+            "SELECT id, from_user_id, to_user_id, from_name, to_name FROM settlements WHERE id = ?",
             (settlement_id,),
         ).fetchone()
         assert row is not None, "settlement got cascade-deleted on user delete"
@@ -60,28 +81,35 @@ def test_settlement_party_fk_set_null_on_user_delete(
         # insert time) survives. Don't assert the exact string — different
         # fixtures pick different display names — just confirm we still
         # have the audit trail.
-        assert row["to_name"], \
-            "to_name snapshot was lost on user delete (audit trail broken)"
+        assert row["to_name"], "to_name snapshot was lost on user delete (audit trail broken)"
 
 
 def test_settle_up_happy_path(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """Member creates a settlement row — response is 201 with the
     serialized settlement, GET round-trips it, /api/data includes it."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-settle-1")
     _seed_member(trip_id, seed_other_user, role="relaxer")
 
-    res = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_other_user,
-        "toUserId": seed_user,
-        "amount": 45.0,
-        "currency": "EUR",
-        "euroValue": 45.0,
-        "method": "cash",
-        "note": "Lisbon dinner",
-    })
+    res = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 45.0,
+            "currency": "EUR",
+            "euroValue": 45.0,
+            "method": "cash",
+            "note": "Lisbon dinner",
+        },
+    )
     assert res.status_code == 201
     s = res.get_json()["settlement"]
     assert s["tripId"] == trip_id
@@ -101,7 +129,10 @@ def test_settle_up_happy_path(
 
 
 def test_settlement_rejects_overpayment_beyond_trip_spend(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """BUG-24 (MK2 audit): the server must reject a settlement larger
     than the whole trip's spend. The persona logged a €10,000 settlement
@@ -111,35 +142,61 @@ def test_settlement_rejects_overpayment_beyond_trip_spend(
     trip_id = _create_trip(client, auth_headers, trip_id="trip-overpay")
     _seed_member(trip_id, seed_other_user, role="relaxer")
     # One €45 expense → total trip spend = €45.
-    exp = client.post("/api/expenses", headers=auth_headers, json={
-        "expense": {
-            "id": "exp-overpay-1", "tripId": trip_id,
-            "who": "Owner", "value": 45, "currency": "EUR",
-            "euroValue": 45, "label": "Dinner", "date": "2026-01-02",
+    exp = client.post(
+        "/api/expenses",
+        headers=auth_headers,
+        json={
+            "expense": {
+                "id": "exp-overpay-1",
+                "tripId": trip_id,
+                "who": "Owner",
+                "value": 45,
+                "currency": "EUR",
+                "euroValue": 45,
+                "label": "Dinner",
+                "date": "2026-01-02",
+            },
         },
-    })
+    )
     assert exp.status_code == 200
 
     # €10,000 settlement on a €45 trip → rejected, with the cap surfaced.
-    over = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_other_user, "toUserId": seed_user,
-        "amount": 10000.0, "currency": "EUR", "euroValue": 10000.0,
-    })
+    over = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 10000.0,
+            "currency": "EUR",
+            "euroValue": 10000.0,
+        },
+    )
     assert over.status_code == 400, over.get_data(as_text=True)
     assert "maxEur" in over.get_json()
 
     # A settlement within the trip's spend still goes through.
-    ok = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_other_user, "toUserId": seed_user,
-        "amount": 22.5, "currency": "EUR", "euroValue": 22.5,
-    })
+    ok = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 22.5,
+            "currency": "EUR",
+            "euroValue": 22.5,
+        },
+    )
     assert ok.status_code == 201, ok.get_data(as_text=True)
 
 
 def test_settlement_zero_spend_allows_normal_blocks_absurd(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """Integration audit B3: a trip with NO recorded expenses can't ground a
     debt, so we still allow off-app cash debts logged after the fact (a
@@ -150,24 +207,41 @@ def test_settlement_zero_spend_allows_normal_blocks_absurd(
     trip_id = _create_trip(client, auth_headers, trip_id="trip-nocap")
     _seed_member(trip_id, seed_other_user, role="relaxer")
     # Normal off-app debt → still accepted (no regression to the happy path).
-    ok = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_other_user, "toUserId": seed_user,
-        "amount": 500.0, "currency": "EUR", "euroValue": 500.0,
-    })
+    ok = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 500.0,
+            "currency": "EUR",
+            "euroValue": 500.0,
+        },
+    )
     assert ok.status_code == 201, ok.get_data(as_text=True)
     # Absurd amount → rejected with the sanity ceiling surfaced.
-    absurd = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_other_user, "toUserId": seed_user,
-        "amount": 100_000_000.0, "currency": "EUR", "euroValue": 100_000_000.0,
-    })
+    absurd = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 100_000_000.0,
+            "currency": "EUR",
+            "euroValue": 100_000_000.0,
+        },
+    )
     assert absurd.status_code == 400, absurd.get_data(as_text=True)
     assert "maxEur" in absurd.get_json()
 
 
 def test_settlement_cap_blocks_partial_payment_sequence_overpay(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """Integration audit B2: the cap now subtracts what `from` has ALREADY
     paid `to`, so a partial-payment SEQUENCE can't slip past it and invert
@@ -177,33 +251,59 @@ def test_settlement_cap_blocks_partial_payment_sequence_overpay(
     bounded by trip spend."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-seq")
     _seed_member(trip_id, seed_other_user, role="relaxer")
-    exp = client.post("/api/expenses", headers=auth_headers, json={
-        "expense": {
-            "id": "exp-seq-1", "tripId": trip_id,
-            "who": "Owner", "value": 100, "currency": "EUR",
-            "euroValue": 100, "label": "Villa", "date": "2026-01-02",
+    exp = client.post(
+        "/api/expenses",
+        headers=auth_headers,
+        json={
+            "expense": {
+                "id": "exp-seq-1",
+                "tripId": trip_id,
+                "who": "Owner",
+                "value": 100,
+                "currency": "EUR",
+                "euroValue": 100,
+                "label": "Villa",
+                "date": "2026-01-02",
+            },
         },
-    })
+    )
     assert exp.status_code == 200
     # First €60 → within the €100 spend → accepted.
-    first = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_other_user, "toUserId": seed_user,
-        "amount": 60.0, "currency": "EUR", "euroValue": 60.0,
-    })
+    first = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 60.0,
+            "currency": "EUR",
+            "euroValue": 60.0,
+        },
+    )
     assert first.status_code == 201, first.get_data(as_text=True)
     # Second €60 → running total €120 > €100 spend → rejected (pre-fix: 201).
-    second = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_other_user, "toUserId": seed_user,
-        "amount": 60.0, "currency": "EUR", "euroValue": 60.0,
-    })
+    second = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 60.0,
+            "currency": "EUR",
+            "euroValue": 60.0,
+        },
+    )
     assert second.status_code == 400, second.get_data(as_text=True)
     assert "maxEur" in second.get_json()
 
 
 def test_settlement_cap_ignores_softdeleted_expense_spend(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """MK4 SETL-1: the over-settlement cap must NOT count SOFT-DELETED
     (tombstoned) expenses in total_spend. Expense delete is a soft delete
@@ -216,30 +316,54 @@ def test_settlement_cap_ignores_softdeleted_expense_spend(
     trip_id = _create_trip(client, auth_headers, trip_id="trip-softdel-cap")
     _seed_member(trip_id, seed_other_user, role="relaxer")
     # A €1000 expense → live spend €1000.
-    exp = client.post("/api/expenses", headers=auth_headers, json={
-        "expense": {
-            "id": "exp-softdel-1", "tripId": trip_id,
-            "who": "Owner", "value": 1000, "currency": "EUR",
-            "euroValue": 1000, "label": "Villa", "date": "2026-01-02",
+    exp = client.post(
+        "/api/expenses",
+        headers=auth_headers,
+        json={
+            "expense": {
+                "id": "exp-softdel-1",
+                "tripId": trip_id,
+                "who": "Owner",
+                "value": 1000,
+                "currency": "EUR",
+                "euroValue": 1000,
+                "label": "Villa",
+                "date": "2026-01-02",
+            },
         },
-    })
+    )
     assert exp.status_code == 200
     # While the expense is LIVE, a €900 settlement is within spend → 201.
-    live_ok = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_other_user, "toUserId": seed_user,
-        "amount": 900.0, "currency": "EUR", "euroValue": 900.0,
-    })
+    live_ok = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 900.0,
+            "currency": "EUR",
+            "euroValue": 900.0,
+        },
+    )
     assert live_ok.status_code == 201, live_ok.get_data(as_text=True)
     # Undo that settlement so it doesn't skew the post-delete cap, then
     # soft-delete the grounding expense.
     sid = live_ok.get_json()["settlement"]["id"]
-    assert client.delete(
-        f"/api/settlements/{sid}", headers=auth_headers,
-    ).status_code == 200
-    assert client.delete(
-        "/api/expenses/exp-softdel-1", headers=auth_headers,
-    ).status_code == 200
+    assert (
+        client.delete(
+            f"/api/settlements/{sid}",
+            headers=auth_headers,
+        ).status_code
+        == 200
+    )
+    assert (
+        client.delete(
+            "/api/expenses/exp-softdel-1",
+            headers=auth_headers,
+        ).status_code
+        == 200
+    )
 
     # Live spend is now €0. The cap query must read €0 (not the
     # tombstoned €1000), so a €900 settlement grounded only on the
@@ -250,11 +374,18 @@ def test_settlement_cap_ignores_softdeleted_expense_spend(
     # permitted is now rejected, proving the tombstone no longer grounds
     # the cap. We assert the maxEur surfaced is the zero-spend ceiling,
     # not the ~€1010 spend cap.
-    over = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_other_user, "toUserId": seed_user,
-        "amount": 2_000_000.0, "currency": "EUR", "euroValue": 2_000_000.0,
-    })
+    over = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 2_000_000.0,
+            "currency": "EUR",
+            "euroValue": 2_000_000.0,
+        },
+    )
     assert over.status_code == 400, over.get_data(as_text=True)
     # The ceiling is the zero-spend sanity bound (1_000_000), NOT a
     # spend-derived cap of ~€1010 — confirms total_spend collapsed to €0
@@ -263,7 +394,11 @@ def test_settlement_cap_ignores_softdeleted_expense_spend(
 
 
 def test_member_sees_settlement_between_other_members_in_data(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """4.8 audit MONEY-3: a trip member who is NOT a party to a settlement
     must still receive it in /api/data so their balance subtracts it.
@@ -272,6 +407,7 @@ def test_member_sees_settlement_between_other_members_in_data(
     suggested-payment graph."""
     from auth import issue_token
     from database import get_db
+
     trip_id = _create_trip(client, auth_headers, trip_id="trip-money3")
     _seed_member(trip_id, seed_other_user, role="planner")
     user_c = "test-user-c"
@@ -284,33 +420,50 @@ def test_member_sees_settlement_between_other_members_in_data(
     _seed_member(trip_id, user_c, role="planner")
     headers_c = {"Authorization": f"Bearer {issue_token(user_c)}"}
     # A records that B paid A — C is neither party.
-    res = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id, "fromUserId": seed_other_user, "toUserId": seed_user,
-        "amount": 30.0, "currency": "EUR", "euroValue": 30.0,
-    })
+    res = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 30.0,
+            "currency": "EUR",
+            "euroValue": 30.0,
+        },
+    )
     assert res.status_code == 201
     sid = res.get_json()["settlement"]["id"]
     # C (accepted member, non-party) MUST receive the settlement.
     data_c = client.get("/api/data", headers=headers_c).get_json()
-    assert any(x["id"] == sid for x in data_c["settlements"]), \
+    assert any(x["id"] == sid for x in data_c["settlements"]), (
         "non-party member must receive the settlement for a correct balance (MONEY-3)"
+    )
 
 
 def test_settle_up_rejects_non_member(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """A user who isn't on the trip can't log settlements onto it — even
     if the from/to ids would otherwise be valid. Prevents spam in the
     settlement page + the notifications fan-out."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-settle-stranger")
     # seed_other_user is NOT a member.
-    res = client.post("/api/settlements", headers=other_auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_user,
-        "toUserId": seed_other_user,
-        "amount": 10.0,
-        "currency": "EUR",
-    })
+    res = client.post(
+        "/api/settlements",
+        headers=other_auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_user,
+            "toUserId": seed_other_user,
+            "amount": 10.0,
+            "currency": "EUR",
+        },
+    )
     assert res.status_code == 403
 
 
@@ -318,6 +471,7 @@ def _seed_third_user(uid, email):
     """Insert a bare user row + return their auth headers (for 3-party tests)."""
     from auth import issue_token
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
@@ -328,7 +482,10 @@ def _seed_third_user(uid, email):
 
 
 def test_relaxer_cannot_fabricate_settlement_between_others(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """Audit MK5 BUG-054 (security): a non-party RELAXER must NOT be able to
     record a settlement between two OTHER members. Pre-fix any accepted member
@@ -340,15 +497,26 @@ def test_relaxer_cannot_fabricate_settlement_between_others(
     headers_c = _seed_third_user(user_c, "c054@example.com")
     _seed_member(trip_id, user_c, role="relaxer")
     # C (a relaxer, neither party) tries to assert "owner paid B".
-    res = client.post("/api/settlements", headers=headers_c, json={
-        "tripId": trip_id, "fromUserId": seed_user, "toUserId": seed_other_user,
-        "amount": 50.0, "currency": "EUR", "euroValue": 50.0,
-    })
+    res = client.post(
+        "/api/settlements",
+        headers=headers_c,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_user,
+            "toUserId": seed_other_user,
+            "amount": 50.0,
+            "currency": "EUR",
+            "euroValue": 50.0,
+        },
+    )
     assert res.status_code == 403, res.get_json()
 
 
 def test_relaxer_party_can_still_record_own_settlement(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """Audit MK5 BUG-054: the security gate must NOT block the legit case — a
     relaxer logging a payment they themselves are a party to."""
@@ -358,15 +526,26 @@ def test_relaxer_party_can_still_record_own_settlement(
     headers_c = _seed_third_user(user_c, "c054b@example.com")
     _seed_member(trip_id, user_c, role="relaxer")
     # C is the PAYER → allowed even as a relaxer.
-    res = client.post("/api/settlements", headers=headers_c, json={
-        "tripId": trip_id, "fromUserId": user_c, "toUserId": seed_user,
-        "amount": 20.0, "currency": "EUR", "euroValue": 20.0,
-    })
+    res = client.post(
+        "/api/settlements",
+        headers=headers_c,
+        json={
+            "tripId": trip_id,
+            "fromUserId": user_c,
+            "toUserId": seed_user,
+            "amount": 20.0,
+            "currency": "EUR",
+            "euroValue": 20.0,
+        },
+    )
     assert res.status_code == 201, res.get_json()
 
 
 def test_recorder_can_delete_own_recorded_settlement(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """Audit MK5 BUG-054: a planner who records a settlement on the parties'
     behalf can DELETE it (recorded_by), instead of stranding a mistaken entry
@@ -377,10 +556,18 @@ def test_recorder_can_delete_own_recorded_settlement(
     headers_c = _seed_third_user(user_c, "c054c@example.com")
     _seed_member(trip_id, user_c, role="planner")
     # C (a planner, non-party) records "owner paid B".
-    res = client.post("/api/settlements", headers=headers_c, json={
-        "tripId": trip_id, "fromUserId": seed_user, "toUserId": seed_other_user,
-        "amount": 25.0, "currency": "EUR", "euroValue": 25.0,
-    })
+    res = client.post(
+        "/api/settlements",
+        headers=headers_c,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_user,
+            "toUserId": seed_other_user,
+            "amount": 25.0,
+            "currency": "EUR",
+            "euroValue": 25.0,
+        },
+    )
     assert res.status_code == 201, res.get_json()
     sid = res.get_json()["settlement"]["id"]
     # C is neither owner nor payer, but IS the recorder → can delete.
@@ -389,20 +576,27 @@ def test_recorder_can_delete_own_recorded_settlement(
 
 
 def test_settle_up_rejects_from_or_to_non_member(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """The two parties on a settlement must BOTH be trip members.
     Without this gate a planner could log payments to/from arbitrary
     user_ids and spam them with notifications."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-settle-ghost")
     # seed_other_user not on the trip.
-    res = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_user,
-        "toUserId": seed_other_user,
-        "amount": 10.0,
-        "currency": "EUR",
-    })
+    res = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_user,
+            "toUserId": seed_other_user,
+            "amount": 10.0,
+            "currency": "EUR",
+        },
+    )
     assert res.status_code == 400
 
 
@@ -412,28 +606,40 @@ def test_settle_up_rejects_self_pay_and_bad_amounts(client, seed_user, auth_head
     from divide-by-zero / negative-debt math errors."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-settle-bad")
 
-    same = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_user,
-        "toUserId": seed_user,
-        "amount": 10.0,
-    })
+    same = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_user,
+            "toUserId": seed_user,
+            "amount": 10.0,
+        },
+    )
     assert same.status_code == 400
 
-    nan = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_user,
-        "toUserId": "anyone",
-        "amount": "not-a-number",
-    })
+    nan = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_user,
+            "toUserId": "anyone",
+            "amount": "not-a-number",
+        },
+    )
     assert nan.status_code == 400
 
-    zero = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_user,
-        "toUserId": "anyone",
-        "amount": 0,
-    })
+    zero = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_user,
+            "toUserId": "anyone",
+            "amount": 0,
+        },
+    )
     assert zero.status_code == 400
 
     # R9-B1 M2: NaN + Infinity DO parse via float() and would have
@@ -442,25 +648,35 @@ def test_settle_up_rejects_self_pay_and_bad_amounts(client, seed_user, auth_head
     # added an explicit `math.isfinite` check for exactly this
     # reason — pin it so a future "simplify the validation"
     # refactor can't silently regress.
-    nan_str = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_user,
-        "toUserId": "anyone",
-        "amount": "NaN",
-    })
+    nan_str = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_user,
+            "toUserId": "anyone",
+            "amount": "NaN",
+        },
+    )
     assert nan_str.status_code == 400, "NaN amount must be rejected"
 
-    inf_str = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_user,
-        "toUserId": "anyone",
-        "amount": "Infinity",
-    })
+    inf_str = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_user,
+            "toUserId": "anyone",
+            "amount": "Infinity",
+        },
+    )
     assert inf_str.status_code == 400, "Infinity amount must be rejected"
 
 
 def test_settlement_failure_error_shape_is_top_level_error_key(
-    client, seed_user, auth_headers,
+    client,
+    seed_user,
+    auth_headers,
 ):
     """R12-B2: pin the FAILURE error shape the frontend toast depends
     on. The `settlement/actions.ts` settle-now path renders
@@ -472,22 +688,30 @@ def test_settlement_failure_error_shape_is_top_level_error_key(
     carries a top-level string `error` key — the contract the toast
     reads from."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-settle-errshape")
-    res = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_user,
-        "toUserId": seed_user,  # self-pay → rejected
-        "amount": 10.0,
-    })
+    res = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_user,
+            "toUserId": seed_user,  # self-pay → rejected
+            "amount": 10.0,
+        },
+    )
     assert res.status_code == 400
     body = res.get_json()
     assert isinstance(body, dict)
     assert "error" in body, "failure body must carry a top-level `error` key"
-    assert isinstance(body["error"], str) and body["error"], \
+    assert isinstance(body["error"], str) and body["error"], (
         "`error` must be a non-empty string the toast can interpolate"
+    )
 
 
 def test_settle_up_notification_to_recipient(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """Posting a settlement where caller != recipient creates a
     `settled_up` notification on the recipient. Without this, the
@@ -496,16 +720,21 @@ def test_settle_up_notification_to_recipient(
     trip_id = _create_trip(client, auth_headers, trip_id="trip-settle-notify")
     _seed_member(trip_id, seed_other_user, role="planner")
 
-    res = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_user,
-        "toUserId": seed_other_user,
-        "amount": 20.0,
-        "currency": "EUR",
-    })
+    res = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_user,
+            "toUserId": seed_other_user,
+            "amount": 20.0,
+            "currency": "EUR",
+        },
+    )
     assert res.status_code == 201
 
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
         c.execute(
@@ -517,7 +746,10 @@ def test_settle_up_notification_to_recipient(
 
 
 def test_settle_up_self_recorded_no_self_notification(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """When the caller IS the recipient (they logged "I received Sara's
     €45") we skip the notification — the payee doesn't need to be
@@ -525,16 +757,21 @@ def test_settle_up_self_recorded_no_self_notification(
     trip_id = _create_trip(client, auth_headers, trip_id="trip-settle-self")
     _seed_member(trip_id, seed_other_user, role="relaxer")
 
-    res = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_other_user,
-        "toUserId": seed_user,
-        "amount": 30.0,
-        "currency": "EUR",
-    })
+    res = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 30.0,
+            "currency": "EUR",
+        },
+    )
     assert res.status_code == 201
 
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
         c.execute("SELECT 1 FROM notifications WHERE user_id = ?", (seed_user,))
@@ -542,20 +779,28 @@ def test_settle_up_self_recorded_no_self_notification(
 
 
 def test_settle_up_delete_payer_can(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """The payer (`from_user_id`) can delete their own settlement —
     they typed it, they can retract it."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-settle-undo-payer")
     _seed_member(trip_id, seed_other_user, role="relaxer")
 
-    res = client.post("/api/settlements", headers=other_auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_other_user,
-        "toUserId": seed_user,
-        "amount": 15.0,
-        "currency": "EUR",
-    })
+    res = client.post(
+        "/api/settlements",
+        headers=other_auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 15.0,
+            "currency": "EUR",
+        },
+    )
     sid = res.get_json()["settlement"]["id"]
 
     delete = client.delete(f"/api/settlements/{sid}", headers=other_auth_headers)
@@ -563,7 +808,11 @@ def test_settle_up_delete_payer_can(
 
 
 def test_settle_up_delete_recipient_cannot(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """The recipient (`to_user_id`) CANNOT delete — a recipient silently
     un-receiving money would leave the payer thinking the debt is
@@ -572,13 +821,17 @@ def test_settle_up_delete_recipient_cannot(
     _seed_member(trip_id, seed_other_user, role="relaxer")
 
     # other paid seed_user. seed_user is the recipient.
-    res = client.post("/api/settlements", headers=other_auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_other_user,
-        "toUserId": seed_user,
-        "amount": 15.0,
-        "currency": "EUR",
-    })
+    res = client.post(
+        "/api/settlements",
+        headers=other_auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 15.0,
+            "currency": "EUR",
+        },
+    )
     sid = res.get_json()["settlement"]["id"]
 
     # auth_headers is seed_user (the recipient) — but they're ALSO the
@@ -586,6 +839,7 @@ def test_settle_up_delete_recipient_cannot(
     # the policy), so this asserts: a recipient-who-isn't-owner cannot.
     # We swap trip ownership: seed_other_user owns the trip instead.
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "UPDATE trips SET user_id = ? WHERE id = ?",
@@ -598,7 +852,11 @@ def test_settle_up_delete_recipient_cannot(
 
 
 def test_settle_up_delete_owner_can(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """Trip owner can delete any settlement on their trip — final
     arbiter on their own data."""
@@ -606,13 +864,17 @@ def test_settle_up_delete_owner_can(
     _seed_member(trip_id, seed_other_user, role="relaxer")
 
     # other paid the owner.
-    res = client.post("/api/settlements", headers=other_auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_other_user,
-        "toUserId": seed_user,
-        "amount": 5.0,
-        "currency": "EUR",
-    })
+    res = client.post(
+        "/api/settlements",
+        headers=other_auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 5.0,
+            "currency": "EUR",
+        },
+    )
     sid = res.get_json()["settlement"]["id"]
 
     delete = client.delete(f"/api/settlements/{sid}", headers=auth_headers)
@@ -620,7 +882,11 @@ def test_settle_up_delete_owner_can(
 
 
 def test_settlement_delete_writes_audit_row(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """R12-B3: deleting a settlement must snapshot the full row into
     settlements_audit BEFORE the hard delete, recording WHO deleted it
@@ -632,13 +898,17 @@ def test_settlement_delete_writes_audit_row(
     trip_id = _create_trip(client, auth_headers, trip_id="trip-settle-audit")
     _seed_member(trip_id, seed_other_user, role="relaxer")
 
-    res = client.post("/api/settlements", headers=other_auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_other_user,
-        "toUserId": seed_user,
-        "amount": 42.0,
-        "currency": "EUR",
-    })
+    res = client.post(
+        "/api/settlements",
+        headers=other_auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 42.0,
+            "currency": "EUR",
+        },
+    )
     sid = res.get_json()["settlement"]["id"]
 
     # Owner (seed_user) deletes it.
@@ -647,10 +917,9 @@ def test_settlement_delete_writes_audit_row(
 
     # The settlement row is gone...
     from database import get_db
+
     with get_db() as conn:
-        live = conn.execute(
-            "SELECT COUNT(*) AS c FROM settlements WHERE id = ?", (sid,)
-        ).fetchone()
+        live = conn.execute("SELECT COUNT(*) AS c FROM settlements WHERE id = ?", (sid,)).fetchone()
         assert live["c"] == 0, "settlement should be hard-deleted"
 
         # ...but the audit row preserves it.
@@ -672,7 +941,11 @@ def test_settlement_delete_writes_audit_row(
 
 
 def test_settlement_delete_403_writes_no_audit_row(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """R12-B3: a REJECTED delete (recipient-who-isn't-owner, 403) must
     NOT leave an audit row — the audit INSERT lives after the auth gate
@@ -680,18 +953,23 @@ def test_settlement_delete_403_writes_no_audit_row(
     'deletions' that never happened."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-settle-audit-403")
     _seed_member(trip_id, seed_other_user, role="relaxer")
-    res = client.post("/api/settlements", headers=other_auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_other_user,
-        "toUserId": seed_user,
-        "amount": 9.0,
-        "currency": "EUR",
-    })
+    res = client.post(
+        "/api/settlements",
+        headers=other_auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 9.0,
+            "currency": "EUR",
+        },
+    )
     sid = res.get_json()["settlement"]["id"]
 
     # Hand trip ownership to seed_other so seed_user is recipient-only
     # (recipient who isn't owner → 403).
     from database import get_db
+
     with get_db() as conn:
         conn.execute("UPDATE trips SET user_id = ? WHERE id = ?", (seed_other_user, trip_id))
         conn.commit()
@@ -707,7 +985,11 @@ def test_settlement_delete_403_writes_no_audit_row(
 
 
 def test_settle_up_list_hides_from_non_member(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """GET /api/settlements/<trip_id> returns 404 (not 403) for a
     non-member so probing clients can't enumerate which trip IDs
@@ -731,8 +1013,13 @@ def test_settle_up_requires_auth(client):
 # regression test (caught by R11 audit agent #5). This pins the fix so a
 # future refactor that drops the gate would 432→failure here.
 
+
 def test_settlement_delete_409_when_trip_archived_for_actor(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """R10-B6e F5: deleting a settlement on a trip archived for the
     caller must 409. Pre-fix the delete would silently succeed,
@@ -745,7 +1032,9 @@ def test_settlement_delete_409_when_trip_archived_for_actor(
     # Invite the other user as planner so they're an accepted member.
     # Route shape: target_user_id (not user_id) per trips.py:512.
     invite_res = client.post(
-        "/api/trips/invite", headers=auth_headers, json={
+        "/api/trips/invite",
+        headers=auth_headers,
+        json={
             "trip_id": trip_id,
             "target_user_id": seed_other_user,
             "role": "planner",
@@ -753,16 +1042,24 @@ def test_settlement_delete_409_when_trip_archived_for_actor(
     )
     assert invite_res.status_code == 200, invite_res.get_data(as_text=True)
     accept_res = client.post(
-        "/api/trips/invite/respond", headers=other_auth_headers, json={
-            "trip_id": trip_id, "accept": True,
+        "/api/trips/invite/respond",
+        headers=other_auth_headers,
+        json={
+            "trip_id": trip_id,
+            "accept": True,
         },
     )
     assert accept_res.status_code == 200, accept_res.get_data(as_text=True)
     # Record a settlement: other user paid owner €10.
     record_res = client.post(
-        "/api/settlements", headers=auth_headers, json={
-            "tripId": trip_id, "fromUserId": seed_other_user,
-            "toUserId": seed_user, "amount": 10, "currency": "EUR",
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 10,
+            "currency": "EUR",
         },
     )
     # settlements POST returns 201 (Created), not 200.
@@ -770,12 +1067,14 @@ def test_settlement_delete_409_when_trip_archived_for_actor(
     settlement_id = record_res.get_json()["settlement"]["id"]
     # Owner archives the trip for themselves.
     archive_res = client.post(
-        f"/api/trips/{trip_id}/archive", headers=auth_headers,
+        f"/api/trips/{trip_id}/archive",
+        headers=auth_headers,
     )
     assert archive_res.status_code == 200
     # Owner attempts to delete the settlement → 409 (archive gate fires).
     delete_res = client.delete(
-        f"/api/settlements/{settlement_id}", headers=auth_headers,
+        f"/api/settlements/{settlement_id}",
+        headers=auth_headers,
     )
     assert delete_res.status_code == 409, (
         f"settlement DELETE on archived trip must 409 (R10-B6e F5); "
@@ -788,13 +1087,27 @@ def test_settlement_delete_409_when_trip_archived_for_actor(
 def test_create_settlement_nonscalar_ids_return_400_not_500(client, seed_user, auth_headers):
     """MK6 P3: a non-string id (dict/list) must be a clean 400, not an uncaught
     sqlite3.ProgrammingError when bound into the trip_member_role query → 500."""
-    res = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": {"a": 1}, "fromUserId": "u1", "toUserId": "u2", "amount": 5,
-    })
+    res = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": {"a": 1},
+            "fromUserId": "u1",
+            "toUserId": "u2",
+            "amount": 5,
+        },
+    )
     assert res.status_code == 400, res.get_data(as_text=True)
-    res2 = client.post("/api/settlements", headers=auth_headers, json={
-        "tripId": "t1", "fromUserId": ["u1"], "toUserId": "u2", "amount": 5,
-    })
+    res2 = client.post(
+        "/api/settlements",
+        headers=auth_headers,
+        json={
+            "tripId": "t1",
+            "fromUserId": ["u1"],
+            "toUserId": "u2",
+            "amount": 5,
+        },
+    )
     assert res2.status_code == 400, res2.get_data(as_text=True)
 
 
@@ -803,16 +1116,22 @@ def test_settlement_revert_names_the_actual_deleter(client, seed_user, auth_head
     the recipient's notification must name the DELETER, not the payer — else the
     recipient thinks the payer un-paid them."""
     from database import get_db
+
     charlie, sara, bob = seed_user, "sara-rev", "bob-rev"
     with get_db() as conn:
         for uid, nm in ((sara, "Sara"), (bob, "Bob")):
-            conn.execute("INSERT INTO users (id, email, name) VALUES (?,?,?)",
-                         (uid, f"{uid}@e.co", nm))
-        conn.execute("INSERT INTO trips (id, user_id, name) VALUES ('t-rev', ?, 'Lisbon')",
-                     (charlie,))
+            conn.execute(
+                "INSERT INTO users (id, email, name) VALUES (?,?,?)", (uid, f"{uid}@e.co", nm)
+            )
+        conn.execute(
+            "INSERT INTO trips (id, user_id, name) VALUES ('t-rev', ?, 'Lisbon')", (charlie,)
+        )
         for uid in (charlie, sara, bob):
-            conn.execute("INSERT INTO trip_members (trip_id, user_id, role, invitation_status) "
-                         "VALUES ('t-rev', ?, 'planner', 'accepted')", (uid,))
+            conn.execute(
+                "INSERT INTO trip_members (trip_id, user_id, role, invitation_status) "
+                "VALUES ('t-rev', ?, 'planner', 'accepted')",
+                (uid,),
+            )
         conn.execute(
             "INSERT INTO settlements (id, trip_id, from_user_id, to_user_id, "
             "from_name, to_name, amount, currency, euro_value, recorded_by) "
@@ -826,8 +1145,10 @@ def test_settlement_revert_names_the_actual_deleter(client, seed_user, auth_head
     with get_db() as conn:
         r = conn.execute(
             "SELECT message FROM notifications WHERE user_id=? AND type='settled_up_reverted'",
-            (bob,)).fetchone()
+            (bob,),
+        ).fetchone()
     assert r is not None, "recipient should be notified of the revert"
     assert "reverted the settlement" in r["message"], r["message"]
-    assert not r["message"].startswith("Sara reverted"), \
+    assert not r["message"].startswith("Sara reverted"), (
         f"revert notif wrongly named the payer instead of the deleter: {r['message']}"
+    )

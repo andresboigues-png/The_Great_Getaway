@@ -27,6 +27,7 @@ UNIQUE constraint on share_token is enforced via a partial index
 (SQLite supports it natively); NULL values are not deduplicated,
 so unshared trips don't all collide on NULL.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

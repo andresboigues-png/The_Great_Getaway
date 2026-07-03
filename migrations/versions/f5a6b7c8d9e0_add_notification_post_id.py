@@ -33,6 +33,7 @@ can't add FKs via ALTER TABLE. Application-level cleanup is the
 shipped path here; a future schema rebuild can add the FK if drift
 becomes an issue.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -49,10 +50,7 @@ def upgrade() -> None:
     # Index for the cascade-cleanup path: unshare deletes WHERE post_id = ?
     # — without an index, scanning a notifications table that's grown
     # to thousands of rows is a noticeable hit on every unshare.
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_notifications_post_id "
-        "ON notifications(post_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_notifications_post_id ON notifications(post_id)")
 
 
 def downgrade() -> None:

@@ -63,6 +63,7 @@ Downgrade is intentionally a no-op (raises). Reverting CHECK
 constraints to re-open the gate to invalid writes would undo a
 defense-in-depth fix. Same forward-only posture as e1b8d2a3c4f5.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -74,23 +75,51 @@ depends_on: str | Sequence[str] | None = None
 
 
 _TRIPS_COLUMNS = [
-    "id", "user_id", "name", "country", "country_code",
-    "is_archived", "is_public", "public_show_expenses",
-    "place_id", "lat", "lng", "viewport_json", "place_types",
-    "companions_json", "marked_places_json", "documents_json",
-    "photos_json", "checklist_json", "trip_countries_json",
-    "cover_url", "actions_hidden", "share_token", "share_views",
-    "share_show_cost", "share_show_plans", "created_at",
+    "id",
+    "user_id",
+    "name",
+    "country",
+    "country_code",
+    "is_archived",
+    "is_public",
+    "public_show_expenses",
+    "place_id",
+    "lat",
+    "lng",
+    "viewport_json",
+    "place_types",
+    "companions_json",
+    "marked_places_json",
+    "documents_json",
+    "photos_json",
+    "checklist_json",
+    "trip_countries_json",
+    "cover_url",
+    "actions_hidden",
+    "share_token",
+    "share_views",
+    "share_show_cost",
+    "share_show_plans",
+    "created_at",
 ]
 
 _TRIPS_JSON_COLS = [
-    "viewport_json", "place_types", "companions_json",
-    "marked_places_json", "documents_json", "photos_json",
-    "checklist_json", "trip_countries_json",
+    "viewport_json",
+    "place_types",
+    "companions_json",
+    "marked_places_json",
+    "documents_json",
+    "photos_json",
+    "checklist_json",
+    "trip_countries_json",
 ]
 
 _USER_ACHIEVEMENTS_COLUMNS = [
-    "id", "user_id", "badge_id", "earned_at", "context_json",
+    "id",
+    "user_id",
+    "badge_id",
+    "earned_at",
+    "context_json",
 ]
 
 
@@ -98,8 +127,7 @@ def _count_invalid(conn, table: str, column: str) -> int:
     """Return the number of rows where `column` is non-NULL and not
     parseable as JSON. SQLite's `json_valid` returns 0/1."""
     return conn.exec_driver_sql(
-        f"SELECT COUNT(*) FROM {table} "
-        f"WHERE {column} IS NOT NULL AND json_valid({column}) = 0"
+        f"SELECT COUNT(*) FROM {table} WHERE {column} IS NOT NULL AND json_valid({column}) = 0"
     ).scalar()
 
 
@@ -117,9 +145,7 @@ def upgrade() -> None:
             invalid_summary.append(f"  trips.{col}: {n} invalid row(s)")
     n_ach = _count_invalid(conn, "user_achievements", "context_json")
     if n_ach:
-        invalid_summary.append(
-            f"  user_achievements.context_json: {n_ach} invalid row(s)"
-        )
+        invalid_summary.append(f"  user_achievements.context_json: {n_ach} invalid row(s)")
     if invalid_summary:
         raise RuntimeError(
             "Refusing to migrate: existing rows fail json_valid().\n"
@@ -181,10 +207,7 @@ def upgrade() -> None:
         "ON trips(share_token) WHERE share_token IS NOT NULL"
     )
     op.execute("CREATE INDEX IF NOT EXISTS idx_trips_user ON trips(user_id)")
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_trips_user_public "
-        "ON trips(user_id, is_public)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_trips_user_public ON trips(user_id, is_public)")
 
     # ── user_achievements rebuild ───────────────────────────────────
     op.execute("ALTER TABLE user_achievements RENAME TO _old_user_achievements")
@@ -203,10 +226,7 @@ def upgrade() -> None:
         """
     )
     cols = ", ".join(_USER_ACHIEVEMENTS_COLUMNS)
-    op.execute(
-        f"INSERT INTO user_achievements ({cols}) "
-        f"SELECT {cols} FROM _old_user_achievements"
-    )
+    op.execute(f"INSERT INTO user_achievements ({cols}) SELECT {cols} FROM _old_user_achievements")
     op.execute("DROP TABLE _old_user_achievements")
     op.execute(
         "CREATE INDEX IF NOT EXISTS idx_user_achievements_user "

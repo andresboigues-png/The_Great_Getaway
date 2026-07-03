@@ -123,6 +123,7 @@ def _map_cache_get(key: str) -> bytes | None:
             return None
         ts, content = entry
         import time as _time
+
         if (_time.time() - ts) > _MAP_CACHE_TTL_SECONDS:
             # Evict stale.
             _map_cache.pop(key, None)
@@ -136,15 +137,14 @@ def _map_cache_put(key: str, content: bytes) -> None:
     if not content:
         return
     import time as _time
+
     with _map_cache_lock:
         _map_cache[key] = (_time.time(), content)
         _map_cache.move_to_end(key)
         # Evict oldest until under BOTH the entry cap and the byte budget.
         # sum() over <=200 small tuples is negligible per put.
         total = sum(len(c) for _, c in _map_cache.values())
-        while _map_cache and (
-            len(_map_cache) > _MAP_CACHE_MAX or total > _MAP_CACHE_MAX_BYTES
-        ):
+        while _map_cache and (len(_map_cache) > _MAP_CACHE_MAX or total > _MAP_CACHE_MAX_BYTES):
             _, evicted = _map_cache.popitem(last=False)
             total -= len(evicted)
 
@@ -164,11 +164,7 @@ def _fetch_cover_map(lat: float | None, lng: float | None, place_id: str | None)
     but the simpler path is lat/lng — every trip in this app has
     coords by the time it's saved). Failure logs and returns
     None — the PDF still renders without the cover."""
-    key = (
-        os.getenv("GOOGLE_MAPS_SERVER_KEY")
-        or os.getenv("GOOGLE_MAPS_API_KEY")
-        or ""
-    )
+    key = os.getenv("GOOGLE_MAPS_SERVER_KEY") or os.getenv("GOOGLE_MAPS_API_KEY") or ""
     if not key:
         logger.warning(
             "pdf cover map skipped: neither GOOGLE_MAPS_SERVER_KEY "
@@ -192,7 +188,8 @@ def _fetch_cover_map(lat: float | None, lng: float | None, place_id: str | None)
         # burst would otherwise refetch the identical cover map 30
         # times (~$0.06 + ~6 MB bandwidth saved per session).
         cache_key = _map_cache_key(
-            "https://maps.googleapis.com/maps/api/staticmap", params,
+            "https://maps.googleapis.com/maps/api/staticmap",
+            params,
         )
         cached = _map_cache_get(cache_key)
         if cached is not None:
@@ -251,11 +248,7 @@ def _fetch_overview_pins_map(
     if not pins:
         logger.info("pdf overview map skipped: no pins provided")
         return None
-    key = (
-        os.getenv("GOOGLE_MAPS_SERVER_KEY")
-        or os.getenv("GOOGLE_MAPS_API_KEY")
-        or ""
-    )
+    key = os.getenv("GOOGLE_MAPS_SERVER_KEY") or os.getenv("GOOGLE_MAPS_API_KEY") or ""
     if not key:
         logger.warning(
             "pdf overview map skipped: neither GOOGLE_MAPS_SERVER_KEY "
@@ -281,14 +274,18 @@ def _fetch_overview_pins_map(
             # Reject non-alphanumeric labels (e.g. `|`, `:` smuggling).
             if safe_label and not safe_label.isalnum():
                 safe_label = ""
-            marker = f"color:0x0071e3|label:{safe_label}|{plat},{plng}" if safe_label \
+            marker = (
+                f"color:0x0071e3|label:{safe_label}|{plat},{plng}"
+                if safe_label
                 else f"color:0x0071e3|{plat},{plng}"
+            )
             params.append(("markers", marker))
         # R3-Round 4 fix: content-hash cache. Same overview map for
         # identical pin set hits cache instead of re-fetching from
         # Google.
         cache_key = _map_cache_key(
-            "https://maps.googleapis.com/maps/api/staticmap", params,
+            "https://maps.googleapis.com/maps/api/staticmap",
+            params,
         )
         cached = _map_cache_get(cache_key)
         if cached is not None:
@@ -315,7 +312,8 @@ def _fetch_overview_pins_map(
                 return None
             logger.info(
                 "pdf overview map: fetched %d pin(s), %d bytes",
-                len(pins), len(res.content),
+                len(pins),
+                len(res.content),
             )
             _map_cache_put(cache_key, res.content)
             return res.content
@@ -332,11 +330,7 @@ def _fetch_day_pin_map(
     """A smaller per-day map with the main anchor pin + optional
     extra pins for each verified slot item. Same fail-soft path as
     the cover map."""
-    key = (
-        os.getenv("GOOGLE_MAPS_SERVER_KEY")
-        or os.getenv("GOOGLE_MAPS_API_KEY")
-        or ""
-    )
+    key = os.getenv("GOOGLE_MAPS_SERVER_KEY") or os.getenv("GOOGLE_MAPS_API_KEY") or ""
     lat, lng = _safe_latlng(lat, lng)
     if not key or lat is None or lng is None:
         return None
@@ -368,7 +362,8 @@ def _fetch_day_pin_map(
         # across export sessions because the underlying coords don't
         # change without a trip edit.
         cache_key = _map_cache_key(
-            "https://maps.googleapis.com/maps/api/staticmap", params,
+            "https://maps.googleapis.com/maps/api/staticmap",
+            params,
         )
         cached = _map_cache_get(cache_key)
         if cached is not None:
@@ -404,7 +399,7 @@ def _fetch_day_pin_map(
 # Every photo is re-encoded to PNG via PIL so a corrupt / malicious /
 # truncated image can never reach reportlab's Image flowable raw.
 _PHOTO_MAX_BYTES = 8 * 1024 * 1024  # 8 MB hard cap per photo download
-_PHOTO_MAX_PER_TRIP = 60           # bound total embeds so a 500-photo
+_PHOTO_MAX_PER_TRIP = 60  # bound total embeds so a 500-photo
 #                                    trip can't balloon the doc / RAM
 
 
@@ -418,6 +413,7 @@ def _is_public_http_url(url: str) -> bool:
         import ipaddress
         import socket
         from urllib.parse import urlparse
+
         host = urlparse(url).hostname
         if not host:
             return False
@@ -430,8 +426,12 @@ def _is_public_http_url(url: str) -> bool:
         for addr in addrs:
             ip = ipaddress.ip_address(addr)
             if (
-                ip.is_private or ip.is_loopback or ip.is_link_local
-                or ip.is_multicast or ip.is_reserved or ip.is_unspecified
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_link_local
+                or ip.is_multicast
+                or ip.is_reserved
+                or ip.is_unspecified
             ):
                 return False
         return True
@@ -467,9 +467,11 @@ def _load_photo_png(src: str) -> bytes | None:
                 return None
             if ";base64" in header.lower():
                 import base64
+
                 raw = base64.b64decode(payload, validate=False)
             else:
                 from urllib.parse import unquote_to_bytes
+
                 raw = unquote_to_bytes(payload)
             if raw and len(raw) > _PHOTO_MAX_BYTES:
                 return None
@@ -477,6 +479,7 @@ def _load_photo_png(src: str) -> bytes | None:
             # App's own upload — read from disk, never the network.
             try:
                 from flask import current_app
+
                 root = current_app.config.get("UPLOAD_FOLDER")
             except Exception:
                 root = None
@@ -544,6 +547,7 @@ def _load_photo_png(src: str) -> bytes | None:
     # so the embedded image stays light.
     try:
         from PIL import Image as _PILImage
+
         with _PILImage.open(io.BytesIO(raw)) as im:
             im = im.convert("RGB")
             # Cap the long edge so a 12 MP phone photo doesn't bloat the

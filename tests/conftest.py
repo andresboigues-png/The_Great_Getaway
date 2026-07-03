@@ -52,11 +52,13 @@ def client(temp_db):
         # (pytest collects modules once per session; first test imports
         # main, subsequent tests re-use it but with new temp DBs).
         from database import init_db
+
         init_db()
         from main import app
     else:
         import main
         from database import init_db
+
         init_db()
         app = main.app
 
@@ -74,6 +76,7 @@ def client(temp_db):
     # fixture) sees a clean slate.
     app.config["RATELIMIT_ENABLED"] = False
     from extensions import limiter
+
     _previous_enabled = limiter.enabled
     limiter.enabled = False
     try:
@@ -89,6 +92,7 @@ def client(temp_db):
     # would silently 429 the ~50th test that creates a trip.
     try:
         from helpers import _USER_DAILY_BUCKETS
+
         _USER_DAILY_BUCKETS.clear()
     except Exception:
         pass
@@ -109,6 +113,7 @@ def _ensure_schema():
     on the `client` fixture (e.g. rate-limit), so we init the schema
     inline here too."""
     from database import init_db
+
     init_db()
 
 
@@ -119,6 +124,7 @@ def seed_user(temp_db):
     just need the id (e.g. as a friend_id to add)."""
     _ensure_schema()
     from database import get_db
+
     user_id = "test-user-1"
     with get_db() as conn:
         conn.execute(
@@ -134,6 +140,7 @@ def seed_other_user(temp_db):
     """Second user, useful for friend / sharing tests."""
     _ensure_schema()
     from database import get_db
+
     user_id = "test-user-2"
     with get_db() as conn:
         conn.execute(
@@ -149,6 +156,7 @@ def auth_headers(seed_user):
     """Authorization header for seed_user — every gated endpoint test
     passes these so the @require_auth decorator lets the request through."""
     from auth import issue_token
+
     return {"Authorization": f"Bearer {issue_token(seed_user)}"}
 
 
@@ -157,13 +165,14 @@ def other_auth_headers(seed_other_user):
     """Authorization header for seed_other_user — used by tests that
     verify per-user gates (e.g. non-planner can't edit someone else's trip)."""
     from auth import issue_token
-    return {"Authorization": f"Bearer {issue_token(seed_other_user)}"}
 
+    return {"Authorization": f"Bearer {issue_token(seed_other_user)}"}
 
 
 # ── Shared helpers hoisted from the former tests/test_api.py monolith ──────────
 # Used across multiple test_api_*.py modules; imported via `from tests.conftest
 # import _create_trip, ...`. Bodies are verbatim from the original file.
+
 
 def _create_trip(client, headers, trip_id="trip-feed", name="Test Trip", public=False):
     """Mint a trip via /api/trips. Pass `public=True` to flip
@@ -180,6 +189,7 @@ def _create_trip(client, headers, trip_id="trip-feed", name="Test Trip", public=
     assert res.status_code == 200
     return trip_id
 
+
 def _befriend(client, headers_a, headers_b, user_a, user_b):
     """Helper: establish a mutual-follow between user_a and user_b.
 
@@ -191,6 +201,7 @@ def _befriend(client, headers_a, headers_b, user_a, user_b):
     client.post("/api/friends/add", headers=headers_a, json={"friend_id": user_b})
     client.post("/api/friends/accept", headers=headers_b, json={"friend_id": user_a})
 
+
 def _make_friends(user_a, user_b):
     """Establish a mutual-follow between user_a and user_b at the DB
     level (bypassing the friend-add → follow-back façade for speed).
@@ -198,6 +209,7 @@ def _make_friends(user_a, user_b):
     follow edges. CURRENT_TIMESTAMP keeps the rows fresh enough for
     the feed's 30-day window."""
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
         c.execute(
@@ -212,10 +224,12 @@ def _make_friends(user_a, user_b):
         )
         conn.commit()
 
+
 def _seed_member(trip_id, user_id, role="planner"):
     """Drop an accepted trip_members row directly so the test can focus
     on settle-up rather than re-litigating the invite flow."""
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "INSERT INTO trip_members "

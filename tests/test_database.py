@@ -36,6 +36,7 @@ from database import _is_locked_error, retry_on_lock  # noqa: E402
 
 # ── _is_locked_error classification ─────────────────────────────────
 
+
 def test_is_locked_error_detects_database_is_locked():
     exc = sqlite3.OperationalError("database is locked")
     assert _is_locked_error(exc) is True
@@ -75,7 +76,10 @@ def test_is_locked_error_rejects_non_operational_errors():
 
 # ── retry_on_lock retry behaviour ───────────────────────────────────
 
-def _make_flaky(failures_before_success: int, exc_factory=lambda: sqlite3.OperationalError("database is locked")):
+
+def _make_flaky(
+    failures_before_success: int, exc_factory=lambda: sqlite3.OperationalError("database is locked")
+):
     """Build a callable that raises `exc_factory()` the first N times,
     then returns "ok". Calls are counted on the wrapped function's
     `calls` attribute so tests can assert how many attempts ran."""
@@ -93,6 +97,7 @@ def _make_flaky(failures_before_success: int, exc_factory=lambda: sqlite3.Operat
 
 def test_retry_on_lock_succeeds_on_first_call():
     """No retry needed when the wrapped function succeeds immediately."""
+
     @retry_on_lock()
     def fn():
         return 42
@@ -149,6 +154,7 @@ def test_retry_on_lock_does_not_retry_non_operational_errors():
 def test_retry_on_lock_preserves_function_metadata():
     """functools.wraps means tooling (Flask URL map, pytest, debuggers)
     sees the original function name + docstring."""
+
     @retry_on_lock()
     def named_handler():
         """My docstring."""
@@ -180,7 +186,10 @@ def test_expected_columns_covers_golden_path_columns():
     users.is_creator (SELECTed on every login) + categories.updated_at (delta
     sync) were both missing — this pins them so the drift tripwire covers them."""
     from database import _EXPECTED_COLUMNS
-    assert "is_creator" in _EXPECTED_COLUMNS["users"], \
+
+    assert "is_creator" in _EXPECTED_COLUMNS["users"], (
         "users.is_creator missing from the schema-drift tripwire"
-    assert "updated_at" in _EXPECTED_COLUMNS["categories"], \
+    )
+    assert "updated_at" in _EXPECTED_COLUMNS["categories"], (
         "categories.updated_at missing from the schema-drift tripwire"
+    )

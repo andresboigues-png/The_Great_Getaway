@@ -21,6 +21,7 @@ NULL` so revoked badges don't render on the profile.
 
 Idempotency-guarded ADD/DROP per R4-B5 convention.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

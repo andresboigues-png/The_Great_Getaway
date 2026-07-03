@@ -29,6 +29,7 @@ Both are additive — the existing bulk path keeps working (it ignores
 updated_at and writes no tombstones), so this migration is safe to deploy
 ahead of the server/client changes that use them.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -40,9 +41,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "ALTER TABLE categories ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0"
-    )
+    op.execute("ALTER TABLE categories ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0")
     op.execute(
         """
         CREATE TABLE IF NOT EXISTS category_deletes (

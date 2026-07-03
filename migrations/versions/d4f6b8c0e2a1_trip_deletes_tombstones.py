@@ -35,6 +35,7 @@ trips.updated_at so the Phase-2 delta cursor ranges over both uniformly.
 Additive + backward-compatible: only the new delete path writes it and
 only the new upsert guard + future delta read it.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

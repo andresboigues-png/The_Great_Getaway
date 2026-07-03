@@ -19,6 +19,7 @@ doesn't see "you invited yourself" for owner rows.
 
 Idempotent — only UPDATEs rows where the condition still holds.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

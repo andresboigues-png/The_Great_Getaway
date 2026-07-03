@@ -187,7 +187,7 @@ def setup_sentry() -> bool:
     # WARN-and-above breadcrumbs from the standard library logger, ERROR
     # and exceptions promoted to Sentry events.
     logging_integration = LoggingIntegration(
-        level=logging.WARNING,   # breadcrumb threshold
+        level=logging.WARNING,  # breadcrumb threshold
         event_level=logging.ERROR,
     )
     # §3.8 — auto-resolve the release tag from git SHA when neither
@@ -242,6 +242,7 @@ def bind_trip_context(trip_id: str | None) -> None:
         return
     try:
         from flask import g, has_request_context
+
         if not has_request_context():
             return
         g.trip_id = trip_id
@@ -252,6 +253,7 @@ def bind_trip_context(trip_id: str | None) -> None:
 
     try:
         import sentry_sdk
+
         scope = sentry_sdk.get_current_scope()
         scope.set_tag("trip_id", trip_id)
     except ImportError:
@@ -276,6 +278,7 @@ def attach_request_context(app, current_user_id_fn) -> None:
 
     try:
         import sentry_sdk
+
         _have_sentry = True
     except ImportError:
         _have_sentry = False

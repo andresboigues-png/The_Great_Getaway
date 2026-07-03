@@ -25,6 +25,7 @@ opaque TEXT.
 No read path changes — the settlements table reads exactly as
 before; this is a write-side-only addition.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -68,8 +69,7 @@ def upgrade() -> None:
         "ON settlements_audit(settlement_id)"
     )
     op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_settlements_audit_actor "
-        "ON settlements_audit(actor_id)"
+        "CREATE INDEX IF NOT EXISTS idx_settlements_audit_actor ON settlements_audit(actor_id)"
     )
 
 

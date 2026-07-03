@@ -31,6 +31,7 @@ A's bell.
 UNIQUE(blocker_id, blocked_id) so the block op is idempotent.
 PK is the composite — there's no separate id column needed.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -53,10 +54,7 @@ def upgrade() -> None:
             CHECK (blocker_id != blocked_id)
         )
     """)
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_blocks_blocked "
-        "ON blocks(blocked_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_id)")
 
 
 def downgrade() -> None:

@@ -33,6 +33,7 @@ rug out from under their shares would 404 their followers.
   - 1    → defensively recorded; equivalent to NULL for the
     restore logic.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -44,9 +45,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "ALTER TABLE feed_posts ADD COLUMN trip_was_public INTEGER DEFAULT NULL"
-    )
+    op.execute("ALTER TABLE feed_posts ADD COLUMN trip_was_public INTEGER DEFAULT NULL")
 
 
 def downgrade() -> None:

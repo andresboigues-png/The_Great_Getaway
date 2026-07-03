@@ -108,7 +108,8 @@ def bump_user_jti(user_id: str) -> str:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE users SET token_jti = ? WHERE id = ?", (new_jti, user_id),
+            "UPDATE users SET token_jti = ? WHERE id = ?",
+            (new_jti, user_id),
         )
         conn.commit()
     return new_jti
@@ -277,6 +278,7 @@ def verify_token(token: str) -> str | None:
             if session_row["revoked_at"] is not None:
                 try:
                     import logging
+
                     logging.getLogger(__name__).info(
                         "JWT session revoked",
                         extra={"user_id": user_id, "jti": token_jti},
@@ -312,13 +314,16 @@ def verify_token(token: str) -> str | None:
         # Legacy fallback — match against users.token_jti for tokens
         # minted before the per-session move.
         row = cursor.execute(
-            "SELECT token_jti FROM users WHERE id = ?", (user_id,),
+            "SELECT token_jti FROM users WHERE id = ?",
+            (user_id,),
         ).fetchone()
     if not row:
         try:
             import logging
+
             logging.getLogger(__name__).warning(
-                "JWT valid but user row missing", extra={"user_id": user_id},
+                "JWT valid but user row missing",
+                extra={"user_id": user_id},
             )
         except Exception:
             pass
@@ -326,6 +331,7 @@ def verify_token(token: str) -> str | None:
     if row["token_jti"] != token_jti:
         try:
             import logging
+
             logging.getLogger(__name__).info(
                 "JWT jti mismatch (revoked legacy token)",
                 extra={"user_id": user_id, "jti": token_jti},
@@ -460,7 +466,7 @@ def _bearer_token() -> str | None:
     header = request.headers.get("Authorization", "")
     if not header.startswith("Bearer "):
         return None
-    return header[len("Bearer "):].strip() or None
+    return header[len("Bearer ") :].strip() or None
 
 
 def _extract_token() -> str | None:
@@ -489,9 +495,11 @@ def require_auth(fn):
     """Decorator: rejects the request with 401 unless current_user_id()
     resolves. Place AFTER @app.route in the decorator chain (closer to
     the function) so Flask routes the request, then this gate runs."""
+
     @wraps(fn)
     def wrapped(*args, **kwargs):
         if current_user_id() is None:
             return jsonify({"error": "Unauthorized"}), 401
         return fn(*args, **kwargs)
+
     return wrapped

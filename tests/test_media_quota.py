@@ -32,14 +32,19 @@ def _jpeg(nbytes: int) -> io.BytesIO:
 
 def _use_tmp_uploads(monkeypatch, tmp_path):
     import main as main_module
+
     monkeypatch.setitem(main_module.app.config, "UPLOAD_FOLDER", str(tmp_path))
     monkeypatch.setattr(main_module, "UPLOAD_FOLDER", str(tmp_path))
 
 
 def _upload(client, headers, name, nbytes):
-    return client.post("/api/upload", headers=headers, data={
-        "file": (_jpeg(nbytes), name),
-    })
+    return client.post(
+        "/api/upload",
+        headers=headers,
+        data={
+            "file": (_jpeg(nbytes), name),
+        },
+    )
 
 
 def _disk_path(tmp_path, url):
@@ -79,7 +84,11 @@ def _age(path, seconds_ago):
 
 
 def test_orphan_reclaim_frees_space_but_spares_referenced(
-    client, seed_user, auth_headers, tmp_path, monkeypatch,
+    client,
+    seed_user,
+    auth_headers,
+    tmp_path,
+    monkeypatch,
 ):
     _use_tmp_uploads(monkeypatch, tmp_path)
 
@@ -91,6 +100,7 @@ def test_orphan_reclaim_frees_space_but_spares_referenced(
 
     # Reference keep.jpg from the trip's photos_json.
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "UPDATE trips SET photos_json = ? WHERE id = ?",
@@ -116,7 +126,11 @@ def test_orphan_reclaim_frees_space_but_spares_referenced(
 
 
 def test_reclaim_spares_in_grace_orphans(
-    client, seed_user, auth_headers, tmp_path, monkeypatch,
+    client,
+    seed_user,
+    auth_headers,
+    tmp_path,
+    monkeypatch,
 ):
     """A brand-new unreferenced upload (inside the grace window) must NOT be
     swept — the client is about to persist its URL into a trip."""
@@ -134,7 +148,10 @@ def test_reclaim_spares_in_grace_orphans(
 
 # ── reference-surface guard ──────────────────────────────────────────────
 def test_url_is_referenced_covers_every_upload_column(
-    client, seed_user, auth_headers, tmp_path,
+    client,
+    seed_user,
+    auth_headers,
+    tmp_path,
 ):
     """Lock the full set of columns that can hold an upload URL. If a new
     upload-bearing column is added and NOT wired into `_url_is_referenced`,
@@ -149,13 +166,16 @@ def test_url_is_referenced_covers_every_upload_column(
 
     base = "/static/uploads/test-user-1/"
     cases = {
-        "users.picture":            ("UPDATE users SET picture = ? WHERE id = ?", "test-user-1"),
-        "trips.cover_url":          ("UPDATE trips SET cover_url = ? WHERE id = ?", trip_id),
-        "trips.photos_json":        ("UPDATE trips SET photos_json = ? WHERE id = ?", trip_id),
-        "trips.documents_json":     ("UPDATE trips SET documents_json = ? WHERE id = ?", trip_id),
-        "trips.marked_places_json": ("UPDATE trips SET marked_places_json = ? WHERE id = ?", trip_id),
-        "trips.companions_json":    ("UPDATE trips SET companions_json = ? WHERE id = ?", trip_id),
-        "trips.checklist_json":     ("UPDATE trips SET checklist_json = ? WHERE id = ?", trip_id),
+        "users.picture": ("UPDATE users SET picture = ? WHERE id = ?", "test-user-1"),
+        "trips.cover_url": ("UPDATE trips SET cover_url = ? WHERE id = ?", trip_id),
+        "trips.photos_json": ("UPDATE trips SET photos_json = ? WHERE id = ?", trip_id),
+        "trips.documents_json": ("UPDATE trips SET documents_json = ? WHERE id = ?", trip_id),
+        "trips.marked_places_json": (
+            "UPDATE trips SET marked_places_json = ? WHERE id = ?",
+            trip_id,
+        ),
+        "trips.companions_json": ("UPDATE trips SET companions_json = ? WHERE id = ?", trip_id),
+        "trips.checklist_json": ("UPDATE trips SET checklist_json = ? WHERE id = ?", trip_id),
     }
 
     with get_db() as conn:
@@ -164,7 +184,9 @@ def test_url_is_referenced_covers_every_upload_column(
             url = base + col.replace(".", "_") + ".jpg"
             # cover_url / picture hold the bare URL; the *_json columns embed
             # it in a JSON blob.
-            stored = url if col in ("users.picture", "trips.cover_url") else json.dumps([{"src": url}])
+            stored = (
+                url if col in ("users.picture", "trips.cover_url") else json.dumps([{"src": url}])
+            )
             cur.execute(sql, (stored, key))
             conn.commit()
             assert media._url_is_referenced(cur, url, esc(url)), f"{col} not recognised"

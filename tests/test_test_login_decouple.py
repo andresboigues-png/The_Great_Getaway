@@ -27,6 +27,7 @@ def _only_test_login(monkeypatch):
 
 def test_test_login_flag_does_not_enable_dev_jwt_fallback(monkeypatch):
     import auth
+
     _only_test_login(monkeypatch)
     # No GG_JWT_SECRET + not a real dev env → must refuse (raise), NOT
     # silently mint an ephemeral per-worker secret.
@@ -36,12 +37,14 @@ def test_test_login_flag_does_not_enable_dev_jwt_fallback(monkeypatch):
 
 def test_test_login_flag_does_not_drop_cookie_secure(monkeypatch):
     import auth
+
     _only_test_login(monkeypatch)
     assert auth._cookie_secure_flag() is True
 
 
 def test_test_login_flag_is_not_dev_env(monkeypatch):
     import main
+
     _only_test_login(monkeypatch)
     assert main._is_dev_env() is False
 
@@ -52,6 +55,7 @@ def test_flask_env_development_still_selects_dev(monkeypatch):
     wouldn't boot without GG_JWT_SECRET / CLIENT_ID_GOOGLE_AUTH."""
     import auth
     import main
+
     monkeypatch.delenv("FLASK_DEBUG", raising=False)
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
     monkeypatch.delenv("GG_JWT_SECRET", raising=False)

@@ -76,33 +76,46 @@ def upsert_expense():
         # the client's hint only on the cold path (no rate available,
         # Frankfurter down + uncommon code).
         client_euro_value = validate_money(
-            e.get("euroValue", 0), field_name="euroValue",
+            e.get("euroValue", 0),
+            field_name="euroValue",
         )
         euro_value = compute_euro_value(
-            value, currency, client_euro_value=client_euro_value,
+            value,
+            currency,
+            client_euro_value=client_euro_value,
         )
         label = clean_text(
-            e.get("label", ""), max_len=200, allow_newlines=False,
+            e.get("label", ""),
+            max_len=200,
+            allow_newlines=False,
             field_name="label",
         )
         who = clean_text(
-            e.get("who", ""), max_len=200, allow_newlines=False,
+            e.get("who", ""),
+            max_len=200,
+            allow_newlines=False,
             field_name="who",
         )
         country = clean_text(
-            e.get("country", ""), max_len=120, allow_newlines=False,
+            e.get("country", ""),
+            max_len=120,
+            allow_newlines=False,
             field_name="country",
         )
         category_id = clean_text(
-            e.get("categoryId", ""), max_len=120, allow_newlines=False,
+            e.get("categoryId", ""),
+            max_len=120,
+            allow_newlines=False,
             field_name="categoryId",
         )
         # BUG-8: strict YYYY-MM-DD (or empty) — a garbage date silently
         # corrupts Insights (avg-daily, timeline, historical-FX URL).
         date = validate_date(e.get("date", ""))
         receipt_url = validate_upload_url(
-            e.get("receiptUrl"), user_id=user_id,
-            field_name="receiptUrl", allow_empty=True,
+            e.get("receiptUrl"),
+            user_id=user_id,
+            field_name="receiptUrl",
+            allow_empty=True,
         )
         # R10-B6a F2: shape-check splits via the shared helper. Pre-fix
         # the validation lived inline here AND was missing entirely
@@ -180,26 +193,31 @@ def upsert_expense():
             and get_rate_eur(currency) is None
             and not (client_euro_value and client_euro_value > 0)
         ):
-            return jsonify({
-                "error": (
-                    "euroValue is required for this currency — no live exchange "
-                    "rate is available to convert it."
-                ),
-                "currency": currency,
-            }), 400
+            return jsonify(
+                {
+                    "error": (
+                        "euroValue is required for this currency — no live exchange "
+                        "rate is available to convert it."
+                    ),
+                    "currency": currency,
+                }
+            ), 400
         # R3-Fix #18: refuse writes to a trip the caller has archived
         # for themselves. The /api/sync bulk path is exempt (it's the
         # catch-up channel for archived state from a freshly-installed
         # device); only the per-row /api/expenses POST consults this.
         if is_trip_archived_for(cursor, gate_trip_id, user_id):
-            return jsonify({
-                "error": "Trip is archived — unarchive to edit",
-            }), 409
+            return jsonify(
+                {
+                    "error": "Trip is archived — unarchive to edit",
+                }
+            ), 409
         # 2026-05-25 (audit S1): splits + isSettlement are now persisted.
         # `splits` may arrive as a dict (the frontend's shape) — serialise
         # to JSON for storage. None / missing = legacy equal-share fallback.
         if isinstance(splits_raw, dict) and splits_raw:
             import json as _json
+
             splits_json = _json.dumps(splits_raw)
         else:
             splits_json = None
@@ -238,7 +256,8 @@ def upsert_expense():
         # stale-detection 409. Real-world human edits are spaced
         # by far more than a millisecond, but the test exposes
         # the gap.
-        cursor.execute('''
+        cursor.execute(
+            '''
             INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits, is_settlement, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
             ON CONFLICT(id) DO UPDATE SET
@@ -263,26 +282,43 @@ def upsert_expense():
               AND (? IS NULL
                    OR expenses.updated_at IS NULL
                    OR expenses.updated_at = ?)
-        ''', (expense_id, claimed_trip_id, who, category_id,
-              label, date, country,
-              value, currency, euro_value,
-              receipt_url, splits_json, is_settlement,
-              client_updated_at, client_updated_at))
+        ''',
+            (
+                expense_id,
+                claimed_trip_id,
+                who,
+                category_id,
+                label,
+                date,
+                country,
+                value,
+                currency,
+                euro_value,
+                receipt_url,
+                splits_json,
+                is_settlement,
+                client_updated_at,
+                client_updated_at,
+            ),
+        )
         # R8-B4: existing + rowcount==0 means EITHER the row was
         # tombstoned (deleted_at != NULL) OR the staleness gate
         # filtered the UPDATE. INSERTs always return rowcount=1.
         if existing and cursor.rowcount == 0:
             cursor.execute(
-                "SELECT * FROM expenses WHERE id = ?", (expense_id,),
+                "SELECT * FROM expenses WHERE id = ?",
+                (expense_id,),
             )
             live = cursor.fetchone()
             if live and not live['deleted_at']:
                 # Live row exists and isn't tombstoned → staleness
                 # gate fired. Return 409 with the live row.
-                return jsonify({
-                    "error": "Stale edit — another device updated this expense",
-                    "current": dict(live),
-                }), 409
+                return jsonify(
+                    {
+                        "error": "Stale edit — another device updated this expense",
+                        "current": dict(live),
+                    }
+                ), 409
             # Else: row is tombstoned. Pre-R8-B4 the deleted_at gate
             # was a silent no-op for the legitimate case (a queued
             # resurrection from an offline device for a row another
@@ -293,7 +329,8 @@ def upsert_expense():
         # store it for the next edit (closes the read-modify-write
         # cycle).
         cursor.execute(
-            "SELECT updated_at FROM expenses WHERE id = ?", (expense_id,),
+            "SELECT updated_at FROM expenses WHERE id = ?",
+            (expense_id,),
         )
         new_row = cursor.fetchone()
         new_updated_at = new_row['updated_at'] if new_row else None
@@ -303,11 +340,13 @@ def upsert_expense():
     # foreign-currency expense the client kept showing its own (static-table)
     # estimate until the next /api/data poll overwrote it. Returning the
     # canonical value lets the caller reconcile immediately.
-    return jsonify({
-        "status": "ok",
-        "updatedAt": new_updated_at,
-        "euroValue": euro_value,
-    })
+    return jsonify(
+        {
+            "status": "ok",
+            "updatedAt": new_updated_at,
+            "euroValue": euro_value,
+        }
+    )
 
 
 @bp.route("/api/expenses/<expense_id>", methods=["DELETE"])
@@ -363,9 +402,11 @@ def delete_expense(expense_id):
         # fact. Safe to 409 here (not leak-y): the caller already passed
         # can_edit_expenses, so they know the trip exists and is theirs.
         if is_trip_archived_for(cursor, row["trip_id"], user_id):
-            return jsonify({
-                "error": "Trip is archived — unarchive to edit",
-            }), 409
+            return jsonify(
+                {
+                    "error": "Trip is archived — unarchive to edit",
+                }
+            ), 409
         # 2026-05-26 (audit SY5): soft-delete via tombstone. A hard
         # DELETE used to be reversible from any peer device whose
         # offline queue still had the row — the next /api/sync POST

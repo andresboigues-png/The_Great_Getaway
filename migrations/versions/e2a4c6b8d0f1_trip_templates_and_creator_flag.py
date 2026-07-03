@@ -22,6 +22,7 @@ Both are additive + backward-compatible. Idempotent (guards mirror the
 init_db CREATE for fresh installs). `down_revision` is the current head
 a1f4c7e2b9d3.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -62,10 +63,7 @@ def upgrade() -> None:
         )
         """
     )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_trip_templates_owner "
-        "ON trip_templates(owner_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_trip_templates_owner ON trip_templates(owner_id)")
 
 
 def downgrade() -> None:

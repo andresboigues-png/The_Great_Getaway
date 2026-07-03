@@ -121,20 +121,21 @@ def _fire_engagement_notification(cursor, recipient_id, actor_id, kind, post_id)
     if not recipient_id or recipient_id == actor_id:
         return
     from routes.blocks import is_blocked
+
     if is_blocked(cursor, recipient_id, actor_id):
         return
     cursor.execute("SELECT name FROM users WHERE id = ?", (actor_id,))
     row = cursor.fetchone()
     actor_name = row["name"] if row else "Someone"
     verb = {
-        "share_liked":     "liked your share",
+        "share_liked": "liked your share",
         "share_commented": "commented on your share",
-        "share_reposted":  "reposted your share",
+        "share_reposted": "reposted your share",
     }.get(kind, "engaged with your share")
     title = {
-        "share_liked":     "New like",
+        "share_liked": "New like",
         "share_commented": "New comment",
-        "share_reposted":  "New repost",
+        "share_reposted": "New repost",
     }.get(kind, "Feed activity")
     msg = f"{actor_name} {verb}."
     cursor.execute(
@@ -186,8 +187,7 @@ def _attach_engagement_counts(cursor, events: list, user_id: str) -> None:
     )
     likes_count = {r['event_id']: r['c'] for r in cursor.fetchall()}
     cursor.execute(
-        f"SELECT event_id FROM feed_likes "
-        f"WHERE user_id = ? AND event_id IN ({id_placeholders})",
+        f"SELECT event_id FROM feed_likes WHERE user_id = ? AND event_id IN ({id_placeholders})",
         [user_id, *event_ids],
     )
     liked_by_me = {r['event_id'] for r in cursor.fetchall()}
@@ -234,8 +234,7 @@ from datetime import UTC
 
 
 def _encode_feed_cursor(when_iso: str, event_id: str) -> str:
-    payload = _json.dumps({"w": when_iso, "i": event_id},
-                          separators=(",", ":")).encode("utf-8")
+    payload = _json.dumps({"w": when_iso, "i": event_id}, separators=(",", ":")).encode("utf-8")
     return _b64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
 
 
@@ -359,10 +358,7 @@ def get_feed():
         # matches the secondary sort above.
         if cursor_tuple:
             cw, ci = cursor_tuple
-            events = [
-                e for e in events
-                if (e.get("when") or "", e.get("id") or "") < (cw, ci)
-            ]
+            events = [e for e in events if (e.get("when") or "", e.get("id") or "") < (cw, ci)]
 
         page = events[:limit]
         _attach_engagement_counts(cursor, page, user_id)
@@ -374,7 +370,8 @@ def get_feed():
         if len(events) > limit and page:
             last = page[-1]
             next_cursor = _encode_feed_cursor(
-                last.get("when") or "", last.get("id") or "",
+                last.get("when") or "",
+                last.get("id") or "",
             )
 
     return jsonify({"events": page, "nextCursor": next_cursor})
@@ -528,9 +525,7 @@ def explore_feed():
             # longer drop trips for score-zero reasons.
             recency_factor = 0.15
             try:
-                created = datetime.fromisoformat(
-                    (r["created_at"] or "").replace(" ", "T")
-                )
+                created = datetime.fromisoformat((r["created_at"] or "").replace(" ", "T"))
                 if created.tzinfo is None:
                     created = created.replace(tzinfo=UTC)
                 age_days = max(0.0, (now - created).total_seconds() / 86400.0)
@@ -543,22 +538,27 @@ def explore_feed():
             score = recency_factor * country_factor * engagement_bonus
 
             owner_name = r["owner_name"] or "Someone"
-            scored.append((score, {
-                "tripId": r["id"],
-                "name": r["name"] or "Untitled trip",
-                "country": r["country"] or "",
-                "countryCode": r["country_code"] or "",
-                "coverUrl": r["cover_url"],
-                "shareToken": r["share_token"],
-                "shareViews": int(views),
-                "owner": {
-                    "id": r["owner_id"],
-                    "name": owner_name,
-                    "firstName": owner_name.split(" ")[0],
-                    "picture": r["owner_picture"],
-                },
-                "createdAt": r["created_at"],
-            }))
+            scored.append(
+                (
+                    score,
+                    {
+                        "tripId": r["id"],
+                        "name": r["name"] or "Untitled trip",
+                        "country": r["country"] or "",
+                        "countryCode": r["country_code"] or "",
+                        "coverUrl": r["cover_url"],
+                        "shareToken": r["share_token"],
+                        "shareViews": int(views),
+                        "owner": {
+                            "id": r["owner_id"],
+                            "name": owner_name,
+                            "firstName": owner_name.split(" ")[0],
+                            "picture": r["owner_picture"],
+                        },
+                        "createdAt": r["created_at"],
+                    },
+                )
+            )
 
         scored.sort(key=lambda x: x[0], reverse=True)
         items = [card for _, card in scored[:24]]
@@ -619,7 +619,7 @@ def share_trip_to_feed():
         # that blocked everyone to honour "completed = done") is gone; private
         # completed trips are now refused on privacy grounds instead, with an
         # actionable "make it public first" message.
-        is_owner = (trip_row["user_id"] == user_id)
+        is_owner = trip_row["user_id"] == user_id
         # Audit fix (2026-05-26): snapshot the trip's pre-share
         # is_public value so the unshare path can restore it. Without
         # this, an owner who shares once + later unshares has silently
@@ -657,14 +657,16 @@ def share_trip_to_feed():
                     (trip_id,),
                 )
             else:
-                return jsonify({
-                    "error": (
-                        "This trip is private. Make it public first to share it."
-                        if is_owner
-                        else "This trip is private. Ask the owner to make "
-                        "it public before sharing to the feed."
-                    ),
-                }), 400
+                return jsonify(
+                    {
+                        "error": (
+                            "This trip is private. Make it public first to share it."
+                            if is_owner
+                            else "This trip is private. Ask the owner to make "
+                            "it public before sharing to the feed."
+                        ),
+                    }
+                ), 400
         # BUG-44 (MK2 persona audit): the Explore tab only surfaces trips
         # where is_public=1 AND share_token IS NOT NULL, but feed-share
         # historically set is_public alone. Result: a user who tapped the
@@ -703,8 +705,7 @@ def share_trip_to_feed():
             "(user_id, trip_id, repost_of_post_id, caption, trip_was_public, "
             " minted_share_token) "
             "VALUES (?, ?, NULL, ?, ?, ?)",
-            (user_id, trip_id, caption, 1 if trip_was_public else 0,
-             1 if did_mint_token else 0),
+            (user_id, trip_id, caption, 1 if trip_was_public else 0, 1 if did_mint_token else 0),
         )
         if cursor.rowcount > 0:
             # Brand-new share: INSERT actually wrote the row.
@@ -891,8 +892,7 @@ def unshare_feed_post(post_id):
         )
         if should_restore:
             cursor.execute(
-                "SELECT 1 FROM feed_posts WHERE trip_id = ? "
-                "AND repost_of_post_id IS NULL LIMIT 1",
+                "SELECT 1 FROM feed_posts WHERE trip_id = ? AND repost_of_post_id IS NULL LIMIT 1",
                 (row["trip_id"],),
             )
             other_share = cursor.fetchone()
@@ -982,6 +982,7 @@ def repost_feed_post(post_id):
         # refuse on a block edge in EITHER direction. 404 matches the
         # route's anti-enumeration posture.
         from routes.blocks import is_blocked
+
         content_author = original['user_id']
         if original['repost_of_post_id'] is not None:
             cursor.execute(
@@ -1018,8 +1019,7 @@ def repost_feed_post(post_id):
         if existing:
             return jsonify({"status": "already_reposted", "post_id": existing['id']})
         cursor.execute(
-            "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id) "
-            "VALUES (?, ?, ?)",
+            "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id) VALUES (?, ?, ?)",
             (user_id, trip_id, post_id),
         )
         new_post_id = cursor.lastrowid
@@ -1027,7 +1027,9 @@ def repost_feed_post(post_id):
         # post_id we pass is the ORIGINAL post — that's what clicking
         # the notification should route to (their own share that just
         # got engagement), not the new repost row.
-        _fire_engagement_notification(cursor, original['user_id'], user_id, "share_reposted", post_id)
+        _fire_engagement_notification(
+            cursor, original['user_id'], user_id, "share_reposted", post_id
+        )
         conn.commit()
     return jsonify({"status": "reposted", "post_id": new_post_id})
 
@@ -1078,7 +1080,9 @@ def toggle_feed_like(event_id):
                 (user_id, event_id),
             )
             owner_id = _post_owner_for_event(cursor, event_id)
-            _fire_engagement_notification(cursor, owner_id, user_id, "share_liked", _post_id_for_event(event_id))
+            _fire_engagement_notification(
+                cursor, owner_id, user_id, "share_liked", _post_id_for_event(event_id)
+            )
         cursor.execute(
             # BUG-078: block-filter the returned count too, so it matches the
             # (block-filtered) feed display instead of momentarily including a
@@ -1181,7 +1185,9 @@ def list_feed_bookmarks():
                 # per-builder wrap.
                 logger.warning(
                     "bookmark resolve failed for %s (skipping): %s",
-                    ev_id, e, exc_info=True,
+                    ev_id,
+                    e,
+                    exc_info=True,
                 )
                 ev = None
             if ev:
@@ -1210,7 +1216,8 @@ def list_feed_comments(event_id):
         # "B cannot reach A" was broken for historical content.
         # Filter out comments authored by users the caller has
         # blocked.
-        cursor.execute('''
+        cursor.execute(
+            '''
             SELECT c.id, c.user_id, c.body, c.created_at, c.edited_at,
                    u.name AS user_name, u.picture AS user_picture
             FROM feed_comments c
@@ -1227,21 +1234,29 @@ def list_feed_comments(event_id):
                   SELECT blocker_id FROM blocks WHERE blocked_id = ?
               )
             ORDER BY c.created_at ASC, c.id ASC
-        ''', (event_id, user_id, user_id))
+        ''',
+            (event_id, user_id, user_id),
+        )
         rows = cursor.fetchall()
-    return jsonify([
-        {
-            "id": r["id"],
-            "author": {"id": r["user_id"], "name": r["user_name"], "picture": r["user_picture"]},
-            "body": r["body"],
-            "when": r["created_at"],
-            # R3-Round 2: surfaces a non-null timestamp when the comment
-            # has been edited; the renderer shows "(edited)" next to it.
-            # Null = never edited.
-            "editedAt": r["edited_at"],
-        }
-        for r in rows
-    ])
+    return jsonify(
+        [
+            {
+                "id": r["id"],
+                "author": {
+                    "id": r["user_id"],
+                    "name": r["user_name"],
+                    "picture": r["user_picture"],
+                },
+                "body": r["body"],
+                "when": r["created_at"],
+                # R3-Round 2: surfaces a non-null timestamp when the comment
+                # has been edited; the renderer shows "(edited)" next to it.
+                # Null = never edited.
+                "editedAt": r["edited_at"],
+            }
+            for r in rows
+        ]
+    )
 
 
 @bp.route("/api/feed/comment/<event_id>", methods=["POST"])
@@ -1271,11 +1286,14 @@ def add_feed_comment(event_id):
     # any legitimate user (Diego-scale heavy commenter ~30/day in
     # measured usage); a spammer or a buggy retry loop hits this gate.
     from helpers import user_daily_count, user_daily_increment
+
     if user_daily_count("feed_comment", user_id) >= 200:
-        return jsonify({
-            "error": "Daily comment cap reached — try again tomorrow.",
-            "userCapHit": True,
-        }), 429
+        return jsonify(
+            {
+                "error": "Daily comment cap reached — try again tomorrow.",
+                "userCapHit": True,
+            }
+        ), 429
     with get_db() as conn:
         cursor = conn.cursor()
         if not _caller_can_see_event(cursor, event_id, user_id):
@@ -1293,21 +1311,25 @@ def add_feed_comment(event_id):
         )
         row = cursor.fetchone()
         owner_id = _post_owner_for_event(cursor, event_id)
-        _fire_engagement_notification(cursor, owner_id, user_id, "share_commented", _post_id_for_event(event_id))
+        _fire_engagement_notification(
+            cursor, owner_id, user_id, "share_commented", _post_id_for_event(event_id)
+        )
         conn.commit()
     # R11-B5: bump the per-user counter AFTER the row lands so a failed
     # POST (network drop mid-commit, gate fires, etc.) doesn't consume
     # the user's quota.
     user_daily_increment("feed_comment", user_id)
-    return jsonify({
-        "status": "ok",
-        "comment": {
-            "id": row["id"],
-            "author": {"id": user_id, "name": row["name"], "picture": row["picture"]},
-            "body": body,
-            "when": row["created_at"],
-        },
-    })
+    return jsonify(
+        {
+            "status": "ok",
+            "comment": {
+                "id": row["id"],
+                "author": {"id": user_id, "name": row["name"], "picture": row["picture"]},
+                "body": body,
+                "when": row["created_at"],
+            },
+        }
+    )
 
 
 @bp.route("/api/feed/comment/<int:comment_id>", methods=["DELETE"])
@@ -1347,7 +1369,8 @@ def delete_feed_comment(comment_id):
             moderator_ok = False
             if post_id is not None:
                 cursor.execute(
-                    "SELECT user_id FROM feed_posts WHERE id = ?", (post_id,),
+                    "SELECT user_id FROM feed_posts WHERE id = ?",
+                    (post_id,),
                 )
                 p = cursor.fetchone()
                 if p and p["user_id"] == user_id:
@@ -1369,7 +1392,7 @@ def delete_feed_comment(comment_id):
                 candidate_trip_id: str | None = None
                 for prefix in prefix_map:
                     if event_id.startswith(prefix):
-                        rest = event_id[len(prefix):]
+                        rest = event_id[len(prefix) :]
                         # trip_joined_<trip>_<user> — take the part
                         # before the trailing _<user>. trip_created /
                         # trip_archived have NO trailing segment, so
@@ -1473,7 +1496,9 @@ def edit_feed_comment(comment_id):
             (body, comment_id),
         )
         conn.commit()
-    return jsonify({
-        "status": "ok",
-        "comment": {"id": comment_id, "body": body, "eventId": event_id},
-    })
+    return jsonify(
+        {
+            "status": "ok",
+            "comment": {"id": comment_id, "body": body, "eventId": event_id},
+        }
+    )

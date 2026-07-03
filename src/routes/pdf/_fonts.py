@@ -158,21 +158,28 @@ def _strip_emoji(text: str) -> str:
         # dingbats that may be partial-coverage in DejaVu.
         def _is_emoji(cp: int) -> bool:
             return (
-                0x1F000 <= cp <= 0x1FFFF
-                or 0xE000 <= cp <= 0xF8FF  # Private Use Area
+                0x1F000 <= cp <= 0x1FFFF or 0xE000 <= cp <= 0xF8FF  # Private Use Area
             )
+
         return "".join(ch for ch in text if not _is_emoji(ord(ch))).strip()
     # Fallback (no Unicode font): keep ASCII + Latin-1 + Latin-
     # Extended-A plus a curated set of typography glyphs.
     keep_extra = {
-        0x2013, 0x2014,  # – —
-        0x2018, 0x2019, 0x201C, 0x201D,  # smart quotes
-        0x2022, 0x2026,  # • …
-        0x2192, 0x2190, 0x2191, 0x2193,  # arrows → ← ↑ ↓
+        0x2013,
+        0x2014,  # – —
+        0x2018,
+        0x2019,
+        0x201C,
+        0x201D,  # smart quotes
+        0x2022,
+        0x2026,  # • …
+        0x2192,
+        0x2190,
+        0x2191,
+        0x2193,  # arrows → ← ↑ ↓
         0x00B7,  # middle dot ·
-        0x20AC, 0x00A3, 0x00A5,  # € £ ¥
+        0x20AC,
+        0x00A3,
+        0x00A5,  # € £ ¥
     }
-    return "".join(
-        ch for ch in text
-        if ord(ch) <= 0x024F or ord(ch) in keep_extra
-    ).strip()
+    return "".join(ch for ch in text if ord(ch) <= 0x024F or ord(ch) in keep_extra).strip()

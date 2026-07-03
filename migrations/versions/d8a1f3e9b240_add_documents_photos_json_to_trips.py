@@ -19,6 +19,7 @@ The legacy `day.tickets[]` and `day.photos[]` per-day arrays remain
 for backwards compatibility — the new Documents/Photos tabs on Home
 present a UNION view, so no migration is required for old data.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

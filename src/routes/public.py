@@ -302,17 +302,19 @@ def get_public_trip(trip_id):
             # not who paid or how the bill was split. Keep only the safe fields.
             for r in cursor.fetchall():
                 row = dict(r)
-                expenses.append({
-                    'id': row.get('id'),
-                    'tripId': row.get('trip_id'),
-                    'label': row.get('label'),
-                    'value': row.get('value'),
-                    'currency': row.get('currency'),
-                    'euroValue': row.get('euro_value'),
-                    'categoryId': row.get('category_id'),
-                    'date': row.get('date'),
-                    'country': row.get('country'),
-                })
+                expenses.append(
+                    {
+                        'id': row.get('id'),
+                        'tripId': row.get('trip_id'),
+                        'label': row.get('label'),
+                        'value': row.get('value'),
+                        'currency': row.get('currency'),
+                        'euroValue': row.get('euro_value'),
+                        'categoryId': row.get('category_id'),
+                        'date': row.get('date'),
+                        'country': row.get('country'),
+                    }
+                )
 
         # Inline tripDays + expenses + members on the trip object. The
         # archived-trip frontend reads these from `trip.tripDays` and
@@ -327,14 +329,17 @@ def get_public_trip(trip_id):
         # "Owner has chosen to keep expenses private" hint instead of
         # an empty-state for the case where expenses exist server-side
         # but aren't being shared with this viewer.
-        trip['expensesRedacted'] = (not viewer_sees_expenses)
+        trip['expensesRedacted'] = not viewer_sees_expenses
 
-        cursor.execute('''
+        cursor.execute(
+            '''
             SELECT m.user_id, m.role, u.name AS user_name, u.picture AS user_picture
             FROM trip_members m
             LEFT JOIN users u ON u.id = m.user_id
             WHERE m.trip_id = ? AND m.invitation_status = 'accepted'
-        ''', (trip_id,))
+        ''',
+            (trip_id,),
+        )
         # Audit fix (2026-05-26): non-members get a NAME-ONLY roster.
         # Pre-fix this exposed every member's userId + picture to any
         # anonymous viewer of a public trip — a trivial social-graph
@@ -352,10 +357,7 @@ def get_public_trip(trip_id):
                 for mr in cursor.fetchall()
             ]
         else:
-            trip['members'] = [
-                {'name': mr['user_name']}
-                for mr in cursor.fetchall()
-            ]
+            trip['members'] = [{'name': mr['user_name']} for mr in cursor.fetchall()]
 
         return jsonify({"trip": trip, "owner": owner})
 
@@ -462,22 +464,19 @@ def get_public_profile(user_id):
         counts = follower_counts(cursor, user_id)
         caller_id = current_user_id()
         isFollowing = is_following(cursor, caller_id, user_id) if caller_id else False
-        can_see_achievements = bool(
-            caller_id
-            and (caller_id == user_id or isFollowing)
-        )
-        achievements = (
-            list_user_achievements(cursor, user_id) if can_see_achievements else []
-        )
+        can_see_achievements = bool(caller_id and (caller_id == user_id or isFollowing))
+        achievements = list_user_achievements(cursor, user_id) if can_see_achievements else []
 
-        return jsonify({
-            "user": dict(user_row),
-            "trips": trips,
-            "achievements": achievements,
-            "followers": counts["followers"],
-            "following": counts["following"],
-            "isFollowing": isFollowing,
-        })
+        return jsonify(
+            {
+                "user": dict(user_row),
+                "trips": trips,
+                "achievements": achievements,
+                "followers": counts["followers"],
+                "following": counts["following"],
+                "isFollowing": isFollowing,
+            }
+        )
 
 
 # ── Share-via-link public read (FIXING_ROADMAP §4.1) ─────────────────
@@ -584,9 +583,7 @@ def fetch_share_payload(token, caller_id=None):
             "coverUrl": row["cover_url"],
             "lat": row["lat"],
             "lng": row["lng"],
-            "viewport": (
-                json.loads(row["viewport_json"]) if row["viewport_json"] else None
-            ),
+            "viewport": (json.loads(row["viewport_json"]) if row["viewport_json"] else None),
             # R3-Round 3 fix: coarse-bucket the views count to anon
             # share recipients. Pre-fix the precise number leaked a
             # fingerprintable engagement curve to anyone with the URL
@@ -730,6 +727,7 @@ def get_shared_trip(token):
     # suffix — pre-fix 16 chars of the share_token leaked in plain
     # text via `Set-Cookie`. Same change as the HTML route in main.py.
     import hashlib
+
     cookie_name = f"gg_viewed_{hashlib.sha256(token.encode()).hexdigest()[:16]}"
     has_seen = request.cookies.get(cookie_name) is not None
     incremented = False
@@ -737,8 +735,7 @@ def get_shared_trip(token):
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "UPDATE trips SET share_views = COALESCE(share_views, 0) + 1 "
-                "WHERE share_token = ?",
+                "UPDATE trips SET share_views = COALESCE(share_views, 0) + 1 WHERE share_token = ?",
                 (token,),
             )
             # R5-B6: gate the in-payload bump + Set-Cookie on rowcount.
@@ -767,9 +764,11 @@ def get_shared_trip(token):
     response.headers["Cache-Control"] = "private, max-age=0, no-store"
     if incremented:
         response.set_cookie(
-            cookie_name, "1",
+            cookie_name,
+            "1",
             max_age=24 * 60 * 60,
-            httponly=True, samesite="Lax",
+            httponly=True,
+            samesite="Lax",
             # R5-B6: Secure flag prevents the token-hash from leaking
             # in clear over an http downgrade (captive portals,
             # injected http img tags). HSTS protects most users but

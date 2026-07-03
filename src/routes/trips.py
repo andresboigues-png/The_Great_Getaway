@@ -106,8 +106,8 @@ def upsert_trip():
             return jsonify({"status": "ok", "updatedAt": None})
         # Existing trip? Gate on planner role (owner counts as planner).
         cursor.execute(
-            "SELECT user_id, updated_at, is_public, public_show_expenses "
-            "FROM trips WHERE id = ?", (t["id"],),
+            "SELECT user_id, updated_at, is_public, public_show_expenses FROM trips WHERE id = ?",
+            (t["id"],),
         )
         existing = cursor.fetchone()
         if existing and not can_edit_trip(cursor, t["id"], user_id):
@@ -129,11 +129,14 @@ def upsert_trip():
         # caps the spam vector cleanly.
         if not existing:
             from helpers import user_daily_count
+
             if user_daily_count("trip_create", user_id) >= 50:
-                return jsonify({
-                    "error": "Daily new-trip cap reached — try again tomorrow.",
-                    "userCapHit": True,
-                }), 429
+                return jsonify(
+                    {
+                        "error": "Daily new-trip cap reached — try again tomorrow.",
+                        "userCapHit": True,
+                    }
+                ), 429
 
         # R3-Round 5: optimistic-concurrency gate. Same pattern as the
         # /api/expenses route (see that file for the full rationale).
@@ -169,8 +172,10 @@ def upsert_trip():
         if 'coverUrl' in t:
             try:
                 t['coverUrl'] = validate_upload_url(
-                    t.get('coverUrl'), user_id=user_id,
-                    field_name="coverUrl", allow_empty=True,
+                    t.get('coverUrl'),
+                    user_id=user_id,
+                    field_name="coverUrl",
+                    allow_empty=True,
                 )
             except ValidationError as ve:
                 return jsonify({"error": str(ve)}), 400
@@ -193,7 +198,8 @@ def upsert_trip():
         #   - countries = ['PT', 'ES']   → payload = '["PT","ES"]'
         if isinstance(t.get('countries'), list):
             normalized = [
-                c.strip().upper() for c in t['countries']
+                c.strip().upper()
+                for c in t['countries']
                 if isinstance(c, str) and len(c.strip()) == 2
             ]
             # Dedupe while preserving order — first occurrence wins, so
@@ -212,7 +218,8 @@ def upsert_trip():
         # when the client passes NULL (= "don't touch") and overwrites
         # only when the client explicitly sends data. Same pattern
         # already applied to /api/sync's trip loop.
-        cursor.execute('''
+        cursor.execute(
+            '''
             INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
                                public_show_expenses,
                                place_id, lat, lng, viewport_json, place_types, country_code,
@@ -267,41 +274,51 @@ def upsert_trip():
             WHERE ? IS NULL
                OR trips.updated_at IS NULL
                OR trips.updated_at = ?
-        ''', (t['id'], owner_id, t['name'], t.get('country', ''),
-              1 if t.get('isArchived') else 0,
-              1 if t.get('isPublic') else 0,
-              1 if t.get('publicShowExpenses') else 0,
-              t.get('placeId'),
-              t.get('lat'),
-              t.get('lng'),
-              json.dumps(t['viewport']) if t.get('viewport') else None,
-              json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
-              t.get('countryCode'),
-              json.dumps(_cleaned_companions(cursor, t.get('id'), t.get('companions'))) if isinstance(t.get('companions'), list) else None,
-              # R12-B4: upsert_trip NO LONGER writes the four heavy media
-              # columns. They have a dedicated write path now
-              # (POST /api/trips/<id>/media). Passing None means
-              # COALESCE(NULL, existing) preserves them on UPDATE and they
-              # start NULL (= []) on a fresh INSERT. This is the structural
-              # guarantee that a trip-metadata edit (rename / cover / dates)
-              # can never clobber photos/documents/markedPlaces/checklist —
-              # the bug class that bit Phase 1B. Even a legacy/stale client
-              # that still sends these keys in a /api/trips payload has them
-              # silently ignored here.
-              None,  # marked_places_json — see POST /api/trips/<id>/media
-              None,  # documents_json
-              None,  # photos_json
-              None,  # checklist_json
-              countries_payload,
-              t.get('coverUrl'),
-              # Trip Hub notes (metadata path). None when the key is absent →
-              # the COALESCE in the SET clause preserves the stored value.
-              t.get('notes'),
-              # 4.8 audit TRIP-6: preserve-flag for the cover_url CASE
-              # above — 1 = key absent (keep stored cover), 0 = key present
-              # (write the provided value, incl. the Remove-cover null).
-              1 if 'coverUrl' not in t else 0,
-              client_updated_at, client_updated_at))
+        ''',
+            (
+                t['id'],
+                owner_id,
+                t['name'],
+                t.get('country', ''),
+                1 if t.get('isArchived') else 0,
+                1 if t.get('isPublic') else 0,
+                1 if t.get('publicShowExpenses') else 0,
+                t.get('placeId'),
+                t.get('lat'),
+                t.get('lng'),
+                json.dumps(t['viewport']) if t.get('viewport') else None,
+                json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
+                t.get('countryCode'),
+                json.dumps(_cleaned_companions(cursor, t.get('id'), t.get('companions')))
+                if isinstance(t.get('companions'), list)
+                else None,
+                # R12-B4: upsert_trip NO LONGER writes the four heavy media
+                # columns. They have a dedicated write path now
+                # (POST /api/trips/<id>/media). Passing None means
+                # COALESCE(NULL, existing) preserves them on UPDATE and they
+                # start NULL (= []) on a fresh INSERT. This is the structural
+                # guarantee that a trip-metadata edit (rename / cover / dates)
+                # can never clobber photos/documents/markedPlaces/checklist —
+                # the bug class that bit Phase 1B. Even a legacy/stale client
+                # that still sends these keys in a /api/trips payload has them
+                # silently ignored here.
+                None,  # marked_places_json — see POST /api/trips/<id>/media
+                None,  # documents_json
+                None,  # photos_json
+                None,  # checklist_json
+                countries_payload,
+                t.get('coverUrl'),
+                # Trip Hub notes (metadata path). None when the key is absent →
+                # the COALESCE in the SET clause preserves the stored value.
+                t.get('notes'),
+                # 4.8 audit TRIP-6: preserve-flag for the cover_url CASE
+                # above — 1 = key absent (keep stored cover), 0 = key present
+                # (write the provided value, incl. the Remove-cover null).
+                1 if 'coverUrl' not in t else 0,
+                client_updated_at,
+                client_updated_at,
+            ),
+        )
         # R8-B4: existing row + UPDATE filtered out = stale edit.
         # INSERT path always returns rowcount=1; an UPDATE with the
         # WHERE filter passing also returns 1. Only the stale case
@@ -309,10 +326,12 @@ def upsert_trip():
         if existing and cursor.rowcount == 0:
             cursor.execute("SELECT * FROM trips WHERE id = ?", (t["id"],))
             live = cursor.fetchone()
-            return jsonify({
-                "error": "Stale edit — another device updated this trip",
-                "current": dict(live) if live else None,
-            }), 409
+            return jsonify(
+                {
+                    "error": "Stale edit — another device updated this trip",
+                    "current": dict(live) if live else None,
+                }
+            ), 409
         ensure_owner_member_row(cursor, t['id'], owner_id)
         # 2026-05-18 audit H1: mirror the client-supplied archive flag
         # to the OWNER's trip_members row so the per-user archive
@@ -323,14 +342,14 @@ def upsert_trip():
         # row's is_archived — without this UPDATE, importing a
         # completed trip would leave the owner's per-user flag at 0.
         cursor.execute(
-            "UPDATE trip_members SET is_archived = ? "
-            "WHERE trip_id = ? AND user_id = ?",
+            "UPDATE trip_members SET is_archived = ? WHERE trip_id = ? AND user_id = ?",
             (1 if t.get('isArchived') else 0, t['id'], owner_id),
         )
         # R3-Round 5: read back the fresh updated_at so the client
         # can stash it for the next edit's clientUpdatedAt.
         cursor.execute(
-            "SELECT updated_at FROM trips WHERE id = ?", (t['id'],),
+            "SELECT updated_at FROM trips WHERE id = ?",
+            (t['id'],),
         )
         new_row = cursor.fetchone()
         new_updated_at = new_row['updated_at'] if new_row else None
@@ -340,6 +359,7 @@ def upsert_trip():
     # Only counts ON CREATE; edits (existing row) are unbounded.
     if not existing:
         from helpers import user_daily_increment
+
         user_daily_increment("trip_create", user_id)
     return jsonify({"status": "ok", "updatedAt": new_updated_at})
 
@@ -396,7 +416,8 @@ def delete_trip(trip_id):
         # since the table existed in the audit window; if the DELETE
         # raises, surface it so we know.
         cursor.execute(
-            "SELECT id FROM feed_posts WHERE trip_id = ?", (trip_id,),
+            "SELECT id FROM feed_posts WHERE trip_id = ?",
+            (trip_id,),
         )
         doomed_post_ids = [r["id"] for r in cursor.fetchall()]
         cursor.execute("DELETE FROM feed_posts WHERE trip_id = ?", (trip_id,))
@@ -411,8 +432,7 @@ def delete_trip(trip_id):
         #   share_<post_id> / repost_<post_id> (one per doomed post)
         for table in ("feed_likes", "feed_comments", "feed_bookmarks"):
             cursor.execute(
-                f"DELETE FROM {table} WHERE event_id = ? OR event_id = ? "
-                f"OR event_id LIKE ?",
+                f"DELETE FROM {table} WHERE event_id = ? OR event_id = ? OR event_id LIKE ?",
                 (
                     f"trip_created_{trip_id}",
                     f"trip_archived_{trip_id}",
@@ -529,6 +549,7 @@ def archive_trip(trip_id):
     # repeat_country, etc.) so bust the throttle so the next /api/data
     # poll re-runs the engine.
     from achievements import force_recheck_achievements
+
     force_recheck_achievements(user_id)
     return jsonify({"status": "archived"})
 
@@ -619,6 +640,7 @@ def unarchive_trip(trip_id):
     # tm.is_archived = 1). Bust the throttle to let the engine
     # re-evaluate immediately.
     from achievements import force_recheck_achievements
+
     force_recheck_achievements(user_id)
     return jsonify({"status": "unarchived"})
 
@@ -672,6 +694,7 @@ def get_trip_media(trip_id):
         row = cursor.fetchone()
         if not row:
             return jsonify({"error": "Not found"}), 404
+
         # Mirror `_safe_json` from serialize_trip_row (inlined here
         # because that helper is nested-scope-private to keep its
         # call-site cohesive). Each parse falls back to [] on a NULL
@@ -683,19 +706,22 @@ def get_trip_media(trip_id):
                 return json.loads(raw)
             except (json.JSONDecodeError, TypeError, ValueError):
                 return []
-        return jsonify({
-            "tripId": trip_id,
-            "updatedAt": row["updated_at"],
-            # 4.8 audit TRIP-4: the media-only version stamp the client
-            # echoes back as `clientMediaUpdatedAt` on the next write so
-            # concurrent multi-device media edits 409 instead of silently
-            # last-write-wins.
-            "mediaUpdatedAt": row["media_updated_at"],
-            "photos": _safe_arr(row["photos_json"]),
-            "documents": _safe_arr(row["documents_json"]),
-            "markedPlaces": _safe_arr(row["marked_places_json"]),
-            "checklist": _safe_arr(row["checklist_json"]),
-        })
+
+        return jsonify(
+            {
+                "tripId": trip_id,
+                "updatedAt": row["updated_at"],
+                # 4.8 audit TRIP-4: the media-only version stamp the client
+                # echoes back as `clientMediaUpdatedAt` on the next write so
+                # concurrent multi-device media edits 409 instead of silently
+                # last-write-wins.
+                "mediaUpdatedAt": row["media_updated_at"],
+                "photos": _safe_arr(row["photos_json"]),
+                "documents": _safe_arr(row["documents_json"]),
+                "markedPlaces": _safe_arr(row["marked_places_json"]),
+                "checklist": _safe_arr(row["checklist_json"]),
+            }
+        )
 
 
 # R12-B4: the heavy per-trip JSON columns now have their OWN write path,
@@ -764,7 +790,8 @@ def update_trip_media(trip_id):
         if key in ("photos", "documents"):
             url_field = "src" if key == "photos" else "url"
             value = [
-                it for it in value
+                it
+                for it in value
                 if not isinstance(it, dict) or is_safe_media_url(it.get(url_field))
             ]
         payload = json.dumps(value)
@@ -795,9 +822,11 @@ def update_trip_media(trip_id):
         # still render). The /api/sync bulk path stays exempt as always
         # (it's the catch-up channel for archived state itself).
         if is_trip_archived_for(cursor, trip_id, user_id):
-            return jsonify({
-                "error": "Trip is archived — unarchive to edit",
-            }), 409
+            return jsonify(
+                {
+                    "error": "Trip is archived — unarchive to edit",
+                }
+            ), 409
         bind_trip_context(trip_id)
         # 4.8 audit TRIP-4: optimistic-concurrency on the media path.
         # Media carries its OWN version stamp (media_updated_at), separate
@@ -835,6 +864,7 @@ def update_trip_media(trip_id):
                     return json.loads(raw)
                 except (json.JSONDecodeError, TypeError, ValueError):
                     return []
+
             cursor.execute(
                 "SELECT photos_json, documents_json, marked_places_json, "
                 "checklist_json, media_updated_at FROM trips WHERE id = ?",
@@ -842,27 +872,32 @@ def update_trip_media(trip_id):
             )
             live = cursor.fetchone()
             conn.commit()
-            return jsonify({
-                "error": "Stale media — another device updated this trip's media",
-                "current": {
-                    "photos": _safe_arr(live["photos_json"]) if live else [],
-                    "documents": _safe_arr(live["documents_json"]) if live else [],
-                    "markedPlaces": _safe_arr(live["marked_places_json"]) if live else [],
-                    "checklist": _safe_arr(live["checklist_json"]) if live else [],
-                },
-                "mediaUpdatedAt": live["media_updated_at"] if live else None,
-            }), 409
+            return jsonify(
+                {
+                    "error": "Stale media — another device updated this trip's media",
+                    "current": {
+                        "photos": _safe_arr(live["photos_json"]) if live else [],
+                        "documents": _safe_arr(live["documents_json"]) if live else [],
+                        "markedPlaces": _safe_arr(live["marked_places_json"]) if live else [],
+                        "checklist": _safe_arr(live["checklist_json"]) if live else [],
+                    },
+                    "mediaUpdatedAt": live["media_updated_at"] if live else None,
+                }
+            ), 409
         cursor.execute(
-            "SELECT media_updated_at FROM trips WHERE id = ?", (trip_id,),
+            "SELECT media_updated_at FROM trips WHERE id = ?",
+            (trip_id,),
         )
         new_row = cursor.fetchone()
         new_media_updated_at = new_row["media_updated_at"] if new_row else None
         conn.commit()
-    return jsonify({
-        "status": "ok",
-        "updated": [k for k in body if k in _MEDIA_KEY_TO_COLUMN],
-        "mediaUpdatedAt": new_media_updated_at,
-    })
+    return jsonify(
+        {
+            "status": "ok",
+            "updated": [k for k in body if k in _MEDIA_KEY_TO_COLUMN],
+            "mediaUpdatedAt": new_media_updated_at,
+        }
+    )
 
 
 @bp.route("/api/trips/invite", methods=["POST"])
@@ -918,6 +953,7 @@ def invite_trip_member():
         # blocked the inviter, the invite silently fails — 404 not
         # 403 to avoid broadcasting the block.
         from routes.blocks import is_blocked
+
         if is_blocked(cursor, target, inviter):
             return jsonify({"error": "Target user not found"}), 404
 
@@ -937,16 +973,17 @@ def invite_trip_member():
         # in Batch C — for now, the only path forward is remove the
         # member then re-invite with the new role).
         cursor.execute(
-            "SELECT role, invitation_status FROM trip_members "
-            "WHERE trip_id = ? AND user_id = ?",
+            "SELECT role, invitation_status FROM trip_members WHERE trip_id = ? AND user_id = ?",
             (trip_id, target),
         )
         existing = cursor.fetchone()
         if existing and existing["invitation_status"] == "accepted" and existing["role"] != role:
-            return jsonify({
-                "error": "Member already accepted with a different role",
-                "current_role": existing["role"],
-            }), 409
+            return jsonify(
+                {
+                    "error": "Member already accepted with a different role",
+                    "current_role": existing["role"],
+                }
+            ), 409
 
         # Model B: trip invites are an explicit access grant, decoupled
         # from the social graph. Anyone can be invited — the rate
@@ -1043,7 +1080,8 @@ def respond_trip_invite():
         # always considered authoritative even if their member row
         # is missing (legacy data).
         cursor.execute(
-            "SELECT user_id FROM trips WHERE id = ?", (trip_id,),
+            "SELECT user_id FROM trips WHERE id = ?",
+            (trip_id,),
         )
         trip_owner_row = cursor.fetchone()
         if not trip_owner_row:
@@ -1068,9 +1106,11 @@ def respond_trip_invite():
                 (trip_id, user_id),
             )
             conn.commit()
-            return jsonify({
-                "error": "Invitation is no longer valid",
-            }), 410
+            return jsonify(
+                {
+                    "error": "Invitation is no longer valid",
+                }
+            ), 410
 
         cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
         responder_row = cursor.fetchone()
@@ -1115,6 +1155,7 @@ def respond_trip_invite():
         # R5-B2: skip if the inviter blocked the responder. A blocked
         # user accepting/declining shouldn't ping the blocker's bell.
         from routes.blocks import is_blocked
+
         if inviter_id and not is_blocked(cursor, inviter_id, user_id):
             cursor.execute(
                 "INSERT INTO notifications (user_id, type, title, related_id, message, is_read) "
@@ -1153,7 +1194,7 @@ def remove_trip_member():
         # is removing THEMSELVES, skip the planner gate. The owner
         # check below still blocks self-leave for owners (they need
         # to delete the trip via /api/trips/<id> DELETE instead).
-        is_self_leave = (actor == target)
+        is_self_leave = actor == target
         # DSGN-036: same gate as invite — only the owner can remove OTHER
         # members. Self-leave (is_self_leave) is still open to any role so
         # any invited member can leave the trip without owner intervention.
@@ -1280,12 +1321,14 @@ def create_share_link(trip_id):
             (trip_id,),
         )
         conn.commit()
-    return jsonify({
-        "token": token,
-        "url": f"/share/{token}",
-        "showCost": show_cost,
-        "showPlans": show_plans,
-    })
+    return jsonify(
+        {
+            "token": token,
+            "url": f"/share/{token}",
+            "showCost": show_cost,
+            "showPlans": show_plans,
+        }
+    )
 
 
 @bp.route("/api/trips/<trip_id>/share", methods=["DELETE"])
@@ -1400,7 +1443,8 @@ def _clone_trip_attempt(cursor, src, new_owner_id, new_trip_id, include_marked_p
         if (isinstance(src_cover, str) and src_cover.startswith('/static/uploads/'))
         else src_cover
     )
-    cursor.execute('''
+    cursor.execute(
+        '''
         INSERT INTO trips (
             id, user_id, name, country, country_code,
             is_archived, is_public,
@@ -1409,41 +1453,45 @@ def _clone_trip_attempt(cursor, src, new_owner_id, new_trip_id, include_marked_p
             documents_json, photos_json, checklist_json,
             trip_countries_json, actions_hidden, cover_url
         ) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
-    ''', (
-        new_trip_id,
-        new_owner_id,
-        new_name,
-        src['country'],
-        src['country_code'],
-        src['place_id'],
-        src['lat'],
-        src['lng'],
-        src['viewport_json'],
-        src['place_types'],
-        # Companions — explicitly NOT copied. Always start clean.
-        None,
-        # markedPlaces — copied ONLY for a full-access clone (the caller is a
-        # member who can already see the wishlist). A share-link clone passes
-        # include_marked_places=False: the share page + public-trip read strip
-        # markedPlaces from non-members, so copying it would leak a wishlist the
-        # recipient was never shown (Audit MK5 P1). When it IS copied, strip the
-        # source trip's day refs so the pins aren't invisible on the clone's
-        # per-day filters (Audit MK5 P2).
-        _clone_marked_places_json(src['marked_places_json']) if include_marked_places else None,
-        # documents / photos / checklist — NEVER copied (personal
-        # files / per-trip tasks belong to the original owner).
-        None,
-        None,
-        None,
-        # §4.3 multi-country: copy the discovered country array. The
-        # clone visits the same places, so the country set is the
-        # same — no reason to force re-discovery on the clone.
-        src['trip_countries_json'],
-        clone_cover,
-    ))
+    ''',
+        (
+            new_trip_id,
+            new_owner_id,
+            new_name,
+            src['country'],
+            src['country_code'],
+            src['place_id'],
+            src['lat'],
+            src['lng'],
+            src['viewport_json'],
+            src['place_types'],
+            # Companions — explicitly NOT copied. Always start clean.
+            None,
+            # markedPlaces — copied ONLY for a full-access clone (the caller is a
+            # member who can already see the wishlist). A share-link clone passes
+            # include_marked_places=False: the share page + public-trip read strip
+            # markedPlaces from non-members, so copying it would leak a wishlist the
+            # recipient was never shown (Audit MK5 P1). When it IS copied, strip the
+            # source trip's day refs so the pins aren't invisible on the clone's
+            # per-day filters (Audit MK5 P2).
+            _clone_marked_places_json(src['marked_places_json']) if include_marked_places else None,
+            # documents / photos / checklist — NEVER copied (personal
+            # files / per-trip tasks belong to the original owner).
+            None,
+            None,
+            None,
+            # §4.3 multi-country: copy the discovered country array. The
+            # clone visits the same places, so the country set is the
+            # same — no reason to force re-discovery on the clone.
+            src['trip_countries_json'],
+            clone_cover,
+        ),
+    )
 
 
-def _clone_trip_record(cursor, source_trip_id, new_owner_id, include_plans=True, include_marked_places=True):
+def _clone_trip_record(
+    cursor, source_trip_id, new_owner_id, include_plans=True, include_marked_places=True
+):
     """Deep-copy a single trip + its trip_days into a new trip owned by
     `new_owner_id`. The caller is responsible for visibility (must verify
     source_trip_id is readable to the user BEFORE calling this — clones
@@ -1469,6 +1517,7 @@ def _clone_trip_record(cursor, source_trip_id, new_owner_id, include_plans=True,
     widen `_generate_trip_id` and stop truncating).
     """
     import sqlite3
+
     cursor.execute(
         "SELECT id, name, country, country_code, place_id, lat, lng, "
         "       viewport_json, place_types, "
@@ -1487,7 +1536,9 @@ def _clone_trip_record(cursor, source_trip_id, new_owner_id, include_plans=True,
     for _attempt in range(5):
         candidate = _generate_trip_id()
         try:
-            _clone_trip_attempt(cursor, src, new_owner_id, candidate, include_marked_places=include_marked_places)
+            _clone_trip_attempt(
+                cursor, src, new_owner_id, candidate, include_marked_places=include_marked_places
+            )
             new_trip_id = candidate
             break
         except sqlite3.IntegrityError:
@@ -1533,29 +1584,32 @@ def _clone_trip_record(cursor, source_trip_id, new_owner_id, include_plans=True,
                 # logic populate fresh dates based on the new owner's
                 # chosen start — which is the user expectation for a
                 # cloned template.
-                cursor.execute('''
+                cursor.execute(
+                    '''
                     INSERT INTO trip_days (
                         id, trip_id, day_number, date, name,
                         morning, afternoon, evening, tip,
                         lat, lng
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    candidate_day_id,
-                    new_trip_id,
-                    d['day_number'],
-                    None,
-                    d['name'],
-                    # Plan text is copied only when the source authorized the
-                    # recipient to see it (share_show_plans). Otherwise NULL —
-                    # a share-link clone must not resurrect day-by-day plans
-                    # the share page hid (Audit MK5 P1).
-                    d['morning'] if include_plans else None,
-                    d['afternoon'] if include_plans else None,
-                    d['evening'] if include_plans else None,
-                    d['tip'] if include_plans else None,
-                    d['lat'],
-                    d['lng'],
-                ))
+                ''',
+                    (
+                        candidate_day_id,
+                        new_trip_id,
+                        d['day_number'],
+                        None,
+                        d['name'],
+                        # Plan text is copied only when the source authorized the
+                        # recipient to see it (share_show_plans). Otherwise NULL —
+                        # a share-link clone must not resurrect day-by-day plans
+                        # the share page hid (Audit MK5 P1).
+                        d['morning'] if include_plans else None,
+                        d['afternoon'] if include_plans else None,
+                        d['evening'] if include_plans else None,
+                        d['tip'] if include_plans else None,
+                        d['lat'],
+                        d['lng'],
+                    ),
+                )
                 inserted = True
                 break
             except sqlite3.IntegrityError:
@@ -1583,7 +1637,8 @@ def _caller_can_see_trip(cursor, trip_id, user_id):
     you'd be able to view via /api/public-trip or your own
     Collections."""
     cursor.execute(
-        "SELECT user_id, is_public FROM trips WHERE id = ?", (trip_id,),
+        "SELECT user_id, is_public FROM trips WHERE id = ?",
+        (trip_id,),
     )
     row = cursor.fetchone()
     if not row:
@@ -1671,7 +1726,9 @@ def clone_trip_from_share_token(token):
         # kept day plans private (share_show_plans=0), the cloned days carry no
         # plan text; markedPlaces are never copied (handled in _clone_trip_record).
         new_trip_id = _clone_trip_record(
-            cursor, row['id'], user_id,
+            cursor,
+            row['id'],
+            user_id,
             include_plans=bool(row['share_show_plans']),
             include_marked_places=False,
         )

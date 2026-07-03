@@ -36,6 +36,7 @@ Additive + backward-compatible: the table is only written by the new
 delete path and only read by the new upsert guard + the future delta, so
 this is safe to deploy ahead of the server/client changes that use it.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

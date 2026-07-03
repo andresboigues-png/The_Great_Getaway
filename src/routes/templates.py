@@ -98,7 +98,7 @@ def _clean_marked_places(places):
     public preview are clean going forward) AND at instantiation (so templates
     snapshotted before this fix still import clean)."""
     out = []
-    for p in (places or []):
+    for p in places or []:
         if not isinstance(p, dict):
             continue
         q = dict(p)
@@ -124,9 +124,7 @@ def _is_creator(cursor, user_id) -> bool:
     granted users.is_creator flag."""
     if not user_id:
         return False
-    cursor.execute(
-        "SELECT email, is_creator FROM users WHERE id = ?", (user_id,)
-    )
+    cursor.execute("SELECT email, is_creator FROM users WHERE id = ?", (user_id,))
     row = cursor.fetchone()
     if not row:
         return False
@@ -175,18 +173,20 @@ def _build_template_snapshot(cursor, trip_id, include_plans, include_places, inc
             (trip_id,),
         )
         for d in cursor.fetchall():
-            snap["days"].append({
-                "dayNumber": d["day_number"],
-                "name": d["name"],
-                "plan": {
-                    "morning": d["morning"],
-                    "afternoon": d["afternoon"],
-                    "evening": d["evening"],
-                },
-                "tip": d["tip"],
-                "lat": d["lat"],
-                "lng": d["lng"],
-            })
+            snap["days"].append(
+                {
+                    "dayNumber": d["day_number"],
+                    "name": d["name"],
+                    "plan": {
+                        "morning": d["morning"],
+                        "afternoon": d["afternoon"],
+                        "evening": d["evening"],
+                    },
+                    "tip": d["tip"],
+                    "lat": d["lat"],
+                    "lng": d["lng"],
+                }
+            )
 
     if include_places:
         places = _loads(t["marked_places_json"]) or []
@@ -294,7 +294,7 @@ def _instantiate_template(cursor, snap, includes, new_owner_id, start_date=None)
     # Days — only present when the template included plans. Numbered days are
     # auto-dated from start_date (day N → start + N-1); the anchor (day 0) and
     # the no-start-date case stay blank.
-    for d in (snap.get("days") or []):
+    for d in snap.get("days") or []:
         if not isinstance(d, dict):
             continue
         plan = d.get("plan") or {}
@@ -401,21 +401,23 @@ def list_public_templates():
     for r in rows:
         snap = _loads(r["snapshot_json"]) or {}
         days = snap.get("days") if isinstance(snap, dict) else None
-        out.append({
-            "id": r["id"],
-            "code": r["code"],
-            "name": r["name"],
-            "useCount": r["use_count"] or 0,
-            "createdAt": r["created_at"],
-            "country": snap.get("country") if isinstance(snap, dict) else None,
-            "countryCode": snap.get("countryCode") if isinstance(snap, dict) else None,
-            "dayCount": len(days) if isinstance(days, list) else 0,
-            "creator": {
-                "id": r["creator_id"],
-                "name": r["creator_name"] or "",
-                "picture": r["creator_picture"],
-            },
-        })
+        out.append(
+            {
+                "id": r["id"],
+                "code": r["code"],
+                "name": r["name"],
+                "useCount": r["use_count"] or 0,
+                "createdAt": r["created_at"],
+                "country": snap.get("country") if isinstance(snap, dict) else None,
+                "countryCode": snap.get("countryCode") if isinstance(snap, dict) else None,
+                "dayCount": len(days) if isinstance(days, list) else 0,
+                "creator": {
+                    "id": r["creator_id"],
+                    "name": r["creator_name"] or "",
+                    "picture": r["creator_picture"],
+                },
+            }
+        )
     return jsonify({"templates": out})
 
 
@@ -460,9 +462,7 @@ def create_template():
         new_code = None
         for _attempt in range(6):
             candidate = _generate_code()
-            cursor.execute(
-                "SELECT 1 FROM trip_templates WHERE code = ?", (candidate,)
-            )
+            cursor.execute("SELECT 1 FROM trip_templates WHERE code = ?", (candidate,))
             if cursor.fetchone() is None:
                 new_code = candidate
                 break
@@ -475,8 +475,16 @@ def create_template():
             " include_places, include_checklist, is_public, snapshot_json, use_count) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
             (
-                tmpl_id, new_code, user_id, name, source_trip_id,
-                include_plans, include_places, include_checklist, is_public, snapshot_json,
+                tmpl_id,
+                new_code,
+                user_id,
+                name,
+                source_trip_id,
+                include_plans,
+                include_places,
+                include_checklist,
+                is_public,
+                snapshot_json,
             ),
         )
         conn.commit()
@@ -517,7 +525,9 @@ def update_template(template_id):
         source_trip_id = (body.get("sourceTripId") or existing["source_trip_id"] or "").strip()
         include_plans = 1 if body.get("includePlans", bool(existing["include_plans"])) else 0
         include_places = 1 if body.get("includePlaces", bool(existing["include_places"])) else 0
-        include_checklist = 1 if body.get("includeChecklist", bool(existing["include_checklist"])) else 0
+        include_checklist = (
+            1 if body.get("includeChecklist", bool(existing["include_checklist"])) else 0
+        )
         is_public = 1 if body.get("isPublic", bool(existing["is_public"])) else 0
 
         if not source_trip_id:
@@ -540,8 +550,15 @@ def update_template(template_id):
             "snapshot_json = ?, updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
             "WHERE id = ? AND owner_id = ?",
             (
-                name, source_trip_id, include_plans, include_places,
-                include_checklist, is_public, json.dumps(snap), template_id, user_id,
+                name,
+                source_trip_id,
+                include_plans,
+                include_places,
+                include_checklist,
+                is_public,
+                json.dumps(snap),
+                template_id,
+                user_id,
             ),
         )
         conn.commit()
@@ -616,11 +633,13 @@ def fetch_template_preview(code):
         # creator's deliberately-published template content).
         "days": [
             {"dayNumber": d.get("dayNumber"), "name": d.get("name"), "plan": d.get("plan")}
-            for d in days if isinstance(d, dict)
+            for d in days
+            if isinstance(d, dict)
         ],
         "places": [
             {"name": (p or {}).get("name"), "icon": (p or {}).get("icon")}
-            for p in places if isinstance(p, dict)
+            for p in places
+            if isinstance(p, dict)
         ],
     }
 

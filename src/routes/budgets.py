@@ -50,7 +50,9 @@ def upsert_budget():
         amount = validate_money(b.get("amount", 0), field_name="amount", allow_zero=False)
         currency = validate_currency(b.get("currency"))
         label = clean_text(
-            b.get("label", ""), max_len=120, allow_newlines=False,
+            b.get("label", ""),
+            max_len=120,
+            allow_newlines=False,
             field_name="label",
         )
     except ValidationError as ve:
@@ -64,13 +66,15 @@ def upsert_budget():
     # The create-budget modal already blocks this (its hasRate check), so this
     # only bites the raw API / CSV-import / legacy paths.
     if currency != "EUR" and get_rate_eur(currency) is None:
-        return jsonify({
-            "error": (
-                "No live exchange rate is available for this currency — "
-                "choose a currency we can convert to your home currency."
-            ),
-            "currency": currency,
-        }), 400
+        return jsonify(
+            {
+                "error": (
+                    "No live exchange rate is available for this currency — "
+                    "choose a currency we can convert to your home currency."
+                ),
+                "currency": currency,
+            }
+        ), 400
 
     # 2026-05-25 (audit B2): the frontend's "All trips" option carries
     # tripId='all'. Writing 'all' to budgets.trip_id triggers a FK
@@ -179,9 +183,11 @@ def upsert_budget():
         # budget is trip-scoped — global ("all trips") budgets aren't
         # tied to a single trip lifecycle.
         if trip_id and is_trip_archived_for(cursor, trip_id, user_id):
-            return jsonify({
-                "error": "Trip is archived — unarchive to edit",
-            }), 409
+            return jsonify(
+                {
+                    "error": "Trip is archived — unarchive to edit",
+                }
+            ), 409
         # 4.8 audit MONEY-1: enforce one budget per
         # (user_id, trip_id, category_id, owner_name) scope, regardless
         # of NULLs. SQLite's UNIQUE treats NULL as DISTINCT, so the table
@@ -202,18 +208,22 @@ def upsert_budget():
         )
         scope_dup = cursor.fetchone()
         if scope_dup:
-            return jsonify({
-                "error": "A budget with this scope already exists",
-                "existingId": scope_dup["id"],
-            }), 409
+            return jsonify(
+                {
+                    "error": "A budget with this scope already exists",
+                    "existingId": scope_dup["id"],
+                }
+            ), 409
         # R3-Round 5: optimistic-concurrency gate. R8-B4 atomicity:
         # the staleness check now lives INSIDE the ON CONFLICT
         # UPDATE's WHERE clause below. See trips.py / expenses.py
         # for the full TOCTOU rationale.
         client_updated_at = b.get('clientUpdatedAt')
         import sqlite3 as _sqlite3
+
         try:
-            cursor.execute('''
+            cursor.execute(
+                '''
             INSERT INTO budgets (id, user_id, trip_id, label, amount, currency,
                                  category_id, owner_name, original_amount, original_currency, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
@@ -233,10 +243,23 @@ def upsert_budget():
               AND (? IS NULL
                    OR budgets.updated_at IS NULL
                    OR budgets.updated_at = ?)
-        ''', (budget_id, user_id, trip_id, label,
-              amount, currency,
-              category_id, owner_name, original_amount, original_currency,
-              user_id, client_updated_at, client_updated_at))
+        ''',
+                (
+                    budget_id,
+                    user_id,
+                    trip_id,
+                    label,
+                    amount,
+                    currency,
+                    category_id,
+                    owner_name,
+                    original_amount,
+                    original_currency,
+                    user_id,
+                    client_updated_at,
+                    client_updated_at,
+                ),
+            )
         except _sqlite3.IntegrityError:
             # 4.8 audit MONEY-2: a fully-scoped duplicate that slips past
             # the pre-check under a rare concurrent race hits the base
@@ -251,15 +274,19 @@ def upsert_budget():
         # only be staleness.
         if existing and cursor.rowcount == 0:
             cursor.execute(
-                "SELECT * FROM budgets WHERE id = ?", (budget_id,),
+                "SELECT * FROM budgets WHERE id = ?",
+                (budget_id,),
             )
             live = cursor.fetchone()
-            return jsonify({
-                "error": "Stale edit — another device updated this budget",
-                "current": dict(live) if live else None,
-            }), 409
+            return jsonify(
+                {
+                    "error": "Stale edit — another device updated this budget",
+                    "current": dict(live) if live else None,
+                }
+            ), 409
         cursor.execute(
-            "SELECT updated_at FROM budgets WHERE id = ?", (budget_id,),
+            "SELECT updated_at FROM budgets WHERE id = ?",
+            (budget_id,),
         )
         new_row = cursor.fetchone()
         new_updated_at = new_row['updated_at'] if new_row else None

@@ -42,7 +42,6 @@ All helpers take a cursor (no get_db calls) so a multi-step caller can
 keep its transaction.
 """
 
-
 from observability import get_logger, log_extra
 
 logger = get_logger(__name__)
@@ -225,9 +224,7 @@ def migrate_friends_to_follows(cursor) -> int:
 
     # Accepted friendships → two follow edges. INSERT OR IGNORE handles
     # the "this row already exists" case from a prior migration run.
-    cursor.execute(
-        "SELECT user_id, friend_id FROM friends WHERE status = 'accepted'"
-    )
+    cursor.execute("SELECT user_id, friend_id FROM friends WHERE status = 'accepted'")
     for row in cursor.fetchall():
         a, b = row["user_id"], row["friend_id"]
         if not a or not b or a == b:
@@ -246,14 +243,12 @@ def migrate_friends_to_follows(cursor) -> int:
         if cursor.rowcount > 0:
             inserted += 1
         _ = before  # silence linter — kept above for parity with future
-                    # debug logging if we want to gate the inc per-pair.
+        # debug logging if we want to gate the inc per-pair.
 
     # Pending requests → one-way follow from the requester. The accept
     # dance is going away; the requester's intent was "I want a
     # connection with X", which maps cleanly to a follow.
-    cursor.execute(
-        "SELECT user_id, friend_id FROM friends WHERE status = 'pending'"
-    )
+    cursor.execute("SELECT user_id, friend_id FROM friends WHERE status = 'pending'")
     for row in cursor.fetchall():
         a, b = row["user_id"], row["friend_id"]
         if not a or not b or a == b:

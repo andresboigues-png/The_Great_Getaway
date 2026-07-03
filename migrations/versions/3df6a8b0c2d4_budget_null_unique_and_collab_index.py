@@ -32,6 +32,7 @@ Idempotency-guarded per R4-B5 convention (CREATE INDEX IF NOT EXISTS
 already covers the partial-UNIQUE case; we just bail safely on
 re-run).
 """
+
 from collections.abc import Sequence
 
 from alembic import op

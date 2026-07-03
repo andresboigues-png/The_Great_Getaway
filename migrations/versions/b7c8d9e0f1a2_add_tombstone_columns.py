@@ -44,6 +44,7 @@ settlement stays deleted because no client can resurrect it.
 The /api/data pull just stops surfacing it, the next refresh on
 each device drops the row from local state.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -113,10 +114,7 @@ def downgrade() -> None:
     op.execute("DROP TABLE expenses")
     op.execute("ALTER TABLE expenses_old RENAME TO expenses")
     # Recreate the original index from f9a3b7e1c842_catchup_post_baseline.
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_expenses_trip "
-        "ON expenses(trip_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_expenses_trip ON expenses(trip_id)")
 
     # ── trip_days rollback ──
     op.execute("""

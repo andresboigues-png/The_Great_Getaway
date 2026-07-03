@@ -14,6 +14,7 @@ to comments whose body has been changed.
 Nullable so existing rows preserve their "never edited" state
 (NULL = never edited).
 """
+
 from collections.abc import Sequence
 
 from alembic import op

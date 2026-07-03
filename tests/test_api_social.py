@@ -5,7 +5,6 @@ test logic changed). Shared fixtures (client, auth_headers, seed_user,
 ...) come from tests/conftest.py.
 """
 
-
 from datetime import UTC
 
 from tests.conftest import _befriend, _create_trip, _make_friends, _seed_member
@@ -22,34 +21,45 @@ def test_feed_share_owner_auto_promotes_private_trip(client, seed_user, auth_hea
     non-owner test below) since they shouldn't flip the owner's
     privacy without consent."""
     from database import get_db
+
     trip_id = _create_trip(client, auth_headers, trip_id="trip-private-share")
 
     # Confirm trip starts private.
     with get_db() as conn:
         row = conn.execute(
-            "SELECT is_public FROM trips WHERE id = ?", (trip_id,),
+            "SELECT is_public FROM trips WHERE id = ?",
+            (trip_id,),
         ).fetchone()
     assert row["is_public"] == 0, "trip should default to private"
 
     # Owner clicks Share → 200, trip flips to public.
-    res = client.post("/api/feed/share", headers=auth_headers, json={
-        "trip_id": trip_id, "caption": "First share",
-    })
-    assert res.status_code == 200, \
+    res = client.post(
+        "/api/feed/share",
+        headers=auth_headers,
+        json={
+            "trip_id": trip_id,
+            "caption": "First share",
+        },
+    )
+    assert res.status_code == 200, (
         f"owner Share should auto-promote private trip; got {res.status_code} {res.get_data(as_text=True)!r}"
+    )
     body = res.get_json()
     assert body.get("post_id"), "expected a post_id in the response"
 
     # Verify the trip is now public.
     with get_db() as conn:
         row = conn.execute(
-            "SELECT is_public FROM trips WHERE id = ?", (trip_id,),
+            "SELECT is_public FROM trips WHERE id = ?",
+            (trip_id,),
         ).fetchone()
     assert row["is_public"] == 1, "trip should be public after owner Share"
 
 
 def test_feed_share_owner_mints_share_token_for_explore(
-    client, seed_user, auth_headers,
+    client,
+    seed_user,
+    auth_headers,
 ):
     """BUG-44 (MK2 persona audit): the Explore tab lists only trips with
     `is_public = 1 AND share_token IS NOT NULL`, but Share-to-feed used
@@ -59,46 +69,63 @@ def test_feed_share_owner_mints_share_token_for_explore(
     share link. Owner Share must now mint a share_token too, and do so
     idempotently (a pre-existing link survives re-share)."""
     from database import get_db
+
     trip_id = _create_trip(client, auth_headers, trip_id="trip-explore-token")
 
     # Fresh trip has no share_token.
     with get_db() as conn:
         row = conn.execute(
-            "SELECT share_token FROM trips WHERE id = ?", (trip_id,),
+            "SELECT share_token FROM trips WHERE id = ?",
+            (trip_id,),
         ).fetchone()
     assert row["share_token"] is None, "trip should start with no share_token"
 
-    res = client.post("/api/feed/share", headers=auth_headers, json={
-        "trip_id": trip_id,
-    })
+    res = client.post(
+        "/api/feed/share",
+        headers=auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     assert res.status_code == 200, res.get_data(as_text=True)
 
     # After Share: both Explore conditions are satisfied.
     with get_db() as conn:
         row = conn.execute(
-            "SELECT is_public, share_token FROM trips WHERE id = ?", (trip_id,),
+            "SELECT is_public, share_token FROM trips WHERE id = ?",
+            (trip_id,),
         ).fetchone()
     assert row["is_public"] == 1
-    assert row["share_token"], \
+    assert row["share_token"], (
         "Share-to-feed must mint a share_token so the trip is Explore-discoverable"
+    )
     minted = row["share_token"]
 
     # Re-share is idempotent: the existing token is preserved (rotating a
     # share link out-of-band must not be undone by a later feed re-share).
-    res = client.post("/api/feed/share", headers=auth_headers, json={
-        "trip_id": trip_id, "caption": "second share",
-    })
+    res = client.post(
+        "/api/feed/share",
+        headers=auth_headers,
+        json={
+            "trip_id": trip_id,
+            "caption": "second share",
+        },
+    )
     assert res.status_code == 200, res.get_data(as_text=True)
     with get_db() as conn:
         row = conn.execute(
-            "SELECT share_token FROM trips WHERE id = ?", (trip_id,),
+            "SELECT share_token FROM trips WHERE id = ?",
+            (trip_id,),
         ).fetchone()
-    assert row["share_token"] == minted, \
-        "re-share must not rotate an existing share_token"
+    assert row["share_token"] == minted, "re-share must not rotate an existing share_token"
 
 
 def test_feed_share_non_owner_private_trip_400(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """Counterpart to the owner-auto-promote test above: a non-owner
     accepted member trying to share the owner's PRIVATE trip still
@@ -106,6 +133,7 @@ def test_feed_share_non_owner_private_trip_400(
     member can share PUBLIC trips they're a member of (covered by
     existing tests); only the privacy flip is owner-only."""
     from database import get_db
+
     trip_id = _create_trip(client, auth_headers, trip_id="trip-private-nonowner")
     # Seed seed_other_user as an accepted member of the trip.
     with get_db() as conn:
@@ -118,23 +146,27 @@ def test_feed_share_non_owner_private_trip_400(
         conn.commit()
     # Non-owner share attempt while trip is private.
     res = client.post(
-        "/api/feed/share", headers=other_auth_headers, json={
-            "trip_id": trip_id, "caption": "should fail",
+        "/api/feed/share",
+        headers=other_auth_headers,
+        json={
+            "trip_id": trip_id,
+            "caption": "should fail",
         },
     )
     assert res.status_code == 400
     body = res.get_json()
-    assert "private" in body.get("error", "").lower(), \
-        f"expected 'private' error; got {body!r}"
+    assert "private" in body.get("error", "").lower(), f"expected 'private' error; got {body!r}"
     # Trip should remain private.
     with get_db() as conn:
         row = conn.execute(
-            "SELECT is_public FROM trips WHERE id = ?", (trip_id,),
+            "SELECT is_public FROM trips WHERE id = ?",
+            (trip_id,),
         ).fetchone()
     assert row["is_public"] == 0, "non-owner share must NOT flip privacy"
 
 
 # ── /api/feed ────────────────────────────────────────────────────────────────
+
 
 def test_feed_returns_envelope_for_logged_in_user(client, seed_user, auth_headers):
     """Empty feed for a user with no friends still returns a well-shaped
@@ -166,12 +198,9 @@ def test_feed_paginated_shape_when_limit_supplied(client, seed_user, auth_header
     res = client.get("/api/feed?limit=5", headers=auth_headers)
     assert res.status_code == 200
     body = res.get_json()
-    assert isinstance(body, dict), (
-        "limit query param must select the paginated envelope shape"
-    )
+    assert isinstance(body, dict), "limit query param must select the paginated envelope shape"
     assert "events" in body and isinstance(body["events"], list)
     assert "nextCursor" in body
-
 
     # nextCursor can be None on an empty/short feed; the key must
     # exist so the frontend can branch on it.
@@ -187,9 +216,14 @@ def test_feed_pagination_walks_through_pages(client, seed_user, auth_headers):
     trip_ids = [f"trip-feed-page-{i}" for i in range(5)]
     for tid in trip_ids:
         _create_trip(client, auth_headers, trip_id=tid, public=True)
-        client.post("/api/feed/share", headers=auth_headers, json={
-            "trip_id": tid, "caption": f"Share {tid}",
-        })
+        client.post(
+            "/api/feed/share",
+            headers=auth_headers,
+            json={
+                "trip_id": tid,
+                "caption": f"Share {tid}",
+            },
+        )
 
     # Walk pages of size 2 — collect every id, assert no dupes, assert
     # the bare-array first page matches the union of paginated pages
@@ -225,9 +259,7 @@ def test_feed_pagination_walks_through_pages(client, seed_user, auth_headers):
     assert isinstance(legacy, list)
     legacy_ids = {e["id"] for e in legacy}
     for sid in seen_ids:
-        assert sid in legacy_ids, (
-            f"paginated event {sid} missing from legacy bare-array path"
-        )
+        assert sid in legacy_ids, f"paginated event {sid} missing from legacy bare-array path"
 
 
 def test_feed_cursor_malformed_falls_back_to_first_page(client, seed_user, auth_headers):
@@ -235,7 +267,8 @@ def test_feed_cursor_malformed_falls_back_to_first_page(client, seed_user, auth_
     rev) should NOT 400 — fall back to "start from the top" so the user
     just sees the latest events again instead of an error toast."""
     res = client.get(
-        "/api/feed?cursor=not-a-real-cursor&limit=5", headers=auth_headers,
+        "/api/feed?cursor=not-a-real-cursor&limit=5",
+        headers=auth_headers,
     )
     assert res.status_code == 200
     body = res.get_json()
@@ -261,18 +294,28 @@ def test_feed_share_creates_post(client, seed_user, auth_headers):
     server-side — re-sharing the same trip returns the same post_id with
     `status: 'already_shared'`."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-share", public=True)
-    res = client.post("/api/feed/share", headers=auth_headers, json={
-        "trip_id": trip_id, "caption": "First share",
-    })
+    res = client.post(
+        "/api/feed/share",
+        headers=auth_headers,
+        json={
+            "trip_id": trip_id,
+            "caption": "First share",
+        },
+    )
     assert res.status_code == 200
     body = res.get_json()
     assert body.get("post_id")  # truthy non-zero
     first_post_id = body["post_id"]
 
     # Re-share — same row, status reflects the no-op.
-    res = client.post("/api/feed/share", headers=auth_headers, json={
-        "trip_id": trip_id, "caption": "Updated caption",
-    })
+    res = client.post(
+        "/api/feed/share",
+        headers=auth_headers,
+        json={
+            "trip_id": trip_id,
+            "caption": "Updated caption",
+        },
+    )
     assert res.status_code == 200
     body = res.get_json()
     assert body["post_id"] == first_post_id
@@ -284,11 +327,17 @@ def test_feed_share_status_returns_post_id_when_shared(client, seed_user, auth_h
     Share button's initial state without needing to do a roundtrip
     write. Pin the contract."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-share-status", public=True)
-    client.post("/api/feed/share", headers=auth_headers, json={
-        "trip_id": trip_id, "caption": "",
-    })
+    client.post(
+        "/api/feed/share",
+        headers=auth_headers,
+        json={
+            "trip_id": trip_id,
+            "caption": "",
+        },
+    )
     res = client.get(
-        f"/api/feed/share/status/{trip_id}", headers=auth_headers,
+        f"/api/feed/share/status/{trip_id}",
+        headers=auth_headers,
     )
     assert res.status_code == 200
     body = res.get_json()
@@ -297,7 +346,11 @@ def test_feed_share_status_returns_post_id_when_shared(client, seed_user, auth_h
 
 
 def test_feed_unshare_cleans_orphan_engagement_rows(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """Audit fix (2026-05-26): unshare must drop feed_likes / comments
     / bookmarks rows keyed on the deleted post's share_<id> event_id.
@@ -306,9 +359,13 @@ def test_feed_unshare_cleans_orphan_engagement_rows(
     # owner_friends seeds a follow so we can like / comment cleanly.
     _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
     trip_id = _create_trip(client, auth_headers, trip_id="trip-unshare-orphans", public=True)
-    res = client.post("/api/feed/share", headers=auth_headers, json={
-        "trip_id": trip_id,
-    })
+    res = client.post(
+        "/api/feed/share",
+        headers=auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     post_id = res.get_json()["post_id"]
     event_id = f"share_{post_id}"
     client.post(f"/api/feed/like/{event_id}", headers=other_auth_headers)
@@ -316,6 +373,7 @@ def test_feed_unshare_cleans_orphan_engagement_rows(
 
     # Pre-unshare: a like + a comment exist.
     from database import get_db
+
     with get_db() as conn:
         like = conn.execute(
             "SELECT COUNT(*) AS c FROM feed_likes WHERE event_id = ?",
@@ -345,7 +403,11 @@ def test_feed_unshare_cleans_orphan_engagement_rows(
 
 
 def test_data_surfaces_public_like_count(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """A trip's PUBLIC like count (likes on its feed share) is surfaced on the
     trip in the owner's /api/data, so collections can show how many likes the
@@ -353,7 +415,9 @@ def test_data_surfaces_public_like_count(
     _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
     trip_id = _create_trip(client, auth_headers, trip_id="trip-pub-likes", public=True)
     post_id = client.post(
-        "/api/feed/share", headers=auth_headers, json={"trip_id": trip_id},
+        "/api/feed/share",
+        headers=auth_headers,
+        json={"trip_id": trip_id},
     ).get_json()["post_id"]
     event_id = f"share_{post_id}"
 
@@ -380,16 +444,22 @@ def test_feed_unshare_deletes_caller_own_post(client, seed_user, auth_headers):
     pointing at it (other tests can pin that side; here we pin the
     author-deletes-self path)."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-unshare", public=True)
-    res = client.post("/api/feed/share", headers=auth_headers, json={
-        "trip_id": trip_id,
-    })
+    res = client.post(
+        "/api/feed/share",
+        headers=auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     post_id = res.get_json()["post_id"]
     res = client.delete(f"/api/feed/share/{post_id}", headers=auth_headers)
     assert res.status_code == 200
 
 
 def test_feed_unshare_restores_private_trip_after_auto_publicness(
-    client, seed_user, auth_headers,
+    client,
+    seed_user,
+    auth_headers,
 ):
     """Audit fix (2026-05-26): /api/feed/share auto-promotes a private
     trip to is_public=1 when the owner clicks Share. Pre-fix the
@@ -401,15 +471,21 @@ def test_feed_unshare_restores_private_trip_after_auto_publicness(
     # Create a PRIVATE trip (no is_public=True).
     trip_id = _create_trip(client, auth_headers, trip_id="trip-restore", public=False)
     # Share it — server auto-promotes is_public=1.
-    res = client.post("/api/feed/share", headers=auth_headers, json={
-        "trip_id": trip_id,
-    })
+    res = client.post(
+        "/api/feed/share",
+        headers=auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     post_id = res.get_json()["post_id"]
     # Confirm the trip is now public.
     from database import get_db
+
     with get_db() as conn:
         row = conn.execute(
-            "SELECT is_public FROM trips WHERE id = ?", (trip_id,),
+            "SELECT is_public FROM trips WHERE id = ?",
+            (trip_id,),
         ).fetchone()
         assert row["is_public"] == 1
     # Unshare — is_public should snap back to 0.
@@ -417,56 +493,83 @@ def test_feed_unshare_restores_private_trip_after_auto_publicness(
     assert res.status_code == 200
     with get_db() as conn:
         row = conn.execute(
-            "SELECT is_public FROM trips WHERE id = ?", (trip_id,),
+            "SELECT is_public FROM trips WHERE id = ?",
+            (trip_id,),
         ).fetchone()
         assert row["is_public"] == 0
 
 
 def test_feed_unshare_preserves_publicness_when_other_shares_exist(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """If other users have ALSO shared the same trip, unshare must
     NOT restore is_public=0 — that would 404 their followers'
     click-throughs. Trip stays public until the LAST share goes."""
     # Owner creates a PRIVATE trip and shares it (auto-promotes).
     trip_id = _create_trip(client, auth_headers, trip_id="trip-keep-public", public=False)
-    res = client.post("/api/feed/share", headers=auth_headers, json={
-        "trip_id": trip_id,
-    })
+    res = client.post(
+        "/api/feed/share",
+        headers=auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     owner_post_id = res.get_json()["post_id"]
     # other_user is now a member of the (now-public) trip and ALSO
     # shares it.
     _seed_member("trip-keep-public", seed_other_user, role="planner")
-    client.post("/api/feed/share", headers=other_auth_headers, json={
-        "trip_id": trip_id,
-    })
+    client.post(
+        "/api/feed/share",
+        headers=other_auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     # Owner unshares their share — trip stays public because the
     # other user still references it.
     client.delete(f"/api/feed/share/{owner_post_id}", headers=auth_headers)
     from database import get_db
+
     with get_db() as conn:
         row = conn.execute(
-            "SELECT is_public FROM trips WHERE id = ?", (trip_id,),
+            "SELECT is_public FROM trips WHERE id = ?",
+            (trip_id,),
         ).fetchone()
         assert row["is_public"] == 1
 
 
 def test_feed_repost_succeeds_for_other_users_post(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """seed_other_user shares a trip; seed_user reposts it. The repost
     spreads the trip beyond the original sharer's friend graph."""
     trip_id = _create_trip(client, other_auth_headers, trip_id="trip-repost", public=True)
-    res = client.post("/api/feed/share", headers=other_auth_headers, json={
-        "trip_id": trip_id,
-    })
+    res = client.post(
+        "/api/feed/share",
+        headers=other_auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     post_id = res.get_json()["post_id"]
     res = client.post(f"/api/feed/repost/{post_id}", headers=auth_headers)
     assert res.status_code == 200
 
 
 def test_feed_repost_blocks_private_trip_from_non_friend(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """Audit fix (2026-05-26): pre-fix any authed user could enumerate
     feed_posts.id and repost a PRIVATE friend's share. Now reposting
@@ -475,14 +578,19 @@ def test_feed_repost_blocks_private_trip_from_non_friend(
     by anyone (Twitter-style spread)."""
     # other_user creates + shares a PRIVATE trip (no is_public flag).
     trip_id = _create_trip(client, other_auth_headers, trip_id="trip-private-share", public=False)
-    res = client.post("/api/feed/share", headers=other_auth_headers, json={
-        "trip_id": trip_id,
-    })
+    res = client.post(
+        "/api/feed/share",
+        headers=other_auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     # /api/feed/share auto-promotes is_public=1 today (a separate
     # bug — fix #20 — but that's the current behaviour we have to
     # account for in this test). Force the trip back to private so
     # we're testing the actual non-public repost gate.
     from database import get_db
+
     with get_db() as conn:
         conn.execute("UPDATE trips SET is_public = 0 WHERE id = ?", (trip_id,))
         conn.commit()
@@ -496,9 +604,13 @@ def test_feed_repost_rejects_self_repost(client, seed_user, auth_headers):
     """Reposting your own post is a no-op + returns status: 'same_user'.
     Without this gate, the feed could fill with self-reposts."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-self-repost", public=True)
-    res = client.post("/api/feed/share", headers=auth_headers, json={
-        "trip_id": trip_id,
-    })
+    res = client.post(
+        "/api/feed/share",
+        headers=auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     post_id = res.get_json()["post_id"]
     res = client.post(f"/api/feed/repost/{post_id}", headers=auth_headers)
     assert res.status_code == 200
@@ -511,9 +623,13 @@ def test_feed_like_toggles(client, seed_user, seed_other_user, auth_headers, oth
     frontend can reconcile any drift from optimistic UI in one round-trip."""
     _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
     trip_id = _create_trip(client, other_auth_headers, trip_id="trip-like", public=True)
-    res = client.post("/api/feed/share", headers=other_auth_headers, json={
-        "trip_id": trip_id,
-    })
+    res = client.post(
+        "/api/feed/share",
+        headers=other_auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     post_id = res.get_json()["post_id"]
     event_id = f"share_{post_id}"
     res = client.post(f"/api/feed/like/{event_id}", headers=auth_headers)
@@ -530,15 +646,23 @@ def test_feed_like_toggles(client, seed_user, seed_other_user, auth_headers, oth
 
 
 def test_feed_bookmark_is_private_per_user(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """Bookmarks are per-user — seed_user bookmarking doesn't affect
     seed_other_user's view. No global count exposed (unlike likes)."""
     _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
     trip_id = _create_trip(client, other_auth_headers, trip_id="trip-bookmark", public=True)
-    res = client.post("/api/feed/share", headers=other_auth_headers, json={
-        "trip_id": trip_id,
-    })
+    res = client.post(
+        "/api/feed/share",
+        headers=other_auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     post_id = res.get_json()["post_id"]
     event_id = f"share_{post_id}"
     res = client.post(f"/api/feed/bookmark/{event_id}", headers=auth_headers)
@@ -548,21 +672,33 @@ def test_feed_bookmark_is_private_per_user(
 
 
 def test_feed_comments_post_then_list(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """Post a comment as one user, list as another — the list returns
     the comment in oldest-first order so the UI can append-render."""
     _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
     trip_id = _create_trip(client, other_auth_headers, trip_id="trip-comment", public=True)
-    share_res = client.post("/api/feed/share", headers=other_auth_headers, json={
-        "trip_id": trip_id,
-    })
+    share_res = client.post(
+        "/api/feed/share",
+        headers=other_auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     post_id = share_res.get_json()["post_id"]
     event_id = f"share_{post_id}"
 
-    res = client.post(f"/api/feed/comment/{event_id}", headers=auth_headers, json={
-        "body": "Looks great!",
-    })
+    res = client.post(
+        f"/api/feed/comment/{event_id}",
+        headers=auth_headers,
+        json={
+            "body": "Looks great!",
+        },
+    )
     assert res.status_code == 200
     body = res.get_json()
     assert body.get("comment", {}).get("body") == "Looks great!"
@@ -575,7 +711,11 @@ def test_feed_comments_post_then_list(
 
 
 def test_comment_count_excludes_blocked_author_on_third_party_share(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """Audit MK5 BUG-032: after A blocks B, the comment-count chip on a THIRD
     party's shared trip must match the (block-filtered) thread. The block sweep
@@ -584,27 +724,38 @@ def test_comment_count_excludes_blocked_author_on_third_party_share(
     hid it (thread showed 1). Count and list must agree."""
     from auth import issue_token
     from database import get_db
+
     # C is the third-party owner; A (seed_user) follows C so C's share appears
     # in A's feed (where engagement counts are attached).
     user_c = "test-c-bug032"
     with get_db() as conn:
-        conn.execute("INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
-                     (user_c, "c032@example.com", "Cee"))
-        conn.execute("INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)",
-                     (seed_user, user_c))
+        conn.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            (user_c, "c032@example.com", "Cee"),
+        )
+        conn.execute(
+            "INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)", (seed_user, user_c)
+        )
         conn.commit()
     headers_c = {"Authorization": f"Bearer {issue_token(user_c)}"}
     trip_id = _create_trip(client, headers_c, trip_id="trip-bug032", public=True)
     share = client.post("/api/feed/share", headers=headers_c, json={"trip_id": trip_id})
     event_id = f"share_{share.get_json()['post_id']}"
     # A and B both comment on C's PUBLIC share.
-    assert client.post(f"/api/feed/comment/{event_id}", headers=auth_headers,
-                       json={"body": "from A"}).status_code == 200
-    assert client.post(f"/api/feed/comment/{event_id}", headers=other_auth_headers,
-                       json={"body": "from B"}).status_code == 200
+    assert (
+        client.post(
+            f"/api/feed/comment/{event_id}", headers=auth_headers, json={"body": "from A"}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/api/feed/comment/{event_id}", headers=other_auth_headers, json={"body": "from B"}
+        ).status_code
+        == 200
+    )
     # A blocks B.
-    assert client.post(f"/api/blocks/{seed_other_user}",
-                       headers=auth_headers).status_code == 200
+    assert client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers).status_code == 200
     # The thread A sees excludes B's comment (pre-existing list filter).
     listed = client.get(f"/api/feed/comments/{event_id}", headers=auth_headers).get_json()
     assert len(listed) == 1, listed
@@ -612,12 +763,17 @@ def test_comment_count_excludes_blocked_author_on_third_party_share(
     feed = client.get("/api/feed", headers=auth_headers).get_json()
     evt = next((e for e in feed if e["id"] == event_id), None)
     assert evt is not None, "A follows C, so C's shared trip must be in A's feed"
-    assert evt["comment_count"] == 1, \
+    assert evt["comment_count"] == 1, (
         f"comment_count {evt.get('comment_count')} != 1 visible (BUG-032 not block-filtered)"
+    )
 
 
 def test_like_count_excludes_blocked_author_on_third_party_share(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """Audit MK5 BUG-078: after A blocks B, the like-count on a THIRD party's
     shared trip must exclude B's like (same block contract as the comment
@@ -625,12 +781,16 @@ def test_like_count_excludes_blocked_author_on_third_party_share(
     B's like on C's share survives — pre-fix the count COUNT(*)'d it."""
     from auth import issue_token
     from database import get_db
+
     user_c = "test-c-bug078"
     with get_db() as conn:
-        conn.execute("INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
-                     (user_c, "c078@example.com", "Cee"))
-        conn.execute("INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)",
-                     (seed_user, user_c))
+        conn.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            (user_c, "c078@example.com", "Cee"),
+        )
+        conn.execute(
+            "INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)", (seed_user, user_c)
+        )
         conn.commit()
     headers_c = {"Authorization": f"Bearer {issue_token(user_c)}"}
     trip_id = _create_trip(client, headers_c, trip_id="trip-bug078", public=True)
@@ -640,34 +800,47 @@ def test_like_count_excludes_blocked_author_on_third_party_share(
     assert client.post(f"/api/feed/like/{event_id}", headers=auth_headers).status_code == 200
     assert client.post(f"/api/feed/like/{event_id}", headers=other_auth_headers).status_code == 200
     # A blocks B.
-    assert client.post(f"/api/blocks/{seed_other_user}",
-                       headers=auth_headers).status_code == 200
+    assert client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers).status_code == 200
     # A's feed event like_count must exclude B's like (the BUG-078 fix).
     feed = client.get("/api/feed", headers=auth_headers).get_json()
     evt = next((e for e in feed if e["id"] == event_id), None)
     assert evt is not None, "A follows C, so C's shared trip must be in A's feed"
-    assert evt["like_count"] == 1, \
+    assert evt["like_count"] == 1, (
         f"like_count {evt.get('like_count')} != 1 visible (BUG-078 not block-filtered)"
+    )
 
 
 def test_feed_comment_delete_owner_only(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """seed_user posts a comment; seed_other_user can't delete it
     (gate keeps friends from moderating each other's words)."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-comment-del", public=True)
-    share_res = client.post("/api/feed/share", headers=auth_headers, json={
-        "trip_id": trip_id,
-    })
+    share_res = client.post(
+        "/api/feed/share",
+        headers=auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     event_id = f"share_{share_res.get_json()['post_id']}"
-    res = client.post(f"/api/feed/comment/{event_id}", headers=auth_headers, json={
-        "body": "mine",
-    })
+    res = client.post(
+        f"/api/feed/comment/{event_id}",
+        headers=auth_headers,
+        json={
+            "body": "mine",
+        },
+    )
     comment_id = res.get_json()["comment"]["id"]
 
     # other_user can't delete seed_user's comment.
     res = client.delete(
-        f"/api/feed/comment/{comment_id}", headers=other_auth_headers,
+        f"/api/feed/comment/{comment_id}",
+        headers=other_auth_headers,
     )
     assert res.status_code in (403, 404)
 
@@ -696,20 +869,30 @@ def test_public_profile_returns_user_for_known_id(client, seed_user):
 
 
 def test_public_profile_lists_public_and_archived_trips(
-    client, seed_user, auth_headers,
+    client,
+    seed_user,
+    auth_headers,
 ):
     """Profile endpoint returns the user's public OR archived trips so
     friends-map pins render. Pin the response shape — frontend's
     `pages/profile.ts` map-init keys off `isPublic`/`isArchived` flags
     on each trip item."""
     # Public trip
-    client.post("/api/trips", headers=auth_headers, json={
-        "trip": {"id": "t-pub", "name": "Public", "isPublic": True},
-    })
+    client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {"id": "t-pub", "name": "Public", "isPublic": True},
+        },
+    )
     # Private trip (should NOT surface here)
-    client.post("/api/trips", headers=auth_headers, json={
-        "trip": {"id": "t-priv", "name": "Private"},
-    })
+    client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {"id": "t-priv", "name": "Private"},
+        },
+    )
     res = client.get(f"/api/public-profile/{seed_user}")
     assert res.status_code == 200
     body = res.get_json()
@@ -732,19 +915,28 @@ def test_public_profile_lists_public_and_archived_trips(
 # src/routes/feed.py that previously had zero coverage — see N+9 SESSION_LOG
 # entry for the file → uncovered-line mapping.
 
+
 def test_feed_share_rejects_missing_trip_id_400(client, seed_user, auth_headers):
     """`/api/feed/share` with no trip_id 400s — the frontend never sends
     this shape today, but the gate keeps a future caller-bug from creating
     orphan post rows pointing at NULL."""
-    res = client.post("/api/feed/share", headers=auth_headers, json={
-        "caption": "no trip",
-    })
+    res = client.post(
+        "/api/feed/share",
+        headers=auth_headers,
+        json={
+            "caption": "no trip",
+        },
+    )
     assert res.status_code == 400
     assert "trip_id" in (res.get_json().get("error", "")).lower()
 
 
 def test_feed_share_rejects_non_member_404(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """Audit-fix gate: caller must own the trip OR be an accepted member.
     seed_other_user creates a trip; seed_user (no membership) can't
@@ -755,23 +947,33 @@ def test_feed_share_rejects_non_member_404(
     response codes; now non-members get the same 404 they'd get for
     a non-existent trip_id."""
     trip_id = _create_trip(
-        client, other_auth_headers, trip_id="trip-share-403", public=True,
+        client,
+        other_auth_headers,
+        trip_id="trip-share-403",
+        public=True,
     )
-    res = client.post("/api/feed/share", headers=auth_headers, json={
-        "trip_id": trip_id,
-    })
+    res = client.post(
+        "/api/feed/share",
+        headers=auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     assert res.status_code == 404
     assert res.get_json().get("error") == "Not found"
 
 
 def test_feed_share_status_returns_false_when_unshared(
-    client, seed_user, auth_headers,
+    client,
+    seed_user,
+    auth_headers,
 ):
     """Default state for a not-yet-shared trip — pin so the home Share
     button mounts in the right initial state without firing a write."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-status-false")
     res = client.get(
-        f"/api/feed/share/status/{trip_id}", headers=auth_headers,
+        f"/api/feed/share/status/{trip_id}",
+        headers=auth_headers,
     )
     assert res.status_code == 200
     body = res.get_json()
@@ -791,17 +993,28 @@ def test_feed_unshare_returns_ok_for_unknown_post(client, seed_user, auth_header
 
 
 def test_feed_unshare_rejects_non_author_403(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """seed_other_user creates a share; seed_user can't delete it.
     Author-only gate prevents drive-by takedowns of someone else's
     feed activity."""
     trip_id = _create_trip(
-        client, other_auth_headers, trip_id="trip-unshare-403", public=True,
+        client,
+        other_auth_headers,
+        trip_id="trip-unshare-403",
+        public=True,
     )
-    res = client.post("/api/feed/share", headers=other_auth_headers, json={
-        "trip_id": trip_id,
-    })
+    res = client.post(
+        "/api/feed/share",
+        headers=other_auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     post_id = res.get_json()["post_id"]
 
     res = client.delete(f"/api/feed/share/{post_id}", headers=auth_headers)
@@ -819,17 +1032,28 @@ def test_feed_repost_404_for_unknown_post(client, seed_user, auth_headers):
 
 
 def test_feed_repost_already_reposted_idempotent(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """Re-reposting the same post returns the existing repost_id with
     status: 'already_reposted'. Pin so a double-click on the repost
     button doesn't multiply the user's feed."""
     trip_id = _create_trip(
-        client, other_auth_headers, trip_id="trip-already-repost", public=True,
+        client,
+        other_auth_headers,
+        trip_id="trip-already-repost",
+        public=True,
     )
-    res = client.post("/api/feed/share", headers=other_auth_headers, json={
-        "trip_id": trip_id,
-    })
+    res = client.post(
+        "/api/feed/share",
+        headers=other_auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     post_id = res.get_json()["post_id"]
 
     res = client.post(f"/api/feed/repost/{post_id}", headers=auth_headers)
@@ -842,7 +1066,11 @@ def test_feed_repost_already_reposted_idempotent(
 
 
 def test_feed_bookmark_toggles_off(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """Second POST to the same /bookmark/<event_id> deletes the row.
     Bookmarks are private (no global count), but the toggle off path
@@ -850,11 +1078,18 @@ def test_feed_bookmark_toggles_off(
     one-shot only."""
     _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
     trip_id = _create_trip(
-        client, other_auth_headers, trip_id="trip-bookmark-toggle", public=True,
+        client,
+        other_auth_headers,
+        trip_id="trip-bookmark-toggle",
+        public=True,
     )
-    share_res = client.post("/api/feed/share", headers=other_auth_headers, json={
-        "trip_id": trip_id,
-    })
+    share_res = client.post(
+        "/api/feed/share",
+        headers=other_auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     event_id = f"share_{share_res.get_json()['post_id']}"
 
     res = client.post(f"/api/feed/bookmark/{event_id}", headers=auth_headers)
@@ -867,22 +1102,37 @@ def test_feed_bookmark_toggles_off(
 
 
 def test_feed_comment_rejects_empty_body_400(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """Whitespace-only body 400s — without this gate the comments table
     would accumulate empty rows from misclicks on the submit button."""
     _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
     trip_id = _create_trip(
-        client, other_auth_headers, trip_id="trip-empty-comment", public=True,
+        client,
+        other_auth_headers,
+        trip_id="trip-empty-comment",
+        public=True,
     )
-    share_res = client.post("/api/feed/share", headers=other_auth_headers, json={
-        "trip_id": trip_id,
-    })
+    share_res = client.post(
+        "/api/feed/share",
+        headers=other_auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    )
     event_id = f"share_{share_res.get_json()['post_id']}"
 
-    res = client.post(f"/api/feed/comment/{event_id}", headers=auth_headers, json={
-        "body": "   ",  # whitespace strips to ""
-    })
+    res = client.post(
+        f"/api/feed/comment/{event_id}",
+        headers=auth_headers,
+        json={
+            "body": "   ",  # whitespace strips to ""
+        },
+    )
     assert res.status_code == 400
     assert "empty" in (res.get_json().get("error", "")).lower()
 
@@ -908,14 +1158,19 @@ def test_feed_like_rejects_unknown_event_id(client, seed_user, auth_headers):
     — that test verified the no-notification side-effect of liking a
     fake event, which is now moot because the like itself is rejected."""
     res = client.post(
-        "/api/feed/like/trip_created_trip-fake", headers=auth_headers,
+        "/api/feed/like/trip_created_trip-fake",
+        headers=auth_headers,
     )
     assert res.status_code == 404
     assert "unauthor" in (res.get_json() or {}).get("error", "").lower()
 
 
 def test_feed_surfaces_friend_created_trip_event(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """seed_other_user creates a trip → seed_user's feed contains a
     friend_created_trip event. This pins the line 109-128 block (the
@@ -927,14 +1182,18 @@ def test_feed_surfaces_friend_created_trip_event(
     so the trip is created public. The privacy suppression is pinned
     separately in tests/test_feed_privacy_mk4.py."""
     _make_friends(seed_user, seed_other_user)
-    _create_trip(client, other_auth_headers, trip_id="trip-friend-created", name="Lisbon", public=True)
+    _create_trip(
+        client, other_auth_headers, trip_id="trip-friend-created", name="Lisbon", public=True
+    )
 
     res = client.get("/api/feed", headers=auth_headers)
     assert res.status_code == 200
     events = res.get_json()
     created = [
-        e for e in events
-        if e.get("type") == "friend_created_trip" and e.get("trip", {}).get("id") == "trip-friend-created"
+        e
+        for e in events
+        if e.get("type") == "friend_created_trip"
+        and e.get("trip", {}).get("id") == "trip-friend-created"
     ]
     assert len(created) == 1
     assert created[0]["actor"]["id"] == seed_other_user
@@ -942,7 +1201,11 @@ def test_feed_surfaces_friend_created_trip_event(
 
 
 def test_feed_surfaces_friend_archived_and_shared_trip_events(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """seed_other_user archives a trip + shares another → both events
     appear in seed_user's feed. Covers the friend_archived_trip
@@ -955,14 +1218,20 @@ def test_feed_surfaces_friend_archived_and_shared_trip_events(
     # is_public), so create it public.
     _create_trip(client, other_auth_headers, trip_id="trip-to-archive", public=True)
     client.post(
-        "/api/trips/trip-to-archive/archive", headers=other_auth_headers,
+        "/api/trips/trip-to-archive/archive",
+        headers=other_auth_headers,
     )
 
     # Share a different trip. Must be public for /feed/share to accept.
     _create_trip(client, other_auth_headers, trip_id="trip-to-share", public=True)
-    client.post("/api/feed/share", headers=other_auth_headers, json={
-        "trip_id": "trip-to-share", "caption": "Check this out",
-    })
+    client.post(
+        "/api/feed/share",
+        headers=other_auth_headers,
+        json={
+            "trip_id": "trip-to-share",
+            "caption": "Check this out",
+        },
+    )
 
     res = client.get("/api/feed", headers=auth_headers)
     events = res.get_json()
@@ -980,7 +1249,8 @@ def test_feed_surfaces_friend_archived_and_shared_trip_events(
     # now produces a friend_archived_trip event end-to-end.
     assert "friend_archived_trip" in types
     archived = [
-        e for e in events
+        e
+        for e in events
         if e.get("type") == "friend_archived_trip"
         and e.get("trip", {}).get("id") == "trip-to-archive"
     ]
@@ -989,7 +1259,11 @@ def test_feed_surfaces_friend_archived_and_shared_trip_events(
 
 
 def test_feed_surfaces_friend_joined_trip_event(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """R12-B2: the third UNION ALL branch — friend_joined_trip — had
     ZERO integration coverage before this. seed_user owns a trip and
@@ -1002,25 +1276,35 @@ def test_feed_surfaces_friend_joined_trip_event(
     _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
     # MK4 PERM-1/SOC-3: friend_joined_trip card now requires the trip
     # to be public, so create it public.
-    trip_id = _create_trip(client, auth_headers, trip_id="trip-joined-feed", name="Porto", public=True)
-    client.post("/api/trips/invite", headers=auth_headers, json={
-        "trip_id": trip_id,
-        "target_user_id": seed_other_user,
-        "role": "relaxer",
-    })
-    accept = client.post("/api/trips/invite/respond", headers=other_auth_headers, json={
-        "trip_id": trip_id,
-        "accept": True,
-    })
+    trip_id = _create_trip(
+        client, auth_headers, trip_id="trip-joined-feed", name="Porto", public=True
+    )
+    client.post(
+        "/api/trips/invite",
+        headers=auth_headers,
+        json={
+            "trip_id": trip_id,
+            "target_user_id": seed_other_user,
+            "role": "relaxer",
+        },
+    )
+    accept = client.post(
+        "/api/trips/invite/respond",
+        headers=other_auth_headers,
+        json={
+            "trip_id": trip_id,
+            "accept": True,
+        },
+    )
     assert accept.status_code == 200
 
     res = client.get("/api/feed", headers=auth_headers)
     assert res.status_code == 200
     events = res.get_json()
     joined = [
-        e for e in events
-        if e.get("type") == "friend_joined_trip"
-        and e.get("trip", {}).get("id") == trip_id
+        e
+        for e in events
+        if e.get("type") == "friend_joined_trip" and e.get("trip", {}).get("id") == trip_id
     ]
     assert len(joined) == 1, "the joiner's accept should surface as friend_joined_trip"
     # Actor is the JOINER (seed_other_user), not the trip owner.
@@ -1029,7 +1313,11 @@ def test_feed_surfaces_friend_joined_trip_event(
 
 
 def test_feed_union_builder_emits_all_three_types_in_one_call(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """R12-B2: pin the R11-B7 UNION ALL contract — a single /api/feed
     call surfaces created + archived + joined events together, proving
@@ -1048,12 +1336,23 @@ def test_feed_union_builder_emits_all_three_types_in_one_call(
     client.post("/api/trips/union-archived/archive", headers=other_auth_headers)
     # joined: seed_user owns trip C, seed_other accepts an invite
     _create_trip(client, auth_headers, trip_id="union-joined", name="C", public=True)
-    client.post("/api/trips/invite", headers=auth_headers, json={
-        "trip_id": "union-joined", "target_user_id": seed_other_user, "role": "relaxer",
-    })
-    client.post("/api/trips/invite/respond", headers=other_auth_headers, json={
-        "trip_id": "union-joined", "accept": True,
-    })
+    client.post(
+        "/api/trips/invite",
+        headers=auth_headers,
+        json={
+            "trip_id": "union-joined",
+            "target_user_id": seed_other_user,
+            "role": "relaxer",
+        },
+    )
+    client.post(
+        "/api/trips/invite/respond",
+        headers=other_auth_headers,
+        json={
+            "trip_id": "union-joined",
+            "accept": True,
+        },
+    )
 
     events = client.get("/api/feed", headers=auth_headers).get_json()
     by_type_trip = {(e.get("type"), e.get("trip", {}).get("id")) for e in events}
@@ -1063,7 +1362,11 @@ def test_feed_union_builder_emits_all_three_types_in_one_call(
 
 
 def test_feed_joined_event_hidden_when_trip_owner_blocked_viewer(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """R12-B5 (P2 block-bypass): a friend_joined_trip card must NOT
     surface to a viewer the trip OWNER has blocked. The joiner
@@ -1074,6 +1377,7 @@ def test_feed_joined_event_hidden_when_trip_owner_blocked_viewer(
     owner-3 blocked. Baseline (no block) → surfaces; after owner-3
     blocks the viewer → gone."""
     from database import get_db
+
     owner_id = "owner-blocker-3"
     trip_id = "trip-joined-blocked"
     _make_friends(seed_user, seed_other_user)  # viewer follows the joiner
@@ -1102,9 +1406,9 @@ def test_feed_joined_event_hidden_when_trip_owner_blocked_viewer(
     # Baseline: no block → joined event surfaces.
     events = client.get("/api/feed", headers=auth_headers).get_json()
     joined = [
-        e for e in events
-        if e.get("type") == "friend_joined_trip"
-        and e.get("trip", {}).get("id") == trip_id
+        e
+        for e in events
+        if e.get("type") == "friend_joined_trip" and e.get("trip", {}).get("id") == trip_id
     ]
     assert len(joined) == 1, "baseline: joined event surfaces without a block"
 
@@ -1117,16 +1421,19 @@ def test_feed_joined_event_hidden_when_trip_owner_blocked_viewer(
         conn.commit()
     events2 = client.get("/api/feed", headers=auth_headers).get_json()
     joined2 = [
-        e for e in events2
-        if e.get("type") == "friend_joined_trip"
-        and e.get("trip", {}).get("id") == trip_id
+        e
+        for e in events2
+        if e.get("type") == "friend_joined_trip" and e.get("trip", {}).get("id") == trip_id
     ]
-    assert len(joined2) == 0, \
-        "owner-blocked viewer must NOT see the joined card (P2 block-bypass)"
+    assert len(joined2) == 0, "owner-blocked viewer must NOT see the joined card (P2 block-bypass)"
 
 
 def test_feed_repost_hidden_when_original_sharer_blocked_viewer(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """4.8 audit SOCIAL-1 (P0 block-bypass): a friend_reposted_trip card
     must NOT surface to a viewer the ORIGINAL SHARER has blocked. The
@@ -1137,6 +1444,7 @@ def test_feed_repost_hidden_when_original_sharer_blocked_viewer(
     original_sharer). Baseline → surfaces; after sharer-3 blocks the
     viewer → gone."""
     from database import get_db
+
     sharer_id = "sharer-blocker-3"
     trip_id = "trip-repost-blocked"
     _make_friends(seed_user, seed_other_user)  # viewer is friends with the reposter
@@ -1167,7 +1475,8 @@ def test_feed_repost_hidden_when_original_sharer_blocked_viewer(
 
     events = client.get("/api/feed", headers=auth_headers).get_json()
     reposts = [
-        e for e in events
+        e
+        for e in events
         if e.get("type") == "friend_reposted_trip" and e.get("trip", {}).get("id") == trip_id
     ]
     assert len(reposts) == 1, "baseline: repost card surfaces before any block"
@@ -1180,15 +1489,21 @@ def test_feed_repost_hidden_when_original_sharer_blocked_viewer(
         conn.commit()
     events2 = client.get("/api/feed", headers=auth_headers).get_json()
     reposts2 = [
-        e for e in events2
+        e
+        for e in events2
         if e.get("type") == "friend_reposted_trip" and e.get("trip", {}).get("id") == trip_id
     ]
-    assert len(reposts2) == 0, \
+    assert len(reposts2) == 0, (
         "original-sharer-blocked viewer must NOT see the repost card (SOCIAL-1)"
+    )
 
 
 def test_share_card_disappears_when_trip_turned_private(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """4.8 audit SOCIAL-3: a trip turned private AFTER sharing must stop
     appearing in followers' feeds, and its share must stop being
@@ -1196,9 +1511,13 @@ def test_share_card_disappears_when_trip_turned_private(
     kept leaking the trip name/country/caption + stayed likeable."""
     _make_friends(seed_user, seed_other_user)
     trip_id = _create_trip(client, other_auth_headers, trip_id="trip-priv-flip", public=True)
-    post_id = client.post("/api/feed/share", headers=other_auth_headers, json={
-        "trip_id": trip_id,
-    }).get_json()["post_id"]
+    post_id = client.post(
+        "/api/feed/share",
+        headers=other_auth_headers,
+        json={
+            "trip_id": trip_id,
+        },
+    ).get_json()["post_id"]
 
     # Baseline: the friend sees the share card.
     events = client.get("/api/feed", headers=auth_headers).get_json()
@@ -1209,6 +1528,7 @@ def test_share_card_disappears_when_trip_turned_private(
 
     # Owner turns the trip private.
     from database import get_db
+
     with get_db() as conn:
         conn.execute("UPDATE trips SET is_public = 0 WHERE id = ?", (trip_id,))
         conn.commit()
@@ -1225,12 +1545,17 @@ def test_share_card_disappears_when_trip_turned_private(
 
 
 def test_revoked_achievement_hidden_from_feed(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """4.8 audit SOCIAL-4: a soft-revoked achievement must not surface in
     friends' feeds (it's already hidden from the user's own profile)."""
     _make_friends(seed_user, seed_other_user)
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "INSERT INTO user_achievements (user_id, badge_id, earned_at) "
@@ -1239,8 +1564,9 @@ def test_revoked_achievement_hidden_from_feed(
         )
         conn.commit()
     events = client.get("/api/feed", headers=auth_headers).get_json()
-    assert any(e.get("type") == "achievement_unlocked" for e in events), \
+    assert any(e.get("type") == "achievement_unlocked" for e in events), (
         "baseline: a (non-revoked) achievement surfaces"
+    )
 
     with get_db() as conn:
         conn.execute(
@@ -1249,21 +1575,31 @@ def test_revoked_achievement_hidden_from_feed(
         )
         conn.commit()
     events2 = client.get("/api/feed", headers=auth_headers).get_json()
-    assert not any(e.get("type") == "achievement_unlocked" for e in events2), \
+    assert not any(e.get("type") == "achievement_unlocked" for e in events2), (
         "revoked achievement must not surface in the feed (SOCIAL-4)"
+    )
 
 
 def test_feed_surfaces_friend_reposted_trip_event(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """seed_other_user shares a trip; seed_user reposts it → seed_user's
     own feed includes the repost as a friend_reposted_trip event with
     original_sharer info attached. Covers lines 230-256."""
     _make_friends(seed_user, seed_other_user)
     _create_trip(client, other_auth_headers, trip_id="trip-repost-feed", public=True)
-    share_res = client.post("/api/feed/share", headers=other_auth_headers, json={
-        "trip_id": "trip-repost-feed", "caption": "Original share",
-    })
+    share_res = client.post(
+        "/api/feed/share",
+        headers=other_auth_headers,
+        json={
+            "trip_id": "trip-repost-feed",
+            "caption": "Original share",
+        },
+    )
     post_id = share_res.get_json()["post_id"]
 
     client.post(f"/api/feed/repost/{post_id}", headers=auth_headers)
@@ -1271,7 +1607,8 @@ def test_feed_surfaces_friend_reposted_trip_event(
     res = client.get("/api/feed", headers=auth_headers)
     events = res.get_json()
     repost_event = next(
-        (e for e in events if e.get("type") == "friend_reposted_trip"), None,
+        (e for e in events if e.get("type") == "friend_reposted_trip"),
+        None,
     )
     assert repost_event is not None
     assert repost_event["actor"]["id"] == seed_user  # caller is the reposter
@@ -1280,7 +1617,11 @@ def test_feed_surfaces_friend_reposted_trip_event(
 
 
 def test_feed_attaches_like_bookmark_comment_counts(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """The like/bookmark/comment count attachment block (lines 265-295)
     only runs when there's at least one event in the feed. Generates a
@@ -1288,21 +1629,30 @@ def test_feed_attaches_like_bookmark_comment_counts(
     /api/feed returns those counts attached to the share event."""
     _make_friends(seed_user, seed_other_user)
     _create_trip(client, other_auth_headers, trip_id="trip-counts", public=True)
-    share_res = client.post("/api/feed/share", headers=other_auth_headers, json={
-        "trip_id": "trip-counts",
-    })
+    share_res = client.post(
+        "/api/feed/share",
+        headers=other_auth_headers,
+        json={
+            "trip_id": "trip-counts",
+        },
+    )
     event_id = f"share_{share_res.get_json()['post_id']}"
 
     client.post(f"/api/feed/like/{event_id}", headers=auth_headers)
     client.post(f"/api/feed/bookmark/{event_id}", headers=auth_headers)
-    client.post(f"/api/feed/comment/{event_id}", headers=auth_headers, json={
-        "body": "Looking forward to it",
-    })
+    client.post(
+        f"/api/feed/comment/{event_id}",
+        headers=auth_headers,
+        json={
+            "body": "Looking forward to it",
+        },
+    )
 
     res = client.get("/api/feed", headers=auth_headers)
     events = res.get_json()
     share_event = next(
-        (e for e in events if e.get("id") == event_id), None,
+        (e for e in events if e.get("id") == event_id),
+        None,
     )
     assert share_event is not None
     assert share_event["like_count"] == 1
@@ -1312,7 +1662,10 @@ def test_feed_attaches_like_bookmark_comment_counts(
 
 
 def test_feed_surfaces_new_friendship_event(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """A fresh accepted friendship (within the 30-day window) surfaces
     in seed_user's feed as a `new_friendship` event. Covers lines
@@ -1331,7 +1684,11 @@ def test_feed_surfaces_new_friendship_event(
 
 
 def test_feed_surfaces_settled_up_only_to_parties(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """The `settled_up` feed event is visible only to the two parties
     (payer + recipient), regardless of friend-of relationships.
@@ -1339,13 +1696,17 @@ def test_feed_surfaces_settled_up_only_to_parties(
     trip_id = _create_trip(client, auth_headers, trip_id="trip-settle-feed")
     _seed_member(trip_id, seed_other_user, role="relaxer")
     # seed_other_user pays the owner (auth_headers user).
-    client.post("/api/settlements", headers=other_auth_headers, json={
-        "tripId": trip_id,
-        "fromUserId": seed_other_user,
-        "toUserId": seed_user,
-        "amount": 25.0,
-        "currency": "EUR",
-    })
+    client.post(
+        "/api/settlements",
+        headers=other_auth_headers,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_other_user,
+            "toUserId": seed_user,
+            "amount": 25.0,
+            "currency": "EUR",
+        },
+    )
 
     # Both parties see the event.
     owner_events = client.get("/api/feed", headers=auth_headers).get_json()
@@ -1357,6 +1718,7 @@ def test_feed_surfaces_settled_up_only_to_parties(
     # see settled_up — we add a third user manually.
     from auth import issue_token
     from database import get_db
+
     third = "test-user-3"
     with get_db() as conn:
         conn.execute(
@@ -1398,32 +1760,45 @@ def _seed_shareable_trip(
     pre-fix tests keep their semantic.
     """
     from database import get_db
+
     with get_db() as conn:
         if created_at:
             conn.execute(
                 "INSERT INTO trips (id, user_id, name, country, country_code, "
                 "is_public, share_token, share_views, created_at) "
                 "VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)",
-                (trip_id, owner_id, name, country, country_code,
-                 f"tok-{trip_id}", share_views, created_at),
+                (
+                    trip_id,
+                    owner_id,
+                    name,
+                    country,
+                    country_code,
+                    f"tok-{trip_id}",
+                    share_views,
+                    created_at,
+                ),
             )
         else:
             conn.execute(
                 "INSERT INTO trips (id, user_id, name, country, country_code, "
                 "is_public, share_token, share_views) "
                 "VALUES (?, ?, ?, ?, ?, 1, ?, ?)",
-                (trip_id, owner_id, name, country, country_code,
-                 f"tok-{trip_id}", share_views),
+                (trip_id, owner_id, name, country, country_code, f"tok-{trip_id}", share_views),
             )
         conn.commit()
 
 
 def test_explore_lists_shareable_trips_from_strangers(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """Trips owned by someone else with a share_token appear in the
     Explore feed of a stranger. The basic cold-start surface."""
-    _seed_shareable_trip(seed_other_user, "exp-1", name="Lisbon", country="Portugal", country_code="PT")
+    _seed_shareable_trip(
+        seed_other_user, "exp-1", name="Lisbon", country="Portugal", country_code="PT"
+    )
     res = client.get("/api/feed/explore", headers=auth_headers)
     assert res.status_code == 200
     items = res.get_json()["items"]
@@ -1443,7 +1818,10 @@ def test_explore_excludes_own_trips(client, seed_user, auth_headers):
 
 
 def test_explore_excludes_trips_user_is_member_of(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """Trips the viewer is already an accepted member of don't appear.
     They're not strangers to the trip — Explore should surface NEW
@@ -1455,12 +1833,16 @@ def test_explore_excludes_trips_user_is_member_of(
 
 
 def test_explore_excludes_trips_without_share_token(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """Trips without a share_token are NOT publicly accessible (the
     owner hasn't opted in). Explore must respect that — only shareable
     trips show up."""
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "INSERT INTO trips (id, user_id, name, country) VALUES (?, ?, ?, ?)",
@@ -1472,7 +1854,10 @@ def test_explore_excludes_trips_without_share_token(
 
 
 def test_explore_excludes_share_token_trips_without_is_public(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """Audit fix (2026-05-26): a trip with a share_token but
     is_public=0 represents a one-off share link the owner generated
@@ -1480,12 +1865,12 @@ def test_explore_excludes_share_token_trips_without_is_public(
     Explore feed for every signed-in user. Only trips with BOTH
     share_token AND is_public=1 are discoverable."""
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "INSERT INTO trips (id, user_id, name, country, is_public, share_token) "
             "VALUES (?, ?, ?, ?, 0, ?)",
-            ("exp-one-off-share", seed_other_user, "One-off", "Anywhere",
-             "tok-one-off-share"),
+            ("exp-one-off-share", seed_other_user, "One-off", "Anywhere", "tok-one-off-share"),
         )
         conn.commit()
     items = client.get("/api/feed/explore", headers=auth_headers).get_json()["items"]
@@ -1493,7 +1878,10 @@ def test_explore_excludes_share_token_trips_without_is_public(
 
 
 def test_explore_ranks_unvisited_countries_higher(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """Two trips with identical recency + engagement, one in a country
     the viewer's been to, one new. The new-country trip ranks higher
@@ -1501,6 +1889,7 @@ def test_explore_ranks_unvisited_countries_higher(
     # Viewer's own trip in PT — establishes "visited"
     _create_trip(client, auth_headers, trip_id="own-pt", name="Mine PT")
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "UPDATE trips SET country_code = 'PT' WHERE id = ?",
@@ -1519,7 +1908,10 @@ def test_explore_ranks_unvisited_countries_higher(
 
 
 def test_explore_ranks_higher_engagement_higher(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """All other factors equal, a trip with more share_views ranks
     higher than one with fewer. log1p shape means the bump is sub-
@@ -1534,7 +1926,10 @@ def test_explore_ranks_higher_engagement_higher(
 
 
 def test_explore_recency_decay(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """Recency factor ranks fresher trips above stale ones — but old
     trips no longer fall off entirely.
@@ -1552,8 +1947,11 @@ def test_explore_recency_decay(
     # 90 days old, lots of views.
     old_stamp = (datetime.now(UTC) - timedelta(days=90)).strftime("%Y-%m-%d %H:%M:%S")
     _seed_shareable_trip(
-        seed_other_user, "exp-stale", country_code="JP",
-        share_views=0, created_at=old_stamp,
+        seed_other_user,
+        "exp-stale",
+        country_code="JP",
+        share_views=0,
+        created_at=old_stamp,
     )
     # Fresh trip — should rank above the stale one even with zero views,
     # because recency_factor dominates when engagement is equal.
@@ -1570,8 +1968,11 @@ def test_explore_recency_decay(
     # should also surface — sanity-check the floor isn't broken.
     recent_stamp = (datetime.now(UTC) - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
     _seed_shareable_trip(
-        seed_other_user, "exp-recent", country_code="JP",
-        share_views=0, created_at=recent_stamp,
+        seed_other_user,
+        "exp-recent",
+        country_code="JP",
+        share_views=0,
+        created_at=recent_stamp,
     )
     items2 = client.get("/api/feed/explore", headers=auth_headers).get_json()["items"]
     assert any(i["tripId"] == "exp-recent" for i in items2)
@@ -1592,7 +1993,10 @@ def test_explore_requires_auth(client):
 
 
 def test_public_profile_includes_follow_data(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """/api/public-profile bundles followers / following / isFollowing
     so the profile page renders without a second round-trip. The
@@ -1608,7 +2012,10 @@ def test_public_profile_includes_follow_data(
 
 
 def test_public_profile_anonymous_isFollowing_false(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """An unauthenticated viewer of a public profile sees the counts
     but isFollowing must be false (no caller = no follow relationship
@@ -1628,14 +2035,20 @@ def test_public_profile_anonymous_isFollowing_false(
 # has 4 distinct branches (empty body 400, owner-only 403, 404 unknown,
 # 500-char truncate) — pinning each so a refactor doesn't drop one.
 
+
 def _seed_feed_comment(client, headers, trip_id=None):
     """Helper: create a public trip + share → like the share → comment
     on it. Returns the (comment_id, event_id) tuple."""
     tid = trip_id or _create_trip(
-        client, headers, trip_id="trip-cmt-edit", public=True,
+        client,
+        headers,
+        trip_id="trip-cmt-edit",
+        public=True,
     )
     share_res = client.post(
-        "/api/feed/share", headers=headers, json={"trip_id": tid},
+        "/api/feed/share",
+        headers=headers,
+        json={"trip_id": tid},
     )
     assert share_res.status_code in (200, 201), share_res.get_data(as_text=True)
     post_id = share_res.get_json()["post_id"]
@@ -1650,7 +2063,11 @@ def _seed_feed_comment(client, headers, trip_id=None):
 
 
 def test_edit_comment_owner_only_403(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """User B tries to PATCH user A's comment → 403."""
     _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
@@ -1700,7 +2117,8 @@ def test_edit_comment_truncates_at_500(client, seed_user, auth_headers):
     # Read it back via the thread GET. Response is a plain list of
     # comment dicts (not wrapped in a `comments` key).
     thread = client.get(
-        f"/api/feed/comments/{event_id}", headers=auth_headers,
+        f"/api/feed/comments/{event_id}",
+        headers=auth_headers,
     ).get_json()
     comments = thread if isinstance(thread, list) else thread.get("comments", [])
     saved = [c for c in comments if c.get("id") == cid]
@@ -1712,40 +2130,60 @@ def test_edit_comment_truncates_at_500(client, seed_user, auth_headers):
 
 
 def test_comment_list_excludes_authors_who_blocked_the_caller(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """MK6 P3 (bidirectional): after A blocks B, B (the caller) must NOT see A's
     comments on a THIRD party's thread — A's content shouldn't keep reaching the
     person A blocked. Pre-fix the list only hid authors the CALLER had blocked."""
     from auth import issue_token
     from database import get_db
+
     user_c = "test-c-mk6bidi"
     with get_db() as conn:
-        conn.execute("INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
-                     (user_c, "cmk6@example.com", "Cee"))
+        conn.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            (user_c, "cmk6@example.com", "Cee"),
+        )
         conn.commit()
     headers_c = {"Authorization": f"Bearer {issue_token(user_c)}"}
     trip_id = _create_trip(client, headers_c, trip_id="trip-mk6bidi", public=True)
     event_id = "share_" + str(
-        client.post("/api/feed/share", headers=headers_c, json={"trip_id": trip_id})
-        .get_json()["post_id"])
+        client.post("/api/feed/share", headers=headers_c, json={"trip_id": trip_id}).get_json()[
+            "post_id"
+        ]
+    )
     client.post(f"/api/feed/comment/{event_id}", headers=auth_headers, json={"body": "from A"})
-    client.post(f"/api/feed/comment/{event_id}", headers=other_auth_headers, json={"body": "from B"})
+    client.post(
+        f"/api/feed/comment/{event_id}", headers=other_auth_headers, json={"body": "from B"}
+    )
     assert client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers).status_code == 200
 
-    bodies = {c["body"] for c in
-              client.get(f"/api/feed/comments/{event_id}", headers=other_auth_headers).get_json()}
-    assert "from A" not in bodies, "A's comment still reached B after A blocked B (one-directional filter)"
+    bodies = {
+        c["body"]
+        for c in client.get(f"/api/feed/comments/{event_id}", headers=other_auth_headers).get_json()
+    }
+    assert "from A" not in bodies, (
+        "A's comment still reached B after A blocked B (one-directional filter)"
+    )
     assert "from B" in bodies, "B's own comment wrongly hidden"
 
 
 def test_settled_up_card_hidden_after_blocking_counterparty(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """MK6 P3: a settled_up card whose counterparty the caller has blocked must
     not surface — the builder bypasses the actor pool, so it had no block filter
     and a blocked ex-counterparty's name+avatar lingered for 30 days."""
     from database import get_db
+
     _create_trip(client, auth_headers, trip_id="t-mk6set")
     with get_db() as conn:
         conn.execute(
@@ -1757,54 +2195,77 @@ def test_settled_up_card_hidden_after_blocking_counterparty(
         conn.commit()
 
     def _has_settled(headers):
-        return any(e.get("type") == "settled_up"
-                   for e in client.get("/api/feed", headers=headers).get_json())
+        return any(
+            e.get("type") == "settled_up"
+            for e in client.get("/api/feed", headers=headers).get_json()
+        )
 
     assert _has_settled(auth_headers), "settled_up card should surface for a party"
     assert client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers).status_code == 200
-    assert not _has_settled(auth_headers), \
+    assert not _has_settled(auth_headers), (
         "settled_up card with a blocked counterparty still surfaced"
+    )
 
 
 def test_block_sweep_removes_engagement_on_trip_created_card(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """MK6 P3: blocking must remove the blocked user's engagement on the
     blocker's trip_*/achievement_* cards too, not just share_/repost_ — else it
     stays visible to mutual third parties (an inconsistent clean break)."""
     from database import get_db
+
     trip_id = _create_trip(client, auth_headers, trip_id="t-sweep", public=True)
     event_id = f"trip_created_{trip_id}"
     with get_db() as conn:
-        conn.execute("INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)",
-                     (seed_other_user, seed_user))  # B follows A → can see the card
+        conn.execute(
+            "INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)",
+            (seed_other_user, seed_user),
+        )  # B follows A → can see the card
         conn.commit()
-    assert client.post(f"/api/feed/comment/{event_id}", headers=other_auth_headers,
-                       json={"body": "B here"}).status_code == 200
+    assert (
+        client.post(
+            f"/api/feed/comment/{event_id}", headers=other_auth_headers, json={"body": "B here"}
+        ).status_code
+        == 200
+    )
 
     def _b_comment_count():
         with get_db() as conn:
             return conn.execute(
                 "SELECT COUNT(*) FROM feed_comments WHERE event_id=? AND user_id=?",
-                (event_id, seed_other_user)).fetchone()[0]
+                (event_id, seed_other_user),
+            ).fetchone()[0]
 
     assert _b_comment_count() == 1, "B's comment should exist before the block"
     assert client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers).status_code == 200
-    assert _b_comment_count() == 0, \
+    assert _b_comment_count() == 0, (
         "block sweep left B's comment on A's trip_created card (visible to third parties)"
+    )
 
 
 def test_deleting_one_comment_keeps_notification_for_others(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """MK6 P3: deleting ONE of an author's comments on a post must not wipe the
     notifications for their still-existing comments — one notif per comment, so
     removing one comment removes exactly one notif."""
     from database import get_db
+
     trip_id = _create_trip(client, auth_headers, trip_id="t-notif", public=True)
     event_id = "share_" + str(
-        client.post("/api/feed/share", headers=auth_headers, json={"trip_id": trip_id})
-        .get_json()["post_id"])
+        client.post("/api/feed/share", headers=auth_headers, json={"trip_id": trip_id}).get_json()[
+            "post_id"
+        ]
+    )
     client.post(f"/api/feed/comment/{event_id}", headers=other_auth_headers, json={"body": "one"})
     client.post(f"/api/feed/comment/{event_id}", headers=other_auth_headers, json={"body": "two"})
 
@@ -1812,26 +2273,38 @@ def test_deleting_one_comment_keeps_notification_for_others(
         with get_db() as conn:
             return conn.execute(
                 "SELECT COUNT(*) FROM notifications WHERE type='share_commented' "
-                "AND user_id=? AND related_id=?", (seed_user, seed_other_user)).fetchone()[0]
+                "AND user_id=? AND related_id=?",
+                (seed_user, seed_other_user),
+            ).fetchone()[0]
 
     assert _notif_count() == 2, "two comments should produce two notifications"
     with get_db() as conn:
-        ids = [r[0] for r in conn.execute(
-            "SELECT id FROM feed_comments WHERE event_id=? AND user_id=? ORDER BY id",
-            (event_id, seed_other_user)).fetchall()]
-    assert client.delete(f"/api/feed/comment/{ids[0]}",
-                         headers=other_auth_headers).status_code == 200
-    assert _notif_count() == 1, \
+        ids = [
+            r[0]
+            for r in conn.execute(
+                "SELECT id FROM feed_comments WHERE event_id=? AND user_id=? ORDER BY id",
+                (event_id, seed_other_user),
+            ).fetchall()
+        ]
+    assert (
+        client.delete(f"/api/feed/comment/{ids[0]}", headers=other_auth_headers).status_code == 200
+    )
+    assert _notif_count() == 1, (
         "deleting one comment wiped the notification for the surviving comment too"
+    )
 
 
 def test_bookmarking_settled_up_event_is_rejected(
-    client, seed_user, seed_other_user, auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
 ):
     """MK6 P3: settled_up cards have no resolver, so a bookmark can never
     resurface in /api/feed/bookmarks — it silently evaporates. The write must be
     rejected server-side (400); the frontend hides the button too."""
     from database import get_db
+
     _create_trip(client, auth_headers, trip_id="t-bm")  # FK target for the settlement
     with get_db() as conn:
         conn.execute(

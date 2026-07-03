@@ -23,6 +23,7 @@ trip should delete its settlements. recorded_by was already SET NULL
 
 SQLite can't ALTER a column's FK in place — this is a table-recreate.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -84,10 +85,7 @@ def upgrade() -> None:
     op.execute("ALTER TABLE settlements_new RENAME TO settlements")
 
     # Re-create the index that lived on the original table.
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_settlements_trip "
-        "ON settlements(trip_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_settlements_trip ON settlements(trip_id)")
 
     op.execute("PRAGMA foreign_keys = ON")
 
@@ -132,8 +130,5 @@ def downgrade() -> None:
     )
     op.execute("DROP TABLE settlements")
     op.execute("ALTER TABLE settlements_old RENAME TO settlements")
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_settlements_trip "
-        "ON settlements(trip_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_settlements_trip ON settlements(trip_id)")
     op.execute("PRAGMA foreign_keys = ON")

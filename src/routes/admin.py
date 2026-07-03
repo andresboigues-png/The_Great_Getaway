@@ -218,19 +218,21 @@ def admin_stats():
         for row in user_rows:
             email = (row["email"] or "").strip().lower()
             is_admin = email in ADMIN_EMAILS
-            users.append({
-                "id": row["id"],
-                "email": row["email"],
-                "name": row["name"],
-                "picture": row["picture"],
-                "createdAt": row["created_at"],
-                "tripCount": row["trip_count"],
-                "expenseCount": row["expense_count"],
-                "isAdmin": is_admin,
-                # Trip Templates: the dev is always a creator; others need
-                # the granted flag. UI shows the toggle off the effective value.
-                "isCreator": bool(row["is_creator"]) or is_admin,
-            })
+            users.append(
+                {
+                    "id": row["id"],
+                    "email": row["email"],
+                    "name": row["name"],
+                    "picture": row["picture"],
+                    "createdAt": row["created_at"],
+                    "tripCount": row["trip_count"],
+                    "expenseCount": row["expense_count"],
+                    "isAdmin": is_admin,
+                    # Trip Templates: the dev is always a creator; others need
+                    # the granted flag. UI shows the toggle off the effective value.
+                    "isCreator": bool(row["is_creator"]) or is_admin,
+                }
+            )
 
     # ── Process metadata (for fun + diagnostics) ──────────────
     process_info = {
@@ -241,18 +243,20 @@ def admin_stats():
         "geminiHostKeys": _gemini_pool_snapshot(),
     }
 
-    return jsonify({
-        "totalUsers": total_users,
-        "totalTrips": total_trips,
-        "totalArchivedTrips": total_archived_trips,
-        "totalExpenses": total_expenses,
-        "totalSettlements": total_settlements,
-        "totalFeedPosts": total_feed_posts,
-        "signupsLast7d": signups_last_7d,
-        "signupsLast30d": signups_last_30d,
-        "users": users,
-        "process": process_info,
-    })
+    return jsonify(
+        {
+            "totalUsers": total_users,
+            "totalTrips": total_trips,
+            "totalArchivedTrips": total_archived_trips,
+            "totalExpenses": total_expenses,
+            "totalSettlements": total_settlements,
+            "totalFeedPosts": total_feed_posts,
+            "signupsLast7d": signups_last_7d,
+            "signupsLast30d": signups_last_30d,
+            "users": users,
+            "process": process_info,
+        }
+    )
 
 
 @bp.route("/api/admin/creator", methods=["POST"])
@@ -316,6 +320,7 @@ def _gemini_pool_snapshot() -> dict:
     order)."""
     try:
         from routes.integrations import _pool_status
+
         return _pool_status()
     except Exception:
         return {}
@@ -357,9 +362,11 @@ def backup_snapshot():
         os.makedirs(backups_dir, exist_ok=True)
     except OSError as e:
         logger.exception("backup_snapshot: failed to create backups dir")
-        return jsonify({
-            "error": f"Couldn't create backups dir: {e}",
-        }), 500
+        return jsonify(
+            {
+                "error": f"Couldn't create backups dir: {e}",
+            }
+        ), 500
 
     stamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%SZ")
     out_path = os.path.join(backups_dir, f"db_{stamp}.sqlite")
@@ -386,9 +393,11 @@ def backup_snapshot():
         "admin backup snapshot created",
         extra={"path": out_path, "bytes": size, "by": caller},
     )
-    return jsonify({
-        "status": "ok",
-        "path": out_path,
-        "bytes": size,
-        "stampUTC": stamp,
-    })
+    return jsonify(
+        {
+            "status": "ok",
+            "path": out_path,
+            "bytes": size,
+            "stampUTC": stamp,
+        }
+    )

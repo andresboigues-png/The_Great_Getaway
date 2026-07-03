@@ -24,6 +24,7 @@ def json_body() -> dict:
     write routes (the unauthenticated /api/auth/google included).
     """
     from flask import request
+
     raw = request.get_json(silent=True)
     return raw if isinstance(raw, dict) else {}
 
@@ -232,8 +233,7 @@ def is_trip_archived_for(cursor, trip_id, user_id) -> bool:
     POST archived trips + their expenses in one batch).
     """
     cursor.execute(
-        "SELECT is_archived FROM trip_members "
-        "WHERE trip_id = ? AND user_id = ?",
+        "SELECT is_archived FROM trip_members WHERE trip_id = ? AND user_id = ?",
         (trip_id, user_id),
     )
     row = cursor.fetchone()
@@ -289,15 +289,17 @@ def batch_editable_trip_ids(cursor, user_id: str) -> set[str]:
     """R5-B4: set of trip_ids the user can edit at planner level
     (rename, add days, metadata). Equivalent to running
     `can_edit_trip` on every trip — but in one query."""
-    return {tid for tid, role in batch_trip_roles(cursor, user_id).items()
-            if role == "planner"}
+    return {tid for tid, role in batch_trip_roles(cursor, user_id).items() if role == "planner"}
 
 
 def batch_expense_writable_trip_ids(cursor, user_id: str) -> set[str]:
     """R5-B4: set of trip_ids the user can edit expenses on.
     Planners + budgeteers; relaxers excluded."""
-    return {tid for tid, role in batch_trip_roles(cursor, user_id).items()
-            if role in ("planner", "budgeteer")}
+    return {
+        tid
+        for tid, role in batch_trip_roles(cursor, user_id).items()
+        if role in ("planner", "budgeteer")
+    }
 
 
 def ensure_user_exists(cursor, user_id):
@@ -325,7 +327,8 @@ def unlink_companion_user_from_trip(cursor, trip_id, user_id):
     if not trip_id or not user_id:
         return
     cursor.execute(
-        "SELECT companions_json FROM trips WHERE id = ?", (trip_id,),
+        "SELECT companions_json FROM trips WHERE id = ?",
+        (trip_id,),
     )
     row = cursor.fetchone()
     if not row or not row["companions_json"]:
@@ -414,6 +417,7 @@ def serialize_trip_row(row):
     `user_id` in the dict so the caller can still compare against
     the current viewer for role logic.
     """
+
     # Audit fix (2026-05-26): wrap every json.loads with a defensive
     # try/except. The CHECK(json_valid) constraint on each column
     # rejects bad writes, but pre-constraint rows on prod (or any
@@ -454,8 +458,7 @@ def serialize_trip_row(row):
             decoded = json.loads(countries_raw)
             if isinstance(decoded, list):
                 parsed_countries = [
-                    c.upper() for c in decoded
-                    if isinstance(c, str) and len(c.strip()) == 2
+                    c.upper() for c in decoded if isinstance(c, str) and len(c.strip()) == 2
                 ]
         except (ValueError, AttributeError):
             # Malformed JSON or unexpected shape — fall back to empty.
@@ -487,6 +490,7 @@ def serialize_expense_row(row):
     JSON and `is_settlement` flag. Without these the frontend's
     balance math fell back to equal-share on every reload."""
     import json as _json
+
     e = dict(row)
     e['tripId'] = e.pop('trip_id', None)
     e['categoryId'] = e.pop('category_id', None)
@@ -534,6 +538,7 @@ def user_daily_count(bucket: str, user_id: str) -> int:
     when the user has no entry OR the entry is from a previous day.
     Caller compares against the bucket's cap + 429s on overflow."""
     from datetime import date
+
     today_ord = date.today().toordinal()
     bkt = _USER_DAILY_BUCKETS.get(bucket)
     if bkt is None:
@@ -551,6 +556,7 @@ def user_daily_increment(bucket: str, user_id: str) -> None:
     per-bucket dict grows past the cap (so a viral campaign that
     touches millions of user_ids doesn't OOM the worker)."""
     from datetime import date
+
     today_ord = date.today().toordinal()
     bkt = _USER_DAILY_BUCKETS.setdefault(bucket, {})
     entry = bkt.get(user_id)

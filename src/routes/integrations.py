@@ -69,9 +69,7 @@ bp = Blueprint("integrations", __name__)
 # whereas over-cooling a live key strands a pool slot for hours. Both
 # windows are env-overridable so prod can tune them without a deploy.
 _KEY_COOLDOWN_SECONDS = int(os.getenv("GEMINI_KEY_COOLDOWN_SECONDS", str(5 * 60)))
-_KEY_COOLDOWN_DAILY_SECONDS = int(
-    os.getenv("GEMINI_KEY_COOLDOWN_DAILY_SECONDS", str(60 * 60))
-)
+_KEY_COOLDOWN_DAILY_SECONDS = int(os.getenv("GEMINI_KEY_COOLDOWN_DAILY_SECONDS", str(60 * 60)))
 _HOST_KEY_SLOTS = 6  # GEMINI_API_KEY + _2 through _6
 # slot (1..N) → epoch when the cooldown EXPIRES (not when it was set),
 # so each entry carries its own per-minute vs per-day window.
@@ -114,7 +112,9 @@ def _mark_key_exhausted(slot: int, cooldown_seconds: int = _KEY_COOLDOWN_SECONDS
     by `_is_key_cooled` once the window passes."""
     _exhausted_keys[slot] = time.time() + cooldown_seconds
     logger.warning(
-        "gemini host key slot %d cooled for %ds", slot, cooldown_seconds,
+        "gemini host key slot %d cooled for %ds",
+        slot,
+        cooldown_seconds,
     )
 
 
@@ -242,7 +242,11 @@ def _verify_place(query: str, destination: str, api_key: str) -> dict | None:
         # re-send the key to the redirect target. This endpoint never
         # legitimately redirects, so refusing to follow is free hardening.
         with requests.post(
-            url, headers=headers, json=payload, timeout=8, allow_redirects=False,
+            url,
+            headers=headers,
+            json=payload,
+            timeout=8,
+            allow_redirects=False,
         ) as resp:
             if not resp.ok:
                 logger.info(f"Places verification miss ({resp.status_code}) for: {text_query}")
@@ -323,11 +327,7 @@ def _enrich_itinerary(itinerary: list, destination: str) -> list:
     splitting them lets the public key stay locked down while the
     server side can call Places without the empty-referrer rejection.
     """
-    api_key = (
-        os.getenv("GOOGLE_MAPS_SERVER_KEY")
-        or os.getenv("GOOGLE_MAPS_API_KEY")
-        or ""
-    )
+    api_key = os.getenv("GOOGLE_MAPS_SERVER_KEY") or os.getenv("GOOGLE_MAPS_API_KEY") or ""
     # Audit MK5 P1: even with NO Maps key we still NORMALIZE each LLM item from
     # its raw {name, why, fact} dict into the {text, verified:false} shape the
     # frontend (slots.ts) + the Accept-Plan flatteners expect. Pre-fix this
@@ -390,9 +390,7 @@ def _enrich_itinerary(itinerary: list, destination: str) -> list:
         # NEW schema — top-level `sights` list, separate from meals.
         sights = day.get("sights")
         if isinstance(sights, list):
-            day["sights"] = [
-                e for e in (_enrich_one(s) for s in sights) if e is not None
-            ]
+            day["sights"] = [e for e in (_enrich_one(s) for s in sights) if e is not None]
         # LEGACY schema — morning/afternoon/evening each have an
         # items[] list mixed with restaurants + sights. Older saved
         # itineraries flow through here so the rerender path doesn't
@@ -433,6 +431,7 @@ def get_fx_rates():
     responses; we rate-limit at 60/minute to prevent abuse.
     """
     from fx_rates import get_all_rates_eur
+
     return jsonify({"rates": get_all_rates_eur()})
 
 
@@ -453,9 +452,11 @@ def get_config():
     GEMINI_API_KEY env var is still honoured server-side as a fallback
     in /api/generate_itinerary (see route below) for self-hosted
     setups where the operator IS the user."""
-    return jsonify({
-        "google_client_id": os.getenv("CLIENT_ID_GOOGLE_AUTH", ""),
-    })
+    return jsonify(
+        {
+            "google_client_id": os.getenv("CLIENT_ID_GOOGLE_AUTH", ""),
+        }
+    )
 
 
 @bp.route("/api/places/photo/<path:photo_name>", methods=["GET"])
@@ -508,6 +509,7 @@ def proxy_place_photo(photo_name: str):
         f"?key={api_key}&maxWidthPx={w}&maxHeightPx={h}"
     )
     from flask import Response
+
     try:
         # `with` so the socket is released on exit. 8s timeout matches
         # the verification path; photos can be a touch slower under
@@ -526,7 +528,8 @@ def proxy_place_photo(photo_name: str):
                 # (which carries the key) — log scrubbed, return generic.
                 logger.warning(
                     "places photo proxy upstream %s for %s",
-                    resp.status_code, parts[1] if len(parts) > 1 else "?",
+                    resp.status_code,
+                    parts[1] if len(parts) > 1 else "?",
                 )
                 return jsonify({"error": "upstream photo unavailable"}), 502
             content_type = resp.headers.get("Content-Type", "image/jpeg")
@@ -572,6 +575,7 @@ def _ai_count_for_user(user_id: str) -> int:
     """Returns today's count for the user. Auto-resets when the day
     rolls over. Bounded growth via LRU-style oldest-eviction."""
     from datetime import date
+
     today_ord = date.today().toordinal()
     entry = _ai_user_counts.get(user_id)
     if entry is None or entry[1] != today_ord:
@@ -583,6 +587,7 @@ def _ai_increment_for_user(user_id: str) -> None:
     """Bump the user's count for today. Called only AFTER a successful
     host-pool generation (BYO calls bypass)."""
     from datetime import date
+
     today_ord = date.today().toordinal()
     entry = _ai_user_counts.get(user_id)
     if entry is None or entry[1] != today_ord:
@@ -665,14 +670,13 @@ def generate_itinerary():
     #   U+2028-U+2029  line / paragraph separators
     #   U+2060         word joiner
     #   U+FEFF         BOM / zero-width no-break space
-    _INVISIBLES = set("​‌‍‎‏"
-                      "‪‫‬‭‮"
-                      "  ⁠﻿")
+    _INVISIBLES = set("​‌‍‎‏‪‫‬‭‮  ⁠﻿")
+
     def _scrub(s: str) -> str:
         return "".join(
-            c for c in s
-            if ord(c) >= 0x20 and c not in "\r\n\t" and c not in _INVISIBLES
+            c for c in s if ord(c) >= 0x20 and c not in "\r\n\t" and c not in _INVISIBLES
         )
+
     destination = _scrub(destination).strip()
     date_from = _scrub(date_from).strip()
     date_to = _scrub(date_to).strip()
@@ -726,6 +730,7 @@ def generate_itinerary():
     # the host pool — the user's BYO setting is preserved but
     # ignored for this call (no error UI clutter on a typo).
     import re
+
     _GEMINI_KEY_RE = re.compile(r"^AIzaSy[A-Za-z0-9_-]{33}$")
     keys_to_try: list[tuple[int, str]] = []
     using_byo = bool(user_key and _GEMINI_KEY_RE.match(user_key))
@@ -755,26 +760,30 @@ def generate_itinerary():
         # behaviour + message + the userCapHit flag the frontend
         # branches on to show the BYO escape hatch).
         if not under_cap:
-            return jsonify({
-                "error": (
-                    f"You've used today's {_AI_DAILY_CAP_PER_USER} AI "
-                    "generations. Add your own Gemini API key in Settings "
-                    "to keep generating (free for personal use), or come "
-                    "back tomorrow."
-                ),
-                "host_keys": _pool_status(),
-                "userCapHit": True,
-            }), 429
+            return jsonify(
+                {
+                    "error": (
+                        f"You've used today's {_AI_DAILY_CAP_PER_USER} AI "
+                        "generations. Add your own Gemini API key in Settings "
+                        "to keep generating (free for personal use), or come "
+                        "back tomorrow."
+                    ),
+                    "host_keys": _pool_status(),
+                    "userCapHit": True,
+                }
+            ), 429
         keys_to_try = _available_host_keys()
 
     if not keys_to_try:
-        return jsonify({
-            "error": (
-                "Today's shared AI quota is fully booked. Add your own "
-                "Gemini API key (free for personal use) to keep generating."
-            ),
-            "host_keys": _pool_status(),
-        }), 429
+        return jsonify(
+            {
+                "error": (
+                    "Today's shared AI quota is fully booked. Add your own "
+                    "Gemini API key (free for personal use) to keep generating."
+                ),
+                "host_keys": _pool_status(),
+            }
+        ), 429
 
     # Build the prompt's "additional context" block. Two named fields
     # (food + sightseeing) read more directly to the model than one
@@ -798,6 +807,7 @@ def generate_itinerary():
         # Defense-in-depth: remove the closing-tag string in case the
         # user attempts a tag-escape via their own input.
         return value.replace("</user-data>", "").replace("<user-data>", "")
+
     destination_tagged = _tagged(destination)
     food_tagged = _tagged(food_context)
     sights_tagged = _tagged(sights_context)
@@ -942,7 +952,10 @@ def generate_itinerary():
                 # theoretical key-egress-on-redirect path for the key in this
                 # request (defense-in-depth; consistent with the Places calls).
                 with requests.post(
-                    url, headers=headers, json=payload, timeout=30,
+                    url,
+                    headers=headers,
+                    json=payload,
+                    timeout=30,
                     allow_redirects=False,
                 ) as resp:
                     # Capture Google's error body before raising — a bare HTTPError
@@ -965,9 +978,13 @@ def generate_itinerary():
                         try:
                             err_body = resp.json().get("error", {})
                             msg = err_body.get('message', resp.text[:200])
-                            raise RuntimeError(f"{err_body.get('status', resp.status_code)}: {scrub_key(msg)}")
+                            raise RuntimeError(
+                                f"{err_body.get('status', resp.status_code)}: {scrub_key(msg)}"
+                            )
                         except ValueError:
-                            raise RuntimeError(f"HTTP {resp.status_code}: {scrub_key(resp.text[:200])}") from None
+                            raise RuntimeError(
+                                f"HTTP {resp.status_code}: {scrub_key(resp.text[:200])}"
+                            ) from None
 
                     result = resp.json()
                 # MK6 P2: default to "" (falsy), NOT "[]". Gemini can answer
@@ -980,17 +997,16 @@ def generate_itinerary():
                 # next model/key instead of breaking.
                 _cand = (result.get("candidates") or [{}])[0] or {}
                 _parts = (_cand.get("content", {}) or {}).get("parts") or [{}]
-                result_text = ((_parts[0] or {}).get("text") or "")
+                result_text = (_parts[0] or {}).get("text") or ""
                 if result_text:
                     break
                 _finish = _cand.get("finishReason") or "no candidate text"
-                last_error = (
-                    f"Gemini returned no content (finishReason="
-                    f"{scrub_key(str(_finish))})"
-                )
+                last_error = f"Gemini returned no content (finishReason={scrub_key(str(_finish))})"
                 logger.warning(
                     "Gemini slot %d model %s: empty/blocked 200 response (%s)",
-                    slot, model, last_error,
+                    slot,
+                    model,
+                    last_error,
                 )
                 continue
             except Exception as e:
@@ -1016,12 +1032,16 @@ def generate_itinerary():
                         )
                     logger.warning(
                         "Gemini slot %d quota hit on model %s: %s",
-                        slot, model, last_error,
+                        slot,
+                        model,
+                        last_error,
                     )
                     break
                 logger.warning(
                     "Gemini model %s on slot %d failed: %s",
-                    model, slot, last_error,
+                    model,
+                    slot,
+                    last_error,
                 )
                 continue
         if result_text:
@@ -1032,10 +1052,7 @@ def generate_itinerary():
         # without bringing their own key — return 429 so the frontend
         # can surface the BYO panel. Otherwise it's a transient 502.
         host_status = _pool_status()
-        was_quota = (
-            host_status["total"] > 0
-            and host_status["available"] == 0
-        )
+        was_quota = host_status["total"] > 0 and host_status["available"] == 0
         if using_byo:
             # DSGN-008: the user's own key failed AND the host fallback
             # (if attempted; skipped when they're over the daily cap)
@@ -1043,18 +1060,22 @@ def generate_itinerary():
             # BYO user to "add your own key" is the exact dead-end bug.
             logger.warning(
                 "BYO Gemini failed; host fallback %d/%d avail: %s",
-                host_status["available"], host_status["total"], last_error,
+                host_status["available"],
+                host_status["total"],
+                last_error,
             )
-            return jsonify({
-                "error": (
-                    "Your personal Gemini key couldn't generate this plan — "
-                    "it may be rate-limited, out of quota, or invalid — and "
-                    "the shared pool is busy too. Check the key in Settings, "
-                    "or try again shortly."
-                ),
-                "host_keys": host_status,
-                "byoFailed": True,
-            }), 502
+            return jsonify(
+                {
+                    "error": (
+                        "Your personal Gemini key couldn't generate this plan — "
+                        "it may be rate-limited, out of quota, or invalid — and "
+                        "the shared pool is busy too. Check the key in Settings, "
+                        "or try again shortly."
+                    ),
+                    "host_keys": host_status,
+                    "byoFailed": True,
+                }
+            ), 502
         # R3-Round 3 fix: don't return Google's raw HTTP error body to
         # the user. The pre-fix message "AI generation failed.
         # Last error: <google's verbose text>" was incomprehensible
@@ -1073,12 +1094,16 @@ def generate_itinerary():
             )
             logger.warning(
                 "Gemini generation failed (host slots %d/%d available): %s",
-                host_status["available"], host_status["total"], last_error,
+                host_status["available"],
+                host_status["total"],
+                last_error,
             )
-        return jsonify({
-            "error": user_msg,
-            "host_keys": host_status,
-        }), (429 if was_quota else 502)
+        return jsonify(
+            {
+                "error": user_msg,
+                "host_keys": host_status,
+            }
+        ), (429 if was_quota else 502)
 
     raw_text = result_text.strip()
     if raw_text.startswith("```json"):
@@ -1104,8 +1129,10 @@ def generate_itinerary():
         # Sentry breadcrumbs. Lightweight (one line per generation;
         # the route is hard-capped to 20/day/user anyway via R6-B1).
         days_count = (
-            len(itinerary) if isinstance(itinerary, list)
-            else len(itinerary.get("days", [])) if isinstance(itinerary, dict)
+            len(itinerary)
+            if isinstance(itinerary, list)
+            else len(itinerary.get("days", []))
+            if isinstance(itinerary, dict)
             else 0
         )
         logger.info(
@@ -1138,11 +1165,13 @@ def generate_itinerary():
         # Include the pool snapshot on success too so the frontend
         # bar refreshes after every generation — useful when one
         # request silently drains the last available slot.
-        return jsonify({
-            "status": "success",
-            "itinerary": itinerary,
-            "host_keys": _pool_status(),
-        })
+        return jsonify(
+            {
+                "status": "success",
+                "itinerary": itinerary,
+                "host_keys": _pool_status(),
+            }
+        )
     except Exception as e:
         # R6-B3: scrub_key on BOTH the log line AND the response body.
         # Pre-fix the log raw-interpolated `e` and the response
@@ -1154,10 +1183,12 @@ def generate_itinerary():
         # exception — surface a friendly generic instead.
         scrubbed = scrub_key(str(e))
         logger.error("Gemini API Error: %s", scrubbed)
-        return jsonify({
-            "error": (
-                "AI generation failed unexpectedly. Try again in a "
-                "minute — if it keeps failing, add your own Gemini "
-                "API key in Settings."
-            ),
-        }), 500
+        return jsonify(
+            {
+                "error": (
+                    "AI generation failed unexpectedly. Try again in a "
+                    "minute — if it keeps failing, add your own Gemini "
+                    "API key in Settings."
+                ),
+            }
+        ), 500

@@ -41,6 +41,7 @@ Three sites that the audit flagged as full-scan-per-request:
 All indexes use `IF NOT EXISTS` so the migration is idempotent on
 DBs that may have been hand-patched.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -53,27 +54,14 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_budgets_user ON budgets(user_id)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_notifications_related "
-        "ON notifications(related_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_budgets_user ON budgets(user_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_notifications_related ON notifications(related_id)")
     # Re-assert audit-era indexes that the init_db source-of-truth
     # didn't mirror — fresh DBs without alembic upgrade would miss
     # them otherwise (which is what src/database.py is for).
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_feed_posts_repost "
-        "ON feed_posts(repost_of_post_id)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_feed_comments_user "
-        "ON feed_comments(user_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_feed_posts_repost ON feed_posts(repost_of_post_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_feed_comments_user ON feed_comments(user_id)")
 
 
 def downgrade() -> None:

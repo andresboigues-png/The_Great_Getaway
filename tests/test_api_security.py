@@ -5,7 +5,6 @@ test logic changed). Shared fixtures (client, auth_headers, seed_user,
 ...) come from tests/conftest.py.
 """
 
-
 import sys
 
 import pytest
@@ -60,6 +59,7 @@ def test_auth_google_test_mode_only_accepts_test_prefix(client, monkeypatch):
 
 # ── /api/user-status ─────────────────────────────────────────────────────────
 
+
 def test_user_status_logged_out_without_token(client):
     """No Authorization header → logged_in: false. The frontend uses this
     on app boot to decide between login wall vs. restored session."""
@@ -95,6 +95,7 @@ def test_user_status_logged_out_when_user_deleted(client, seed_user, auth_header
     logged_in:false so the frontend re-shows the login wall."""
     # Manually delete the user row out from under the still-valid JWT.
     import sqlite3
+
     conn = sqlite3.connect(temp_db)
     conn.execute("DELETE FROM users WHERE id = ?", (seed_user,))
     conn.commit()
@@ -148,6 +149,7 @@ def test_auth_logout_requires_auth(client):
 
 # ── Auth gate (decorator) ────────────────────────────────────────────────────
 
+
 def test_protected_endpoint_rejects_no_token(client):
     """Endpoints decorated with @require_auth return 401 when no
     Authorization header is present."""
@@ -157,9 +159,11 @@ def test_protected_endpoint_rejects_no_token(client):
 
 def test_protected_endpoint_rejects_bad_token(client):
     """Wrong signature, expired exp, or just garbage → 401."""
-    res = client.post("/api/trips",
-                      headers={"Authorization": "Bearer not-a-real-jwt"},
-                      json={"trip": {"id": "t1", "name": "T"}})
+    res = client.post(
+        "/api/trips",
+        headers={"Authorization": "Bearer not-a-real-jwt"},
+        json={"trip": {"id": "t1", "name": "T"}},
+    )
     assert res.status_code == 401
 
 
@@ -186,17 +190,20 @@ def test_user_status_returns_null_language_for_legacy_users(client, seed_user, a
 
 # ── Rate limiting ────────────────────────────────────────────────────────────
 
+
 def test_rate_limit_friends_add(temp_db, seed_user):
     """Pin the rate-limit gate on /api/friends/add at 30/minute. We
     re-enable limits inside this test (they're off elsewhere) and fire
     enough requests to trip the limiter."""
     if "main" in sys.modules:
         from database import init_db
+
         init_db()
         from main import app, limiter
     else:
         import main
         from database import init_db
+
         init_db()
         app = main.app
         limiter = main.limiter
@@ -216,16 +223,24 @@ def test_rate_limit_friends_add(temp_db, seed_user):
         with app.test_client() as c:
             # 30 allowed; the 31st should be 429.
             for i in range(30):
-                res = c.post("/api/friends/add", headers=headers, json={
-                    "friend_id": f"y{i}",
-                })
+                res = c.post(
+                    "/api/friends/add",
+                    headers=headers,
+                    json={
+                        "friend_id": f"y{i}",
+                    },
+                )
                 # body may be 404 (unknown friend) — limiter allows the
                 # request to reach the handler, which then rejects on
                 # its own gate. Either way it shouldn't be 429 yet.
                 assert res.status_code != 429
-            res = c.post("/api/friends/add", headers=headers, json={
-                "friend_id": "y-last",
-            })
+            res = c.post(
+                "/api/friends/add",
+                headers=headers,
+                json={
+                    "friend_id": "y-last",
+                },
+            )
             assert res.status_code == 429
     finally:
         app.config["RATELIMIT_ENABLED"] = False
@@ -305,8 +320,7 @@ def test_admin_stats_rejects_non_admin_403(client, seed_user, auth_headers):
     not 200 with a populated payload. Hardcoded `seed_user` fixture
     uses test@example.com which is deliberately NOT in the allowlist."""
     res = client.get("/api/admin/stats", headers=auth_headers)
-    assert res.status_code == 403, \
-        "non-admin user must NOT receive a 200 from /api/admin/stats"
+    assert res.status_code == 403, "non-admin user must NOT receive a 200 from /api/admin/stats"
     body = res.get_json()
     assert body.get("error") == "Forbidden"
 
@@ -333,11 +347,13 @@ def test_admin_stats_allows_admin_email(client, seed_user, auth_headers, monkeyp
     allowlist set instead of changing the seed_user email so the test
     doesn't have to know what's hardcoded in admin.py."""
     import routes.admin
+
     monkeypatch.setattr(routes.admin, "ADMIN_EMAILS", {"test@example.com"})
 
     res = client.get("/api/admin/stats", headers=auth_headers)
-    assert res.status_code == 200, \
+    assert res.status_code == 200, (
         f"admin caller must be allowed; got {res.status_code} body={res.get_json()!r}"
+    )
     body = res.get_json()
     # Spot-check the shape so a refactor that drops one of the
     # headline counts fails fast.
@@ -352,8 +368,11 @@ def test_csrf_origin_mismatch_blocks_cookie_request(client, seed_user):
     on top of SameSite=Lax."""
     # Seed a session cookie so the request is "cookie-authenticated".
     from auth import AUTH_COOKIE_NAME, issue_token
+
     client.set_cookie(
-        key=AUTH_COOKIE_NAME, value=issue_token(seed_user), domain="localhost",
+        key=AUTH_COOKIE_NAME,
+        value=issue_token(seed_user),
+        domain="localhost",
     )
     # Simulate a cross-origin form post — `Origin: https://evil.com`.
     res = client.post(
@@ -367,8 +386,11 @@ def test_csrf_origin_mismatch_blocks_cookie_request(client, seed_user):
 def test_csrf_same_origin_request_allowed(client, seed_user):
     """Same-origin POST with a matching Origin header passes."""
     from auth import AUTH_COOKIE_NAME, issue_token
+
     client.set_cookie(
-        key=AUTH_COOKIE_NAME, value=issue_token(seed_user), domain="localhost",
+        key=AUTH_COOKIE_NAME,
+        value=issue_token(seed_user),
+        domain="localhost",
     )
     # Flask test-client default host is localhost
     res = client.post(
@@ -383,6 +405,7 @@ def test_csrf_same_origin_request_allowed(client, seed_user):
 # /api/config exposes public-facing keys (Google client id, AI keys
 # loaded from env). /api/generate_itinerary calls Gemini — tests
 # mock requests.post to avoid real network traffic + paid quota.
+
 
 def test_config_returns_only_public_google_client_id(client, monkeypatch):
     """Pin the no-secrets-leak contract for /api/config. The endpoint
@@ -428,6 +451,7 @@ def test_config_returns_empty_client_id_when_env_unset(client, monkeypatch):
 # branch (lines 118-142 in src/routes/auth.py) without making a real network
 # call to Google's OAuth backend. Same monkeypatch pattern as integrations.py.
 
+
 def test_auth_google_real_path_inserts_user_and_returns_token(client, monkeypatch):
     """Production happy path: verify_oauth2_token returns a valid idinfo
     dict; the handler upserts the user row and mints a JWT. Pin the
@@ -452,6 +476,7 @@ def test_auth_google_real_path_inserts_user_and_returns_token(client, monkeypatc
         return fake_idinfo
 
     import routes.auth
+
     monkeypatch.setattr(routes.auth.id_token, "verify_oauth2_token", fake_verify)
 
     res = client.post("/api/auth/google", json={"token": "valid.google.token"})
@@ -485,6 +510,7 @@ def test_auth_google_real_path_supports_credential_field(client, monkeypatch):
         }
 
     import routes.auth
+
     monkeypatch.setattr(routes.auth.id_token, "verify_oauth2_token", fake_verify)
 
     res = client.post("/api/auth/google", json={"credential": "via.credential.field"})
@@ -512,6 +538,7 @@ def test_auth_google_real_path_thin_profile_no_name_or_picture(client, monkeypat
         }
 
     import routes.auth
+
     monkeypatch.setattr(routes.auth.id_token, "verify_oauth2_token", fake_verify)
 
     res = client.post("/api/auth/google", json={"token": "thin.google.token"})
@@ -524,7 +551,8 @@ def test_auth_google_real_path_thin_profile_no_name_or_picture(client, monkeypat
 
 
 def test_auth_google_real_path_returns_existing_profile_on_repeat_signin(
-    client, monkeypatch,
+    client,
+    monkeypatch,
 ):
     """Second sign-in for an existing user preserves bio / status /
     home_currency from the DB row (these aren't touched by the
@@ -545,6 +573,7 @@ def test_auth_google_real_path_returns_existing_profile_on_repeat_signin(
         return fake_idinfo
 
     import routes.auth
+
     monkeypatch.setattr(routes.auth.id_token, "verify_oauth2_token", fake_verify)
 
     # First sign-in → upsert.
@@ -552,6 +581,7 @@ def test_auth_google_real_path_returns_existing_profile_on_repeat_signin(
 
     # Hand-set the profile fields the way /api/profile/update would.
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
         c.execute(
@@ -581,6 +611,7 @@ def test_auth_google_real_path_invalid_token_returns_401(client, monkeypatch):
         raise ValueError("Token used too late, 1234567890 < 1234567899")
 
     import routes.auth
+
     monkeypatch.setattr(routes.auth.id_token, "verify_oauth2_token", fake_verify)
 
     res = client.post("/api/auth/google", json={"token": "expired.token"})
@@ -610,6 +641,7 @@ def test_auth_google_rejects_unverified_email(client, monkeypatch):
         }
 
     import routes.auth
+
     monkeypatch.setattr(routes.auth.id_token, "verify_oauth2_token", fake_verify_unverified)
 
     res = client.post("/api/auth/google", json={"token": "valid.but.unverified"})
@@ -622,11 +654,13 @@ def test_auth_google_rejects_unverified_email(client, monkeypatch):
 # These functions are pure (no Flask, no app), so unit tests are cheap and
 # the coverage hits the literal lines without needing a route to drive them.
 
+
 def test_helpers_unwrap_legacy_plan_text_passes_clean_strings_through():
     """The common case — already-clean text round-trips unchanged. The
     cheap shape check (`s[0] == '"' and s[-1] == '"'`) skips the
     json.loads call entirely on this path."""
     from helpers import unwrap_legacy_plan_text
+
     assert unwrap_legacy_plan_text("Coffee at 8am") == "Coffee at 8am"
     assert unwrap_legacy_plan_text("") == ""
 
@@ -636,6 +670,7 @@ def test_helpers_unwrap_legacy_plan_text_unwraps_json_quoted_scalar():
     `'"foo"'` value should unwrap to `'foo'`. Also pin the empty-string
     legacy shape `'""'` → `''`."""
     from helpers import unwrap_legacy_plan_text
+
     assert unwrap_legacy_plan_text('"foo"') == "foo"
     assert unwrap_legacy_plan_text('""') == ""
     # Multi-word with embedded escapes: `'"a \"quoted\" b"'` → `'a "quoted" b'`
@@ -647,6 +682,7 @@ def test_helpers_unwrap_legacy_plan_text_handles_non_string_input():
     becomes empty string, truthy non-strings come through. Pin so a
     malformed legacy row (NULL morning, integer column) doesn't 500."""
     from helpers import unwrap_legacy_plan_text
+
     assert unwrap_legacy_plan_text(None) == ""
     assert unwrap_legacy_plan_text(0) == ""
     # Quoted-but-not-a-string-after-parse falls through to return s
@@ -663,6 +699,7 @@ def test_helpers_unwrap_legacy_plan_text_returns_original_on_invalid_json():
     (truncated, bad escape) falls through to return s unchanged. The
     function never raises."""
     from helpers import unwrap_legacy_plan_text
+
     # Starts + ends with " but invalid escape → json.loads raises →
     # except Exception → return s.
     assert unwrap_legacy_plan_text('"bad \\x escape"') == '"bad \\x escape"'
@@ -699,6 +736,7 @@ def test_helpers_trip_member_role_owner_fallback(temp_db, seed_user):
 #
 # These don't fit the API-route mold but they're real surface area and
 # 100% covered above for free if we just hit them.
+
 
 def test_main_home_route_renders_index(client):
     """Default GET / returns index.html — the SPA entry point."""
@@ -750,6 +788,7 @@ def test_main_manifest_declares_required_pwa_icons(client):
     on user devices (where the prompt just stops appearing).
     """
     import json as _json
+
     res = client.get("/manifest.json")
     assert res.status_code == 200
     body = _json.loads(res.get_data(as_text=True))
@@ -758,8 +797,9 @@ def test_main_manifest_declares_required_pwa_icons(client):
     presented = {(i.get("sizes"), i.get("purpose")) for i in icons}
     assert ("192x192", "any") in presented, "Android needs a 192px 'any' icon"
     assert ("512x512", "any") in presented, "Android needs a 512px 'any' icon"
-    assert any(p == "maskable" for (_, p) in presented), \
+    assert any(p == "maskable" for (_, p) in presented), (
         "Need at least one maskable icon for adaptive-icon spec"
+    )
 
 
 def test_auth_google_sets_session_cookie(client, monkeypatch):
@@ -768,7 +808,9 @@ def test_auth_google_sets_session_cookie(client, monkeypatch):
     migration; localStorage-based storage is going away.
     """
     monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
-    res = client.post("/api/auth/google", json={"token": "test:test-cookie-user", "name": "Cookie User"})
+    res = client.post(
+        "/api/auth/google", json={"token": "test:test-cookie-user", "name": "Cookie User"}
+    )
     assert res.status_code == 200
     # Werkzeug's test client surfaces Set-Cookie via the Set-Cookie header(s).
     set_cookie_headers = [v for k, v in res.headers.items() if k.lower() == "set-cookie"]
@@ -808,8 +850,9 @@ def test_auth_google_cookie_is_secure_when_proxy_signals_https(client, monkeypat
         "",
     )
     assert "gg_session=" in set_cookie
-    assert "Secure" in set_cookie, \
+    assert "Secure" in set_cookie, (
         f"gg_session missing Secure when X-Forwarded-Proto=https: {set_cookie!r}"
+    )
 
 
 def test_auth_cookie_authenticates_request_without_bearer_header(client, monkeypatch):
@@ -894,6 +937,7 @@ def test_auth_bearer_header_still_accepted_for_backcompat(client, monkeypatch, s
     the same commit — explicit removal beats silent drift.
     """
     from auth import issue_token
+
     token = issue_token(seed_user)
     # Fresh client — no cookie jar, only the explicit Bearer header.
     res = client.get(
@@ -921,6 +965,7 @@ def test_auth_cookie_wins_when_both_cookie_and_bearer_present(client, monkeypatc
     )
     # Forge a Bearer header for seed_user (different identity).
     from auth import issue_token
+
     other_token = issue_token(seed_user)
     res = client.get(
         "/api/user-status",
@@ -930,8 +975,9 @@ def test_auth_cookie_wins_when_both_cookie_and_bearer_present(client, monkeypatc
     body = res.get_json()
     assert body["logged_in"] is True
     # Cookie wins → identity is A, not seed_user.
-    assert body["user"]["id"] == "test-cookie-user-a", \
+    assert body["user"]["id"] == "test-cookie-user-a", (
         f"expected cookie to win, got identity={body['user']['id']!r}"
+    )
 
 
 def test_main_csp_uses_script_nonce_not_unsafe_inline(client):
@@ -950,23 +996,26 @@ def test_main_csp_uses_script_nonce_not_unsafe_inline(client):
     parts = [p.strip() for p in csp.split(";") if p.strip()]
     script_src = next((p for p in parts if p.startswith("script-src ")), "")
     script_src_elem = next(
-        (p for p in parts if p.startswith("script-src-elem ")), "",
+        (p for p in parts if p.startswith("script-src-elem ")),
+        "",
     )
     assert script_src, "script-src directive missing"
     assert script_src_elem, "script-src-elem directive missing"
 
     # The whole point of the upgrade: NO 'unsafe-inline' on script.
-    assert "'unsafe-inline'" not in script_src, \
+    assert "'unsafe-inline'" not in script_src, (
         f"script-src still allows 'unsafe-inline' — XSS hardening regressed: {script_src!r}"
-    assert "'unsafe-inline'" not in script_src_elem, \
+    )
+    assert "'unsafe-inline'" not in script_src_elem, (
         f"script-src-elem still allows 'unsafe-inline': {script_src_elem!r}"
+    )
 
     # And it MUST have a nonce-token in its place, otherwise every
     # inline script in index.html would die silently in the browser.
-    assert "'nonce-" in script_src, \
-        f"script-src missing 'nonce-...' replacement: {script_src!r}"
-    assert "'nonce-" in script_src_elem, \
+    assert "'nonce-" in script_src, f"script-src missing 'nonce-...' replacement: {script_src!r}"
+    assert "'nonce-" in script_src_elem, (
         f"script-src-elem missing 'nonce-...' replacement: {script_src_elem!r}"
+    )
 
 
 def test_healthz_returns_ok_envelope(client):
@@ -979,8 +1028,9 @@ def test_healthz_returns_ok_envelope(client):
       - no sensitive info leaked (envs, paths, user counts)
     """
     res = client.get("/healthz")
-    assert res.status_code == 200, \
+    assert res.status_code == 200, (
         "healthz must be unauthenticated and return 200 when DB is reachable"
+    )
     body = res.get_json()
     assert isinstance(body, dict), "envelope, not bare value"
     assert body["status"] == "ok"
@@ -998,7 +1048,11 @@ def test_healthz_returns_ok_envelope(client):
     # shaped key. Whitelist the response shape — anything else is
     # a regression that needs a human review.
     extra_keys = set(body.keys()) - {
-        "status", "release", "alembicHead", "dbRead", "dbWrite",
+        "status",
+        "release",
+        "alembicHead",
+        "dbRead",
+        "dbWrite",
     }
     assert not extra_keys, (
         f"healthz response shape drifted; extra keys {extra_keys}. "
@@ -1016,7 +1070,7 @@ def test_csp_report_accepts_post_and_is_csrf_exempt(client):
     res = client.post(
         "/api/csp-report",
         data='{"csp-report":{"violated-directive":"script-src",'
-             '"blocked-uri":"https://evil.example/x.js"}}',
+        '"blocked-uri":"https://evil.example/x.js"}}',
         content_type="application/csp-report",
         # Deliberately NO Origin/Referer — mimics the browser's report
         # POST. If the CSRF gate weren't exempting this path, we'd 403.
@@ -1031,7 +1085,9 @@ def test_csp_report_truncates_oversized_body(client):
     endpoint never 500s regardless of input."""
     huge = '{"csp-report":{"blocked-uri":"' + ("A" * 10000) + '"}}'
     res = client.post(
-        "/api/csp-report", data=huge, content_type="application/csp-report",
+        "/api/csp-report",
+        data=huge,
+        content_type="application/csp-report",
     )
     assert res.status_code == 204
 
@@ -1045,6 +1101,7 @@ def test_main_csp_nonce_matches_inline_script_tags(client):
     variable, this test breaks loudly.
     """
     import re as _re
+
     res = client.get("/")
     assert res.status_code == 200
 
@@ -1061,12 +1118,14 @@ def test_main_csp_nonce_matches_inline_script_tags(client):
     # external load must carry a `nonce=<csp_nonce>` attribute, or it'll
     # be blocked when the page loads in a real browser.
     inline_script_tags = _re.findall(
-        r"<script(?![^>]*\bsrc=)[^>]*>", body,
+        r"<script(?![^>]*\bsrc=)[^>]*>",
+        body,
     )
     assert inline_script_tags, "No inline scripts found — template change?"
     for tag in inline_script_tags:
-        assert f'nonce="{csp_nonce}"' in tag, \
+        assert f'nonce="{csp_nonce}"' in tag, (
             f"Inline <script> missing matching nonce attribute: {tag!r}"
+        )
 
 
 def test_main_csp_nonce_rotates_per_request(client):
@@ -1076,6 +1135,7 @@ def test_main_csp_nonce_rotates_per_request(client):
     regression caches the nonce module-level, this test catches it.
     """
     import re as _re
+
     res1 = client.get("/")
     res2 = client.get("/")
     csp1 = res1.headers.get("Content-Security-Policy", "")
@@ -1083,8 +1143,9 @@ def test_main_csp_nonce_rotates_per_request(client):
     n1 = _re.search(r"'nonce-([A-Za-z0-9_-]+)'", csp1)
     n2 = _re.search(r"'nonce-([A-Za-z0-9_-]+)'", csp2)
     assert n1 and n2
-    assert n1.group(1) != n2.group(1), \
+    assert n1.group(1) != n2.group(1), (
         f"Nonce did not rotate between requests: {n1.group(1)!r} == {n2.group(1)!r}"
+    )
 
 
 def test_main_pwa_icons_are_actually_served(client):
@@ -1102,8 +1163,9 @@ def test_main_pwa_icons_are_actually_served(client):
     ):
         res = client.get(path)
         assert res.status_code == 200, f"icon {path} not served"
-        assert res.headers.get("Content-Type", "").startswith("image/"), \
+        assert res.headers.get("Content-Type", "").startswith("image/"), (
             f"icon {path} not delivered with image content-type"
+        )
 
 
 def test_main_cleanup_feed_orphans_runs_without_crashing(client):
@@ -1115,6 +1177,7 @@ def test_main_cleanup_feed_orphans_runs_without_crashing(client):
     Audit fix (2026-05-27): the sweep grew to cover notifications +
     auth_sessions too. Both default to 0 on a fresh DB."""
     import main as main_module
+
     result = main_module._cleanup_feed_orphans()
     assert result == {
         "likes": 0,
@@ -1188,6 +1251,7 @@ def test_cleanup_preserves_engagement_on_live_evergreen_post(client, seed_user):
     no matter their age (up to the 365-day backstop)."""
     import main as main_module
     from database import get_db
+
     with get_db() as conn:
         c = conn.cursor()
         # Seed an actor user + a live feed_posts row.
@@ -1228,9 +1292,7 @@ def test_cleanup_preserves_engagement_on_live_evergreen_post(client, seed_user):
         comments = c.execute(
             "SELECT 1 FROM feed_comments WHERE event_id = 'share_9999'",
         ).fetchone()
-    assert likes is not None, (
-        "200-day-old like on LIVE share must survive the orphan-only sweep"
-    )
+    assert likes is not None, "200-day-old like on LIVE share must survive the orphan-only sweep"
     assert comments is not None, (
         "200-day-old comment on LIVE share must survive the orphan-only sweep"
     )
@@ -1238,6 +1300,7 @@ def test_cleanup_preserves_engagement_on_live_evergreen_post(client, seed_user):
 
 # ── R11-B1: /api/auth/sessions list + revoke ───────────────────────────────
 # Per-device session management. R11 P0 — entire feature uncovered.
+
 
 def test_list_sessions_returns_current_session(client, seed_user, auth_headers):
     """After login (auth_headers → issue_token → _create_session),
@@ -1265,18 +1328,21 @@ def test_revoke_own_session_invalidates_token(client, seed_user, auth_headers):
     sid = current["id"]
     # Revoke.
     revoke = client.delete(
-        f"/api/auth/sessions/{sid}", headers=auth_headers,
+        f"/api/auth/sessions/{sid}",
+        headers=auth_headers,
     )
     assert revoke.status_code == 200
     # Same token should now be rejected.
     after = client.get("/api/data", headers=auth_headers)
-    assert after.status_code == 401, (
-        "JWT for a revoked session must be rejected on next request"
-    )
+    assert after.status_code == 401, "JWT for a revoked session must be rejected on next request"
 
 
 def test_revoke_session_other_users_session_is_noop(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """User A revokes a session id that belongs to user B. The route's
     SQL gates on `user_id = ?`, so the revoke is a no-op and user B's
@@ -1284,20 +1350,20 @@ def test_revoke_session_other_users_session_is_noop(
     primitive — pin the gate."""
     # Find user B's session id.
     b_listing = client.get(
-        "/api/auth/sessions", headers=other_auth_headers,
+        "/api/auth/sessions",
+        headers=other_auth_headers,
     ).get_json()
     b_current = next(s for s in b_listing["sessions"] if s.get("isCurrent"))
     b_sid = b_current["id"]
     # User A tries to revoke B's session.
     a_revoke = client.delete(
-        f"/api/auth/sessions/{b_sid}", headers=auth_headers,
+        f"/api/auth/sessions/{b_sid}",
+        headers=auth_headers,
     )
     # Route always 200s (idempotent), but B's token must still work.
     assert a_revoke.status_code == 200
     b_after = client.get("/api/data", headers=other_auth_headers)
-    assert b_after.status_code == 200, (
-        "cross-user session revoke must be a no-op for the victim"
-    )
+    assert b_after.status_code == 200, "cross-user session revoke must be a no-op for the victim"
 
 
 def test_list_sessions_excludes_expired_jwt_rows(client, seed_user, auth_headers):
@@ -1305,6 +1371,7 @@ def test_list_sessions_excludes_expired_jwt_rows(client, seed_user, auth_headers
     in the Sessions list — they can't authenticate, so listing them as 'active
     devices' is misleading (and the table grew one row per login forever)."""
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "INSERT INTO auth_sessions (user_id, jti, device_label, created_at) "
@@ -1331,26 +1398,33 @@ def test_auth_google_relogin_preserves_custom_avatar(client, monkeypatch):
     monkeypatch.setenv("CLIENT_ID_GOOGLE_AUTH", "client-id-test")
     monkeypatch.delenv("GG_ALLOW_TEST_LOGIN", raising=False)
     fake_idinfo = {
-        "sub": "avatar-uid", "email": "av@example.com", "email_verified": True,
-        "name": "Av", "picture": "https://lh3.googleusercontent.com/orig.jpg",
+        "sub": "avatar-uid",
+        "email": "av@example.com",
+        "email_verified": True,
+        "name": "Av",
+        "picture": "https://lh3.googleusercontent.com/orig.jpg",
     }
     import routes.auth
-    monkeypatch.setattr(routes.auth.id_token, "verify_oauth2_token",
-                        lambda *a, **k: fake_idinfo)
+
+    monkeypatch.setattr(routes.auth.id_token, "verify_oauth2_token", lambda *a, **k: fake_idinfo)
 
     r1 = client.post("/api/auth/google", json={"token": "valid.google.token"})
     assert r1.status_code == 200
     assert r1.get_json()["user"]["picture"] == "https://lh3.googleusercontent.com/orig.jpg"
 
     from database import get_db
+
     with get_db() as conn:
-        conn.execute("UPDATE users SET picture = ? WHERE id = ?",
-                     ("/static/uploads/avatar-uid/me.jpg", "avatar-uid"))
+        conn.execute(
+            "UPDATE users SET picture = ? WHERE id = ?",
+            ("/static/uploads/avatar-uid/me.jpg", "avatar-uid"),
+        )
         conn.commit()
 
     r2 = client.post("/api/auth/google", json={"token": "valid.google.token"})
     assert r2.status_code == 200
     with get_db() as conn:
         pic = conn.execute("SELECT picture FROM users WHERE id = ?", ("avatar-uid",)).fetchone()[0]
-    assert pic == "/static/uploads/avatar-uid/me.jpg", \
+    assert pic == "/static/uploads/avatar-uid/me.jpg", (
         "Google re-login clobbered the user's custom uploaded avatar"
+    )

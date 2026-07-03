@@ -50,6 +50,7 @@ def fresh_db(monkeypatch):
     monkeypatch.setenv("GG_DB_PATH", path)
     # init_db is the canonical schema producer until §1.6 retires it.
     from database import init_db
+
     init_db()
     yield path
     try:
@@ -81,14 +82,14 @@ def test_audit_fresh_db_has_zero_orphans(fresh_db):
     accidentally introduces default rows that violate referential
     integrity, this turns red."""
     import fk_audit
+
     classes = fk_audit.audit(fresh_db, samples=0)
     total = sum(c.orphan_count for c in classes)
     assert total == 0, (
         f"fresh init_db produced {total} orphans across "
         f"{sum(1 for c in classes if c.orphan_count)} class(es): "
         + ", ".join(
-            f"{c.child_table}.{c.child_column}={c.orphan_count}"
-            for c in classes if c.orphan_count
+            f"{c.child_table}.{c.child_column}={c.orphan_count}" for c in classes if c.orphan_count
         )
     )
 
@@ -105,6 +106,7 @@ def test_audit_discovers_declared_relationships(fresh_db):
     re-arms automatically as soon as a future schema change adds a
     new column that can't get a real FK without a rebuild."""
     import fk_audit
+
     classes = fk_audit.audit(fresh_db, samples=0)
     sources = {(c.child_table, c.child_column): c.source for c in classes}
 
@@ -124,8 +126,7 @@ def test_audit_discovers_declared_relationships(fresh_db):
     # twice).
     keys = [(c.child_table, c.child_column) for c in classes]
     assert len(keys) == len(set(keys)), (
-        f"duplicate FK entries in audit: "
-        f"{[k for k in keys if keys.count(k) > 1]}"
+        f"duplicate FK entries in audit: {[k for k in keys if keys.count(k) > 1]}"
     )
 
 
@@ -140,10 +141,10 @@ def test_audit_detects_synthetic_orphan_expense(fresh_db_with_users):
         conn.commit()
 
     import fk_audit
+
     classes = fk_audit.audit(fresh_db_with_users, samples=5)
     expense_class = next(
-        c for c in classes
-        if c.child_table == "expenses" and c.child_column == "trip_id"
+        c for c in classes if c.child_table == "expenses" and c.child_column == "trip_id"
     )
     assert expense_class.orphan_count == 1
     assert expense_class.total_count == 1
@@ -166,10 +167,10 @@ def test_audit_detects_synthetic_orphan_trip_member(fresh_db_with_users):
         conn.commit()
 
     import fk_audit
+
     classes = fk_audit.audit(fresh_db_with_users, samples=5)
     tm_trip = next(
-        c for c in classes
-        if c.child_table == "trip_members" and c.child_column == "trip_id"
+        c for c in classes if c.child_table == "trip_members" and c.child_column == "trip_id"
     )
     assert tm_trip.orphan_count == 1
     sample = tm_trip.samples[0]
@@ -186,10 +187,7 @@ def test_audit_nullable_implicit_fk_with_null_is_not_orphan(fresh_db_with_users)
     audit's nullable_ok branch is doing real work."""
     with sqlite3.connect(fresh_db_with_users) as conn:
         # Need a real trip parent so trip_id FK passes.
-        conn.execute(
-            "INSERT INTO trips (id, user_id, name) VALUES "
-            "('t1', 'u1', 'My trip')"
-        )
+        conn.execute("INSERT INTO trips (id, user_id, name) VALUES ('t1', 'u1', 'My trip')")
         # Owner self-membership row: invited_by IS NULL (no inviter).
         conn.execute(
             "INSERT INTO trip_members (trip_id, user_id, role, invited_by) "
@@ -198,10 +196,10 @@ def test_audit_nullable_implicit_fk_with_null_is_not_orphan(fresh_db_with_users)
         conn.commit()
 
     import fk_audit
+
     classes = fk_audit.audit(fresh_db_with_users, samples=5)
     invited_by = next(
-        c for c in classes
-        if c.child_table == "trip_members" and c.child_column == "invited_by"
+        c for c in classes if c.child_table == "trip_members" and c.child_column == "invited_by"
     )
     assert invited_by.orphan_count == 0
     assert invited_by.nullable_ok is True
@@ -211,10 +209,7 @@ def test_audit_nullable_implicit_fk_with_dangling_value_is_orphan(fresh_db_with_
     """The other half of the nullable case: when the column IS set but
     references a non-existent parent, it IS an orphan."""
     with sqlite3.connect(fresh_db_with_users) as conn:
-        conn.execute(
-            "INSERT INTO trips (id, user_id, name) VALUES "
-            "('t2', 'u1', 'Another trip')"
-        )
+        conn.execute("INSERT INTO trips (id, user_id, name) VALUES ('t2', 'u1', 'Another trip')")
         conn.execute(
             "INSERT INTO trip_members (trip_id, user_id, role, invited_by) "
             "VALUES ('t2', 'u2', 'relaxer', 'ghost-inviter-id')"
@@ -222,10 +217,10 @@ def test_audit_nullable_implicit_fk_with_dangling_value_is_orphan(fresh_db_with_
         conn.commit()
 
     import fk_audit
+
     classes = fk_audit.audit(fresh_db_with_users, samples=5)
     invited_by = next(
-        c for c in classes
-        if c.child_table == "trip_members" and c.child_column == "invited_by"
+        c for c in classes if c.child_table == "trip_members" and c.child_column == "invited_by"
     )
     assert invited_by.orphan_count == 1
     assert invited_by.samples[0].get("dangling_value") == "ghost-inviter-id"
@@ -237,12 +232,12 @@ def test_audit_polymorphic_columns_not_checked(fresh_db_with_users):
     (user_id → users), the polymorphic related_id column must NOT be
     in the audit set."""
     import fk_audit
+
     classes = fk_audit.audit(fresh_db_with_users, samples=0)
     polymorphic_keys = {(t, c) for (t, c, _) in fk_audit.POLYMORPHIC_COLUMNS}
     audited_keys = {(c.child_table, c.child_column) for c in classes}
     assert not (polymorphic_keys & audited_keys), (
-        "polymorphic columns leaked into the audit set: "
-        f"{polymorphic_keys & audited_keys}"
+        f"polymorphic columns leaked into the audit set: {polymorphic_keys & audited_keys}"
     )
 
 
@@ -305,8 +300,15 @@ def test_cli_json_output_is_parseable(fresh_db):
     # Every class entry should expose the standard fields.
     sample = payload["classes"][0]
     for field in (
-        "child_table", "child_column", "parent_table", "parent_column",
-        "source", "nullable_ok", "orphan_count", "total_count", "samples",
+        "child_table",
+        "child_column",
+        "parent_table",
+        "parent_column",
+        "source",
+        "nullable_ok",
+        "orphan_count",
+        "total_count",
+        "samples",
     ):
         assert field in sample, f"missing field: {field}"
     # The polymorphic skip-list MUST be surfaced so operators know
@@ -325,8 +327,7 @@ def test_cli_samples_limit_is_honoured(fresh_db_with_users):
     with sqlite3.connect(fresh_db_with_users) as conn:
         for i in range(5):
             conn.execute(
-                "INSERT INTO expenses (id, trip_id, who, value) "
-                "VALUES (?, ?, ?, ?)",
+                "INSERT INTO expenses (id, trip_id, who, value) VALUES (?, ?, ?, ?)",
                 (f"e{i}", f"phantom-trip-{i}", "u1", 1.0),
             )
         conn.commit()
@@ -334,7 +335,8 @@ def test_cli_samples_limit_is_honoured(fresh_db_with_users):
     assert result.returncode == 1
     payload = json.loads(result.stdout)
     expense_class = next(
-        c for c in payload["classes"]
+        c
+        for c in payload["classes"]
         if c["child_table"] == "expenses" and c["child_column"] == "trip_id"
     )
     assert expense_class["orphan_count"] == 5
@@ -347,15 +349,15 @@ def test_cli_zero_samples_returns_no_sample_rows(fresh_db_with_users):
     fast CI checks where the row IDs aren't needed."""
     with sqlite3.connect(fresh_db_with_users) as conn:
         conn.execute(
-            "INSERT INTO expenses (id, trip_id, who, value) "
-            "VALUES ('e1', 'ghost-trip', 'u1', 1.0)"
+            "INSERT INTO expenses (id, trip_id, who, value) VALUES ('e1', 'ghost-trip', 'u1', 1.0)"
         )
         conn.commit()
     result = _run_audit_cli(fresh_db_with_users, "--json", "--samples", "0")
     assert result.returncode == 1
     payload = json.loads(result.stdout)
     expense_class = next(
-        c for c in payload["classes"]
+        c
+        for c in payload["classes"]
         if c["child_table"] == "expenses" and c["child_column"] == "trip_id"
     )
     assert expense_class["orphan_count"] == 1

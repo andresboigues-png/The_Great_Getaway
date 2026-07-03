@@ -53,9 +53,7 @@ setup_sentry()  # No-op unless SENTRY_DSN is set in env.
 logger = get_logger(__name__)
 
 # Initialize Flask App
-app = Flask(__name__,
-            template_folder="../frontend/templates",
-            static_folder="../frontend/static")
+app = Flask(__name__, template_folder="../frontend/templates", static_folder="../frontend/static")
 
 # Audit fix (2026-05-27): wrap the WSGI app with ProxyFix so the
 # request's `scheme` / `host` / `client_addr` reflect the TRUSTED
@@ -73,8 +71,11 @@ app = Flask(__name__,
 # alternate hosting (gunicorn behind nginx → x_for=2, etc.).
 _trusted_proxies = int(os.getenv("GG_TRUSTED_PROXIES", "1"))
 app.wsgi_app = ProxyFix(
-    app.wsgi_app, x_for=_trusted_proxies, x_proto=_trusted_proxies,
-    x_host=_trusted_proxies, x_prefix=_trusted_proxies,
+    app.wsgi_app,
+    x_for=_trusted_proxies,
+    x_proto=_trusted_proxies,
+    x_host=_trusted_proxies,
+    x_prefix=_trusted_proxies,
 )
 
 # Upload destination — defaults to frontend/static/uploads (under the
@@ -319,6 +320,7 @@ attach_request_context(app, current_user_id)
 #       — outbound link clicks don't leak the full URL (which may
 #         contain trip / user identifiers) to third parties
 
+
 @app.before_request
 def _raise_import_upload_limit():
     """MK6 P2: lift the 10 MB body cap for /api/trips/import only, so a media-
@@ -360,15 +362,17 @@ def _attach_csp_nonce():
 #     is a stronger contract than Origin matching.
 #   - /api/fx-rates GET (no auth, read-only) and other GET routes.
 
-_CSRF_EXEMPT_PATHS = frozenset({
-    "/api/auth/google",
-    # R12-B1: the browser POSTs CSP violation reports here WITHOUT a
-    # matching Origin/Referer (reports are sent uncredentialed, often
-    # with a `null` Origin), so the same-origin CSRF gate would 403
-    # every report. Safe to exempt: the endpoint only logs a bounded
-    # body, mutates nothing, and is rate-limited (30/min).
-    "/api/csp-report",
-})
+_CSRF_EXEMPT_PATHS = frozenset(
+    {
+        "/api/auth/google",
+        # R12-B1: the browser POSTs CSP violation reports here WITHOUT a
+        # matching Origin/Referer (reports are sent uncredentialed, often
+        # with a `null` Origin), so the same-origin CSRF gate would 403
+        # every report. Safe to exempt: the endpoint only logs a bounded
+        # body, mutates nothing, and is rate-limited (30/min).
+        "/api/csp-report",
+    }
+)
 
 
 def _host_matches(value: str | None) -> bool:
@@ -380,6 +384,7 @@ def _host_matches(value: str | None) -> bool:
         return False
     try:
         from urllib.parse import urlparse
+
         parsed = urlparse(value)
     except (ValueError, TypeError):
         return False
@@ -420,9 +425,11 @@ def _csrf_origin_check():
     # header), so they fall into the Bearer short-circuit above
     # and are unaffected.
     if origin is None and referer is None:
-        return jsonify({
-            "error": "Cross-origin request rejected (missing Origin/Referer)",
-        }), 403
+        return jsonify(
+            {
+                "error": "Cross-origin request rejected (missing Origin/Referer)",
+            }
+        ), 403
     if _host_matches(origin) or _host_matches(referer):
         return None
     # Hard block. JSON so the frontend's fetch error handler
@@ -472,14 +479,13 @@ def _gzip_response(response):
         if len(body) < 1024:  # not worth the CPU for tiny bodies
             return response
         import gzip as _gzip
+
         compressed = _gzip.compress(body, 6)
         response.set_data(compressed)
         response.headers["Content-Encoding"] = "gzip"
         response.headers["Content-Length"] = str(len(compressed))
         vary = response.headers.get("Vary")
-        response.headers["Vary"] = (
-            f"{vary}, Accept-Encoding" if vary else "Accept-Encoding"
-        )
+        response.headers["Vary"] = f"{vary}, Accept-Encoding" if vary else "Accept-Encoding"
     except Exception:
         return response
     return response
@@ -498,77 +504,80 @@ def add_security_headers(response):
 
     response.headers.setdefault(
         "Content-Security-Policy",
-        "; ".join([
-            "default-src 'self'",
-            (
-                f"script-src 'self' {nonce_src} "
-                "https://accounts.google.com "
-                "https://maps.googleapis.com "
-                "https://cdn.jsdelivr.net "
-                "https://*.sentry-cdn.com"
-            ),
-            (
-                f"script-src-elem 'self' {nonce_src} "
-                "https://accounts.google.com "
-                "https://maps.googleapis.com "
-                "https://cdn.jsdelivr.net "
-                "https://*.sentry-cdn.com"
-            ),
-            # accounts.google.com — Google Identity Services injects a
-            # stylesheet (gsi/style) for the sign-in button. Without
-            # this entry the console fills with CSP violations and the
-            # button renders unstyled. See FIXING_ROADMAP §0.4 follow-up.
-            "style-src 'self' 'unsafe-inline' https://accounts.google.com https://fonts.googleapis.com",
-            "img-src 'self' data: blob: https:",
-            "font-src 'self' data: https://fonts.gstatic.com",
-            (
-                # R11-B7 (P3): tightened connect-src. Removed
-                # `images.unsplash.com` — Unsplash photos are loaded via
-                # <img src=...> tags (img-src 'https:' covers them); no
-                # JS fetch() ever hits that origin, so the connect-src
-                # entry was dead permission. Kept `raw.githubusercontent.com`
-                # — FootprintMap pulls the natural-earth GeoJSON country
-                # outlines from `/nvkelso/natural-earth-vector/master/`
-                # at module load. CSP can't narrow to a path prefix
-                # (origin granularity only), so the origin grant stays;
-                # the JSON parse itself is safe (no eval, structured
-                # GeoJSON consumed by maplibre-gl). If we ever vendor
-                # the GeoJSON into our static assets, this entry can
-                # come out entirely.
-                "connect-src 'self' "
-                "https://accounts.google.com "
-                "https://*.googleapis.com "
-                "https://api.frankfurter.app "
-                "https://api.frankfurter.dev "
-                "https://api.worldbank.org "
-                "https://raw.githubusercontent.com "
-                # cdn.jsdelivr.net is already trusted in script-src (it serves
-                # the Chart.js + XLSX bundles); allow connect-src too so the
-                # browser can fetch their `.js.map` source maps when devtools
-                # is open (CSP was blocking the .map fetch — dev-only noise).
-                "https://cdn.jsdelivr.net "
-                "https://*.sentry.io "
-                "https://*.ingest.sentry.io"
-            ),
-            "frame-src https://accounts.google.com",
-            "worker-src 'self'",
-            "object-src 'none'",
-            "base-uri 'self'",
-            "form-action 'self'",
-            # R12-B1: report violations to our own endpoint so a blocked
-            # script / an XSS attempt / a CDN url that silently shifted
-            # produces a server-side log line instead of failing into the
-            # void. `report-uri` is the widely-supported (if deprecated)
-            # directive; `report-to` needs a companion Report-To header +
-            # endpoint group that not all targets honour yet, so we ship
-            # the simpler one. The route is same-origin + rate-limited.
-            "report-uri /api/csp-report",
-        ]),
+        "; ".join(
+            [
+                "default-src 'self'",
+                (
+                    f"script-src 'self' {nonce_src} "
+                    "https://accounts.google.com "
+                    "https://maps.googleapis.com "
+                    "https://cdn.jsdelivr.net "
+                    "https://*.sentry-cdn.com"
+                ),
+                (
+                    f"script-src-elem 'self' {nonce_src} "
+                    "https://accounts.google.com "
+                    "https://maps.googleapis.com "
+                    "https://cdn.jsdelivr.net "
+                    "https://*.sentry-cdn.com"
+                ),
+                # accounts.google.com — Google Identity Services injects a
+                # stylesheet (gsi/style) for the sign-in button. Without
+                # this entry the console fills with CSP violations and the
+                # button renders unstyled. See FIXING_ROADMAP §0.4 follow-up.
+                "style-src 'self' 'unsafe-inline' https://accounts.google.com https://fonts.googleapis.com",
+                "img-src 'self' data: blob: https:",
+                "font-src 'self' data: https://fonts.gstatic.com",
+                (
+                    # R11-B7 (P3): tightened connect-src. Removed
+                    # `images.unsplash.com` — Unsplash photos are loaded via
+                    # <img src=...> tags (img-src 'https:' covers them); no
+                    # JS fetch() ever hits that origin, so the connect-src
+                    # entry was dead permission. Kept `raw.githubusercontent.com`
+                    # — FootprintMap pulls the natural-earth GeoJSON country
+                    # outlines from `/nvkelso/natural-earth-vector/master/`
+                    # at module load. CSP can't narrow to a path prefix
+                    # (origin granularity only), so the origin grant stays;
+                    # the JSON parse itself is safe (no eval, structured
+                    # GeoJSON consumed by maplibre-gl). If we ever vendor
+                    # the GeoJSON into our static assets, this entry can
+                    # come out entirely.
+                    "connect-src 'self' "
+                    "https://accounts.google.com "
+                    "https://*.googleapis.com "
+                    "https://api.frankfurter.app "
+                    "https://api.frankfurter.dev "
+                    "https://api.worldbank.org "
+                    "https://raw.githubusercontent.com "
+                    # cdn.jsdelivr.net is already trusted in script-src (it serves
+                    # the Chart.js + XLSX bundles); allow connect-src too so the
+                    # browser can fetch their `.js.map` source maps when devtools
+                    # is open (CSP was blocking the .map fetch — dev-only noise).
+                    "https://cdn.jsdelivr.net "
+                    "https://*.sentry.io "
+                    "https://*.ingest.sentry.io"
+                ),
+                "frame-src https://accounts.google.com",
+                "worker-src 'self'",
+                "object-src 'none'",
+                "base-uri 'self'",
+                "form-action 'self'",
+                # R12-B1: report violations to our own endpoint so a blocked
+                # script / an XSS attempt / a CDN url that silently shifted
+                # produces a server-side log line instead of failing into the
+                # void. `report-uri` is the widely-supported (if deprecated)
+                # directive; `report-to` needs a companion Report-To header +
+                # endpoint group that not all targets honour yet, so we ship
+                # the simpler one. The route is same-origin + rate-limited.
+                "report-uri /api/csp-report",
+            ]
+        ),
     )
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault(
-        "Referrer-Policy", "strict-origin-when-cross-origin",
+        "Referrer-Policy",
+        "strict-origin-when-cross-origin",
     )
     # Audit fix (2026-05-27): HSTS on HTTPS requests. Pre-fix the
     # only HTTPS pinning was via the Secure cookie flag — a
@@ -612,7 +621,8 @@ def add_security_headers(response):
     # (Google Sign-In) talk back via postMessage. Standard choice
     # for sites that use OAuth-style popups.
     response.headers.setdefault(
-        "Cross-Origin-Opener-Policy", "same-origin-allow-popups",
+        "Cross-Origin-Opener-Policy",
+        "same-origin-allow-popups",
     )
     # R11-B5: Permissions-Policy. Even if a hypothetical XSS slips past
     # CSP's nonce gate, the attacker still can't call sensitive browser
@@ -655,10 +665,12 @@ def _handle_http_exception(e):
     """Pass-through for routes that explicitly raise an HTTPException
     (abort(404), abort(403), etc.). Returns the same JSON shape every
     /api/* route uses so the frontend has one error contract."""
-    return jsonify({
-        "error": e.description or e.name,
-        "status": e.code,
-    }), (e.code or 500)
+    return jsonify(
+        {
+            "error": e.description or e.name,
+            "status": e.code,
+        }
+    ), (e.code or 500)
 
 
 @app.errorhandler(Exception)
@@ -671,6 +683,7 @@ def _handle_uncaught_exception(e):
     `request_id` (when present) lets the user paste a request id back
     to support / operator triage."""
     from flask import g, has_request_context
+
     request_id = None
     try:
         if has_request_context():
@@ -842,8 +855,7 @@ def _cleanup_feed_orphans():
         logger.warning("background cleanup sweep failed: %s", e, exc_info=True)
     if deleted_likes or deleted_comments or deleted_notifications or deleted_sessions:
         logger.info(
-            "background cleanup removed: likes=%d comments=%d "
-            "notifications=%d sessions=%d",
+            "background cleanup removed: likes=%d comments=%d notifications=%d sessions=%d",
             deleted_likes,
             deleted_comments,
             deleted_notifications,
@@ -901,6 +913,7 @@ def _start_cleanup_thread():
     try:
         import fcntl
         import tempfile as _tempfile
+
         _lock_path = os.path.join(_tempfile.gettempdir(), "gg_feed_cleanup.lock")
         _CLEANUP_LOCK_FD = open(_lock_path, "w")  # noqa: SIM115 — held for process life
         fcntl.flock(_CLEANUP_LOCK_FD.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -911,10 +924,12 @@ def _start_cleanup_thread():
         return
     import threading
     import time
+
     def loop():
         while True:
             _cleanup_feed_orphans()
             time.sleep(86400)  # 24h
+
     t = threading.Thread(target=loop, daemon=True, name="feed-orphan-cleanup")
     t.start()
 
@@ -924,6 +939,7 @@ def _start_cleanup_thread():
 # let a second worker elect itself on its next boot attempt.
 _CLEANUP_LOCK_FD = None
 _start_cleanup_thread()
+
 
 def _asset_version(rel_path: str) -> str:
     """Cache-busting version string for a static asset — the file's mtime
@@ -971,6 +987,7 @@ def healthz():
     """
     from database import get_db
     from observability import resolve_release
+
     release = resolve_release() or "unknown"
     # DB ping — cheapest query that exercises the connection +
     # confirms the FD is real (not a stale PA worker socket).
@@ -985,9 +1002,7 @@ def healthz():
             # Pull the current alembic revision (best-effort —
             # absent on a pre-migrations DB, which is also valid).
             try:
-                cursor.execute(
-                    "SELECT version_num FROM alembic_version LIMIT 1"
-                )
+                cursor.execute("SELECT version_num FROM alembic_version LIMIT 1")
                 row = cursor.fetchone()
                 alembic_head = row["version_num"] if row else None
             except Exception:
@@ -997,6 +1012,7 @@ def healthz():
         # Don't leak the exception text — could include a path or
         # connection string fragment. Log it for operator triage.
         from observability import get_logger
+
         get_logger("gg.health").warning("healthz db ping failed: %s", e)
 
     # R12-B1: write-capability probe. A SELECT-only ping returns 200
@@ -1013,6 +1029,7 @@ def healthz():
         import sqlite3 as _sqlite3
 
         from database import BUSY_TIMEOUT_MS, _db_path
+
         _probe = None
         try:
             _probe = _sqlite3.connect(_db_path(), isolation_level=None)
@@ -1022,6 +1039,7 @@ def healthz():
             write_ok = True
         except Exception as e:
             from observability import get_logger
+
             get_logger("gg.health").warning(
                 "healthz write probe failed (DB may be read-only): %s", e
             )
@@ -1067,6 +1085,7 @@ def csp_report():
         if len(raw) > 4096:
             raw = raw[:4096] + "…(truncated)"
         from observability import get_logger
+
         get_logger("gg.csp").warning("CSP violation report: %s", raw)
     except Exception:
         # Never let the report sink itself error — it'd inflate the
@@ -1080,17 +1099,19 @@ def home():
     """Serve the main Single Page Application (SPA) index file."""
     # ?dev=1 loads source modules directly (live edits, no rebuild) instead of the bundle.
     dev_mode = request.args.get("dev") == "1"
-    return render_template("index.html",
-                           google_client_id=os.getenv("CLIENT_ID_GOOGLE_AUTH"),
-                           google_maps_api_key=os.getenv("GOOGLE_MAPS_API_KEY"),
-                           dev_mode=dev_mode,
-                           bundle_version=_asset_version("js/app.bundle.js"),
-                           css_version=_asset_version("css/index.css"),
-                           # §0.4 follow-up: Tailwind v4 bundled CSS lives
-                           # at /static/js/assets/main.css (stable name
-                           # via vite.config's assetFileNames). Same
-                           # mtime-based cache-buster pattern.
-                           tailwind_css_version=_asset_version("js/assets/main.css"))
+    return render_template(
+        "index.html",
+        google_client_id=os.getenv("CLIENT_ID_GOOGLE_AUTH"),
+        google_maps_api_key=os.getenv("GOOGLE_MAPS_API_KEY"),
+        dev_mode=dev_mode,
+        bundle_version=_asset_version("js/app.bundle.js"),
+        css_version=_asset_version("css/index.css"),
+        # §0.4 follow-up: Tailwind v4 bundled CSS lives
+        # at /static/js/assets/main.css (stable name
+        # via vite.config's assetFileNames). Same
+        # mtime-based cache-buster pattern.
+        tailwind_css_version=_asset_version("js/assets/main.css"),
+    )
 
 
 # ── FIXING_ROADMAP §4.1 — public share page ──────────────────────────
@@ -1118,20 +1139,19 @@ def share_page(token):
         # existed" via differential 404s.
         return render_template(
             "share.html",
-            trip={"name": "This trip isn't available", "country": "",
-                  "coverUrl": None, "views": 0},
+            trip={"name": "This trip isn't available", "country": "", "coverUrl": None, "views": 0},
             days=[],
             owner=None,
             cost=None,
             og_description="This trip's share link has expired or been revoked.",
             og_image_url=url_for("static", filename="favicon.svg", _external=True),
             # R5-B6: canonical url is the clean /share/<token> path.
-        # Pre-fix this was `request.url`, which reflected any
-        # visitor-appended query string (e.g. /share/<token>?utm=x)
-        # into the rendered og:url metatag AND into the clone-CTA
-        # href (where the trailing-slash split yielded a polluted
-        # "<token>?utm=x" pseudo-token that broke the clone flow).
-        canonical_url=url_for("share_page", token=token, _external=True),
+            # Pre-fix this was `request.url`, which reflected any
+            # visitor-appended query string (e.g. /share/<token>?utm=x)
+            # into the rendered og:url metatag AND into the clone-CTA
+            # href (where the trailing-slash split yielded a polluted
+            # "<token>?utm=x" pseudo-token that broke the clone flow).
+            canonical_url=url_for("share_page", token=token, _external=True),
         ), 404
 
     # Dedup by anonymous cookie. The cookie value is just "1" — we
@@ -1147,14 +1167,14 @@ def share_page(token):
     # SHA-256 keeps the dedup property (same token → same cookie
     # name → same dedup window) without leaking any source bytes.
     import hashlib
+
     cookie_name = f"gg_viewed_{hashlib.sha256(token.encode()).hexdigest()[:16]}"
     has_seen = request.cookies.get(cookie_name) is not None
     if not has_seen:
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "UPDATE trips SET share_views = COALESCE(share_views, 0) + 1 "
-                "WHERE share_token = ?",
+                "UPDATE trips SET share_views = COALESCE(share_views, 0) + 1 WHERE share_token = ?",
                 (token,),
             )
             # R3-Round 3 fix: only mutate the payload when the UPDATE
@@ -1179,9 +1199,7 @@ def share_page(token):
             f"in {payload['trip']['country'] or 'the world'}."
         )
     elif payload["trip"].get("country"):
-        og_description = (
-            f"A trip to {payload['trip']['country']} on The Great Getaway."
-        )
+        og_description = f"A trip to {payload['trip']['country']} on The Great Getaway."
     else:
         og_description = "A trip shared on The Great Getaway."
 
@@ -1199,22 +1217,24 @@ def share_page(token):
     else:
         og_image_url = url_for("static", filename="favicon.svg", _external=True)
 
-    response = app.make_response(render_template(
-        "share.html",
-        trip=payload["trip"],
-        days=payload["days"],
-        owner=payload["owner"],
-        cost=payload["cost"],
-        og_description=og_description,
-        og_image_url=og_image_url,
-        # R5-B6: canonical url is the clean /share/<token> path.
-        # Pre-fix this was `request.url`, which reflected any
-        # visitor-appended query string (e.g. /share/<token>?utm=x)
-        # into the rendered og:url metatag AND into the clone-CTA
-        # href (where the trailing-slash split yielded a polluted
-        # "<token>?utm=x" pseudo-token that broke the clone flow).
-        canonical_url=url_for("share_page", token=token, _external=True),
-    ))
+    response = app.make_response(
+        render_template(
+            "share.html",
+            trip=payload["trip"],
+            days=payload["days"],
+            owner=payload["owner"],
+            cost=payload["cost"],
+            og_description=og_description,
+            og_image_url=og_image_url,
+            # R5-B6: canonical url is the clean /share/<token> path.
+            # Pre-fix this was `request.url`, which reflected any
+            # visitor-appended query string (e.g. /share/<token>?utm=x)
+            # into the rendered og:url metatag AND into the clone-CTA
+            # href (where the trailing-slash split yielded a polluted
+            # "<token>?utm=x" pseudo-token that broke the clone flow).
+            canonical_url=url_for("share_page", token=token, _external=True),
+        )
+    )
     # R3-Fix #15: don't let intermediaries (CDNs, corp proxies,
     # transparent ISP caches) hold a copy of this response. The
     # body embeds the dedup cookie + view counter — caching it
@@ -1223,9 +1243,11 @@ def share_page(token):
     response.headers["Cache-Control"] = "private, no-store"
     if not has_seen:
         response.set_cookie(
-            cookie_name, "1",
+            cookie_name,
+            "1",
             max_age=24 * 60 * 60,
-            httponly=True, samesite="Lax",
+            httponly=True,
+            samesite="Lax",
             # R5-B6: Secure flag so the token-hash cookie doesn't
             # leak in cleartext if a visitor's first contact is
             # over http (captive portals, injected http img tags
@@ -1250,15 +1272,17 @@ def template_preview_page(code):
     canonical = url_for("template_preview_page", code=code, _external=True)
     og_image = url_for("static", filename="favicon.svg", _external=True)
     status = 200 if preview else 404
-    response = app.make_response((
-        render_template(
-            "template.html",
-            preview=preview,
-            canonical_url=canonical,
-            og_image_url=og_image,
-        ),
-        status,
-    ))
+    response = app.make_response(
+        (
+            render_template(
+                "template.html",
+                preview=preview,
+                canonical_url=canonical,
+                og_image_url=og_image,
+            ),
+            status,
+        )
+    )
     # Same privacy posture as the share page — don't let intermediaries
     # cache a per-code response.
     response.headers["Cache-Control"] = "private, no-store"
@@ -1278,6 +1302,7 @@ def components_preview():
     # guards (JWT-secret / rate-limit).
     if not _is_dev_env():
         from flask import abort
+
         abort(404)
     return render_template("components.html")
 
@@ -1298,7 +1323,9 @@ def service_worker():
 
 @app.route("/manifest.json")
 def manifest():
-    return send_from_directory(app.static_folder, "manifest.json", mimetype="application/manifest+json")
+    return send_from_directory(
+        app.static_folder, "manifest.json", mimetype="application/manifest+json"
+    )
 
 
 # --- Auth-gated user uploads ---------------------------------------------
@@ -1500,11 +1527,11 @@ def serve_upload(relpath: str):
     # from "file doesn't exist" to avoid leaking the existence of
     # private uploads via status-code differential).
     from flask import abort
+
     abort(404)
 
 
 # --- Authentication ---
-
 
 
 if __name__ == "__main__":

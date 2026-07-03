@@ -31,6 +31,7 @@ Adds two indexes:
 Backward-compatible. Down drops the indexes. Safe to re-run via
 `IF NOT EXISTS`.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -43,13 +44,8 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_trips_user ON trips(user_id)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_trips_user_public "
-        "ON trips(user_id, is_public)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_trips_user ON trips(user_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_trips_user_public ON trips(user_id, is_public)")
 
 
 def downgrade() -> None:

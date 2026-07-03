@@ -41,6 +41,7 @@ Trade-offs:
     expects day_number to always be set; if it isn't, that's a
     separate bug to fix.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

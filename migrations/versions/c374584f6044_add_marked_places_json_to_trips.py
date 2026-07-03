@@ -14,6 +14,7 @@ JSON shape:
       dayId: string | null, timeOfDay: 'morning'|'afternoon'|'evening'|null
   }, ...]
 """
+
 from collections.abc import Sequence
 
 from alembic import op

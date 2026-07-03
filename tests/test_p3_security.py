@@ -5,6 +5,7 @@ BUG-089  media POST strips unsafe URL schemes (javascript:, data:text/html)
 BUG-097  /components design-system gallery is dev-only (404 in prod)
 BUG-098  non-owner editor can't flip trips.is_archived via /api/sync
 """
+
 from datetime import date
 
 from tests.conftest import _create_trip, _seed_member
@@ -12,10 +13,9 @@ from tests.conftest import _create_trip, _seed_member
 
 def _trip_is_archived(trip_id):
     from database import get_db
+
     with get_db() as conn:
-        row = conn.execute(
-            "SELECT is_archived FROM trips WHERE id = ?", (trip_id,)
-        ).fetchone()
+        row = conn.execute("SELECT is_archived FROM trips WHERE id = ?", (trip_id,)).fetchone()
     return None if row is None else row["is_archived"]
 
 
@@ -24,6 +24,7 @@ def test_components_gallery_is_dev_only(client, monkeypatch):
     """BUG-097: /components renders the whole design-system gallery. It must
     be dev-only — 404 for an anonymous prod visitor, 200 in dev."""
     import main
+
     monkeypatch.setattr(main, "_is_dev_env", lambda: False)
     assert client.get("/components").status_code == 404
     monkeypatch.setattr(main, "_is_dev_env", lambda: True)
@@ -51,7 +52,8 @@ def test_follow_increments_then_caps(client, auth_headers, seed_user, seed_other
     # At the cap, the next follow is refused (the cap gate fires before the
     # idempotent insert, so even a re-follow of an existing target 429s).
     helpers._USER_DAILY_BUCKETS.setdefault("follow", {})[seed_user] = (
-        _FOLLOW_DAILY_CAP, date.today().toordinal(),
+        _FOLLOW_DAILY_CAP,
+        date.today().toordinal(),
     )
     capped = client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
     assert capped.status_code == 429
@@ -94,7 +96,11 @@ def test_media_post_strips_unsafe_url_schemes(client, auth_headers):
 
 # ── BUG-098 ────────────────────────────────────────────────────────────────
 def test_sync_non_owner_cannot_flip_trip_archived(
-    client, auth_headers, other_auth_headers, seed_user, seed_other_user,
+    client,
+    auth_headers,
+    other_auth_headers,
+    seed_user,
+    seed_other_user,
 ):
     """BUG-098: trips.is_archived is the share/clone gate's source of truth and
     is owner-only. A non-owner planner must NOT be able to flip it via a
@@ -119,7 +125,9 @@ def test_sync_non_owner_cannot_flip_trip_archived(
         json={"archived_trips": [{"id": trip_id, "name": "x", "country": "x"}]},
     )
     assert res2.status_code == 200
-    assert _trip_is_archived(trip_id) == 0, "non-owner flipped trips.is_archived via archived_trips[]"
+    assert _trip_is_archived(trip_id) == 0, (
+        "non-owner flipped trips.is_archived via archived_trips[]"
+    )
 
     # Sanity: the OWNER can still archive their own trip via /api/sync.
     res3 = client.post(
@@ -137,18 +145,28 @@ def test_sync_skips_malformed_rows_without_500(client, auth_headers):
     dict) must be skipped, not raise a subscript KeyError → uncaught 500 —
     mirroring the partial-sync silent-skip contract the loops already use."""
     # Expense row with no id.
-    r1 = client.post("/api/sync", headers=auth_headers,
-                     json={"expenses": [{"value": 5, "currency": "EUR", "tripId": "t1"}]})
+    r1 = client.post(
+        "/api/sync",
+        headers=auth_headers,
+        json={"expenses": [{"value": 5, "currency": "EUR", "tripId": "t1"}]},
+    )
     assert r1.status_code == 200, r1.get_data(as_text=True)
     # Trip-day row with no id.
-    r2 = client.post("/api/sync", headers=auth_headers,
-                     json={"trip_days": [{"tripId": "t1", "name": "Day"}]})
+    r2 = client.post(
+        "/api/sync", headers=auth_headers, json={"trip_days": [{"tripId": "t1", "name": "Day"}]}
+    )
     assert r2.status_code == 200, r2.get_data(as_text=True)
     # Expense row with no tripId.
-    r3 = client.post("/api/sync", headers=auth_headers,
-                     json={"expenses": [{"id": "e-x", "value": 5, "currency": "EUR"}]})
+    r3 = client.post(
+        "/api/sync",
+        headers=auth_headers,
+        json={"expenses": [{"id": "e-x", "value": 5, "currency": "EUR"}]},
+    )
     assert r3.status_code == 200, r3.get_data(as_text=True)
     # Non-dict entries in the arrays are skipped, not crashed.
-    r4 = client.post("/api/sync", headers=auth_headers,
-                     json={"expenses": ["not-a-dict", None], "trip_days": [42]})
+    r4 = client.post(
+        "/api/sync",
+        headers=auth_headers,
+        json={"expenses": ["not-a-dict", None], "trip_days": [42]},
+    )
     assert r4.status_code == 200, r4.get_data(as_text=True)

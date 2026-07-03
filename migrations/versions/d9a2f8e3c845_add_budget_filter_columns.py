@@ -34,6 +34,7 @@ keeps rendering correctly after this lands (no separate UPDATE
 pass required at the per-row layer — the COALESCE in the read
 path covers it).
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -55,12 +56,8 @@ def upgrade() -> None:
     # original_amount = amount and original_currency = currency. After
     # the frontend starts shipping the actual original values, new rows
     # will carry the user's typed amount before conversion.
-    op.execute(
-        "UPDATE budgets SET original_amount = amount WHERE original_amount IS NULL"
-    )
-    op.execute(
-        "UPDATE budgets SET original_currency = currency WHERE original_currency IS NULL"
-    )
+    op.execute("UPDATE budgets SET original_amount = amount WHERE original_amount IS NULL")
+    op.execute("UPDATE budgets SET original_currency = currency WHERE original_currency IS NULL")
 
 
 def downgrade() -> None:

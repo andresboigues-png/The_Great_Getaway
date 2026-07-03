@@ -62,24 +62,26 @@ def user_status():
     # Trip Templates: the dev account is always a Creator; everyone else
     # needs the granted users.is_creator flag.
     is_creator = bool(row["is_creator"]) or (row["email"] or "").strip().lower() in ADMIN_EMAILS
-    return jsonify({
-        "logged_in": True,
-        "user": {
-            "id": row["id"],
-            "email": row["email"],
-            "name": row["name"],
-            "picture": row["picture"],
-            "bio": row["bio"] or "",
-            "status": row["status"] or "",
-            "homeCurrency": row["home_currency"],
-            "homeCountry": row["home_country"],
-            # i18n session 3 — null for users who never set a preference;
-            # the frontend then derives from navigator.language via
-            # detectBrowserLocale (i18n.ts).
-            "language": row["language"],
-            "isCreator": is_creator,
-        },
-    })
+    return jsonify(
+        {
+            "logged_in": True,
+            "user": {
+                "id": row["id"],
+                "email": row["email"],
+                "name": row["name"],
+                "picture": row["picture"],
+                "bio": row["bio"] or "",
+                "status": row["status"] or "",
+                "homeCurrency": row["home_currency"],
+                "homeCountry": row["home_country"],
+                # i18n session 3 — null for users who never set a preference;
+                # the frontend then derives from navigator.language via
+                # detectBrowserLocale (i18n.ts).
+                "language": row["language"],
+                "isCreator": is_creator,
+            },
+        }
+    )
 
 
 def _seed_default_categories(cursor, user_id):
@@ -142,7 +144,7 @@ def google_auth():
         and isinstance(token, str)
         and token.startswith("test:")
     ):
-        user_id = token[len("test:"):] or "test-user-1"
+        user_id = token[len("test:") :] or "test-user-1"
         # 2026-05-25 (audit 8.4 security): previously this path accepted
         # ANY user_id after the `test:` prefix — including the Google
         # `sub` of a real user. If GG_ALLOW_TEST_LOGIN=1 ever leaked to
@@ -152,9 +154,11 @@ def google_auth():
         # other shape → 400, no row written, no token issued. This
         # caps the blast radius even when the gate is mis-set.
         if not user_id.startswith("test-"):
-            return jsonify({
-                "error": "Test-mode user_id must start with `test-` prefix",
-            }), 400
+            return jsonify(
+                {
+                    "error": "Test-mode user_id must start with `test-` prefix",
+                }
+            ), 400
         email = f"{user_id}@test.local"
         name = body.get("name") or "Test User"
         picture = ""
@@ -183,24 +187,30 @@ def google_auth():
         # caller (e.g. the existing E2E `getAuthForApi` helper) that
         # extracts it from the response and replays it as Authorization
         # in subsequent calls.
-        token = issue_token(user_id, device_label=(request.headers.get("User-Agent") or "")[:120] or None)
-        response = make_response(jsonify({
-            "status": "success",
-            "token": token,
-            "user": {
-                "id": user_id,
-                "name": name,
-                "email": email,
-                "picture": picture,
-                "bio": "",
-                "status": "",
-                "homeCurrency": None,
-                # Test users start with no locale preference — frontend
-                # falls back to navigator.language.
-                "language": None,
-                "isCreator": test_is_creator,
-            },
-        }))
+        token = issue_token(
+            user_id, device_label=(request.headers.get("User-Agent") or "")[:120] or None
+        )
+        response = make_response(
+            jsonify(
+                {
+                    "status": "success",
+                    "token": token,
+                    "user": {
+                        "id": user_id,
+                        "name": name,
+                        "email": email,
+                        "picture": picture,
+                        "bio": "",
+                        "status": "",
+                        "homeCurrency": None,
+                        # Test users start with no locale preference — frontend
+                        # falls back to navigator.language.
+                        "language": None,
+                        "isCreator": test_is_creator,
+                    },
+                }
+            )
+        )
         set_auth_cookie(response, token)
         return response
 
@@ -240,7 +250,8 @@ def google_auth():
 
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute('''
+            cursor.execute(
+                '''
                 INSERT INTO users (id, email, name, picture)
                 VALUES (?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
@@ -255,9 +266,14 @@ def google_auth():
                         WHEN users.picture LIKE '/static/uploads/%' THEN users.picture
                         ELSE excluded.picture
                     END
-            ''', (user_id, email, name, picture))
+            ''',
+                (user_id, email, name, picture),
+            )
 
-            cursor.execute("SELECT bio, status, home_currency, home_country, language, is_creator FROM users WHERE id = ?", (user_id,))
+            cursor.execute(
+                "SELECT bio, status, home_currency, home_country, language, is_creator FROM users WHERE id = ?",
+                (user_id,),
+            )
             user_row = cursor.fetchone()
             db_bio = user_row['bio'] if user_row else ""
             db_status = user_row['status'] if user_row else ""
@@ -269,9 +285,9 @@ def google_auth():
             # only in /api/user-status), so a granted non-admin Creator sees the
             # Creator tab immediately instead of after a full page reload. The
             # dev account is always a creator (mirrors /api/user-status).
-            db_is_creator = (
-                bool(user_row['is_creator']) if user_row else False
-            ) or (email or "").strip().lower() in ADMIN_EMAILS
+            db_is_creator = (bool(user_row['is_creator']) if user_row else False) or (
+                email or ""
+            ).strip().lower() in ADMIN_EMAILS
 
             # MK4: give brand-new users the 3 starter categories (no-op if
             # they already have any, or deliberately deleted them all).
@@ -286,26 +302,32 @@ def google_auth():
         # the Playwright `getAuthForApi` helper) keep working without
         # any client-side change. The frontend stops READING this
         # field in the same slice but the surface stays compatible.
-        token = issue_token(user_id, device_label=(request.headers.get("User-Agent") or "")[:120] or None)
-        response = make_response(jsonify({
-            "status": "success",
-            "token": token,
-            "user": {
-                "id": user_id,
-                "name": name,
-                "email": email,
-                "picture": picture,
-                "bio": db_bio or "",
-                "status": db_status or "",
-                "homeCurrency": db_home_currency,
-                "homeCountry": db_home_country,
-                # i18n session 3 — null until the user picks a locale in
-                # Settings. Frontend's detectBrowserLocale handles the
-                # default before that happens.
-                "language": db_language,
-                "isCreator": db_is_creator,
-            },
-        }))
+        token = issue_token(
+            user_id, device_label=(request.headers.get("User-Agent") or "")[:120] or None
+        )
+        response = make_response(
+            jsonify(
+                {
+                    "status": "success",
+                    "token": token,
+                    "user": {
+                        "id": user_id,
+                        "name": name,
+                        "email": email,
+                        "picture": picture,
+                        "bio": db_bio or "",
+                        "status": db_status or "",
+                        "homeCurrency": db_home_currency,
+                        "homeCountry": db_home_country,
+                        # i18n session 3 — null until the user picks a locale in
+                        # Settings. Frontend's detectBrowserLocale handles the
+                        # default before that happens.
+                        "language": db_language,
+                        "isCreator": db_is_creator,
+                    },
+                }
+            )
+        )
         set_auth_cookie(response, token)
         return response
     except ValueError as e:
@@ -322,6 +344,7 @@ def _extract_current_jti() -> str | None:
     import jwt as _jwt
 
     from auth import JWT_ALGORITHM, _extract_token, _secret
+
     token = _extract_token()
     if not token:
         return None
@@ -398,18 +421,20 @@ def list_sessions():
             (user_id,),
         )
         rows = cursor.fetchall()
-    return jsonify({
-        "sessions": [
-            {
-                "id": r["id"],
-                "deviceLabel": r["device_label"],
-                "createdAt": r["created_at"],
-                "lastSeenAt": r["last_seen_at"],
-                "isCurrent": r["jti"] == current_jti,
-            }
-            for r in rows
-        ],
-    })
+    return jsonify(
+        {
+            "sessions": [
+                {
+                    "id": r["id"],
+                    "deviceLabel": r["device_label"],
+                    "createdAt": r["created_at"],
+                    "lastSeenAt": r["last_seen_at"],
+                    "isCurrent": r["jti"] == current_jti,
+                }
+                for r in rows
+            ],
+        }
+    )
 
 
 @bp.route("/api/auth/sessions/<int:session_id>", methods=["DELETE"])

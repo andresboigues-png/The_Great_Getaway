@@ -19,6 +19,7 @@ Places, the day's existing lat/lng are updated to the hotel coordinates
 Pre-existing rows get NULL (no accommodation), which the UI renders as
 an empty picker. No backfill.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

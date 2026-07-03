@@ -365,11 +365,29 @@ class _T:
 # PDF-6: currencies with no minor unit (0 decimal places). Anything not
 # in this set formats with 2 decimals. Source: ISO 4217 zero-decimal
 # currencies (the ones a traveller is plausibly using).
-_ZERO_DECIMAL_CURRENCIES = frozenset({
-    "JPY", "KRW", "VND", "CLP", "PYG", "ISK", "HUF", "TWD",
-    "UGX", "RWF", "XAF", "XOF", "XPF", "DJF", "GNF", "KMF",
-    "BIF", "VUV", "MGA",
-})
+_ZERO_DECIMAL_CURRENCIES = frozenset(
+    {
+        "JPY",
+        "KRW",
+        "VND",
+        "CLP",
+        "PYG",
+        "ISK",
+        "HUF",
+        "TWD",
+        "UGX",
+        "RWF",
+        "XAF",
+        "XOF",
+        "XPF",
+        "DJF",
+        "GNF",
+        "KMF",
+        "BIF",
+        "VUV",
+        "MGA",
+    }
+)
 
 
 def _currency_decimals(currency: str) -> int:
@@ -380,9 +398,48 @@ def _currency_decimals(currency: str) -> int:
 # the export doesn't depend on the host's locale being installed).
 _MONTHS_ABBR = {
     "en": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-    "fr": ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."],
-    "es": ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sept.", "oct.", "nov.", "dic."],
-    "pt": ["jan.", "fev.", "mar.", "abr.", "mai.", "jun.", "jul.", "ago.", "set.", "out.", "nov.", "dez."],
+    "fr": [
+        "janv.",
+        "févr.",
+        "mars",
+        "avr.",
+        "mai",
+        "juin",
+        "juil.",
+        "août",
+        "sept.",
+        "oct.",
+        "nov.",
+        "déc.",
+    ],
+    "es": [
+        "ene.",
+        "feb.",
+        "mar.",
+        "abr.",
+        "may.",
+        "jun.",
+        "jul.",
+        "ago.",
+        "sept.",
+        "oct.",
+        "nov.",
+        "dic.",
+    ],
+    "pt": [
+        "jan.",
+        "fev.",
+        "mar.",
+        "abr.",
+        "mai.",
+        "jun.",
+        "jul.",
+        "ago.",
+        "set.",
+        "out.",
+        "nov.",
+        "dez.",
+    ],
 }
 _WEEKDAYS_ABBR = {
     "en": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],

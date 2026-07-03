@@ -31,6 +31,7 @@ immediately (subject to the user.name being still set — if the
 user account was deleted entirely, the FK CASCADE already nuked
 the settlement row, so we don't have to worry about that case).
 """
+
 from collections.abc import Sequence
 
 from alembic import op

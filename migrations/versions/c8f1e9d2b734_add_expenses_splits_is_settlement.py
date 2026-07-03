@@ -39,6 +39,7 @@ carry the explicit map.
 ## Pre-flight: nothing — these are pure ADD COLUMN, no
    constraint-violation risk against existing data.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -55,9 +56,7 @@ def upgrade() -> None:
     # DEFAULT value at this point in SQLite — 0 is the right backfill
     # since pre-migration rows weren't settlements.
     op.execute("ALTER TABLE expenses ADD COLUMN splits TEXT")
-    op.execute(
-        "ALTER TABLE expenses ADD COLUMN is_settlement INTEGER NOT NULL DEFAULT 0"
-    )
+    op.execute("ALTER TABLE expenses ADD COLUMN is_settlement INTEGER NOT NULL DEFAULT 0")
 
     # Match the §M1 pattern: enforce json_valid() on the splits blob.
     # SQLite can't add a CHECK constraint via ALTER TABLE, so we

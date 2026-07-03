@@ -84,7 +84,8 @@ def upsert_day():
         # day_number / date / name / morning / afternoon / evening /
         # tip / lat / lng).
         cursor.execute(
-            "SELECT trip_id, updated_at FROM trip_days WHERE id = ?", (day_id,),
+            "SELECT trip_id, updated_at FROM trip_days WHERE id = ?",
+            (day_id,),
         )
         existing = cursor.fetchone()
         gate_trip_id = existing["trip_id"] if existing else claimed_trip_id
@@ -92,9 +93,11 @@ def upsert_day():
             return jsonify({"error": "Forbidden"}), 403
         # R3-Fix #18: archive write gate (per-row only; sync exempt).
         if is_trip_archived_for(cursor, gate_trip_id, user_id):
-            return jsonify({
-                "error": "Trip is archived — unarchive to edit",
-            }), 409
+            return jsonify(
+                {
+                    "error": "Trip is archived — unarchive to edit",
+                }
+            ), 409
         # R3-Round 5: optimistic-concurrency gate — same pattern as
         # the /api/expenses + /api/trips + /api/budgets routes.
         # R8-B4: now atomic via the ON CONFLICT UPDATE's WHERE clause.
@@ -106,7 +109,8 @@ def upsert_day():
             # can't bring back a day that another device already deleted.
             # See migration b7c8d9e0f1a2_add_tombstone_columns for the
             # column rationale.
-            cursor.execute('''
+            cursor.execute(
+                '''
                 INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, notes, lat, lng, accommodation, accommodation_place_id, accommodation_address, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
                 ON CONFLICT(id) DO UPDATE SET
@@ -130,43 +134,55 @@ def upsert_day():
                   AND (? IS NULL
                        OR trip_days.updated_at IS NULL
                        OR trip_days.updated_at = ?)
-            ''', (day_id, claimed_trip_id, d.get('dayNumber'), d.get('date'), d.get('name'),
-                  # Plain text — see /api/sync in main.py for the json.dumps fix.
-                  d.get('morning', d.get('plan', {}).get('morning', '')) or '',
-                  d.get('afternoon', d.get('plan', {}).get('afternoon', '')) or '',
-                  d.get('evening', d.get('plan', {}).get('evening', '')) or '',
-                  # BUG-1 fix: `tip` and `notes` are SEPARATE columns. Previously
-                  # `notes` was overloaded into the `tip` fallback, so per-day
-                  # Personal Notes + Journaling silently vanished (the notes
-                  # column was never written) and could resurface mislabeled as
-                  # the Expert Tip. Bind each independently.
-                  d.get('tip', ''),
-                  d.get('notes', ''),
-                  d.get('lat'),
-                  # §2.4 — `or` drops lng=0 (prime meridian). Explicit
-                  # is-not-None instead.
-                  d['lng'] if d.get('lng') is not None else d.get('lon'),
-                  # Wave 2: day accommodation. Bound directly (excluded.X)
-                  # like every other day field — the client always sends the
-                  # full day object, so a set value round-trips and an unset
-                  # one stays NULL.
-                  d.get('accommodation'),
-                  d.get('accommodationPlaceId'),
-                  d.get('accommodationAddress'),
-                  client_updated_at, client_updated_at))
+            ''',
+                (
+                    day_id,
+                    claimed_trip_id,
+                    d.get('dayNumber'),
+                    d.get('date'),
+                    d.get('name'),
+                    # Plain text — see /api/sync in main.py for the json.dumps fix.
+                    d.get('morning', d.get('plan', {}).get('morning', '')) or '',
+                    d.get('afternoon', d.get('plan', {}).get('afternoon', '')) or '',
+                    d.get('evening', d.get('plan', {}).get('evening', '')) or '',
+                    # BUG-1 fix: `tip` and `notes` are SEPARATE columns. Previously
+                    # `notes` was overloaded into the `tip` fallback, so per-day
+                    # Personal Notes + Journaling silently vanished (the notes
+                    # column was never written) and could resurface mislabeled as
+                    # the Expert Tip. Bind each independently.
+                    d.get('tip', ''),
+                    d.get('notes', ''),
+                    d.get('lat'),
+                    # §2.4 — `or` drops lng=0 (prime meridian). Explicit
+                    # is-not-None instead.
+                    d['lng'] if d.get('lng') is not None else d.get('lon'),
+                    # Wave 2: day accommodation. Bound directly (excluded.X)
+                    # like every other day field — the client always sends the
+                    # full day object, so a set value round-trips and an unset
+                    # one stays NULL.
+                    d.get('accommodation'),
+                    d.get('accommodationPlaceId'),
+                    d.get('accommodationAddress'),
+                    client_updated_at,
+                    client_updated_at,
+                ),
+            )
             # R8-B4: existing + rowcount==0 = stale OR tombstoned.
             # Disambiguate via a live re-read of deleted_at (mirrors
             # the expenses.py shape).
             if existing and cursor.rowcount == 0:
                 cursor.execute(
-                    "SELECT * FROM trip_days WHERE id = ?", (day_id,),
+                    "SELECT * FROM trip_days WHERE id = ?",
+                    (day_id,),
                 )
                 live = cursor.fetchone()
                 if live and not live['deleted_at']:
-                    return jsonify({
-                        "error": "Stale edit — another device updated this day",
-                        "current": dict(live),
-                    }), 409
+                    return jsonify(
+                        {
+                            "error": "Stale edit — another device updated this day",
+                            "current": dict(live),
+                        }
+                    ), 409
                 # Tombstoned — silent no-op success (matches the
                 # pre-fix tombstone semantic).
         except sqlite3.IntegrityError as exc:
@@ -186,14 +202,17 @@ def upsert_day():
             # name (keep the index-name check as belt-and-braces).
             _exc_s = str(exc)
             if "trip_days.day_number" in _exc_s or "idx_trip_days_trip_day_number" in _exc_s:
-                return jsonify({
-                    "error": "A day with that day_number already exists on this trip",
-                }), 409
+                return jsonify(
+                    {
+                        "error": "A day with that day_number already exists on this trip",
+                    }
+                ), 409
             raise
         # R3-Round 5: return the fresh updated_at so the client can
         # stash it for the next edit. Same shape as expenses/trips.
         cursor.execute(
-            "SELECT updated_at FROM trip_days WHERE id = ?", (day_id,),
+            "SELECT updated_at FROM trip_days WHERE id = ?",
+            (day_id,),
         )
         new_row = cursor.fetchone()
         new_updated_at = new_row['updated_at'] if new_row else None
@@ -216,8 +235,7 @@ def delete_day(day_id):
         # R3-Fix #12: also pull photos + documents JSON to snapshot the
         # upload paths before tombstoning, so we can rm the files.
         cursor.execute(
-            "SELECT trip_id, day_number, deleted_at, photos, documents "
-            "FROM trip_days WHERE id = ?",
+            "SELECT trip_id, day_number, deleted_at, photos, documents FROM trip_days WHERE id = ?",
             (day_id,),
         )
         row = cursor.fetchone()
@@ -227,7 +245,9 @@ def delete_day(day_id):
         if not can_edit_trip(cursor, row["trip_id"], user_id):
             return jsonify({"error": "Forbidden"}), 403
         if int(row["day_number"] or 0) == 0:
-            return jsonify({"error": "Trip Anchor (day 0) anchors the trip and can't be deleted."}), 422
+            return jsonify(
+                {"error": "Trip Anchor (day 0) anchors the trip and can't be deleted."}
+            ), 422
         # R3-Fix #12: collect upload paths owned by THIS trip's owner
         # before we tombstone. Need the owner_id (not the caller —
         # planner could be deleting a day on a trip they don't own).
@@ -236,6 +256,7 @@ def delete_day(day_id):
         owner_id = owner_row["user_id"] if owner_row else None
         upload_paths: list[str] = []
         import json as _json
+
         for col in ("photos", "documents"):
             raw = row[col]
             if not raw:
@@ -273,13 +294,13 @@ def delete_day(day_id):
         # place being detached (rare, but cheap) so a self-hosted place
         # photo isn't orphaned either.
         cursor.execute(
-            "SELECT photos_json, documents_json, marked_places_json "
-            "FROM trips WHERE id = ?",
+            "SELECT photos_json, documents_json, marked_places_json FROM trips WHERE id = ?",
             (row["trip_id"],),
         )
         trip_media = cursor.fetchone()
         trip_media_updates: list[tuple[str, str]] = []  # (column, json_text)
         if trip_media is not None:
+
             def _drop_day_items(raw, drop):
                 """Parse a trip-level media JSON column and split its items
                 into (kept, removed) by whether item.dayId == day_id.
@@ -300,10 +321,7 @@ def delete_day(day_id):
                 removed = []
                 changed = False
                 for item in parsed:
-                    if (
-                        isinstance(item, dict)
-                        and item.get("dayId") == day_id
-                    ):
+                    if isinstance(item, dict) and item.get("dayId") == day_id:
                         if drop:
                             removed.append(item)
                             changed = True

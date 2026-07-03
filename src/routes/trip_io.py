@@ -70,10 +70,10 @@ FORMAT_VERSION = 1
 # column must be re-homed to the importer. Adding a future trip-scoped table
 # is a one-liner here.
 _SECTIONS = [
-    {"name": "trips",       "trip_col": "id",      "live": False},
-    {"name": "trip_days",   "trip_col": "trip_id", "live": True},
-    {"name": "expenses",    "trip_col": "trip_id", "live": True},
-    {"name": "budgets",     "trip_col": "trip_id", "live": False},
+    {"name": "trips", "trip_col": "id", "live": False},
+    {"name": "trip_days", "trip_col": "trip_id", "live": True},
+    {"name": "expenses", "trip_col": "trip_id", "live": True},
+    {"name": "budgets", "trip_col": "trip_id", "live": False},
     {"name": "settlements", "trip_col": "trip_id", "live": False},
 ]
 
@@ -82,9 +82,14 @@ _SECTIONS = [
 # NOT transfer to a freshly-imported, importer-owned trip. Anything listed
 # here is dropped from the INSERT so the column falls back to its DB default.
 _RESET_COLUMNS = {
-    "created_at", "updated_at", "deleted_at",
-    "is_public", "public_show_expenses", "is_archived",
-    "share_token", "public_slug",
+    "created_at",
+    "updated_at",
+    "deleted_at",
+    "is_public",
+    "public_show_expenses",
+    "is_archived",
+    "share_token",
+    "public_slug",
 }
 
 # Generic upload-URL scanner. Media lives inside JSON-string columns
@@ -100,13 +105,32 @@ _UPLOAD_URL_RE = re.compile(r"/static/uploads/[^\s\"'\\)<>]+")
 _MAX_MEDIA_FILES = 5000
 _MAX_TOTAL_BYTES = 512 * 1024 * 1024  # 512 MB uncompressed
 _MEDIA_EXT_ALLOW = {
-    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif", ".bmp",
-    ".pdf", ".txt", ".csv", ".doc", ".docx", ".xls", ".xlsx", ".ppt",
-    ".pptx", ".mp4", ".mov", ".m4v", ".svg",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp",
+    ".heic",
+    ".heif",
+    ".bmp",
+    ".pdf",
+    ".txt",
+    ".csv",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+    ".mp4",
+    ".mov",
+    ".m4v",
+    ".svg",
 }
 
 
 # ── shared helpers ───────────────────────────────────────────────────────
+
 
 def _table_columns(cursor, table):
     """Current column set for `table` (schema introspection — the engine of
@@ -136,7 +160,7 @@ def _disk_path_for_url(upload_root: str, url: str):
     prefix = "/static/uploads/"
     if not url.startswith(prefix):
         return None
-    rel = url[len(prefix):]
+    rel = url[len(prefix) :]
     # Strip any query/hash a stored URL might carry.
     rel = rel.split("?", 1)[0].split("#", 1)[0]
     candidate = os.path.normpath(os.path.join(upload_root, rel))
@@ -162,6 +186,7 @@ def _slugify(name: str) -> str:
 
 
 # ── EXPORT ───────────────────────────────────────────────────────────────
+
 
 @bp.route("/api/trips/<trip_id>/export", methods=["GET"])
 @limiter.limit("20 per minute")
@@ -190,7 +215,9 @@ def export_trip(trip_id):
             if spec["live"] and "deleted_at" in cols:
                 where += " AND deleted_at IS NULL"
             sections[table] = _rows_as_dicts(
-                cursor, f"SELECT * FROM {table} WHERE {where}", (trip_id,),
+                cursor,
+                f"SELECT * FROM {table} WHERE {where}",
+                (trip_id,),
             )
 
         if not sections.get("trips"):
@@ -207,7 +234,8 @@ def export_trip(trip_id):
         if cat_ids:
             ph = ",".join(["?"] * len(cat_ids))
             sections["categories"] = _rows_as_dicts(
-                cursor, f"SELECT * FROM categories WHERE id IN ({ph})",
+                cursor,
+                f"SELECT * FROM categories WHERE id IN ({ph})",
                 list(cat_ids),
             )
         else:
@@ -254,10 +282,10 @@ def export_trip(trip_id):
             "format": FORMAT_ID,
             "formatVersion": FORMAT_VERSION,
             "exportedAt": datetime.now(UTC).isoformat(),
-            "tripId": trip_id,           # informational (import re-keys)
+            "tripId": trip_id,  # informational (import re-keys)
             "tripName": trip_name,
             "sections": sections,
-            "media": media_map,          # original-URL -> arc path in this zip
+            "media": media_map,  # original-URL -> arc path in this zip
         }
         zf.writestr(
             "manifest.json",
@@ -267,12 +295,15 @@ def export_trip(trip_id):
     buf.seek(0)
     fname = f"{_slugify(trip_name)}.ggtrip.zip"
     return send_file(
-        buf, mimetype="application/zip",
-        as_attachment=True, download_name=fname,
+        buf,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=fname,
     )
 
 
 # ── IMPORT ───────────────────────────────────────────────────────────────
+
 
 def _rewrite_urls(value, url_remap: dict):
     """Replace every old upload URL with its new one inside a string (covers
@@ -307,10 +338,10 @@ def _strip_companion_links(companions_json):
 
 def _insert_remapped(cursor, table, row, *, overrides, url_remap):
     """Generic INSERT of one exported row into `table`:
-      - keep only keys that still exist as columns (intersection);
-      - drop server-managed / sharing columns (so they take DB defaults);
-      - rewrite any embedded upload URLs to the importer's re-saved copies;
-      - apply forced `overrides` (new ids, re-homed FKs, etc.) last.
+    - keep only keys that still exist as columns (intersection);
+    - drop server-managed / sharing columns (so they take DB defaults);
+    - rewrite any embedded upload URLs to the importer's re-saved copies;
+    - apply forced `overrides` (new ids, re-homed FKs, etc.) last.
     """
     cols_now = _table_columns(cursor, table)
     out = {}
@@ -376,10 +407,12 @@ def import_trip():
         if manifest.get("format") != FORMAT_ID:
             return jsonify({"error": "Unrecognised trip file"}), 400
         if int(manifest.get("formatVersion", 0)) > FORMAT_VERSION:
-            return jsonify({
-                "error": "This trip file was made by a newer version of the "
-                         "app. Please update and try again.",
-            }), 400
+            return jsonify(
+                {
+                    "error": "This trip file was made by a newer version of the "
+                    "app. Please update and try again.",
+                }
+            ), 400
 
         sections = manifest.get("sections") or {}
         if not sections.get("trips"):
@@ -424,7 +457,8 @@ def import_trip():
             cat_remap: dict[str, str] = {}
             existing_by_name = {}
             for r in cursor.execute(
-                "SELECT id, name FROM categories WHERE user_id = ?", (user_id,),
+                "SELECT id, name FROM categories WHERE user_id = ?",
+                (user_id,),
             ):
                 if r["name"]:
                     existing_by_name[r["name"].strip().lower()] = r["id"]
@@ -440,8 +474,13 @@ def import_trip():
                 cursor.execute(
                     "INSERT INTO categories (id, user_id, name, icon, color) "
                     "VALUES (?, ?, ?, ?, ?)",
-                    (new_cat_id, user_id, cat.get("name") or "Uncategorised",
-                     cat.get("icon") or "", cat.get("color") or "#007aff"),
+                    (
+                        new_cat_id,
+                        user_id,
+                        cat.get("name") or "Uncategorised",
+                        cat.get("icon") or "",
+                        cat.get("color") or "#007aff",
+                    ),
                 )
                 if key:
                     existing_by_name[key] = new_cat_id
@@ -451,7 +490,9 @@ def import_trip():
             #    reset via _RESET_COLUMNS; media URLs rewritten in-place.
             trip_row = sections["trips"][0]
             _insert_remapped(
-                cursor, "trips", trip_row,
+                cursor,
+                "trips",
+                trip_row,
                 overrides={"id": new_trip_id, "user_id": user_id},
                 url_remap=url_remap,
             )
@@ -460,7 +501,9 @@ def import_trip():
             # 2) Days — fresh id, re-homed to the new trip.
             for d in sections.get("trip_days", []):
                 _insert_remapped(
-                    cursor, "trip_days", d,
+                    cursor,
+                    "trip_days",
+                    d,
                     overrides={"id": uuid.uuid4().hex, "trip_id": new_trip_id},
                     url_remap=url_remap,
                 )
@@ -469,7 +512,9 @@ def import_trip():
             #    receipt URL.
             for e in sections.get("expenses", []):
                 _insert_remapped(
-                    cursor, "expenses", e,
+                    cursor,
+                    "expenses",
+                    e,
                     overrides={
                         "id": uuid.uuid4().hex,
                         "trip_id": new_trip_id,
@@ -481,7 +526,9 @@ def import_trip():
             # 4) Budgets — fresh id, new trip, importer-owned, remapped cat.
             for b in sections.get("budgets", []):
                 _insert_remapped(
-                    cursor, "budgets", b,
+                    cursor,
+                    "budgets",
+                    b,
                     overrides={
                         "id": uuid.uuid4().hex,
                         "trip_id": new_trip_id,
@@ -496,7 +543,9 @@ def import_trip():
             #    as recorder; the human-readable from/to names are preserved.
             for s in sections.get("settlements", []):
                 _insert_remapped(
-                    cursor, "settlements", s,
+                    cursor,
+                    "settlements",
+                    s,
                     overrides={
                         "id": uuid.uuid4().hex,
                         "trip_id": new_trip_id,
@@ -521,7 +570,9 @@ def import_trip():
             except Exception:
                 current_app.logger.warning(
                     "trip import %s: media write failed for %s",
-                    new_trip_id, disk_path, exc_info=True,
+                    new_trip_id,
+                    disk_path,
+                    exc_info=True,
                 )
 
     return jsonify({"status": "imported", "tripId": new_trip_id})

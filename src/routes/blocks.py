@@ -82,8 +82,7 @@ def block_user(user_id):
             # 404 (not 403) so the route doesn't leak user_id existence.
             return jsonify({"error": "Not found"}), 404
         cursor.execute(
-            "INSERT OR IGNORE INTO blocks (blocker_id, blocked_id) "
-            "VALUES (?, ?)",
+            "INSERT OR IGNORE INTO blocks (blocker_id, blocked_id) VALUES (?, ?)",
             (caller_id, user_id),
         )
         # Tear down BOTH follow directions — a leftover follow row
@@ -146,17 +145,18 @@ def block_user(user_id):
             # Collect the blocker's feed_posts so we can target engagement
             # by the synthesized event_ids.
             cursor.execute(
-                "SELECT id FROM feed_posts WHERE user_id = ?", (blocker,),
+                "SELECT id FROM feed_posts WHERE user_id = ?",
+                (blocker,),
             )
             blocker_post_ids = [r["id"] for r in cursor.fetchall()]
             if blocker_post_ids:
-                event_ids = [f"share_{pid}" for pid in blocker_post_ids] \
-                    + [f"repost_{pid}" for pid in blocker_post_ids]
+                event_ids = [f"share_{pid}" for pid in blocker_post_ids] + [
+                    f"repost_{pid}" for pid in blocker_post_ids
+                ]
                 placeholders = ",".join(["?"] * len(event_ids))
                 for table in ("feed_likes", "feed_comments", "feed_bookmarks"):
                     cursor.execute(
-                        f"DELETE FROM {table} WHERE user_id = ? "
-                        f"AND event_id IN ({placeholders})",
+                        f"DELETE FROM {table} WHERE user_id = ? AND event_id IN ({placeholders})",
                         [blocked] + event_ids,
                     )
             # Drop the blocked user's reposts of the blocker's originals.
@@ -180,7 +180,8 @@ def block_user(user_id):
             cursor.execute("SELECT id FROM trips WHERE user_id = ?", (blocker,))
             _trip_ids = [r["id"] for r in cursor.fetchall()]
             cursor.execute(
-                "SELECT id FROM user_achievements WHERE user_id = ?", (blocker,),
+                "SELECT id FROM user_achievements WHERE user_id = ?",
+                (blocker,),
             )
             _synth_ids = [f"achievement_{r['id']}" for r in cursor.fetchall()]
             for _tid in _trip_ids:
@@ -197,15 +198,13 @@ def block_user(user_id):
                 _ph = ",".join(["?"] * len(_synth_ids))
                 for table in ("feed_likes", "feed_comments", "feed_bookmarks"):
                     cursor.execute(
-                        f"DELETE FROM {table} WHERE user_id = ? "
-                        f"AND event_id IN ({_ph})",
+                        f"DELETE FROM {table} WHERE user_id = ? AND event_id IN ({_ph})",
                         [blocked] + _synth_ids,
                     )
             # Notifications the blocker received from the blocked user.
             # related_id stores the ACTOR for engagement notifs.
             cursor.execute(
-                "DELETE FROM notifications "
-                "WHERE user_id = ? AND related_id = ?",
+                "DELETE FROM notifications WHERE user_id = ? AND related_id = ?",
                 (blocker, blocked),
             )
         conn.commit()
@@ -248,14 +247,16 @@ def list_blocks():
             (caller_id,),
         )
         rows = cursor.fetchall()
-    return jsonify({
-        "blocks": [
-            {
-                "id": r["id"],
-                "name": r["name"],
-                "picture": r["picture"],
-                "createdAt": r["created_at"],
-            }
-            for r in rows
-        ],
-    })
+    return jsonify(
+        {
+            "blocks": [
+                {
+                    "id": r["id"],
+                    "name": r["name"],
+                    "picture": r["picture"],
+                    "createdAt": r["created_at"],
+                }
+                for r in rows
+            ],
+        }
+    )

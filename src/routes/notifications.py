@@ -47,12 +47,15 @@ def list_notifications():
         # can land share-engagement notifications on the FEED entry
         # they reference instead of falling through to HOME. Camel-cased
         # in the response shape to match the rest of the API.
-        cursor.execute('''
+        cursor.execute(
+            '''
             SELECT id, type, title, related_id, message, is_read, created_at, post_id
             FROM notifications
             WHERE user_id = ?
             ORDER BY created_at DESC LIMIT 50
-        ''', (user_id,))
+        ''',
+            (user_id,),
+        )
         notifications = []
         for row in cursor.fetchall():
             d = dict(row)
@@ -64,15 +67,16 @@ def list_notifications():
         # R5-B5: total unread (uncapped) so the badge is honest at
         # >50 unread. Cheap one-row aggregate.
         cursor.execute(
-            "SELECT COUNT(*) AS c FROM notifications "
-            "WHERE user_id = ? AND is_read = 0",
+            "SELECT COUNT(*) AS c FROM notifications WHERE user_id = ? AND is_read = 0",
             (user_id,),
         )
         total_unread = cursor.fetchone()["c"]
-    return jsonify({
-        "notifications": notifications,
-        "totalUnread": total_unread,
-    })
+    return jsonify(
+        {
+            "notifications": notifications,
+            "totalUnread": total_unread,
+        }
+    )
 
 
 @bp.route("/api/notifications/read", methods=["POST"])
@@ -117,8 +121,7 @@ def read_single_notification(notification_id):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE notifications SET is_read = 1 "
-            "WHERE id = ? AND user_id = ?",
+            "UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?",
             (notification_id, user_id),
         )
         conn.commit()
@@ -174,10 +177,12 @@ def notify_trip_public():
         )
         trip_row = cursor.fetchone()
         if not trip_row:
-            return jsonify({
-                "status": "error",
-                "message": "Trip not found, not yours, or not public",
-            }), 403
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": "Trip not found, not yours, or not public",
+                }
+            ), 403
         trip_name = trip_row["name"] or "a trip"
 
         cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
@@ -211,6 +216,7 @@ def notify_trip_public():
         # ping.
         from routes.blocks import blocked_ids_for, is_blocked
         from social import followers_of
+
         recipients = followers_of(cursor, user_id)
         # R5-B2: filter out (a) followers the caller has blocked
         # (shouldn't see caller's activity) and (b) followers who

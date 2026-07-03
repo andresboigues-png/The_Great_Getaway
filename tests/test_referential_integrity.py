@@ -55,6 +55,7 @@ def db(temp_db, seed_user, seed_other_user):
     and ensure it's closed at test teardown.
     """
     from database import get_db
+
     with get_db() as conn:
         yield conn, seed_user, seed_other_user
 
@@ -73,6 +74,7 @@ def test_get_db_has_foreign_keys_pragma_on(temp_db):
     any regression that removes the pragma call from get_db.
     """
     from database import get_db, init_db
+
     init_db()
     with get_db() as conn:
         result = conn.execute("PRAGMA foreign_keys").fetchone()
@@ -115,8 +117,7 @@ def test_inserting_trip_member_with_dangling_trip_id_raises(db):
     with conn:
         with pytest.raises(sqlite3.IntegrityError):
             conn.execute(
-                "INSERT INTO trip_members (trip_id, user_id, role) "
-                "VALUES (?, ?, ?)",
+                "INSERT INTO trip_members (trip_id, user_id, role) VALUES (?, ?, ?)",
                 ("trip-phantom", u1, "planner"),
             )
 
@@ -149,8 +150,7 @@ def test_inserting_follow_with_dangling_followee_id_raises(db):
     with conn:
         with pytest.raises(sqlite3.IntegrityError):
             conn.execute(
-                "INSERT INTO follows (follower_id, followee_id) "
-                "VALUES (?, ?)",
+                "INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)",
                 (u1, "user-imaginary"),
             )
 
@@ -161,8 +161,7 @@ def test_inserting_user_achievement_with_dangling_user_id_raises(db):
     with conn:
         with pytest.raises(sqlite3.IntegrityError):
             conn.execute(
-                "INSERT INTO user_achievements (user_id, badge_id) "
-                "VALUES (?, ?)",
+                "INSERT INTO user_achievements (user_id, badge_id) VALUES (?, ?)",
                 ("user-ghost", "globe-trotter-5"),
             )
 
@@ -185,8 +184,7 @@ def test_delete_trip_cascades_to_expenses(db):
             ("t1", u1, "Lisbon"),
         )
         conn.execute(
-            "INSERT INTO expenses (id, trip_id, who, value, currency) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO expenses (id, trip_id, who, value, currency) VALUES (?, ?, ?, ?, ?)",
             ("e1", "t1", u1, 25.0, "EUR"),
         )
     # Sanity: the row exists.
@@ -210,8 +208,7 @@ def test_delete_trip_cascades_to_trip_days(db):
             ("t1", u1, "Lisbon"),
         )
         conn.execute(
-            "INSERT INTO trip_days (id, trip_id, day_number, date, name) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO trip_days (id, trip_id, day_number, date, name) VALUES (?, ?, ?, ?, ?)",
             ("d1", "t1", 1, "2026-06-01", "Arrival"),
         )
 
@@ -234,18 +231,15 @@ def test_delete_user_cascades_to_their_trips_and_dependents(db):
             ("t1", u1, "u1's trip"),
         )
         conn.execute(
-            "INSERT INTO trip_days (id, trip_id, day_number) "
-            "VALUES (?, ?, ?)",
+            "INSERT INTO trip_days (id, trip_id, day_number) VALUES (?, ?, ?)",
             ("d1", "t1", 1),
         )
         conn.execute(
-            "INSERT INTO expenses (id, trip_id, who, value, currency) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO expenses (id, trip_id, who, value, currency) VALUES (?, ?, ?, ?, ?)",
             ("e1", "t1", u1, 5.0, "EUR"),
         )
         conn.execute(
-            "INSERT INTO trip_members (trip_id, user_id, role) "
-            "VALUES (?, ?, ?)",
+            "INSERT INTO trip_members (trip_id, user_id, role) VALUES (?, ?, ?)",
             ("t1", u1, "planner"),
         )
 
@@ -256,9 +250,7 @@ def test_delete_user_cascades_to_their_trips_and_dependents(db):
     assert not conn.execute("SELECT 1 FROM trips WHERE id='t1'").fetchone()
     assert not conn.execute("SELECT 1 FROM trip_days WHERE id='d1'").fetchone()
     assert not conn.execute("SELECT 1 FROM expenses WHERE id='e1'").fetchone()
-    assert not conn.execute(
-        "SELECT 1 FROM trip_members WHERE trip_id='t1'"
-    ).fetchone()
+    assert not conn.execute("SELECT 1 FROM trip_members WHERE trip_id='t1'").fetchone()
     # u2 still exists (unaffected by u1's deletion).
     assert conn.execute("SELECT 1 FROM users WHERE id=?", (u2,)).fetchone()
 
@@ -277,17 +269,14 @@ def test_delete_trip_sets_budget_trip_id_to_null(db):
             ("t1", u1, "Lisbon"),
         )
         conn.execute(
-            "INSERT INTO budgets (id, user_id, trip_id, label, amount) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO budgets (id, user_id, trip_id, label, amount) VALUES (?, ?, ?, ?, ?)",
             ("b1", u1, "t1", "Trip budget", 500.0),
         )
 
     with conn:
         conn.execute("DELETE FROM trips WHERE id='t1'")
 
-    row = conn.execute(
-        "SELECT trip_id, amount, label FROM budgets WHERE id='b1'"
-    ).fetchone()
+    row = conn.execute("SELECT trip_id, amount, label FROM budgets WHERE id='b1'").fetchone()
     assert row is not None, "budget vanished — expected SET NULL"
     assert row[0] is None, f"budget.trip_id should be NULL, got {row[0]!r}"
     # Other fields preserved.
@@ -312,8 +301,8 @@ def test_delete_user_sets_companion_linked_user_id_to_null(db):
         conn.execute("DELETE FROM users WHERE id=?", (u2,))
 
     row = conn.execute(
-        "SELECT linked_user_id, name FROM companions "
-        "WHERE user_id=? AND name='Bob'", (u1,),
+        "SELECT linked_user_id, name FROM companions WHERE user_id=? AND name='Bob'",
+        (u1,),
     ).fetchone()
     assert row is not None, "companion vanished — expected SET NULL"
     assert row[0] is None, f"linked_user_id should be NULL, got {row[0]!r}"
@@ -366,24 +355,26 @@ def test_delete_user_sets_trip_member_invited_by_to_null(db):
         # u3 invited u1 to u2's trip. The membership row references
         # u3 only via invited_by — u3 isn't a member or owner.
         conn.execute(
-            "UPDATE trip_members SET invited_by = ? "
-            "WHERE trip_id = 't1' AND user_id = ?",
+            "UPDATE trip_members SET invited_by = ? WHERE trip_id = 't1' AND user_id = ?",
             ("u3-inviter", u1),
         )
 
     # Sanity: invited_by is currently set.
-    assert conn.execute(
-        "SELECT invited_by FROM trip_members WHERE trip_id='t1' AND user_id=?",
-        (u1,),
-    ).fetchone()[0] == "u3-inviter"
+    assert (
+        conn.execute(
+            "SELECT invited_by FROM trip_members WHERE trip_id='t1' AND user_id=?",
+            (u1,),
+        ).fetchone()[0]
+        == "u3-inviter"
+    )
 
     with conn:
         conn.execute("DELETE FROM users WHERE id='u3-inviter'")
 
     # Membership row preserved; invited_by reference NULLed.
     row = conn.execute(
-        "SELECT invited_by, role FROM trip_members "
-        "WHERE trip_id='t1' AND user_id=?", (u1,),
+        "SELECT invited_by, role FROM trip_members WHERE trip_id='t1' AND user_id=?",
+        (u1,),
     ).fetchone()
     assert row is not None, "membership vanished — expected SET NULL"
     assert row[0] is None, f"invited_by should be NULL, got {row[0]!r}"
@@ -410,8 +401,7 @@ def test_delete_post_cascades_to_reposts(db):
         )
         # Original post.
         c = conn.execute(
-            "INSERT INTO feed_posts (user_id, trip_id, caption) "
-            "VALUES (?, ?, ?)",
+            "INSERT INTO feed_posts (user_id, trip_id, caption) VALUES (?, ?, ?)",
             (u1, "t1", "original"),
         )
         original_id = c.lastrowid
@@ -430,8 +420,7 @@ def test_delete_post_cascades_to_reposts(db):
         "SELECT repost_of_post_id, caption FROM feed_posts WHERE id=?",
         (repost_id,),
     ).fetchone()
-    assert row is None, \
-        "repost should cascade-delete with the original; got a survivor row"
+    assert row is None, "repost should cascade-delete with the original; got a survivor row"
 
 
 # ── (4) Reflexive check: audit still finds zero orphans ───────────────
@@ -445,6 +434,7 @@ def test_audit_returns_zero_orphans_after_init_db_with_fks_on(temp_db):
     evolves."""
     import sys
     from pathlib import Path
+
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
     import fk_audit
 

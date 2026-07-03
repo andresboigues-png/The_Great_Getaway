@@ -11,7 +11,8 @@ budget tombstone tests).
 
 def _post_trip(client, headers, tid, name="My Trip"):
     return client.post(
-        "/api/trips", headers=headers,
+        "/api/trips",
+        headers=headers,
         json={"trip": {"id": tid, "name": name, "country": "PT"}},
     )
 
@@ -55,25 +56,35 @@ def test_sync_bulk_path_does_not_resurrect_deleted_trip(client, auth_headers):
     full-state poll still carrying a since-deleted trip must not re-create it."""
     _post_trip(client, auth_headers, "tz", "Zombie Sync")
     assert client.delete("/api/trips/tz", headers=auth_headers).status_code == 200
-    res = client.post("/api/sync", headers=auth_headers, json={
-        "trips": [{"id": "tz", "name": "Zombie Sync", "country": "PT"}],
-        "archived_trips": [],
-    })
+    res = client.post(
+        "/api/sync",
+        headers=auth_headers,
+        json={
+            "trips": [{"id": "tz", "name": "Zombie Sync", "country": "PT"}],
+            "archived_trips": [],
+        },
+    )
     assert res.status_code == 200
-    assert "tz" not in _trip_ids(client, auth_headers), \
+    assert "tz" not in _trip_ids(client, auth_headers), (
         "bulk /api/sync resurrected a tombstoned trip"
+    )
 
 
 def test_sync_bulk_archived_path_does_not_resurrect_deleted_trip(client, auth_headers):
     """MK6 P2: the archived_trips branch of /api/sync is guarded too."""
     _post_trip(client, auth_headers, "tza", "Zombie Arch")
     assert client.delete("/api/trips/tza", headers=auth_headers).status_code == 200
-    res = client.post("/api/sync", headers=auth_headers, json={
-        "trips": [],
-        "archived_trips": [{"id": "tza", "name": "Zombie Arch", "country": "PT"}],
-    })
+    res = client.post(
+        "/api/sync",
+        headers=auth_headers,
+        json={
+            "trips": [],
+            "archived_trips": [{"id": "tza", "name": "Zombie Arch", "country": "PT"}],
+        },
+    )
     assert res.status_code == 200
     data = client.get("/api/data", headers=auth_headers).get_json()
-    all_ids = ({t["id"] for t in data.get("trips", [])}
-               | {t["id"] for t in data.get("archivedTrips", [])})
+    all_ids = {t["id"] for t in data.get("trips", [])} | {
+        t["id"] for t in data.get("archivedTrips", [])
+    }
     assert "tza" not in all_ids, "bulk archived /api/sync resurrected a tombstoned trip"

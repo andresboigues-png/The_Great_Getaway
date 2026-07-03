@@ -5,7 +5,6 @@ test logic changed). Shared fixtures (client, auth_headers, seed_user,
 ...) come from tests/conftest.py.
 """
 
-
 import pytest
 
 from tests.conftest import _create_trip, _seed_member
@@ -37,21 +36,33 @@ def test_validate_splits_drops_all_zero_on_lenient_path():
 # budget row". The audit fix replaced the previous "delete by id alone"
 # path that let any caller wipe anyone's budget by guessing an id.
 
+
 def test_upsert_budget_happy_path(client, seed_user, auth_headers):
     """Owner can create + update their own budget."""
     # §1.4 FK enforcement: budgets.trip_id is now a real FK to trips(id)
     # with ON DELETE SET NULL. Seed the trip first so the budget insert
     # doesn't trip the constraint. Before §1.4 this worked silently
     # because foreign_keys=OFF treated the FK as advisory.
-    client.post("/api/trips", headers=auth_headers, json={
-        "trip": {"id": "trip-1", "name": "Test trip", "country": "FR"},
-    })
-    res = client.post("/api/budgets", headers=auth_headers, json={
-        "budget": {
-            "id": "budget-1", "tripId": "trip-1", "label": "Food",
-            "amount": 200, "currency": "EUR",
+    client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {"id": "trip-1", "name": "Test trip", "country": "FR"},
         },
-    })
+    )
+    res = client.post(
+        "/api/budgets",
+        headers=auth_headers,
+        json={
+            "budget": {
+                "id": "budget-1",
+                "tripId": "trip-1",
+                "label": "Food",
+                "amount": 200,
+                "currency": "EUR",
+            },
+        },
+    )
     assert res.status_code == 200
 
 
@@ -60,12 +71,21 @@ def test_upsert_budget_edit_same_scope_updates_in_place(client, seed_user, auth_
     scope with a changed amount — must UPDATE in place (200), NOT trip the
     duplicate-scope 409. The scope-dup pre-check excludes the row being edited
     (`AND id != ?`); the frontend budget-edit flow depends on this."""
-    client.post("/api/trips", headers=auth_headers, json={
-        "trip": {"id": "trip-edit", "name": "Edit trip", "country": "FR"},
-    })
+    client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {"id": "trip-edit", "name": "Edit trip", "country": "FR"},
+        },
+    )
     base = {
-        "id": "bud-edit", "tripId": "trip-edit", "categoryId": "all", "user": "all",
-        "amount": 100, "originalAmount": 100, "originalCurrency": "EUR",
+        "id": "bud-edit",
+        "tripId": "trip-edit",
+        "categoryId": "all",
+        "user": "all",
+        "amount": 100,
+        "originalAmount": 100,
+        "originalCurrency": "EUR",
     }
     r1 = client.post("/api/budgets", headers=auth_headers, json={"budget": base})
     assert r1.status_code == 200, r1.get_data(as_text=True)
@@ -80,7 +100,11 @@ def test_upsert_budget_edit_same_scope_updates_in_place(client, seed_user, auth_
 
 
 def test_budget_trip_scope_requires_money_edit_role(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """BUG-34 + BUG-36 (MK2 audit): a TRIP-scoped budget requires the
     caller to be a member of that trip with money-edit rights. A
@@ -90,29 +114,43 @@ def test_budget_trip_scope_requires_money_edit_role(
 
     def bud(bid):
         return {
-            "id": bid, "tripId": trip_id, "categoryId": "all", "user": "all",
-            "amount": 100, "originalAmount": 100, "originalCurrency": "EUR",
+            "id": bid,
+            "tripId": trip_id,
+            "categoryId": "all",
+            "user": "all",
+            "amount": 100,
+            "originalAmount": 100,
+            "originalCurrency": "EUR",
         }
 
     # Non-member → 403 (BUG-36).
-    r1 = client.post("/api/budgets", headers=other_auth_headers,
-                     json={"budget": bud("b-nonmember")})
+    r1 = client.post(
+        "/api/budgets", headers=other_auth_headers, json={"budget": bud("b-nonmember")}
+    )
     assert r1.status_code == 403, r1.get_data(as_text=True)
     # Relaxer member → still 403 (BUG-34: read-only role can't manage money).
     _seed_member(trip_id, seed_other_user, role="relaxer")
-    r2 = client.post("/api/budgets", headers=other_auth_headers,
-                     json={"budget": bud("b-relaxer")})
+    r2 = client.post("/api/budgets", headers=other_auth_headers, json={"budget": bud("b-relaxer")})
     assert r2.status_code == 403, r2.get_data(as_text=True)
     # Owner → allowed (positive control: the gate doesn't block legit writes).
-    r3 = client.post("/api/budgets", headers=auth_headers,
-                     json={"budget": bud("b-owner")})
+    r3 = client.post("/api/budgets", headers=auth_headers, json={"budget": bud("b-owner")})
     assert r3.status_code == 200, r3.get_data(as_text=True)
     # Global budget (no trip) by the non-member → ungated, allowed.
-    g = client.post("/api/budgets", headers=other_auth_headers, json={
-        "budget": {"id": "b-global", "tripId": "all", "categoryId": "all",
-                   "user": "all", "amount": 100, "originalAmount": 100,
-                   "originalCurrency": "EUR"},
-    })
+    g = client.post(
+        "/api/budgets",
+        headers=other_auth_headers,
+        json={
+            "budget": {
+                "id": "b-global",
+                "tripId": "all",
+                "categoryId": "all",
+                "user": "all",
+                "amount": 100,
+                "originalAmount": 100,
+                "originalCurrency": "EUR",
+            },
+        },
+    )
     assert g.status_code == 200, g.get_data(as_text=True)
 
 
@@ -121,10 +159,20 @@ def test_budget_category_scoped_duplicate_rejected(client, seed_user, auth_heade
     owner=None) scope but a different id must be rejected (409), not
     silently duplicated — pre-fix SQLite's NULL-distinct UNIQUE let the
     half-scoped shape through and spend double-counted."""
-    client.post("/api/trips", headers=auth_headers, json={
-        "trip": {"id": "trip-1", "name": "T", "country": "FR"},
-    })
-    base = {"tripId": "trip-1", "label": "Food", "amount": 200, "currency": "EUR", "categoryId": "food"}
+    client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {"id": "trip-1", "name": "T", "country": "FR"},
+        },
+    )
+    base = {
+        "tripId": "trip-1",
+        "label": "Food",
+        "amount": 200,
+        "currency": "EUR",
+        "categoryId": "food",
+    }
     r1 = client.post("/api/budgets", headers=auth_headers, json={"budget": {**base, "id": "b1"}})
     assert r1.status_code == 200
     r2 = client.post("/api/budgets", headers=auth_headers, json={"budget": {**base, "id": "b2"}})
@@ -133,11 +181,20 @@ def test_budget_category_scoped_duplicate_rejected(client, seed_user, auth_heade
 
 def test_budget_owner_scoped_duplicate_rejected(client, seed_user, auth_headers):
     """MONEY-1: same for the owner-scoped shape (owner set, category None)."""
-    client.post("/api/trips", headers=auth_headers, json={
-        "trip": {"id": "trip-1", "name": "T", "country": "FR"},
-    })
+    client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {"id": "trip-1", "name": "T", "country": "FR"},
+        },
+    )
     base = {"tripId": "trip-1", "label": "Sara's", "amount": 100, "currency": "EUR", "user": "Sara"}
-    assert client.post("/api/budgets", headers=auth_headers, json={"budget": {**base, "id": "b1"}}).status_code == 200
+    assert (
+        client.post(
+            "/api/budgets", headers=auth_headers, json={"budget": {**base, "id": "b1"}}
+        ).status_code
+        == 200
+    )
     r2 = client.post("/api/budgets", headers=auth_headers, json={"budget": {**base, "id": "b2"}})
     assert r2.status_code == 409, r2.get_data(as_text=True)
 
@@ -145,11 +202,27 @@ def test_budget_owner_scoped_duplicate_rejected(client, seed_user, auth_headers)
 def test_budget_fully_scoped_duplicate_returns_409_not_500(client, seed_user, auth_headers):
     """4.8 audit MONEY-2: the fully-scoped duplicate used to throw an
     unhandled IntegrityError → 500. Now a clean 409."""
-    client.post("/api/trips", headers=auth_headers, json={
-        "trip": {"id": "trip-1", "name": "T", "country": "FR"},
-    })
-    base = {"tripId": "trip-1", "label": "Food/Sara", "amount": 50, "currency": "EUR", "categoryId": "food", "user": "Sara"}
-    assert client.post("/api/budgets", headers=auth_headers, json={"budget": {**base, "id": "b1"}}).status_code == 200
+    client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {"id": "trip-1", "name": "T", "country": "FR"},
+        },
+    )
+    base = {
+        "tripId": "trip-1",
+        "label": "Food/Sara",
+        "amount": 50,
+        "currency": "EUR",
+        "categoryId": "food",
+        "user": "Sara",
+    }
+    assert (
+        client.post(
+            "/api/budgets", headers=auth_headers, json={"budget": {**base, "id": "b1"}}
+        ).status_code
+        == 200
+    )
     r2 = client.post("/api/budgets", headers=auth_headers, json={"budget": {**base, "id": "b2"}})
     assert r2.status_code == 409, r2.get_data(as_text=True)
 
@@ -157,20 +230,57 @@ def test_budget_fully_scoped_duplicate_returns_409_not_500(client, seed_user, au
 def test_budget_distinct_scopes_both_allowed(client, seed_user, auth_headers):
     """MONEY-1 must not over-reject: budgets with DIFFERENT scopes (and
     editing the same budget by id) are still allowed."""
-    client.post("/api/trips", headers=auth_headers, json={
-        "trip": {"id": "trip-1", "name": "T", "country": "FR"},
-    })
-    r1 = client.post("/api/budgets", headers=auth_headers, json={
-        "budget": {"id": "b1", "tripId": "trip-1", "label": "Food", "amount": 100, "currency": "EUR", "categoryId": "food"},
-    })
-    r2 = client.post("/api/budgets", headers=auth_headers, json={
-        "budget": {"id": "b2", "tripId": "trip-1", "label": "Transport", "amount": 80, "currency": "EUR", "categoryId": "transport"},
-    })
+    client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {"id": "trip-1", "name": "T", "country": "FR"},
+        },
+    )
+    r1 = client.post(
+        "/api/budgets",
+        headers=auth_headers,
+        json={
+            "budget": {
+                "id": "b1",
+                "tripId": "trip-1",
+                "label": "Food",
+                "amount": 100,
+                "currency": "EUR",
+                "categoryId": "food",
+            },
+        },
+    )
+    r2 = client.post(
+        "/api/budgets",
+        headers=auth_headers,
+        json={
+            "budget": {
+                "id": "b2",
+                "tripId": "trip-1",
+                "label": "Transport",
+                "amount": 80,
+                "currency": "EUR",
+                "categoryId": "transport",
+            },
+        },
+    )
     assert r1.status_code == 200 and r2.status_code == 200
     # Editing b1 (same id, same scope) must not trip the dup check.
-    r3 = client.post("/api/budgets", headers=auth_headers, json={
-        "budget": {"id": "b1", "tripId": "trip-1", "label": "Food", "amount": 150, "currency": "EUR", "categoryId": "food"},
-    })
+    r3 = client.post(
+        "/api/budgets",
+        headers=auth_headers,
+        json={
+            "budget": {
+                "id": "b1",
+                "tripId": "trip-1",
+                "label": "Food",
+                "amount": 150,
+                "currency": "EUR",
+                "categoryId": "food",
+            },
+        },
+    )
     assert r3.status_code == 200, r3.get_data(as_text=True)
 
 
@@ -181,7 +291,11 @@ def test_upsert_budget_missing_payload(client, auth_headers):
 
 
 def test_delete_budget_only_deletes_own_budget(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """Audit-fix coverage: another user's DELETE of a guessed budget id
     is a silent no-op — the WHERE clause's `user_id = ?` makes the SQL
@@ -190,16 +304,27 @@ def test_delete_budget_only_deletes_own_budget(
     # §1.4 FK enforcement: budgets.trip_id → trips(id). Seed the trip
     # so the budget insert below survives the FK check. See companion
     # comment on test_upsert_budget_happy_path for the rationale.
-    client.post("/api/trips", headers=auth_headers, json={
-        "trip": {"id": "trip-1", "name": "Test trip", "country": "FR"},
-    })
-    # Owner creates a budget
-    client.post("/api/budgets", headers=auth_headers, json={
-        "budget": {
-            "id": "budget-mine", "tripId": "trip-1", "label": "Food",
-            "amount": 200, "currency": "EUR",
+    client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {"id": "trip-1", "name": "Test trip", "country": "FR"},
         },
-    })
+    )
+    # Owner creates a budget
+    client.post(
+        "/api/budgets",
+        headers=auth_headers,
+        json={
+            "budget": {
+                "id": "budget-mine",
+                "tripId": "trip-1",
+                "label": "Food",
+                "amount": 200,
+                "currency": "EUR",
+            },
+        },
+    )
     # Different user fires DELETE — request returns 200 but the row
     # survives because the gate is `user_id = ?` in the SQL.
     other_res = client.delete("/api/budgets/budget-mine", headers=other_auth_headers)
@@ -226,21 +351,30 @@ def test_delete_budget_idempotent_on_unknown_id(client, seed_user, auth_headers)
 # the empty-list "wipe everything" path so a user can intentionally
 # clear their categories.
 
+
 def test_sync_categories_replaces_list(client, seed_user, auth_headers):
     """First POST seeds the list; second POST with a smaller list
     replaces (doesn't merge). The DELETE-then-INSERT shape of the
     handler means partial sends are destructive on purpose."""
-    client.post("/api/categories", headers=auth_headers, json={
-        "categories": [
-            {"id": "c1", "name": "Food", "icon": "🍔", "color": "#ff3b30"},
-            {"id": "c2", "name": "Hotel", "icon": "🏨", "color": "#5856d6"},
-        ],
-    })
-    res = client.post("/api/categories", headers=auth_headers, json={
-        "categories": [
-            {"id": "c1", "name": "Food", "icon": "🍔", "color": "#ff3b30"},
-        ],
-    })
+    client.post(
+        "/api/categories",
+        headers=auth_headers,
+        json={
+            "categories": [
+                {"id": "c1", "name": "Food", "icon": "🍔", "color": "#ff3b30"},
+                {"id": "c2", "name": "Hotel", "icon": "🏨", "color": "#5856d6"},
+            ],
+        },
+    )
+    res = client.post(
+        "/api/categories",
+        headers=auth_headers,
+        json={
+            "categories": [
+                {"id": "c1", "name": "Food", "icon": "🍔", "color": "#ff3b30"},
+            ],
+        },
+    )
     assert res.status_code == 200
 
 
@@ -253,43 +387,69 @@ def test_sync_categories_empty_list_clears(client, seed_user, auth_headers):
 
 
 def test_budget_stale_clientUpdatedAt_returns_409(
-    client, seed_user, auth_headers,
+    client,
+    seed_user,
+    auth_headers,
 ):
     """R3-Round 5 B2 mirror of the expense test. Budgets gate on
     clientUpdatedAt the same way."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-budget-stale")
-    res = client.post("/api/budgets", headers=auth_headers, json={
-        "budget": {
-            "id": "bud-stale", "tripId": trip_id,
-            "amount": 100, "currency": "EUR",
-            "originalAmount": 100, "originalCurrency": "EUR",
-            "categoryId": "all", "user": "all",
+    res = client.post(
+        "/api/budgets",
+        headers=auth_headers,
+        json={
+            "budget": {
+                "id": "bud-stale",
+                "tripId": trip_id,
+                "amount": 100,
+                "currency": "EUR",
+                "originalAmount": 100,
+                "originalCurrency": "EUR",
+                "categoryId": "all",
+                "user": "all",
+            },
         },
-    })
+    )
     assert res.status_code == 200
     first_updated_at = res.get_json().get("updatedAt")
     assert first_updated_at
 
-    res2 = client.post("/api/budgets", headers=auth_headers, json={
-        "budget": {
-            "id": "bud-stale", "tripId": trip_id,
-            "amount": 200, "currency": "EUR",
-            "originalAmount": 200, "originalCurrency": "EUR",
-            "categoryId": "all", "user": "all",
+    res2 = client.post(
+        "/api/budgets",
+        headers=auth_headers,
+        json={
+            "budget": {
+                "id": "bud-stale",
+                "tripId": trip_id,
+                "amount": 200,
+                "currency": "EUR",
+                "originalAmount": 200,
+                "originalCurrency": "EUR",
+                "categoryId": "all",
+                "user": "all",
+            },
         },
-    })
+    )
     assert res2.status_code == 200
     assert res2.get_json().get("updatedAt") != first_updated_at
 
-    res3 = client.post("/api/budgets", headers=auth_headers, json={
-        "budget": {
-            "id": "bud-stale", "tripId": trip_id,
-            "amount": 999, "currency": "EUR",
-            "originalAmount": 999, "originalCurrency": "EUR",
-            "categoryId": "all", "user": "all",
-            "clientUpdatedAt": first_updated_at,
+    res3 = client.post(
+        "/api/budgets",
+        headers=auth_headers,
+        json={
+            "budget": {
+                "id": "bud-stale",
+                "tripId": trip_id,
+                "amount": 999,
+                "currency": "EUR",
+                "originalAmount": 999,
+                "originalCurrency": "EUR",
+                "categoryId": "all",
+                "user": "all",
+                "clientUpdatedAt": first_updated_at,
+            },
         },
-    })
+    )
     assert res3.status_code == 409
     assert "current" in res3.get_json()
     # Row unchanged from second write.
@@ -306,23 +466,36 @@ def test_budget_rejects_no_rate_currency(client, seed_user, auth_headers):
     echoed. A currency WITH a live rate saves. The create-budget modal already
     blocks this; the gate covers the raw API / CSV-import paths."""
     import fx_rates
+
     fx_rates._cache = {"EUR": 1.0, "USD": 0.5}  # JPY deliberately rate-less
     fx_rates._cache_set_at = __import__('time').time()
     try:
-        reject = client.post("/api/budgets", headers=auth_headers, json={
-            "budget": {
-                "id": "bud-ia10-jpy", "amount": 50000, "currency": "JPY",
-                "label": "Tokyo food",
+        reject = client.post(
+            "/api/budgets",
+            headers=auth_headers,
+            json={
+                "budget": {
+                    "id": "bud-ia10-jpy",
+                    "amount": 50000,
+                    "currency": "JPY",
+                    "label": "Tokyo food",
+                },
             },
-        })
+        )
         assert reject.status_code == 400, reject.get_data(as_text=True)
         assert reject.get_json().get("currency") == "JPY"
-        ok = client.post("/api/budgets", headers=auth_headers, json={
-            "budget": {
-                "id": "bud-ia10-usd", "amount": 100, "currency": "USD",
-                "label": "USD budget",
+        ok = client.post(
+            "/api/budgets",
+            headers=auth_headers,
+            json={
+                "budget": {
+                    "id": "bud-ia10-usd",
+                    "amount": 100,
+                    "currency": "USD",
+                    "label": "USD budget",
+                },
             },
-        })
+        )
         assert ok.status_code == 200, ok.get_data(as_text=True)
     finally:
         fx_rates._cache = {}
@@ -336,15 +509,22 @@ def test_budget_non_eur_normalized_to_eur(client, seed_user, auth_headers):
     value is preserved in original_amount/original_currency for the 'was X' badge."""
     import fx_rates
     from database import get_db
+
     fx_rates._cache = {"EUR": 1.0, "USD": 0.5}  # 1 USD = 0.5 EUR
     fx_rates._cache_set_at = __import__('time').time()
     try:
-        res = client.post("/api/budgets", headers=auth_headers, json={
-            "budget": {
-                "id": "bud-bug044-usd", "amount": 100, "currency": "USD",
-                "label": "USD budget",
+        res = client.post(
+            "/api/budgets",
+            headers=auth_headers,
+            json={
+                "budget": {
+                    "id": "bud-bug044-usd",
+                    "amount": 100,
+                    "currency": "USD",
+                    "label": "USD budget",
+                },
             },
-        })
+        )
         assert res.status_code == 200, res.get_data(as_text=True)
         with get_db() as conn:
             row = conn.execute(
@@ -363,7 +543,11 @@ def test_budget_non_eur_normalized_to_eur(client, seed_user, auth_headers):
 
 
 def test_budget_upsert_rejects_cross_user_id(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
 ):
     """R3-Fix #2: pre-fix, `POST /api/budgets` with another user's
     budget id silently rewrote the row in place because the ON
@@ -372,28 +556,41 @@ def test_budget_upsert_rejects_cross_user_id(
     another caller (anti-enumeration: same shape as a non-existent
     id)."""
     # Victim creates a budget.
-    res = client.post("/api/budgets", headers=auth_headers, json={
-        "budget": {
-            "id": "bud-victim", "label": "Lisbon Food",
-            "amount": 300, "currency": "EUR",
+    res = client.post(
+        "/api/budgets",
+        headers=auth_headers,
+        json={
+            "budget": {
+                "id": "bud-victim",
+                "label": "Lisbon Food",
+                "amount": 300,
+                "currency": "EUR",
+            },
         },
-    })
+    )
     assert res.status_code == 200
 
     # Attacker tries to overwrite it with their own id reference.
     # (Use a valid non-zero amount so this exercises the cross-user
     # ownership gate — a zero amount would 400 at validation first,
     # per the MM-9 allow_zero=False rule, masking what we test here.)
-    res = client.post("/api/budgets", headers=other_auth_headers, json={
-        "budget": {
-            "id": "bud-victim", "label": "Hijacked",
-            "amount": 999, "currency": "USD",
+    res = client.post(
+        "/api/budgets",
+        headers=other_auth_headers,
+        json={
+            "budget": {
+                "id": "bud-victim",
+                "label": "Hijacked",
+                "amount": 999,
+                "currency": "USD",
+            },
         },
-    })
+    )
     assert res.status_code == 404
 
     # Verify the victim's row is unchanged.
     from database import get_db
+
     with get_db() as conn:
         row = conn.execute(
             "SELECT label, amount, currency, user_id FROM budgets WHERE id = ?",
@@ -408,8 +605,10 @@ def test_budget_upsert_rejects_cross_user_id(
 def test_upsert_budget_nondict_returns_400_not_500(client, seed_user, auth_headers):
     """MK6 P3: a truthy non-dict `budget` (string / list) must be a clean 400,
     not an uncaught AttributeError at b.get('id') → 500 (BUG-22 parity)."""
-    assert client.post("/api/budgets", headers=auth_headers,
-                       json={"budget": "x"}).status_code == 400
-    assert client.post("/api/budgets", headers=auth_headers,
-                       json={"budget": [1]}).status_code == 400
+    assert (
+        client.post("/api/budgets", headers=auth_headers, json={"budget": "x"}).status_code == 400
+    )
+    assert (
+        client.post("/api/budgets", headers=auth_headers, json={"budget": [1]}).status_code == 400
+    )
     assert client.post("/api/budgets", headers=auth_headers, json=[1, 2]).status_code == 400

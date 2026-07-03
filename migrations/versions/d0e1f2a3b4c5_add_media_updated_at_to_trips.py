@@ -25,6 +25,7 @@ endpoint's `(? IS NULL OR media_updated_at IS NULL OR media_updated_at
 value and subsequent writes are gated. Mirrored in database.py init_db
 for fresh installs.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

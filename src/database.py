@@ -8,6 +8,7 @@ from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
+
 # DB_PATH is read on every call so tests can point at a temp DB by setting
 # the env var before init_db() runs. Default keeps existing behavior.
 def _db_path():
@@ -117,6 +118,7 @@ def retry_on_lock(max_attempts: int = 4, base_delay: float = 0.05, max_delay: fl
         max_delay: cap on per-attempt sleep so a long backoff
             doesn't blow past PA's WSGI timeout.
     """
+
     def deco(fn):
         @functools.wraps(fn)
         def wrapped(*args, **kwargs):
@@ -134,11 +136,17 @@ def retry_on_lock(max_attempts: int = 4, base_delay: float = 0.05, max_delay: fl
                     delay += random.uniform(0, delay * 0.25)
                     logger.warning(
                         "db locked on %s (attempt %d/%d), retrying in %.3fs",
-                        fn.__name__, attempt, max_attempts, delay,
+                        fn.__name__,
+                        attempt,
+                        max_attempts,
+                        delay,
                     )
                     time.sleep(delay)
+
         return wrapped
+
     return deco
+
 
 # `_safe_alter` removed in the FIXING_ROADMAP §1.5/§1.6 cutover. Every
 # schema-mutation it used to handle is now owned by Alembic; init_db
@@ -332,8 +340,7 @@ def init_db():
             )
         ''')
         cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_trip_templates_owner "
-            "ON trip_templates(owner_id)"
+            "CREATE INDEX IF NOT EXISTS idx_trip_templates_owner ON trip_templates(owner_id)"
         )
 
         # Expenses Table — receipt_url added post-baseline (FUTURE_
@@ -575,8 +582,7 @@ def init_db():
         # `DELETE FROM notifications WHERE post_id = ?`. Without it,
         # an unshare scans the whole notifications table.
         cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_notifications_post_id "
-            "ON notifications(post_id)"
+            "CREATE INDEX IF NOT EXISTS idx_notifications_post_id ON notifications(post_id)"
         )
 
         # ── Feed (social / sharing layer) ──────────────────────────────
@@ -947,14 +953,11 @@ def init_db():
             # settlement + "what did this actor delete".
             "CREATE INDEX IF NOT EXISTS idx_settlements_audit_settlement "
             "ON settlements_audit(settlement_id)",
-            "CREATE INDEX IF NOT EXISTS idx_settlements_audit_actor "
-            "ON settlements_audit(actor_id)",
+            "CREATE INDEX IF NOT EXISTS idx_settlements_audit_actor ON settlements_audit(actor_id)",
             "CREATE INDEX IF NOT EXISTS idx_user_achievements_user "
             "ON user_achievements(user_id, badge_id)",
-            "CREATE INDEX IF NOT EXISTS idx_follows_followee "
-            "ON follows(followee_id)",
-            "CREATE INDEX IF NOT EXISTS idx_follows_follower "
-            "ON follows(follower_id)",
+            "CREATE INDEX IF NOT EXISTS idx_follows_followee ON follows(followee_id)",
+            "CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows(follower_id)",
             # 2026-05-18 audit fix (critical bug #4): every user-scoped
             # trips query was full-scanning the table. The composite
             # `(user_id, is_public)` index doubles as a leading-column
@@ -962,8 +965,7 @@ def init_db():
             # the bare `idx_trips_user` too — half the size, and the
             # planner picks it for the simple case.
             "CREATE INDEX IF NOT EXISTS idx_trips_user ON trips(user_id)",
-            "CREATE INDEX IF NOT EXISTS idx_trips_user_public "
-            "ON trips(user_id, is_public)",
+            "CREATE INDEX IF NOT EXISTS idx_trips_user_public ON trips(user_id, is_public)",
             # 2026-05-18 audit H5: partial UNIQUE on original
             # (non-repost) shares so two concurrent /api/feed/share
             # calls for the same trip can't both INSERT. Reposts are
@@ -978,8 +980,7 @@ def init_db():
             # lookup; this extra index covers `WHERE blocked_id = ?`
             # (used by `is_blocked_by` to ask "did THIS user block
             # me?" — direction-reversed).
-            "CREATE INDEX IF NOT EXISTS idx_blocks_blocked "
-            "ON blocks(blocked_id)",
+            "CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_id)",
             # 2026-05-27 audit #A-4: per-user session listing for
             # /api/auth/sessions. UNIQUE on jti is enforced by the
             # column constraint; this index covers
@@ -990,10 +991,8 @@ def init_db():
             # missing. Each is hit by /api/data on every poll AND by
             # the per-user upsert/delete paths. Without these the
             # tables full-scan even at modest user counts.
-            "CREATE INDEX IF NOT EXISTS idx_categories_user "
-            "ON categories(user_id)",
-            "CREATE INDEX IF NOT EXISTS idx_budgets_user "
-            "ON budgets(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_budgets_user ON budgets(user_id)",
             # R9-B2 H2: partial UNIQUE index for the all-NULL filter
             # shape (trip-wide, all-categories, all-people). SQLite
             # treats NULL != NULL for UNIQUE constraints, so the
@@ -1028,19 +1027,15 @@ def init_db():
             # table's PK is (trip_id, user_id) — leading col is
             # trip_id, so SQLite can't use the PK for a
             # user-side predicate. Migration 3df6a8b0c2d4 same.
-            "CREATE INDEX IF NOT EXISTS idx_trip_collaborators_user "
-            "ON trip_collaborators(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_trip_collaborators_user ON trip_collaborators(user_id)",
             # notifications.related_id is hit by the daily trip_public
             # dedupe and the delete_trip cleanup. Existing
             # `(user_id, created_at)` index doesn't cover it.
-            "CREATE INDEX IF NOT EXISTS idx_notifications_related "
-            "ON notifications(related_id)",
+            "CREATE INDEX IF NOT EXISTS idx_notifications_related ON notifications(related_id)",
             # Indexes that were added in Alembic only — mirror here
             # so fresh DBs (tests, new dev installs) get them too.
-            "CREATE INDEX IF NOT EXISTS idx_feed_posts_repost "
-            "ON feed_posts(repost_of_post_id)",
-            "CREATE INDEX IF NOT EXISTS idx_feed_comments_user "
-            "ON feed_comments(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_feed_posts_repost ON feed_posts(repost_of_post_id)",
+            "CREATE INDEX IF NOT EXISTS idx_feed_comments_user ON feed_comments(user_id)",
             # 2026-05-26 audit: prevent duplicate (trip_id, day_number)
             # rows. Frontend has a band-aid dedupe but the underlying
             # race (two browser tabs adding the same day) wasn't
@@ -1070,6 +1065,7 @@ def init_db():
         # schema change.
         try:
             from social import migrate_friends_to_follows
+
             migrate_friends_to_follows(cursor)
         except Exception as e:
             # Logged + swallowed — a botched migration shouldn't
@@ -1116,8 +1112,16 @@ def init_db():
 # DROPS a column gets caught too.
 _EXPECTED_COLUMNS = {
     "users": [
-        "id", "email", "name", "picture", "bio", "status",
-        "home_currency", "home_country", "language", "token_jti",
+        "id",
+        "email",
+        "name",
+        "picture",
+        "bio",
+        "status",
+        "home_currency",
+        "home_country",
+        "language",
+        "token_jti",
         "created_at",
         # MK6 P2: is_creator was missing here, so a stale DB (pre-migration
         # e2a4c6b8d0f1) booted clean, passed _assert_schema_current, then 500'd
@@ -1126,23 +1130,53 @@ _EXPECTED_COLUMNS = {
         "is_creator",
     ],
     "trips": [
-        "id", "user_id", "name", "country", "country_code",
-        "is_archived", "is_public", "public_show_expenses",
-        "place_id", "lat", "lng", "viewport_json", "place_types",
-        "companions_json", "marked_places_json", "documents_json",
-        "photos_json", "checklist_json", "trip_countries_json",
-        "cover_url", "notes", "actions_hidden", "share_token", "share_views",
-        "share_show_cost", "share_show_plans", "created_at",
+        "id",
+        "user_id",
+        "name",
+        "country",
+        "country_code",
+        "is_archived",
+        "is_public",
+        "public_show_expenses",
+        "place_id",
+        "lat",
+        "lng",
+        "viewport_json",
+        "place_types",
+        "companions_json",
+        "marked_places_json",
+        "documents_json",
+        "photos_json",
+        "checklist_json",
+        "trip_countries_json",
+        "cover_url",
+        "notes",
+        "actions_hidden",
+        "share_token",
+        "share_views",
+        "share_show_cost",
+        "share_show_plans",
+        "created_at",
         # R3-Round 4: optimistic-concurrency primitive.
         "updated_at",
         # 4.8 audit TRIP-4: media-only optimistic-concurrency stamp.
         "media_updated_at",
     ],
     "expenses": [
-        "id", "trip_id", "who", "category_id", "label", "date",
-        "country", "value", "currency", "euro_value", "receipt_url",
+        "id",
+        "trip_id",
+        "who",
+        "category_id",
+        "label",
+        "date",
+        "country",
+        "value",
+        "currency",
+        "euro_value",
+        "receipt_url",
         # 2026-05-25: split map + settlement flag persisted (audit S1).
-        "splits", "is_settlement",
+        "splits",
+        "is_settlement",
         # 2026-05-26: soft-delete tombstone (audit SY5).
         "deleted_at",
         # R3-Round 4: optimistic-concurrency primitive.
@@ -1151,8 +1185,13 @@ _EXPECTED_COLUMNS = {
     "friends": ["user_id", "friend_id", "status", "created_at"],
     "companions": ["user_id", "name", "linked_user_id", "link_status"],
     "feed_posts": [
-        "id", "user_id", "trip_id", "repost_of_post_id", "caption",
-        "created_at", "trip_was_public",
+        "id",
+        "user_id",
+        "trip_id",
+        "repost_of_post_id",
+        "caption",
+        "created_at",
+        "trip_was_public",
         # MK6 P2: tracks whether the feed-share minted the trip's share_token.
         "minted_share_token",
     ],
@@ -1161,33 +1200,62 @@ _EXPECTED_COLUMNS = {
     "feed_comments": ["id", "event_id", "user_id", "body", "created_at", "edited_at"],
     "follows": ["id", "follower_id", "followee_id", "created_at"],
     "user_achievements": [
-        "id", "user_id", "badge_id", "earned_at", "context_json",
+        "id",
+        "user_id",
+        "badge_id",
+        "earned_at",
+        "context_json",
         "revoked_at",
     ],
     "settlements": [
-        "id", "trip_id", "from_user_id", "to_user_id",
+        "id",
+        "trip_id",
+        "from_user_id",
+        "to_user_id",
         # 2026-05-26: name snapshots so balance math survives an
         # unlinked companion (audit S1+S6).
-        "from_name", "to_name",
-        "amount", "currency", "euro_value", "method", "note",
+        "from_name",
+        "to_name",
+        "amount",
+        "currency",
+        "euro_value",
+        "method",
+        "note",
         # 2026-05-26 audit #D-6: who clicked save (may differ from
         # from_user_id when planner records on behalf of others).
         "recorded_by",
         "created_at",
     ],
     "trip_members": [
-        "trip_id", "user_id", "role", "is_archived",
-        "invitation_status", "invited_by",
+        "trip_id",
+        "user_id",
+        "role",
+        "is_archived",
+        "invitation_status",
+        "invited_by",
         # 2026-05-26 audit #C-1: per-user completion timestamp.
         "completed_at",
     ],
     "trip_collaborators": ["trip_id", "user_id"],
     "trip_days": [
-        "id", "trip_id", "day_number", "date", "name",
-        "morning", "afternoon", "evening", "notes",
-        "photos", "documents", "tip", "lat", "lng",
+        "id",
+        "trip_id",
+        "day_number",
+        "date",
+        "name",
+        "morning",
+        "afternoon",
+        "evening",
+        "notes",
+        "photos",
+        "documents",
+        "tip",
+        "lat",
+        "lng",
         # Wave 2: day accommodation.
-        "accommodation", "accommodation_place_id", "accommodation_address",
+        "accommodation",
+        "accommodation_place_id",
+        "accommodation_address",
         # 2026-05-26: tombstone (audit SY5).
         "deleted_at",
         # R3-Round 4: optimistic-concurrency primitive.
@@ -1198,23 +1266,41 @@ _EXPECTED_COLUMNS = {
     # the delta path.
     "categories": ["id", "user_id", "name", "icon", "color", "updated_at"],
     "budgets": [
-        "id", "user_id", "trip_id", "label", "amount", "currency",
+        "id",
+        "user_id",
+        "trip_id",
+        "label",
+        "amount",
+        "currency",
         # 2026-05-25 audit B1: filter columns that fresh DBs always had
         # but the schema-check didn't enforce — regressions slipped through.
-        "category_id", "owner_name",
-        "original_amount", "original_currency",
+        "category_id",
+        "owner_name",
+        "original_amount",
+        "original_currency",
         # R3-Round 4: optimistic-concurrency primitive.
         "updated_at",
     ],
     "notifications": [
-        "id", "user_id", "type", "title", "related_id", "message",
-        "is_read", "created_at",
+        "id",
+        "user_id",
+        "type",
+        "title",
+        "related_id",
+        "message",
+        "is_read",
+        "created_at",
         # 2026-05-26 (audit NF1 + NF3): post_id for engagement notifs.
         "post_id",
     ],
     "auth_sessions": [
-        "id", "user_id", "jti", "device_label",
-        "created_at", "last_seen_at", "revoked_at",
+        "id",
+        "user_id",
+        "jti",
+        "device_label",
+        "created_at",
+        "last_seen_at",
+        "revoked_at",
     ],
     "blocks": ["blocker_id", "blocked_id", "created_at"],
 }
@@ -1235,7 +1321,9 @@ def _assert_schema_current(cursor) -> None:
                 missing.append(f"{table}.<entire table>")
                 continue
             raise
-        present = {r["name"] for r in rows} if rows and hasattr(rows[0], "keys") else {r[1] for r in rows}
+        present = (
+            {r["name"] for r in rows} if rows and hasattr(rows[0], "keys") else {r[1] for r in rows}
+        )
         for col in expected_cols:
             if col not in present:
                 missing.append(f"{table}.{col}")
@@ -1271,8 +1359,7 @@ def _check_alembic_head(cursor) -> None:
         return
     try:
         cursor.execute(
-            "SELECT name FROM sqlite_master "
-            "WHERE type='table' AND name='alembic_version'"
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='alembic_version'"
         )
         row = cursor.fetchone()
     except Exception:

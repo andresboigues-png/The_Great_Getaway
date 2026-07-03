@@ -18,6 +18,7 @@ recorder when they differ from the payer ("Charlie recorded that
 Bob paid you €50 — confirm with them"). Existing rows get NULL
 and are treated as recorder-unknown by the renderer.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -36,9 +37,7 @@ def upgrade() -> None:
     # acceptable because the value is only ever set to a valid
     # `current_user_id()` (already validated by require_auth) and
     # the column is read defensively.
-    op.execute(
-        "ALTER TABLE settlements ADD COLUMN recorded_by TEXT DEFAULT NULL"
-    )
+    op.execute("ALTER TABLE settlements ADD COLUMN recorded_by TEXT DEFAULT NULL")
 
 
 def downgrade() -> None:

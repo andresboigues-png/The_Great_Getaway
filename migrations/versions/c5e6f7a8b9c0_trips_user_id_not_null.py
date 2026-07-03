@@ -60,6 +60,7 @@ gate the migration just closed. Same forward-only posture as
 e1b8d2a3c4f5. If a regression requires it, write a new forward
 migration after auditing whether any NULL writes have shipped.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -71,13 +72,32 @@ depends_on: str | Sequence[str] | None = None
 
 
 _TRIPS_COLUMNS = [
-    "id", "user_id", "name", "country", "country_code",
-    "is_archived", "is_public", "public_show_expenses",
-    "place_id", "lat", "lng", "viewport_json", "place_types",
-    "companions_json", "marked_places_json", "documents_json",
-    "photos_json", "checklist_json", "trip_countries_json",
-    "cover_url", "actions_hidden", "share_token", "share_views",
-    "share_show_cost", "share_show_plans", "created_at",
+    "id",
+    "user_id",
+    "name",
+    "country",
+    "country_code",
+    "is_archived",
+    "is_public",
+    "public_show_expenses",
+    "place_id",
+    "lat",
+    "lng",
+    "viewport_json",
+    "place_types",
+    "companions_json",
+    "marked_places_json",
+    "documents_json",
+    "photos_json",
+    "checklist_json",
+    "trip_countries_json",
+    "cover_url",
+    "actions_hidden",
+    "share_token",
+    "share_views",
+    "share_show_cost",
+    "share_show_plans",
+    "created_at",
 ]
 
 
@@ -88,9 +108,7 @@ def upgrade() -> None:
     # scenarios where the live data shape may not match the snapshot
     # we audited.
     conn = op.get_bind()
-    null_count = conn.exec_driver_sql(
-        "SELECT COUNT(*) FROM trips WHERE user_id IS NULL"
-    ).scalar()
+    null_count = conn.exec_driver_sql("SELECT COUNT(*) FROM trips WHERE user_id IS NULL").scalar()
     if null_count:
         raise RuntimeError(
             f"Refusing to migrate: {null_count} trips have NULL user_id. "
@@ -135,9 +153,7 @@ def upgrade() -> None:
         """
     )
     cols = ", ".join(_TRIPS_COLUMNS)
-    op.execute(
-        f"INSERT INTO trips ({cols}) SELECT {cols} FROM _old_trips"
-    )
+    op.execute(f"INSERT INTO trips ({cols}) SELECT {cols} FROM _old_trips")
     op.execute("DROP TABLE _old_trips")
 
     # ── re-create every index that hung off trips ──────────────────
@@ -146,13 +162,8 @@ def upgrade() -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_trips_share_token "
         "ON trips(share_token) WHERE share_token IS NOT NULL"
     )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_trips_user ON trips(user_id)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_trips_user_public "
-        "ON trips(user_id, is_public)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_trips_user ON trips(user_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_trips_user_public ON trips(user_id, is_public)")
 
 
 def downgrade() -> None:

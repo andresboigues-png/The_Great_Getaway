@@ -22,6 +22,7 @@ from unittest import mock
 def test_resolve_release_prefers_sentry_release_env(monkeypatch):
     """SENTRY_RELEASE wins over everything — explicit deploy-side override."""
     from observability import resolve_release
+
     monkeypatch.setenv("SENTRY_RELEASE", "rel-from-env")
     monkeypatch.setenv("GG_RELEASE", "rel-from-gg")  # ignored
 
@@ -31,6 +32,7 @@ def test_resolve_release_prefers_sentry_release_env(monkeypatch):
 def test_resolve_release_falls_back_to_gg_release_env(monkeypatch):
     """GG_RELEASE is the second-priority env var (deploy convention)."""
     from observability import resolve_release
+
     monkeypatch.delenv("SENTRY_RELEASE", raising=False)
     monkeypatch.setenv("GG_RELEASE", "rel-deploy-sha")
 
@@ -41,6 +43,7 @@ def test_resolve_release_strips_whitespace(monkeypatch):
     """Env values often carry trailing newlines from `echo $SHA > .env` —
     strip them so the tag matches Sentry's expectation."""
     from observability import resolve_release
+
     monkeypatch.setenv("SENTRY_RELEASE", "  rel-trimmed\n")
 
     assert resolve_release() == "rel-trimmed"
@@ -50,6 +53,7 @@ def test_resolve_release_returns_none_when_no_source(monkeypatch):
     """No env vars + no git binary → return None so Sentry init omits the
     release tag entirely (rather than blocking on subprocess errors)."""
     from observability import resolve_release
+
     monkeypatch.delenv("SENTRY_RELEASE", raising=False)
     monkeypatch.delenv("GG_RELEASE", raising=False)
 
@@ -63,6 +67,7 @@ def test_resolve_release_runs_git_when_no_env(monkeypatch):
     HEAD`. Use a mocked subprocess so the test passes regardless of the
     actual repo state."""
     from observability import resolve_release
+
     monkeypatch.delenv("SENTRY_RELEASE", raising=False)
     monkeypatch.delenv("GG_RELEASE", raising=False)
 
@@ -72,9 +77,7 @@ def test_resolve_release_runs_git_when_no_env(monkeypatch):
         stdout="abc123def456\n",
         stderr="",
     )
-    with mock.patch(
-        "observability.subprocess.run", return_value=fake_result
-    ) as run_mock:
+    with mock.patch("observability.subprocess.run", return_value=fake_result) as run_mock:
         assert resolve_release() == "abc123def456"
 
     run_mock.assert_called_once()
@@ -90,6 +93,7 @@ def test_resolve_release_handles_git_nonzero_returncode(monkeypatch):
     """`git` exits non-zero when not in a repo → fall through to None
     instead of returning an error string."""
     from observability import resolve_release
+
     monkeypatch.delenv("SENTRY_RELEASE", raising=False)
     monkeypatch.delenv("GG_RELEASE", raising=False)
 
@@ -107,6 +111,7 @@ def test_resolve_release_handles_git_timeout(monkeypatch):
     """A hanging filesystem / locked repo shouldn't block app startup —
     timeout should fall through to None."""
     from observability import resolve_release
+
     monkeypatch.delenv("SENTRY_RELEASE", raising=False)
     monkeypatch.delenv("GG_RELEASE", raising=False)
 
@@ -172,9 +177,7 @@ def test_bind_trip_context_sets_g_trip_id_inside_request(client, auth_headers, s
 
     # The captured log records should include one for /api/trips with
     # trip_id="trip-obs-test" attached as a structured extra field.
-    trip_records = [
-        r for r in captured if "/api/trips" in r.getMessage()
-    ]
+    trip_records = [r for r in captured if "/api/trips" in r.getMessage()]
     assert trip_records, "no log record for /api/trips request"
 
     # `extra=` fields are merged into the LogRecord as attributes — check

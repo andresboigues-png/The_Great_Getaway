@@ -28,6 +28,7 @@ so no two LIVE rows can share (trip_id, day_number) today — the new
 (live-only) index therefore builds without collision and no pre-clean
 is required.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

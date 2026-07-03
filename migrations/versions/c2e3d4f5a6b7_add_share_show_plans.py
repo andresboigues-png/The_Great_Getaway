@@ -16,6 +16,7 @@ Photos and documents stay off the public artifact entirely for
 now; if we want to expose them later, that'll be a third column
 (share_show_media) so each surface has its own opt-in.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

@@ -23,6 +23,7 @@ acceptable because the original use case ("trips I just finished
 should show up in my friends' feed") only matters going forward.
 The next archive toggle on those rows stamps completed_at.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -34,9 +35,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "ALTER TABLE trip_members ADD COLUMN completed_at DATETIME DEFAULT NULL"
-    )
+    op.execute("ALTER TABLE trip_members ADD COLUMN completed_at DATETIME DEFAULT NULL")
 
 
 def downgrade() -> None:

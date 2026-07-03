@@ -46,9 +46,7 @@ def test_every_event_type_has_required_fields():
         assert callable(et.visibility_check), (
             f"{et.name}: visibility_check must be callable, got {type(et.visibility_check)}"
         )
-        assert callable(et.build), (
-            f"{et.name}: build must be callable, got {type(et.build)}"
-        )
+        assert callable(et.build), f"{et.name}: build must be callable, got {type(et.build)}"
         # engagement_recipient is optional — only set on share / repost
         # today. If set, must be callable.
         if et.engagement_recipient is not None:
@@ -77,14 +75,14 @@ def test_each_pattern_matches_its_own_canonical_id():
     # Smoke each pattern with a synthetic id that includes the
     # event name as the prefix + a stub id for the components.
     samples = {
-        "trip_created":  "trip_created_t1",
+        "trip_created": "trip_created_t1",
         "trip_archived": "trip_archived_t1",
-        "trip_joined":   "trip_joined_t1_u1",
-        "friendship":    "friendship_u1_u2",
-        "share":         "share_42",
-        "repost":        "repost_42",
-        "settled_up":    "settled_up_s1",
-        "achievement":   "achievement_42",
+        "trip_joined": "trip_joined_t1_u1",
+        "friendship": "friendship_u1_u2",
+        "share": "share_42",
+        "repost": "repost_42",
+        "settled_up": "settled_up_s1",
+        "achievement": "achievement_42",
     }
     for et in FEED_EVENT_TYPES:
         sample = samples.get(et.name)
@@ -105,38 +103,46 @@ def test_each_pattern_matches_its_own_canonical_id():
 # ── parse_event_id ────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("event_id,expected", [
-    ("trip_created_t1",      ("trip_created", "t1")),
-    ("trip_archived_t1",     ("trip_archived", "t1")),
-    ("trip_joined_t1_u1",    ("trip_joined", "t1", "u1")),
-    ("friendship_u1_u2",     ("friendship", "u1", "u2")),
-    ("share_42",             ("share", "42")),
-    ("repost_42",            ("repost", "42")),
-    ("settled_up_s1",        ("settled_up", "s1")),
-    ("achievement_42",       ("achievement", "42")),
-])
+@pytest.mark.parametrize(
+    "event_id,expected",
+    [
+        ("trip_created_t1", ("trip_created", "t1")),
+        ("trip_archived_t1", ("trip_archived", "t1")),
+        ("trip_joined_t1_u1", ("trip_joined", "t1", "u1")),
+        ("friendship_u1_u2", ("friendship", "u1", "u2")),
+        ("share_42", ("share", "42")),
+        ("repost_42", ("repost", "42")),
+        ("settled_up_s1", ("settled_up", "s1")),
+        ("achievement_42", ("achievement", "42")),
+    ],
+)
 def test_parse_event_id_known_formats(event_id, expected):
     """Every documented event_id shape parses back to (name, *components)."""
     from feed_events import parse_event_id
+
     assert parse_event_id(event_id) == expected
 
 
-@pytest.mark.parametrize("bad", [
-    None,
-    "",
-    "totally_unknown_event",
-    "trip_created_",     # missing component
-    "share_",            # missing component
-    "share_abc",         # share takes digits, not arbitrary chars
-    "achievement_xyz",   # achievement takes digits
-    42,                  # non-string
-    {"id": "trip_created_t1"},  # non-string
-])
+@pytest.mark.parametrize(
+    "bad",
+    [
+        None,
+        "",
+        "totally_unknown_event",
+        "trip_created_",  # missing component
+        "share_",  # missing component
+        "share_abc",  # share takes digits, not arbitrary chars
+        "achievement_xyz",  # achievement takes digits
+        42,  # non-string
+        {"id": "trip_created_t1"},  # non-string
+    ],
+)
 def test_parse_event_id_rejects_malformed(bad):
     """parse_event_id must return None (not raise) for unknown / malformed
     inputs. Routes use the return value as a gate and return a single
     rejection response."""
     from feed_events import parse_event_id
+
     assert parse_event_id(bad) is None
 
 
@@ -145,12 +151,14 @@ def test_parse_event_id_rejects_malformed(bad):
 
 def test_event_type_by_name_returns_entry_for_each_registered_name():
     from feed_events import FEED_EVENT_TYPES, event_type_by_name
+
     for et in FEED_EVENT_TYPES:
         assert event_type_by_name(et.name) is et
 
 
 def test_event_type_by_name_returns_none_for_unknown():
     from feed_events import event_type_by_name
+
     assert event_type_by_name("totally_not_a_real_event_type") is None
     assert event_type_by_name("") is None
 
@@ -177,7 +185,9 @@ def test_caller_can_see_event_returns_false_for_unknown_id():
 
 
 def test_caller_can_see_event_delegates_to_registered_visibility_check(
-    temp_db, seed_user, seed_other_user,
+    temp_db,
+    seed_user,
+    seed_other_user,
 ):
     """When the event_id parses, dispatch must invoke the FEED_EVENT_TYPES
     entry's visibility_check. We exercise this via a real share event
@@ -194,8 +204,7 @@ def test_caller_can_see_event_delegates_to_registered_visibility_check(
             ("t1", seed_user, "Test"),
         )
         cur.execute(
-            "INSERT INTO feed_posts (user_id, trip_id, caption) "
-            "VALUES (?, ?, ?)",
+            "INSERT INTO feed_posts (user_id, trip_id, caption) VALUES (?, ?, ?)",
             (seed_user, "t1", "hello"),
         )
         post_id = cur.lastrowid
@@ -213,7 +222,8 @@ def test_caller_can_see_event_delegates_to_registered_visibility_check(
 
 
 def test_engagement_recipient_returns_none_for_event_types_without_one(
-    temp_db, seed_user,
+    temp_db,
+    seed_user,
 ):
     """settled_up + achievement + trip_* + friendship event types don't
     surface engagement notifications. Their engagement_recipient hook
@@ -233,7 +243,8 @@ def test_engagement_recipient_returns_none_for_event_types_without_one(
 
 
 def test_engagement_recipient_returns_post_owner_for_share(
-    temp_db, seed_user,
+    temp_db,
+    seed_user,
 ):
     """share / repost both fire engagement notifications to the post's
     author. The dispatcher should look up feed_posts.user_id."""
@@ -247,8 +258,7 @@ def test_engagement_recipient_returns_post_owner_for_share(
             ("t1", seed_user, "Test"),
         )
         cur.execute(
-            "INSERT INTO feed_posts (user_id, trip_id, caption) "
-            "VALUES (?, ?, ?)",
+            "INSERT INTO feed_posts (user_id, trip_id, caption) VALUES (?, ?, ?)",
             (seed_user, "t1", "share"),
         )
         post_id = cur.lastrowid
@@ -262,13 +272,15 @@ def test_engagement_recipient_returns_post_owner_for_share(
 def test_engagement_recipient_returns_none_for_unknown_event_id():
     """Unknown event_id format → None (without DB access)."""
     from feed_events import engagement_recipient
+
     assert engagement_recipient(None, "totally_unknown_event") is None
     assert engagement_recipient(None, "") is None
     assert engagement_recipient(None, None) is None
 
 
 def test_engagement_recipient_returns_none_when_post_does_not_exist(
-    temp_db, seed_user,
+    temp_db,
+    seed_user,
 ):
     """If the share_<id> parses but the feed_posts row doesn't exist
     (e.g. deleted), the recipient lookup must return None, not raise."""
@@ -305,7 +317,9 @@ def test_build_feed_context_seeds_caller_in_actor_pool(temp_db, seed_user):
 
 
 def test_build_feed_context_includes_followed_users(
-    temp_db, seed_user, seed_other_user,
+    temp_db,
+    seed_user,
+    seed_other_user,
 ):
     """When the caller follows another user, that user joins the
     actor pool. Model B: follows pool is asymmetric — we don't

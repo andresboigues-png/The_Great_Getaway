@@ -108,6 +108,7 @@ def follow_user(user_id):
         # fails (you can't follow someone you've blocked; the block
         # endpoint already tears down both directions).
         from routes.blocks import is_blocked
+
         if is_blocked(cursor, user_id, caller_id) or is_blocked(cursor, caller_id, user_id):
             return jsonify({"error": "Not found"}), 404
 
@@ -116,10 +117,12 @@ def follow_user(user_id):
         # idempotent re-POSTs don't burn quota — only genuinely-new
         # notification-generating follows do.
         if user_daily_count("follow", caller_id) >= _FOLLOW_DAILY_CAP:
-            return jsonify({
-                "error": "You've hit today's follow limit. Try again tomorrow.",
-                "followCapHit": True,
-            }), 429
+            return jsonify(
+                {
+                    "error": "You've hit today's follow limit. Try again tomorrow.",
+                    "followCapHit": True,
+                }
+            ), 429
 
         cursor.execute(
             "INSERT OR IGNORE INTO follows (follower_id, followee_id) VALUES (?, ?)",
@@ -140,9 +143,7 @@ def follow_user(user_id):
             )
             already_notified = cursor.fetchone() is not None
             if not already_notified:
-                cursor.execute(
-                    "SELECT name FROM users WHERE id = ?", (caller_id,)
-                )
+                cursor.execute("SELECT name FROM users WHERE id = ?", (caller_id,))
                 row = cursor.fetchone()
                 actor_name = (row["name"] if row else "Someone") or "Someone"
                 cursor.execute(
@@ -164,11 +165,13 @@ def follow_user(user_id):
         "follow created" if was_new else "follow no-op",
         extra=log_extra(follower_id=caller_id, followee_id=user_id, new=was_new),
     )
-    return jsonify({
-        "isFollowing": True,
-        "followers": counts["followers"],
-        "following": counts["following"],
-    }), 201 if was_new else 200
+    return jsonify(
+        {
+            "isFollowing": True,
+            "followers": counts["followers"],
+            "following": counts["following"],
+        }
+    ), 201 if was_new else 200
 
 
 @bp.route("/api/follows/<user_id>", methods=["DELETE"])
@@ -194,11 +197,13 @@ def unfollow_user(user_id):
             "follow removed",
             extra=log_extra(follower_id=caller_id, followee_id=user_id),
         )
-    return jsonify({
-        "isFollowing": False,
-        "followers": counts["followers"],
-        "following": counts["following"],
-    })
+    return jsonify(
+        {
+            "isFollowing": False,
+            "followers": counts["followers"],
+            "following": counts["following"],
+        }
+    )
 
 
 @bp.route("/api/follows/<user_id>", methods=["GET"])
@@ -224,6 +229,7 @@ def get_follow_status(user_id):
     only ever calls this for the signed-in user.
     """
     from flask import request as _req
+
     caller_id = current_user_id()
     include_lists = _req.args.get("include") == "lists"
     with get_db() as conn:
@@ -237,6 +243,7 @@ def get_follow_status(user_id):
         # existed. Return the same 404 in either block direction.
         if caller_id and caller_id != user_id:
             from routes.blocks import is_blocked
+
             if is_blocked(cursor, user_id, caller_id) or is_blocked(cursor, caller_id, user_id):
                 return jsonify({"error": "Not found"}), 404
         counts = follower_counts(cursor, user_id)
@@ -248,5 +255,6 @@ def get_follow_status(user_id):
         }
         if include_lists and caller_id == user_id:
             from social import network_lists
+
             payload.update(network_lists(cursor, user_id))
     return jsonify(payload)

@@ -39,6 +39,7 @@ trip_members row (the source we backfilled from is still there in
 trips.is_archived; reverting would just leave the per-user flag in
 its (correctly-set) post-backfill state, which is fine).
 """
+
 from collections.abc import Sequence
 
 from alembic import op

@@ -86,7 +86,8 @@ def test_same_batch_delete_then_readd_keeps_it(client, auth_headers):
     # Deletes apply before upserts, so a newer re-add in the same batch wins.
     _post_delta(client, auth_headers, upserts=[_upsert("c1", "Food", 100)])
     res = _post_delta(
-        client, auth_headers,
+        client,
+        auth_headers,
         upserts=[_upsert("c1", "Reborn", 300)],
         deletes=[{"id": "c1", "deletedAt": 200}],
     )
@@ -96,9 +97,11 @@ def test_same_batch_delete_then_readd_keeps_it(client, auth_headers):
 
 def test_delete_nulls_expense_and_budget_references(client, auth_headers, seed_user):
     from database import get_db
+
     with get_db() as conn:
-        conn.execute("INSERT INTO trips (id, user_id, name) VALUES (?, ?, ?)",
-                     ("t1", seed_user, "Trip"))
+        conn.execute(
+            "INSERT INTO trips (id, user_id, name) VALUES (?, ?, ?)", ("t1", seed_user, "Trip")
+        )
         conn.execute(
             "INSERT INTO expenses (id, trip_id, value, category_id) VALUES (?, ?, ?, ?)",
             ("e1", "t1", 10.0, "c1"),
@@ -120,11 +123,14 @@ def test_delete_nulls_expense_and_budget_references(client, auth_headers, seed_u
 def test_legacy_full_list_path_still_works(client, auth_headers):
     # Back-compat: the old whole-list replace format must still apply.
     res = client.post(
-        "/api/categories", headers=auth_headers,
-        json={"categories": [
-            {"id": "c1", "name": "Food", "icon": "🍔", "color": "#ff0000"},
-            {"id": "c2", "name": "Travel", "icon": "✈️", "color": "#00ff00"},
-        ]},
+        "/api/categories",
+        headers=auth_headers,
+        json={
+            "categories": [
+                {"id": "c1", "name": "Food", "icon": "🍔", "color": "#ff0000"},
+                {"id": "c2", "name": "Travel", "icon": "✈️", "color": "#00ff00"},
+            ]
+        },
     )
     assert res.status_code == 200
     # Confirm via a no-op delta (returns the reconciled list).

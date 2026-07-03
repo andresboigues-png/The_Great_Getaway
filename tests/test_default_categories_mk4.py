@@ -51,6 +51,7 @@ def test_deleted_categories_not_resurrected(client):
     # Simulate the user clearing their categories: drop the rows + record
     # tombstones (what the per-row delete path writes).
     from database import get_db
+
     with get_db() as conn:
         conn.execute("DELETE FROM categories WHERE user_id = ?", ("test-seedcat-3",))
         for cid in ("c1", "c2", "c3"):

@@ -14,6 +14,7 @@ Revision ID: 0c7a67724fda
 Revises:
 Create Date: 2026-05-05 16:45:34.324281
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -182,8 +183,16 @@ def downgrade() -> None:
     SQLite doesn't enforce FKs by default so the order is mostly a
     sanity exercise."""
     for table in [
-        "trip_days", "notifications", "budgets", "categories",
-        "companions", "trip_members", "trip_collaborators",
-        "friends", "expenses", "trips", "users",
+        "trip_days",
+        "notifications",
+        "budgets",
+        "categories",
+        "companions",
+        "trip_members",
+        "trip_collaborators",
+        "friends",
+        "expenses",
+        "trips",
+        "users",
     ]:
         op.execute(f"DROP TABLE IF EXISTS {table}")

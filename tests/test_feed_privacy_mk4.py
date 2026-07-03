@@ -31,6 +31,7 @@ from __future__ import annotations
 
 def _mk_user(uid, name, email):
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "INSERT INTO users (id, email, name, picture) VALUES (?, ?, ?, ?)",
@@ -41,6 +42,7 @@ def _mk_user(uid, name, email):
 
 def _hdr(uid):
     from auth import issue_token
+
     return {"Authorization": f"Bearer {issue_token(uid)}"}
 
 
@@ -50,6 +52,7 @@ def _mk_trip(trip_id, owner_id, name, country, is_public, is_archived=0, share_t
     is mirrored onto BOTH trips.is_archived (Explore + share read paths)
     and the owner's trip_members row (public-trip click-through)."""
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "INSERT INTO trips (id, user_id, name, country, is_public, "
@@ -67,6 +70,7 @@ def _mk_trip(trip_id, owner_id, name, country, is_public, is_archived=0, share_t
 def _follow(follower, followee):
     """One-way follow (asymmetric — follower follows followee)."""
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)",
@@ -84,10 +88,9 @@ def _feed_event_ids(client, headers):
 
 def _trip_is_public(trip_id):
     from database import get_db
+
     with get_db() as conn:
-        row = conn.execute(
-            "SELECT is_public FROM trips WHERE id = ?", (trip_id,)
-        ).fetchone()
+        row = conn.execute("SELECT is_public FROM trips WHERE id = ?", (trip_id,)).fetchone()
     return row["is_public"]
 
 
@@ -138,6 +141,7 @@ def test_perm1_private_flip_removes_card(client, seed_user):
     assert "trip_created_flip-1" in _feed_event_ids(client, _hdr(follower))
 
     from database import get_db
+
     with get_db() as conn:
         conn.execute("UPDATE trips SET is_public = 0 WHERE id = ?", ("flip-1",))
         conn.commit()
@@ -158,6 +162,7 @@ def test_perm1_joined_branch_does_not_leak_third_party_private_trip(client, seed
 
     _mk_trip("priv-pj", owner, "OWNERS-PRIVATE", "Peru", is_public=0)
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "INSERT INTO trip_members (trip_id, user_id, role, invitation_status) "
@@ -183,9 +188,7 @@ def test_perm1_visibility_check_blocks_engagement_on_private_trip(client, seed_u
     _mk_trip("priv-eng", owner, "PRIV-ENG", "Japan", is_public=0)
 
     resp = client.post("/api/feed/like/trip_created_priv-eng", headers=_hdr(follower))
-    assert resp.status_code == 404, (
-        "private trip_* event was engageable by a one-way follower"
-    )
+    assert resp.status_code == 404, "private trip_* event was engageable by a one-way follower"
 
 
 # ── SOC-1: re-share then unshare must restore private ──────────────────
@@ -269,18 +272,33 @@ def test_archived_public_trip_appears_in_explore(client, seed_user):
     viewer = seed_user
     _mk_user(owner, "ExpOwner", "explore-owner@example.com")
     _mk_trip(
-        "arch-explore", owner, "Done Trip", "Norway",
-        is_public=1, is_archived=1, share_token="tok-arch-1",
+        "arch-explore",
+        owner,
+        "Done Trip",
+        "Norway",
+        is_public=1,
+        is_archived=1,
+        share_token="tok-arch-1",
     )
     # A live (non-archived) public+shared trip as a control.
     _mk_trip(
-        "live-explore", owner, "Live Trip", "Sweden",
-        is_public=1, is_archived=0, share_token="tok-live-1",
+        "live-explore",
+        owner,
+        "Live Trip",
+        "Sweden",
+        is_public=1,
+        is_archived=0,
+        share_token="tok-live-1",
     )
     # A PRIVATE archived trip must STILL be excluded (privacy gate).
     _mk_trip(
-        "priv-arch-explore", owner, "Private Done", "Finland",
-        is_public=0, is_archived=1, share_token="tok-priv-arch",
+        "priv-arch-explore",
+        owner,
+        "Private Done",
+        "Finland",
+        is_public=0,
+        is_archived=1,
+        share_token="tok-priv-arch",
     )
 
     resp = client.get("/api/feed/explore", headers=_hdr(viewer))
@@ -302,19 +320,26 @@ def test_explore_excludes_owner_who_blocked_caller(client, seed_user):
     other_owner = "open-owner-031"
     _mk_user(blocker_owner, "Blocker", "blk031@example.com")
     _mk_user(other_owner, "Opener", "open031@example.com")
-    _mk_trip("blk-explore-031", blocker_owner, "Hidden", "Norway",
-             is_public=1, share_token="tok-blk-031")
-    _mk_trip("ok-explore-031", other_owner, "Visible", "Sweden",
-             is_public=1, share_token="tok-ok-031")
+    _mk_trip(
+        "blk-explore-031", blocker_owner, "Hidden", "Norway", is_public=1, share_token="tok-blk-031"
+    )
+    _mk_trip(
+        "ok-explore-031", other_owner, "Visible", "Sweden", is_public=1, share_token="tok-ok-031"
+    )
     # The owner blocks the viewer.
-    assert client.post(
-        f"/api/blocks/{viewer}", headers=_hdr(blocker_owner),
-    ).status_code == 200
+    assert (
+        client.post(
+            f"/api/blocks/{viewer}",
+            headers=_hdr(blocker_owner),
+        ).status_code
+        == 200
+    )
     resp = client.get("/api/feed/explore", headers=_hdr(viewer))
     assert resp.status_code == 200, resp.data
     trip_ids = {it["tripId"] for it in resp.get_json()["items"]}
-    assert "blk-explore-031" not in trip_ids, \
+    assert "blk-explore-031" not in trip_ids, (
         "trip from an owner who blocked the caller leaked into Explore (BUG-031)"
+    )
     assert "ok-explore-031" in trip_ids, "control trip wrongly absent from Explore"
 
 
@@ -326,12 +351,22 @@ def test_archived_public_trip_viewable_by_nonmember(client, seed_user):
     viewer = seed_user
     _mk_user(owner, "PTOwner", "pt-owner@example.com")
     _mk_trip(
-        "arch-pt", owner, "Archived PT", "Iceland",
-        is_public=1, is_archived=1, share_token="tok-arch-pt",
+        "arch-pt",
+        owner,
+        "Archived PT",
+        "Iceland",
+        is_public=1,
+        is_archived=1,
+        share_token="tok-arch-pt",
     )
     _mk_trip(
-        "priv-arch-pt", owner, "Private PT", "Iceland",
-        is_public=0, is_archived=1, share_token="tok-priv-arch-pt",
+        "priv-arch-pt",
+        owner,
+        "Private PT",
+        "Iceland",
+        is_public=0,
+        is_archived=1,
+        share_token="tok-priv-arch-pt",
     )
 
     assert client.get("/api/public-trip/arch-pt", headers=_hdr(viewer)).status_code == 200, (
@@ -347,6 +382,7 @@ def test_public_trip_strips_day_media_for_nonmembers(client, seed_user):
     non-member viewer of a public trip — the same privacy contract as
     trip-level media and per-day notes/tip. Members (owner) still get them."""
     from database import get_db
+
     owner = "dm-owner"
     viewer = seed_user
     _mk_user(owner, "DMOwner", "dm-owner@example.com")
@@ -355,9 +391,14 @@ def test_public_trip_strips_day_media_for_nonmembers(client, seed_user):
         conn.execute(
             "INSERT INTO trip_days (id, trip_id, day_number, name, photos, documents) "
             "VALUES (?, ?, ?, ?, ?, ?)",
-            ("dm-day1", "dm-pt", 1, "Day One",
-             '[{"id":"p1","src":"/static/uploads/dm-owner/secret.jpg"}]',
-             '[{"id":"d1","name":"Boarding pass","url":"/static/uploads/dm-owner/bp.pdf"}]'),
+            (
+                "dm-day1",
+                "dm-pt",
+                1,
+                "Day One",
+                '[{"id":"p1","src":"/static/uploads/dm-owner/secret.jpg"}]',
+                '[{"id":"d1","name":"Boarding pass","url":"/static/uploads/dm-owner/bp.pdf"}]',
+            ),
         )
         conn.commit()
 
@@ -384,13 +425,16 @@ def test_soc2_owner_still_sees_archived_public_trip(client, seed_user):
     archived trip — the gate is non-member-only."""
     owner = seed_user
     _mk_trip(
-        "arch-own", owner, "My Archive", "Denmark",
-        is_public=1, is_archived=1, share_token="tok-arch-own",
+        "arch-own",
+        owner,
+        "My Archive",
+        "Denmark",
+        is_public=1,
+        is_archived=1,
+        share_token="tok-arch-own",
     )
     resp = client.get("/api/public-trip/arch-own", headers=_hdr(owner))
-    assert resp.status_code == 200, (
-        "owner wrongly blocked from their own archived trip"
-    )
+    assert resp.status_code == 200, "owner wrongly blocked from their own archived trip"
 
 
 def test_share_completed_trip_gated_on_privacy_not_completion(client, seed_user):
@@ -421,6 +465,7 @@ def test_soc4_bookmarks_list_returns_saved_share(client, seed_user):
     _mk_trip("bm-trip", owner, "Saveable", "Spain", is_public=1, share_token="tok-bm")
 
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id, caption) "
@@ -457,6 +502,7 @@ def test_soc4_bookmarks_drop_since_gone_private(client, seed_user):
     _mk_trip("bm2-trip", owner, "WillGoPrivate", "Italy", is_public=1, share_token="tok-bm2")
 
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id, caption) "
@@ -480,9 +526,7 @@ def test_soc4_bookmarks_drop_since_gone_private(client, seed_user):
         conn.commit()
 
     post = {e["id"] for e in client.get("/api/feed/bookmarks", headers=_hdr(viewer)).get_json()}
-    assert event_id not in post, (
-        "since-gone-private bookmark still surfaced in the list (SOC-4)"
-    )
+    assert event_id not in post, "since-gone-private bookmark still surfaced in the list (SOC-4)"
 
     # The underlying row is intentionally retained (a re-public flip
     # should re-surface it) — assert it's still in the DB.
@@ -505,6 +549,7 @@ def test_soc4_bookmarks_survive_aged_out_window(client, seed_user):
     _mk_trip("bm3-trip", owner, "OldButSaved", "Japan", is_public=1, share_token="tok-bm3")
 
     from database import get_db
+
     with get_db() as conn:
         conn.execute(
             "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id, caption, created_at) "
@@ -634,6 +679,7 @@ def test_non_follower_still_cannot_bookmark_trip_created_card(client, seed_user)
 
 def _trip_share_token(trip_id):
     from database import get_db
+
     with get_db() as conn:
         row = conn.execute("SELECT share_token FROM trips WHERE id = ?", (trip_id,)).fetchone()
     return row["share_token"] if row else None
@@ -647,31 +693,36 @@ def test_mk6_unshare_nulls_auto_minted_share_token(client, seed_user):
     owner = seed_user
     _mk_trip("mk6-a", owner, "Private", "Peru", is_public=0)
     hdr = _hdr(owner)
-    post_id = client.post("/api/feed/share", json={"trip_id": "mk6-a"}, headers=hdr) \
-        .get_json()["post_id"]
+    post_id = client.post("/api/feed/share", json={"trip_id": "mk6-a"}, headers=hdr).get_json()[
+        "post_id"
+    ]
     assert _trip_share_token("mk6-a"), "feed-share should auto-mint a token for a private trip"
 
     client.delete(f"/api/feed/share/{post_id}", headers=hdr)
     assert _trip_is_public("mk6-a") == 0
-    assert _trip_share_token("mk6-a") is None, \
+    assert _trip_share_token("mk6-a") is None, (
         "auto-minted share_token survived unshare (privacy leak)"
+    )
 
 
 def test_mk6_unshare_preserves_explicit_share_token(client, seed_user):
     """An owner's EXPLICIT share link (token set BEFORE the feed-share) must
     survive an unshare — only auto-minted tokens are nulled."""
     from database import get_db
+
     owner = seed_user
     _mk_trip("mk6-b", owner, "HasLink", "Spain", is_public=0)
     with get_db() as conn:
         conn.execute("UPDATE trips SET share_token='explicit-tok' WHERE id='mk6-b'")
         conn.commit()
     hdr = _hdr(owner)
-    post_id = client.post("/api/feed/share", json={"trip_id": "mk6-b"}, headers=hdr) \
-        .get_json()["post_id"]
+    post_id = client.post("/api/feed/share", json={"trip_id": "mk6-b"}, headers=hdr).get_json()[
+        "post_id"
+    ]
     client.delete(f"/api/feed/share/{post_id}", headers=hdr)
-    assert _trip_share_token("mk6-b") == "explicit-tok", \
+    assert _trip_share_token("mk6-b") == "explicit-tok", (
         "unshare destroyed the owner's explicit share link"
+    )
 
 
 def test_mk6_explicit_link_after_feedshare_survives_unshare(client, seed_user):
@@ -681,12 +732,15 @@ def test_mk6_explicit_link_after_feedshare_survives_unshare(client, seed_user):
     owner = seed_user
     _mk_trip("mk6-c", owner, "LinkAfter", "Italy", is_public=0)
     hdr = _hdr(owner)
-    post_id = client.post("/api/feed/share", json={"trip_id": "mk6-c"}, headers=hdr) \
-        .get_json()["post_id"]
-    r2 = client.post("/api/trips/mk6-c/share", json={"showCost": False, "showPlans": False},
-                     headers=hdr)
+    post_id = client.post("/api/feed/share", json={"trip_id": "mk6-c"}, headers=hdr).get_json()[
+        "post_id"
+    ]
+    r2 = client.post(
+        "/api/trips/mk6-c/share", json={"showCost": False, "showPlans": False}, headers=hdr
+    )
     assert r2.status_code == 200, r2.data
     explicit = r2.get_json()["token"]
     client.delete(f"/api/feed/share/{post_id}", headers=hdr)
-    assert _trip_share_token("mk6-c") == explicit, \
+    assert _trip_share_token("mk6-c") == explicit, (
         "unshare destroyed an explicit link created after a feed-share"
+    )

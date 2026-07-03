@@ -220,9 +220,10 @@ def compute_euro_value(
     # fall back to value (degraded — caller may want to track this
     # via a separate signal).
     logger.warning(
-        "compute_euro_value: no live rate for %s — using client hint %r "
-        "(value=%r)",
-        code, client_euro_value, value,
+        "compute_euro_value: no live rate for %s — using client hint %r (value=%r)",
+        code,
+        client_euro_value,
+        value,
     )
     if client_euro_value is not None:
         try:

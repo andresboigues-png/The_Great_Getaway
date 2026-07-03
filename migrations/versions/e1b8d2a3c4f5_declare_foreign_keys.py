@@ -208,13 +208,31 @@ def upgrade() -> None:
         )
         """,
         [
-            "id", "user_id", "name", "country", "country_code",
-            "is_archived", "is_public", "public_show_expenses",
-            "place_id", "lat", "lng", "viewport_json", "place_types",
-            "companions_json", "marked_places_json", "documents_json",
-            "photos_json", "checklist_json", "cover_url",
-            "actions_hidden", "share_token", "share_views",
-            "share_show_cost", "share_show_plans", "created_at",
+            "id",
+            "user_id",
+            "name",
+            "country",
+            "country_code",
+            "is_archived",
+            "is_public",
+            "public_show_expenses",
+            "place_id",
+            "lat",
+            "lng",
+            "viewport_json",
+            "place_types",
+            "companions_json",
+            "marked_places_json",
+            "documents_json",
+            "photos_json",
+            "checklist_json",
+            "cover_url",
+            "actions_hidden",
+            "share_token",
+            "share_views",
+            "share_show_cost",
+            "share_show_plans",
+            "created_at",
         ],
     )
     op.execute(
@@ -246,8 +264,17 @@ def upgrade() -> None:
         )
         """,
         [
-            "id", "trip_id", "who", "category_id", "label", "date",
-            "country", "value", "currency", "euro_value", "receipt_url",
+            "id",
+            "trip_id",
+            "who",
+            "category_id",
+            "label",
+            "date",
+            "country",
+            "value",
+            "currency",
+            "euro_value",
+            "receipt_url",
         ],
     )
     op.execute("CREATE INDEX IF NOT EXISTS idx_expenses_trip ON expenses(trip_id)")
@@ -270,10 +297,7 @@ def upgrade() -> None:
         """,
         ["user_id", "friend_id", "status", "created_at"],
     )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_friends_user_status "
-        "ON friends(user_id, status)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_friends_user_status ON friends(user_id, status)")
 
     # ── trip_collaborators ───────────────────────────────────────────
     # Legacy table, mostly empty in prod. Kept with FKs for consistency.
@@ -314,13 +338,16 @@ def upgrade() -> None:
         )
         """,
         [
-            "trip_id", "user_id", "role", "is_archived",
-            "invitation_status", "invited_by",
+            "trip_id",
+            "user_id",
+            "role",
+            "is_archived",
+            "invitation_status",
+            "invited_by",
         ],
     )
     op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_trip_members_trip_user "
-        "ON trip_members(trip_id, user_id)"
+        "CREATE INDEX IF NOT EXISTS idx_trip_members_trip_user ON trip_members(trip_id, user_id)"
     )
 
     # ── companions ───────────────────────────────────────────────────
@@ -401,8 +428,14 @@ def upgrade() -> None:
         )
         """,
         [
-            "id", "user_id", "type", "title", "related_id", "message",
-            "is_read", "created_at",
+            "id",
+            "user_id",
+            "type",
+            "title",
+            "related_id",
+            "message",
+            "is_read",
+            "created_at",
         ],
     )
     op.execute(
@@ -430,7 +463,11 @@ def upgrade() -> None:
         )
         """,
         [
-            "id", "user_id", "trip_id", "repost_of_post_id", "caption",
+            "id",
+            "user_id",
+            "trip_id",
+            "repost_of_post_id",
+            "caption",
             "created_at",
         ],
     )
@@ -468,10 +505,7 @@ def upgrade() -> None:
         """,
         ["user_id", "event_id", "created_at"],
     )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_feed_bookmarks_event "
-        "ON feed_bookmarks(event_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_feed_bookmarks_event ON feed_bookmarks(event_id)")
 
     # ── feed_comments ────────────────────────────────────────────────
     _rebuild(
@@ -489,8 +523,7 @@ def upgrade() -> None:
         ["id", "event_id", "user_id", "body", "created_at"],
     )
     op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_feed_comments_event "
-        "ON feed_comments(event_id, created_at)"
+        "CREATE INDEX IF NOT EXISTS idx_feed_comments_event ON feed_comments(event_id, created_at)"
     )
 
     # ── trip_days ────────────────────────────────────────────────────
@@ -516,9 +549,20 @@ def upgrade() -> None:
         )
         """,
         [
-            "id", "trip_id", "day_number", "date", "name",
-            "morning", "afternoon", "evening", "notes", "photos",
-            "documents", "tip", "lat", "lng",
+            "id",
+            "trip_id",
+            "day_number",
+            "date",
+            "name",
+            "morning",
+            "afternoon",
+            "evening",
+            "notes",
+            "photos",
+            "documents",
+            "tip",
+            "lat",
+            "lng",
         ],
     )
     op.execute("CREATE INDEX IF NOT EXISTS idx_trip_days_trip ON trip_days(trip_id)")
@@ -587,15 +631,19 @@ def upgrade() -> None:
         )
         """,
         [
-            "id", "trip_id", "from_user_id", "to_user_id",
-            "amount", "currency", "euro_value", "method", "note",
+            "id",
+            "trip_id",
+            "from_user_id",
+            "to_user_id",
+            "amount",
+            "currency",
+            "euro_value",
+            "method",
+            "note",
             "created_at",
         ],
     )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_settlements_trip "
-        "ON settlements(trip_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_settlements_trip ON settlements(trip_id)")
 
 
 def downgrade() -> None:
