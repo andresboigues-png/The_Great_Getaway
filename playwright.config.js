@@ -1,8 +1,21 @@
 // @ts-check
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = 5001;
+// MK1 Wave E (T2-7): e2e runs on its OWN port with a THROWAWAY
+// per-run database. Pre-fix the suite targeted the dev server's port
+// 5001 and — when it booted its own server — the real dev SQLite at
+// src/travel_planner.db, so e2e runs wrote test data into whatever DB
+// was around, and a warm DB masked real failures (4 mobile tests
+// passed locally for weeks while failing on CI's pristine checkout).
+// A dedicated port means a running dev server is never "reused", and
+// the tmpdir DB path (unique per invocation) means every suite run
+// starts from schema-only state, exactly like CI.
+import os from 'node:os';
+import path from 'node:path';
+
+const PORT = Number(process.env.GG_E2E_PORT || 5010);
 const BASE_URL = `http://localhost:${PORT}`;
+const E2E_DB = process.env.GG_E2E_DB_PATH || path.join(os.tmpdir(), `gg-e2e-${Date.now()}-${process.pid}.db`);
 
 export default defineConfig({
     testDir: './tests/e2e',
@@ -51,7 +64,10 @@ export default defineConfig({
         command: 'cd src && python3 main.py',
         url: BASE_URL,
         timeout: 30000,
-        reuseExistingServer: !process.env.CI,
+        // MK1 Wave E (T2-7): NEVER reuse — a surviving e2e server keeps
+        // its boot-time DB, so reuse would resurrect the warm-DB masking
+        // this change exists to kill. Fresh boot costs ~2s per run.
+        reuseExistingServer: false,
         stdout: 'ignore',
         stderr: 'pipe',
         // GG_ALLOW_TEST_LOGIN unlocks the /api/auth/google
@@ -75,6 +91,10 @@ export default defineConfig({
             GG_ALLOW_TEST_LOGIN: '1',
             GG_E2E: '1',
             FLASK_ENV: 'development',
+            // MK1 Wave E (T2-7): dedicated port + throwaway DB — see the
+            // header comment. GG_PORT is honoured by main.py's __main__.
+            GG_PORT: String(PORT),
+            GG_DB_PATH: E2E_DB,
         },
     },
 });

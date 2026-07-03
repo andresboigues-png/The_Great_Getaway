@@ -54,6 +54,30 @@ def _tombstoned_trip_ids(cursor, rows) -> set:
 
 bp = Blueprint("data", __name__)
 
+# MK1 Wave E (T2-5 / DATA-1): the /api/data poll used `SELECT t.*`, which
+# reads the four heavy media JSON blobs (photos/documents/marked_places/
+# checklist — up to ~512KB EACH) off disk and parses them… only for the
+# response builder to pop the parsed results (R12-B4 ships media via
+# GET /api/trips/<id>/media instead). Build the trip column list from
+# PRAGMA table_info MINUS the heavy four, so future columns are included
+# automatically (the trip_portability lesson: explicit hand-lists rot).
+# companions_json stays — /api/data DOES ship companions.
+_HEAVY_TRIP_COLUMNS = frozenset(
+    {"photos_json", "documents_json", "marked_places_json", "checklist_json"}
+)
+_light_trip_cols_cache: str | None = None
+
+
+def _light_trip_columns(cursor) -> str:
+    """Comma-joined `t.<col>` list for trips minus the media blobs.
+    Cached per process — the schema only changes across deploys, and the
+    boot tripwire restarts the worker on schema drift anyway."""
+    global _light_trip_cols_cache
+    if _light_trip_cols_cache is None:
+        cols = [r["name"] for r in cursor.execute("PRAGMA table_info(trips)").fetchall()]
+        _light_trip_cols_cache = ", ".join(f"t.{c}" for c in cols if c not in _HEAVY_TRIP_COLUMNS)
+    return _light_trip_cols_cache
+
 
 @bp.route("/api/sync", methods=["POST"])
 @limiter.limit("30 per minute")
@@ -610,18 +634,23 @@ def get_data():
         # (any accepted member row in trip_members). The legacy
         # trip_collaborators table is unioned in too so existing rows
         # don't fall off the radar before being migrated.
+        # MK1 Wave E: light column list (no media blobs) — see
+        # _light_trip_columns above. serialize_trip_row pops every media
+        # key with a default, so absent columns shape to [] harmlessly,
+        # and get_data popped those keys from the response anyway.
+        _cols = _light_trip_columns(cursor)
         cursor.execute(
-            '''
-            SELECT t.*
+            f'''
+            SELECT {_cols}
             FROM trips t
             WHERE t.user_id = ?
             UNION
-            SELECT t.*
+            SELECT {_cols}
             FROM trips t
             JOIN trip_members m ON m.trip_id = t.id
             WHERE m.user_id = ? AND m.invitation_status = 'accepted'
             UNION
-            SELECT t.*
+            SELECT {_cols}
             FROM trips t
             JOIN trip_collaborators c ON c.trip_id = t.id
             WHERE c.user_id = ?

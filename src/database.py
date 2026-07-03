@@ -944,6 +944,17 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_friends_user_status ON friends(user_id, status)",
             "CREATE INDEX IF NOT EXISTS idx_notifications_user_created "
             "ON notifications(user_id, created_at)",
+            # MK1 Wave E (T2-5): leading-user_id index — the trip_user
+            # composite above leads on trip_id, so by-user queries (the
+            # /api/data poll's batched ACL sets, achievements sweep)
+            # scanned. Partial indexes for serve_upload's exact-match ACL
+            # fallbacks (receipts + covers) — tiny, most rows are NULL.
+            # Mirrored in migration e7b2c4d9f1a3.
+            "CREATE INDEX IF NOT EXISTS idx_trip_members_user ON trip_members(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_receipt_url "
+            "ON expenses(receipt_url) WHERE receipt_url IS NOT NULL",
+            "CREATE INDEX IF NOT EXISTS idx_trips_cover_url "
+            "ON trips(cover_url) WHERE cover_url IS NOT NULL",
             "CREATE INDEX IF NOT EXISTS idx_trip_members_trip_user "
             "ON trip_members(trip_id, user_id)",
             "CREATE INDEX IF NOT EXISTS idx_expenses_trip ON expenses(trip_id)",
