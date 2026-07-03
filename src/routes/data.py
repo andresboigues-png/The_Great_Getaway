@@ -9,7 +9,6 @@ clients don't break, but new code should prefer the delta routes.
 """
 
 import json
-import secrets
 
 from flask import Blueprint, jsonify, request
 
@@ -24,7 +23,6 @@ from extensions import limiter
 from helpers import (
     batch_editable_trip_ids,
     batch_expense_writable_trip_ids,
-    ensure_owner_member_row,
     ensure_user_exists,
     json_body,
     serialize_expense_row,
@@ -34,28 +32,7 @@ from helpers import (
 from services.day_writes import SYNC as DAY_SYNC
 from services.day_writes import apply_day_upsert
 from services.expense_writes import SYNC_ACTIVE, SYNC_ARCHIVED, apply_expense_upsert
-from validators import (
-    ValidationError,
-    validate_upload_url,
-)
-from validators import (
-    clean_companions as _clean_companions_raw,
-)
-
-
-def _cleaned_companions_for_sync(cursor, trip_id, raw):
-    """Same shape as routes/trips.py::_cleaned_companions. Inlined
-    here to avoid a cross-blueprint import dance."""
-    if not isinstance(raw, list):
-        return []
-    verified: set[str] = set()
-    if trip_id:
-        cursor.execute(
-            "SELECT user_id FROM trip_members WHERE trip_id = ?",
-            (trip_id,),
-        )
-        verified = {r["user_id"] for r in cursor.fetchall() if r["user_id"]}
-    return _clean_companions_raw(raw, verified_linked_ids=verified)
+from services.trip_sync_writes import apply_sync_trip_upsert
 
 
 def _tombstoned_trip_ids(cursor, rows) -> set:
@@ -73,23 +50,6 @@ def _tombstoned_trip_ids(cursor, rows) -> set:
             ids,
         ).fetchall()
     }
-
-
-def _validated_cover_url(value, user_id):
-    """Gate a synced coverUrl to the caller's own upload (or empty) before it
-    lands in trips.cover_url. Returns None on a bad/foreign/external URL so —
-    paired with COALESCE(excluded.cover_url, cover_url) — the stored cover is
-    preserved rather than overwritten by an attacker-supplied tracking URL.
-    (MK6 P3/security)"""
-    try:
-        return validate_upload_url(
-            value,
-            user_id=user_id,
-            field_name="coverUrl",
-            allow_empty=True,
-        )
-    except ValidationError:
-        return None
 
 
 bp = Blueprint("data", __name__)
@@ -246,178 +206,19 @@ def sync_data():
                 continue
             if t.get("id") in _active_tombstoned:
                 continue
-            cursor.execute(
-                "SELECT user_id, is_public, public_show_expenses, is_archived "
-                "FROM trips WHERE id = ?",
-                (t["id"],),
-            )
-            existing = cursor.fetchone()
-            # R5-B4: set lookup instead of can_edit_trip's 2-query call.
-            if existing and t['id'] not in editable_trip_ids:
-                # Trip exists and caller isn't a planner — skip silently
-                # rather than 403 the whole batch (preserves partial sync
-                # of legitimately-editable rows).
-                continue
-            # BUG-35 (MK2 audit): publicness is owner-only. A non-owner
-            # planner may sync the trip's name/itinerary but must not flip
-            # is_public / public_show_expenses. Pin both to the stored
-            # values when the syncing user isn't the owner.
-            if existing and existing["user_id"] != user_id:
-                t["isPublic"] = bool(existing["is_public"])
-                t["publicShowExpenses"] = bool(existing["public_show_expenses"])
-
-            # ── trip_countries_json (§4.3) — normalize before persist
-            # Client may send either `countries` (top-level array we
-            # populate on the home map's reverse-geocode loop) or
-            # `tripCountries` (legacy single-trip POST field). The
-            # bulk-sync path used to omit this column entirely, which
-            # silently wiped the multi-country list on every 15s poll.
-            # Fix shipped 2026-05-18.
-            countries_raw = t.get('countries')
-            if not isinstance(countries_raw, list):
-                countries_raw = t.get('tripCountries')
-            countries_json = (
-                json.dumps([c for c in countries_raw if isinstance(c, str)])
-                if isinstance(countries_raw, list)
-                else None
-            )
-            # BUG-098: trips.is_archived is the share/clone gate's source of
-            # truth and is OWNER-ONLY (the dedicated archive route mirrors it
-            # only for the owner). For a non-owner editor, pin the shared
-            # column to the stored value so a crafted /api/sync can't flip the
-            # owner's live-share state; the caller's own archive view still
-            # flows to their trip_members row below.
-            _owner_row = existing is None or existing["user_id"] == user_id
-            _active_is_archived = (
-                (1 if t.get('is_archived') else 0)
-                if _owner_row
-                else (1 if existing["is_archived"] else 0)
-            )
-            cursor.execute(
-                '''
-                INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
-                                   public_show_expenses,
-                                   place_id, lat, lng, viewport_json, place_types, country_code,
-                                   trip_countries_json,
-                                   companions_json, marked_places_json,
-                                   documents_json, photos_json, checklist_json, cover_url)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    name=excluded.name,
-                    country=excluded.country,
-                    is_archived=excluded.is_archived,
-                    is_public=excluded.is_public,
-                    public_show_expenses=excluded.public_show_expenses,
-                    place_id=excluded.place_id,
-                    lat=excluded.lat,
-                    lng=excluded.lng,
-                    viewport_json=excluded.viewport_json,
-                    place_types=excluded.place_types,
-                    country_code=excluded.country_code,
-                    -- 2026-05-18 audit H3: COALESCE so a payload that
-                    -- omits the field (older clients, partial syncs)
-                    -- preserves whatever the server already had. The
-                    -- raw `excluded.x` form would NULL-overwrite on
-                    -- every sync that didn't carry the field —
-                    -- silent data loss for multi-country trips.
-                    trip_countries_json=COALESCE(excluded.trip_countries_json, trip_countries_json),
-                    -- R2 audit fix: COALESCE protection on every JSON
-                    -- field, mirroring the /api/trips upsert. Pre-fix
-                    -- /api/sync wrote `excluded.X` verbatim — a partial
-                    -- payload (older client, future field-renaming)
-                    -- that omitted any of these keys would NULL the
-                    -- column. Most users sync these fields on every
-                    -- write so the regression was rare in practice,
-                    -- but companions / photos wipe-on-partial-sync
-                    -- was reproducible and lost user data.
-                    companions_json=COALESCE(excluded.companions_json, companions_json),
-                    marked_places_json=COALESCE(excluded.marked_places_json, marked_places_json),
-                    documents_json=COALESCE(excluded.documents_json, documents_json),
-                    photos_json=COALESCE(excluded.photos_json, photos_json),
-                    checklist_json=COALESCE(excluded.checklist_json, checklist_json),
-                    -- MK6 P3: COALESCE like the archived sibling (line ~524) so
-                    -- a partial payload without coverUrl preserves the stored
-                    -- cover instead of NULL-wiping it every 15s. Cover REMOVAL
-                    -- flows only via the per-row TRIP-6 path, not bulk sync.
-                    cover_url=COALESCE(excluded.cover_url, cover_url),
-                    -- R4-B1: bump updated_at on every sync UPDATE so the
-                    -- R3-R5 stale-edit gate in /api/trips can detect that
-                    -- this row moved since the client last read it.
-                    -- Pre-fix, sync polls rewrote the row's fields but
-                    -- left updated_at frozen — the next /api/trips POST
-                    -- saw stored == client (both stale) and passed the
-                    -- gate, blind-overwriting the sync-delivered state.
-                    updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
-            ''',
-                (
-                    t['id'],
-                    user_id,
-                    t['name'],
-                    t.get('country'),
-                    _active_is_archived,
-                    1 if t.get('isPublic') else 0,
-                    1 if t.get('publicShowExpenses') else 0,
-                    t.get('placeId'),
-                    t.get('lat'),
-                    t.get('lng'),
-                    json.dumps(t['viewport']) if t.get('viewport') else None,
-                    json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
-                    t.get('countryCode'),
-                    countries_json,
-                    json.dumps(
-                        _cleaned_companions_for_sync(cursor, t.get('id'), t.get('companions'))
-                    )
-                    if isinstance(t.get('companions'), list)
-                    else None,
-                    # 4.8 audit TRIP-3: /api/sync MUST NOT write the 4 heavy
-                    # media columns — they have a dedicated write path
-                    # (POST /api/trips/<id>/media). Pass None so COALESCE
-                    # preserves existing media on UPDATE and starts NULL (=[])
-                    # on INSERT, even if a legacy/defensive client still ships
-                    # these keys with a stale/empty array. Mirrors upsert_trip
-                    # and makes the media-isolation invariant structural here
-                    # too, rather than depending on the client never sending
-                    # the key.
-                    None,  # marked_places_json — see POST /api/trips/<id>/media
-                    None,  # documents_json
-                    None,  # photos_json
-                    None,  # checklist_json
-                    # MK6 P3/security: gate coverUrl to the caller's own upload —
-                    # an unvalidated external URL becomes a tracking pixel served
-                    # to every member + public share viewer.
-                    _validated_cover_url(t.get('coverUrl'), user_id),
-                ),
-            )
-            ensure_owner_member_row(cursor, t['id'], user_id)
-            # A public trip needs a share_token to be viewable AND to surface in
-            # Explore: /api/feed/explore requires `share_token IS NOT NULL` and
-            # the Explore card links via /share/<token>. The privacy toggle sets
-            # is_public through THIS sync but — unlike feed-share — never minted
-            # a token, so privacy-toggled public trips stayed invisible in
-            # Explore. Mint lazily + owner-only; the `share_token IS NULL` guard
-            # makes it idempotent (after the first mint the UPDATE matches no
-            # rows, and an existing feed-share token is preserved).
-            if _owner_row and t.get('isPublic'):
-                cursor.execute(
-                    "UPDATE trips SET share_token = ? WHERE id = ? AND share_token IS NULL",
-                    (secrets.token_urlsafe(16), t['id']),
-                )
-            # R5-B4: the trip just landed (insert OR planner-allowed
-            # update). Add to both ACL sets so the expenses loop later
-            # in the same /api/sync call can gate against it — without
-            # this a brand-new trip + its expenses in ONE payload
-            # would silently drop the expenses (preloaded set was
-            # snapshotted BEFORE this insert).
-            editable_trip_ids.add(t['id'])
-            expense_writable_trip_ids.add(t['id'])
-            # 2026-05-18 audit H1: mirror the payload's is_archived to
-            # THIS caller's trip_members row (the post-deprecation
-            # source of truth for the achievement queries + feed
-            # events + admin stats). Active-trips block — usually
-            # is_archived=0, but the payload is the authority.
-            cursor.execute(
-                "UPDATE trip_members SET is_archived = ? WHERE trip_id = ? AND user_id = ?",
-                (1 if t.get('is_archived') else 0, t['id'], user_id),
+            # MK1 Wave B (T1-1): editor-set gate, BUG-35/BUG-098 pinning,
+            # countries normalization, the media-isolated INSERT, share-token
+            # mint, ACL top-up and the member archive mirror all live in
+            # services/trip_sync_writes.py now — ONE implementation shared
+            # with the archived_trips loop below (its near-identical twin).
+            # See that module for the ARCH-2 sunset plan.
+            apply_sync_trip_upsert(
+                cursor,
+                user_id,
+                t,
+                archived=False,
+                editable_trip_ids=editable_trip_ids,
+                expense_writable_trip_ids=expense_writable_trip_ids,
             )
 
         # Commit trips section before moving on — releases the writer
@@ -437,134 +238,20 @@ def sync_data():
                 continue
             if t.get("id") in _arch_tombstoned:
                 continue
-            cursor.execute(
-                "SELECT user_id, is_public, public_show_expenses, is_archived "
-                "FROM trips WHERE id = ?",
-                (t["id"],),
-            )
-            existing = cursor.fetchone()
-            # R5-B4: set lookup instead of can_edit_trip's 2-query call.
-            if existing and t['id'] not in editable_trip_ids:
+            # MK1 Wave B (T1-1): unified with the active loop into
+            # services/trip_sync_writes.py (archived=True → is_archived
+            # forced for the owner + member mirror pinned to 1). A skip
+            # (non-editable existing trip) must also skip the nested
+            # expense block below — the service returns False there.
+            if not apply_sync_trip_upsert(
+                cursor,
+                user_id,
+                t,
+                archived=True,
+                editable_trip_ids=editable_trip_ids,
+                expense_writable_trip_ids=expense_writable_trip_ids,
+            ):
                 continue
-            # BUG-35: publicness is owner-only (see the active-trips loop).
-            if existing and existing["user_id"] != user_id:
-                t["isPublic"] = bool(existing["is_public"])
-                t["publicShowExpenses"] = bool(existing["public_show_expenses"])
-
-            # Same trip_countries_json normalization as the active path.
-            arch_countries_raw = t.get('countries')
-            if not isinstance(arch_countries_raw, list):
-                arch_countries_raw = t.get('tripCountries')
-            arch_countries_json = (
-                json.dumps([c for c in arch_countries_raw if isinstance(c, str)])
-                if isinstance(arch_countries_raw, list)
-                else None
-            )
-            # BUG-098: same owner-only gate as the active loop. A non-owner
-            # planner must not force the shared trips.is_archived column (the
-            # share/clone gate's source of truth) to 1 by putting the trip in
-            # their archived_trips payload. Owner (or a brand-new row) archives
-            # normally; a non-owner leaves the stored value untouched.
-            _arch_owner_row = existing is None or existing["user_id"] == user_id
-            _arch_is_archived = 1 if _arch_owner_row else (1 if existing["is_archived"] else 0)
-            cursor.execute(
-                '''
-                INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
-                                   public_show_expenses,
-                                   place_id, lat, lng, viewport_json, place_types, country_code,
-                                   trip_countries_json,
-                                   companions_json, marked_places_json,
-                                   documents_json, photos_json, cover_url)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    name=excluded.name,
-                    country=excluded.country,
-                    is_archived=excluded.is_archived,
-                    is_public=excluded.is_public,
-                    public_show_expenses=excluded.public_show_expenses,
-                    place_id=excluded.place_id,
-                    lat=excluded.lat,
-                    lng=excluded.lng,
-                    viewport_json=excluded.viewport_json,
-                    place_types=excluded.place_types,
-                    country_code=excluded.country_code,
-                    -- 2026-05-18 audit H3: same COALESCE protection
-                    -- as the active-trips block above. Archived trip
-                    -- sync runs on the same /api/sync poll, so older
-                    -- clients that don't send the field would wipe
-                    -- the stored multi-country array on every tick.
-                    trip_countries_json=COALESCE(excluded.trip_countries_json, trip_countries_json),
-                    -- R3-Fix #11: COALESCE protection backported to the
-                    -- archived path. The active-trips block above already
-                    -- had this (R2 fix); the archived sibling was missed
-                    -- and an older client that didn't ship these fields
-                    -- in its `archived_trips[i]` payload null-overwrote
-                    -- the column on every 15-second /api/sync poll —
-                    -- losing all 50 photos / companions / marked places.
-                    companions_json=COALESCE(excluded.companions_json, companions_json),
-                    marked_places_json=COALESCE(excluded.marked_places_json, marked_places_json),
-                    documents_json=COALESCE(excluded.documents_json, documents_json),
-                    photos_json=COALESCE(excluded.photos_json, photos_json),
-                    cover_url=COALESCE(excluded.cover_url, cover_url),
-                    -- R4-B1: see active-trips block above for rationale.
-                    updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
-            ''',
-                (
-                    t['id'],
-                    user_id,
-                    t['name'],
-                    t.get('country'),
-                    _arch_is_archived,
-                    1 if t.get('isPublic') else 0,
-                    1 if t.get('publicShowExpenses') else 0,
-                    t.get('placeId'),
-                    t.get('lat'),
-                    t.get('lng'),
-                    json.dumps(t['viewport']) if t.get('viewport') else None,
-                    json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
-                    t.get('countryCode'),
-                    arch_countries_json,
-                    json.dumps(
-                        _cleaned_companions_for_sync(cursor, t.get('id'), t.get('companions'))
-                    )
-                    if isinstance(t.get('companions'), list)
-                    else None,
-                    # 4.8 audit TRIP-3: media columns are write-isolated to
-                    # POST /api/trips/<id>/media — pass None here so a sync
-                    # poll can never clobber them (mirrors the active loop +
-                    # upsert_trip).
-                    None,  # marked_places_json
-                    None,  # documents_json
-                    None,  # photos_json
-                    # MK6 P3/security: gate coverUrl (see the active loop).
-                    _validated_cover_url(t.get('coverUrl'), user_id),
-                ),
-            )
-            ensure_owner_member_row(cursor, t['id'], user_id)
-            # Same as the active-trips loop: a public (here, completed) trip
-            # needs a share_token to be viewable + discoverable in Explore. The
-            # completed-trip dashboard's privacy selector sets is_public via THIS
-            # archived-sync path but never minted one — so a completed trip made
-            # public stayed invisible in Explore. Lazy, owner-only, idempotent
-            # (the NULL guard preserves any existing feed-share token).
-            if _arch_owner_row and t.get('isPublic'):
-                cursor.execute(
-                    "UPDATE trips SET share_token = ? WHERE id = ? AND share_token IS NULL",
-                    (secrets.token_urlsafe(16), t['id']),
-                )
-            # R5-B4: same ACL-set top-up as the active loop, so a
-            # brand-new archived trip + its expenses in ONE payload
-            # gates correctly in the inner expenses loop below.
-            editable_trip_ids.add(t['id'])
-            expense_writable_trip_ids.add(t['id'])
-            # 2026-05-18 audit H1: archived-trips loop unconditionally
-            # flips THIS caller's trip_members.is_archived to 1. The
-            # legacy `trips.is_archived=1` mirror above stays during the
-            # column-deprecation window.
-            cursor.execute(
-                "UPDATE trip_members SET is_archived = 1 WHERE trip_id = ? AND user_id = ?",
-                (t['id'], user_id),
-            )
 
             # Expenses inside archived trips — gate per-row by role on the
             # trip (which exists by now since we just upserted it).
