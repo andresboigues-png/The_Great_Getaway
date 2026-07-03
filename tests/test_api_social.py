@@ -1821,3 +1821,28 @@ def test_deleting_one_comment_keeps_notification_for_others(
                          headers=other_auth_headers).status_code == 200
     assert _notif_count() == 1, \
         "deleting one comment wiped the notification for the surviving comment too"
+
+
+def test_bookmarking_settled_up_event_is_rejected(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """MK6 P3: settled_up cards have no resolver, so a bookmark can never
+    resurface in /api/feed/bookmarks — it silently evaporates. The write must be
+    rejected server-side (400); the frontend hides the button too."""
+    from database import get_db
+    _create_trip(client, auth_headers, trip_id="t-bm")  # FK target for the settlement
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO settlements (id, trip_id, from_user_id, to_user_id, "
+            "from_name, to_name, amount, currency, euro_value, recorded_by) "
+            "VALUES ('set-bm', 't-bm', ?, ?, 'A', 'B', 20, 'EUR', 20, ?)",
+            (seed_user, seed_other_user, seed_user),
+        )
+        conn.commit()
+    res = client.post("/api/feed/bookmark/settled_up_set-bm", headers=auth_headers)
+    assert res.status_code == 400, res.get_data(as_text=True)
+    with get_db() as conn:
+        n = conn.execute(
+            "SELECT COUNT(*) FROM feed_bookmarks WHERE event_id='settled_up_set-bm'"
+        ).fetchone()[0]
+    assert n == 0, "a resolver-less settled_up bookmark was written"

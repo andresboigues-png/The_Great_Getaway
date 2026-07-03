@@ -225,13 +225,20 @@ export function EventCard(props: EventCardProps) {
                         ) : null}
                     </>
                 ) : null}
-                <ActionButton
-                    kind="bookmark"
-                    active={bookmarked}
-                    title={bookmarked ? t('feed.btnRemoveBookmark') : t('feed.btnBookmark')}
-                    marginLeftAuto
-                    onClick={(btn) => onBookmark(ev.id, !bookmarked, btn)}
-                />
+                {/* MK6 P3: no bookmark on settled_up cards — they have no
+                    server-side resolver, so a saved settle-up never resurfaces
+                    in /api/feed/bookmarks and silently evaporates once it ages
+                    out of the 30-day feed window. (Backend rejects the write
+                    too, as defense in depth.) */}
+                {ev.type !== 'settled_up' ? (
+                    <ActionButton
+                        kind="bookmark"
+                        active={bookmarked}
+                        title={bookmarked ? t('feed.btnRemoveBookmark') : t('feed.btnBookmark')}
+                        marginLeftAuto
+                        onClick={(btn) => onBookmark(ev.id, !bookmarked, btn)}
+                    />
+                ) : null}
             </div>
 
             {/* Comment thread — only rendered when threadOpen. */}

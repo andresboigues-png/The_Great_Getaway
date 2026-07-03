@@ -49,6 +49,7 @@ logger = get_logger(__name__)
 from feed_events import (
     caller_can_see_event as _caller_can_see_event,
     engagement_recipient as _post_owner_for_event,
+    event_type_by_name as _event_type_by_name,
     parse_event_id as _parse_event_id,
     resolve_event_by_id as _resolve_event_by_id,
 )
@@ -1102,11 +1103,22 @@ def toggle_feed_bookmark(event_id):
         )
         existed = cursor.fetchone() is not None
         if existed:
+            # Always allow REMOVING a bookmark (lets a user clear any orphaned
+            # resolver-less row saved before this guard existed).
             cursor.execute(
                 "DELETE FROM feed_bookmarks WHERE user_id = ? AND event_id = ?",
                 (user_id, event_id),
             )
         else:
+            # MK6 P3: reject ADDING a bookmark on a resolver-less event type
+            # (settled_up) — it can never resurface in /api/feed/bookmarks (the
+            # resolver returns None) and silently evaporates once the card ages
+            # out of the 30-day feed window. The frontend hides the button too;
+            # this is the server-side guard. Types WITH a resolver are fine.
+            parsed = _parse_event_id(event_id)
+            et = _event_type_by_name(parsed[0]) if parsed else None
+            if et is None or et.resolve is None:
+                return jsonify({"error": "This event can't be saved"}), 400
             cursor.execute(
                 "INSERT OR IGNORE INTO feed_bookmarks (user_id, event_id) VALUES (?, ?)",
                 (user_id, event_id),
