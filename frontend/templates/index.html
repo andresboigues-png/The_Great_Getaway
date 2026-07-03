@@ -104,8 +104,11 @@
 
     <!-- Removed Leaflet -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <!-- MK1 Wave F (T2-6): chart.js + SheetJS moved OUT of the head.
+         They were parser-blocking on every load (~1.2MB combined) but
+         serve only Insights (charts) and two rare import flows (XLSX).
+         utils/lazyCdn.ts injects the SAME jsdelivr URLs on first use —
+         still covered by the CSP's cdn.jsdelivr.net allowlist. -->
     <!-- Phase D2 — early theme application to avoid flash-of-light-
          content. The bundle's initThemeManager runs after JS load
          (async/defer), which is after the browser's first paint.

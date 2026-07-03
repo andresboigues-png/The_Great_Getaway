@@ -29,6 +29,7 @@
 // Precedence (unchanged): a per-trip override beats these globals, which beat
 // the automatic sources. Blank = automatic. Settlements/budgets never read this.
 
+import { loadXlsx } from '../../utils/lazyCdn.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../../react/store.js';
 import { STATE } from '../../state.js';
@@ -530,12 +531,14 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
         setSavedFlash(false);
         const reader = new FileReader();
         const isCsv = /\.csv$/i.test(file.name) || file.type === 'text/csv';
-        reader.onload = (evt) => {
+        reader.onload = async (evt) => {
             try {
                 let aoa: unknown[][];
                 if (isCsv) {
                     aoa = parseCsvGrid(String(evt.target?.result ?? ''));
                 } else {
+                    // MK1 Wave F (T2-6): SheetJS loads on first use.
+                    await loadXlsx();
                     const data = new Uint8Array(evt.target?.result as ArrayBuffer);
                     const workbook = XLSX.read(data, { type: 'array' });
                     const sheet = workbook.Sheets[workbook.SheetNames[0]];

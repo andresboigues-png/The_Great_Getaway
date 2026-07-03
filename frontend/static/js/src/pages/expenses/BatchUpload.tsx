@@ -15,6 +15,7 @@
 //     as before (so re-opening the tab restores the last-used format).
 
 import { useState } from 'react';
+import { loadXlsx } from '../../utils/lazyCdn.js';
 import { STATE, emit } from '../../state.js';
 import { useStore } from '../../react/store.js';
 import { runBatchImport, cellToText } from '../upload.js';
@@ -82,8 +83,11 @@ export function BatchUpload() {
         const file = e.target.files?.[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = (evt) => {
+        reader.onload = async (evt) => {
             try {
+                // MK1 Wave F (T2-6): SheetJS (~1MB) loads on first use now
+                // instead of blocking every page load from the <head>.
+                await loadXlsx();
                 const data = new Uint8Array(evt.target?.result as ArrayBuffer);
                 // cellDates: true → SheetJS returns JS Date objects for typed
                 // date cells instead of raw Excel serials (else every imported

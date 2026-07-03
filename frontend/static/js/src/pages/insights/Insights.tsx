@@ -17,6 +17,7 @@
 // the way the imperative version did.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { loadChartJs } from '../../utils/lazyCdn.js';
 import { useStore } from '../../react/store.js';
 import { useActiveTrip } from '../../react/TripContext.js';
 import { useNavigate } from '../../react/useNavigate.js';
@@ -187,6 +188,27 @@ export function Insights() {
     // "no inflation data" note so it doesn't flash during the initial
     // load before the World Bank series lands.
     const [cpiChecked, setCpiChecked] = useState(false);
+    // MK1 Wave F (T2-6): chart.js loads on-demand now (it was a
+    // parser-blocking <head> tag paid by every page although only
+    // Insights uses it). Chart effects bail until the global exists.
+    const [chartLibReady, setChartLibReady] = useState(
+        () => typeof (window as { Chart?: unknown }).Chart !== 'undefined'
+    );
+    useEffect(() => {
+        if (chartLibReady) return;
+        let cancelled = false;
+        void loadChartJs().then(
+            () => {
+                if (!cancelled) setChartLibReady(true);
+            },
+            () => {
+                /* CDN failure — charts stay absent; tables still render. */
+            }
+        );
+        return () => {
+            cancelled = true;
+        };
+    }, [chartLibReady]);
     // IA-4 (MK3 audit): has the historical-FX fetch for THIS trip's dates
     // settled? The hero total leans on rateCache; until it lands, spentHome
     // falls back to the write-time euroValue and the figure renders ~12% off,
@@ -743,6 +765,7 @@ export function Insights() {
     }, [timelineZoomed, timelineNeedsZoom]);
 
     useEffect(() => {
+        if (!chartLibReady) return;
         if (!timeCanvasRef.current || tripExps.length === 0) return;
         // MK2 audit fix (timeline must represent TIME): plot points on a
         // numeric (epoch-ms) x-axis so expenses that are days vs YEARS
@@ -1000,10 +1023,11 @@ export function Insights() {
             chart.destroy();
             if (axisChart) axisChart.destroy();
         };
-    }, [dateTotals, targetCurr, targetSym, mode, tripExps.length]);
+    }, [chartLibReady, dateTotals, targetCurr, targetSym, mode, tripExps.length]);
 
     // Spenders share donut — per-person spend. The list beside it is the legend.
     useEffect(() => {
+        if (!chartLibReady) return;
         if (!spenderPieRef.current || spenderRows.length < 2) return;
         const chart = new Chart(spenderPieRef.current, {
             type: 'doughnut',
@@ -1011,10 +1035,11 @@ export function Insights() {
             options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { display: false }, tooltip: { displayColors: false, backgroundColor: 'rgba(17,24,39,0.92)', padding: 10, cornerRadius: 10, titleColor: '#ffffff', bodyColor: 'rgba(255,255,255,0.82)', titleFont: { size: 13, weight: '700' }, bodyFont: { size: 13 }, callbacks: { title: (items: PieTooltipCtx[]) => items[0]?.label ?? '', label: (ctx: PieTooltipCtx) => `${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}` } } } },
         });
         return () => chart.destroy();
-    }, [targetCurr, targetSym, spenderRows.map((r) => `${r.name}:${r.value.toFixed(2)}`).join('|')]);
+    }, [chartLibReady, targetCurr, targetSym, spenderRows.map((r) => `${r.name}:${r.value.toFixed(2)}`).join('|')]);
 
     // "Expenses per…" share donut — slices follow the active metric (spent / count).
     useEffect(() => {
+        if (!chartLibReady) return;
         if (!perPieRef.current || perRows.rows.length < 2) return;
         const isCount = perMetric === 'count';
         const chart = new Chart(perPieRef.current, {
@@ -1023,12 +1048,13 @@ export function Insights() {
             options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { display: false }, tooltip: { displayColors: false, backgroundColor: 'rgba(17,24,39,0.92)', padding: 10, cornerRadius: 10, titleColor: '#ffffff', bodyColor: 'rgba(255,255,255,0.82)', titleFont: { size: 13, weight: '700' }, bodyFont: { size: 13 }, callbacks: { title: (items: PieTooltipCtx[]) => items[0]?.label ?? '', label: (ctx: PieTooltipCtx) => (isCount ? `${ctx.parsed} ${t('insights.transactionsAbbrev')}` : `${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}`) } } } },
         });
         return () => chart.destroy();
-    }, [targetCurr, targetSym, perMetric, perRows.rows.map((r) => `${r.label}:${(perMetric === 'count' ? r.count : r.value).toFixed(2)}`).join('|')]);
+    }, [chartLibReady, targetCurr, targetSym, perMetric, perRows.rows.map((r) => `${r.label}:${(perMetric === 'count' ? r.count : r.value).toFixed(2)}`).join('|')]);
 
     // Currency-over-time stacked bars — home-equivalent spend per
     // original currency per day, so the currency mix shift across the
     // trip is visible at a glance.
     useEffect(() => {
+        if (!chartLibReady) return;
         if (perDim !== 'currency' || !currencyTimeRef.current || spendCurrencies.length === 0) return;
         // IA-5 (MK3 audit): drop the undated bucket — keyed in via
         // `e.date || t('insights.unknownDate')`, that localized sentinel has
@@ -1096,7 +1122,7 @@ export function Insights() {
             },
         });
         return () => chart.destroy();
-    }, [perDim, targetSym, targetCurr, JSON.stringify(currencyDateTotals)]);
+    }, [chartLibReady, perDim, targetSym, targetCurr, JSON.stringify(currencyDateTotals)]);
 
     // ── Mutation handlers ─────────────────────────────────────────────────
     // Mutate STATE then emit — useStore subscribers re-render. No need
