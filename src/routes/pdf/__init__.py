@@ -55,7 +55,7 @@ from datetime import datetime  # noqa: F401
 from typing import Any
 
 import requests  # noqa: F401  (kept importable for parity with the legacy module)
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, jsonify, send_file
 
 from auth import current_user_id, require_auth
 from database import get_db
@@ -82,29 +82,69 @@ bp = Blueprint("pdf", __name__)
 # The names are underscore-prefixed, so a bare ``import *`` would skip them
 # (``*`` only pulls public names absent an ``__all__``). We therefore list
 # them explicitly — this is the load-bearing re-export, not decoration.
-from ._i18n import (
-    _T, _norm_locale, _fmt_date, _currency_decimals,
-    _SUPPORTED_LOCALES, _STRINGS, _ZERO_DECIMAL_CURRENCIES,
-    _MONTHS_ABBR, _WEEKDAYS_ABBR,
-)
 from ._fonts import (
-    _font, _strip_emoji, _try_register_unicode_font, _FONT_CANDIDATES,
+    _FONT_CANDIDATES,
+    _font,
+    _strip_emoji,
+    _try_register_unicode_font,
 )
-from ._render import (
-    _rl, _styles, _esc, _num, _hr, _image_aspect, _safe_json,
-    _parse_day_slot, _photo_grid, _simplify_debts,
-    _companion_avatar_color, _companion_card, _companion_grid,
-    _section_opener, _expenses_section, _settle_section, _day_card,
-    _summary_stats_row, _toc_row,
-    _BRAND_NAVY, _BRAND_BLUE, _BRAND_PURPLE, _BRAND_GREEN,
-    _TEXT_PRIMARY, _TEXT_SECONDARY, _RULE_GREY,
+from ._i18n import (
+    _MONTHS_ABBR,
+    _STRINGS,
+    _SUPPORTED_LOCALES,
+    _T,
+    _WEEKDAYS_ABBR,
+    _ZERO_DECIMAL_CURRENCIES,
+    _currency_decimals,
+    _fmt_date,
+    _norm_locale,
 )
 from ._maps import (
-    _safe_coord, _safe_latlng, _place_label_for_index, _can_read_trip,
-    _scrub_key, _map_cache_key, _map_cache_get, _map_cache_put,
-    _fetch_cover_map, _fetch_overview_pins_map, _fetch_day_pin_map,
-    _is_public_http_url, _photo_src, _load_photo_png, _collect_photos,
-    _PHOTO_MAX_BYTES, _PHOTO_MAX_PER_TRIP,
+    _PHOTO_MAX_BYTES,
+    _PHOTO_MAX_PER_TRIP,
+    _can_read_trip,
+    _collect_photos,
+    _fetch_cover_map,
+    _fetch_day_pin_map,
+    _fetch_overview_pins_map,
+    _is_public_http_url,
+    _load_photo_png,
+    _map_cache_get,
+    _map_cache_key,
+    _map_cache_put,
+    _photo_src,
+    _place_label_for_index,
+    _safe_coord,
+    _safe_latlng,
+    _scrub_key,
+)
+from ._render import (
+    _BRAND_BLUE,
+    _BRAND_GREEN,
+    _BRAND_NAVY,
+    _BRAND_PURPLE,
+    _RULE_GREY,
+    _TEXT_PRIMARY,
+    _TEXT_SECONDARY,
+    _companion_avatar_color,
+    _companion_card,
+    _companion_grid,
+    _day_card,
+    _esc,
+    _expenses_section,
+    _hr,
+    _image_aspect,
+    _num,
+    _parse_day_slot,
+    _photo_grid,
+    _rl,
+    _safe_json,
+    _section_opener,
+    _settle_section,
+    _simplify_debts,
+    _styles,
+    _summary_stats_row,
+    _toc_row,
 )
 
 
@@ -243,7 +283,8 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
 
     story: list[Any] = []
 
-    opt = lambda k, default=True: bool(options.get(k, default))
+    def opt(k, default=True):
+        return bool(options.get(k, default))
 
     # ── parsed JSON columns ──
     companions = _safe_json(trip_row.get("companions_json"), [])

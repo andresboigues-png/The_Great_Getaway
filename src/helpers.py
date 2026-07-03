@@ -126,8 +126,9 @@ def delete_upload_files(relpaths: list[str], owner_id: str) -> int:
     out-of-namespace entries (a defensive caller invariant: only
     legitimate trip-scoped paths get passed in)."""
     import os
-    from werkzeug.utils import secure_filename
+
     from flask import current_app
+    from werkzeug.utils import secure_filename
 
     upload_root = current_app.config.get('UPLOAD_FOLDER', '')
     if not upload_root or not owner_id:

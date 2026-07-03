@@ -12,7 +12,6 @@ import pytest
 
 from tests.conftest import _create_trip
 
-
 # ── R11-B1: PDF export route ────────────────────────────────────────────────
 # /api/trips/<id>/pdf had zero coverage prior. The route ships in production
 # (Settings → "Export trip PDF" + the share-page CTA), so a regression here
@@ -118,7 +117,6 @@ def test_pdf_budget_table_labels_and_original_currency(
     each budget in its ORIGINAL currency per row while summing the
     EUR-normalised total. Skips if the PDF builder can't fetch the static
     cover map (offline CI), since we need a real 200 to read the bytes."""
-    import io
     # pypdf is a test-only PDF parser (not a prod dep). Skip cleanly if it's
     # not installed instead of erroring — CI installs it explicitly so this
     # test still runs there. (Was a bare `import pypdf` → ModuleNotFoundError

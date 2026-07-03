@@ -25,10 +25,8 @@ duplicate name, pattern that doesn't match its own prefix).
 from __future__ import annotations
 
 import re
-import sqlite3
 
 import pytest
-
 
 # ── Registry invariants ──────────────────────────────────────────────
 

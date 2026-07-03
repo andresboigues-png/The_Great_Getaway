@@ -13,7 +13,7 @@ import os
 import zipfile
 
 from database import get_db
-from tests.conftest import _create_trip, _seed_member
+from tests.conftest import _create_trip
 
 
 def _seed_media_file(app, user_id, name, content=b"\xff\xd8\xff-fake-bytes"):

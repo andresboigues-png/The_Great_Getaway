@@ -23,15 +23,14 @@ on the users table if the allowlist grows past 2-3 names.
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from flask import Blueprint, jsonify
 
-from auth import require_auth, current_user_id
+from auth import current_user_id, require_auth
 from database import get_db
 from extensions import limiter
 from helpers import json_body
-
 
 logger = logging.getLogger(__name__)
 bp = Blueprint("admin", __name__)
@@ -235,7 +234,7 @@ def admin_stats():
 
     # ── Process metadata (for fun + diagnostics) ──────────────
     process_info = {
-        "serverTime": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "serverTime": datetime.now(UTC).isoformat(timespec="seconds"),
         "dbPath": os.getenv("GG_DB_PATH", "travel_planner.db"),
         # Gemini host-key pool snapshot — useful to spot when the
         # shared pool is partially or fully drained.
@@ -346,7 +345,7 @@ def backup_snapshot():
     filesystem. Operator typically takes ~1 snapshot per day; 4/hour
     is generous for ad-hoc usage."""
     import sqlite3
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     caller = current_user_id()
     if not _is_admin(caller):
@@ -362,7 +361,7 @@ def backup_snapshot():
             "error": f"Couldn't create backups dir: {e}",
         }), 500
 
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%SZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%SZ")
     out_path = os.path.join(backups_dir, f"db_{stamp}.sqlite")
 
     try:

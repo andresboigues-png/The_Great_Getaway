@@ -33,15 +33,14 @@ Revises: c2e3d4f5a6b7
 Create Date: 2026-05-16
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = 'f9a3b7e1c842'
-down_revision: Union[str, Sequence[str], None] = 'c2e3d4f5a6b7'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'c2e3d4f5a6b7'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 # Every DDL below is written defensively (IF NOT EXISTS for tables/indexes,

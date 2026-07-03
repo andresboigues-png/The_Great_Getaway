@@ -27,7 +27,6 @@ from helpers import json_body
 from observability import log_extra
 from validators import scrub_key
 
-
 logger = logging.getLogger(__name__)
 bp = Blueprint("integrations", __name__)
 
@@ -968,7 +967,7 @@ def generate_itinerary():
                             msg = err_body.get('message', resp.text[:200])
                             raise RuntimeError(f"{err_body.get('status', resp.status_code)}: {scrub_key(msg)}")
                         except ValueError:
-                            raise RuntimeError(f"HTTP {resp.status_code}: {scrub_key(resp.text[:200])}")
+                            raise RuntimeError(f"HTTP {resp.status_code}: {scrub_key(resp.text[:200])}") from None
 
                     result = resp.json()
                 # MK6 P2: default to "" (falsy), NOT "[]". Gemini can answer

@@ -33,15 +33,14 @@ rug out from under their shares would 404 their followers.
   - 1    → defensively recorded; equivalent to NULL for the
     restore logic.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = 'd3e4f5a6c7b9'
-down_revision: Union[str, Sequence[str], None] = 'b1d2e3f4c5a7'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'b1d2e3f4c5a7'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

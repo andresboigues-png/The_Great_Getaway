@@ -18,8 +18,6 @@ import json
 import os
 import time
 
-import pytest
-
 import routes.media as media
 from tests.conftest import _create_trip
 

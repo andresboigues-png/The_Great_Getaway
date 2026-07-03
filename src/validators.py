@@ -21,8 +21,6 @@ Design choices:
 
 import math
 import re
-from typing import Optional
-
 
 # R2 + R3 shared helper: scrub `?key=...` / `&key=...` from any
 # upstream-API URL or response body before logging or returning
@@ -144,7 +142,7 @@ def validate_money(value, *, field_name: str = "value",
     try:
         f = float(value)
     except (TypeError, ValueError):
-        raise ValidationError(f"{field_name} must be a number")
+        raise ValidationError(f"{field_name} must be a number") from None
     if not math.isfinite(f):
         raise ValidationError(f"{field_name} must be a finite number")
     if f < _MIN_MONEY:
@@ -160,7 +158,7 @@ def validate_money(value, *, field_name: str = "value",
 
 def validate_splits(
     value, *, field_name: str = "splits", require_full: bool = False,
-) -> Optional[dict]:
+) -> dict | None:
     """Validate an expense `splits` map. Returns:
       - None when value is None / "" / {} (caller falls back to the
         legacy equal-share path).
@@ -202,7 +200,7 @@ def validate_splits(
         try:
             pct = float(v)
         except (TypeError, ValueError):
-            raise ValidationError(f"{field_name} values must be numeric")
+            raise ValidationError(f"{field_name} values must be numeric") from None
         if not math.isfinite(pct):
             raise ValidationError(f"{field_name} values must be finite")
         if pct < 0 or pct > 100:
@@ -265,7 +263,7 @@ def validate_date(value, *, field_name: str = "date") -> str:
         y, m, d = (int(p) for p in s.split("-"))
         _date(y, m, d)  # rejects impossible dates like 2026-13-40
     except (ValueError, TypeError):
-        raise ValidationError(f"{field_name} must be a valid calendar date")
+        raise ValidationError(f"{field_name} must be a valid calendar date") from None
     return s
 
 
@@ -275,7 +273,7 @@ def validate_date(value, *, field_name: str = "date") -> str:
 def validate_upload_url(
     value, *, user_id: str, allow_google: bool = False,
     field_name: str = "url", allow_empty: bool = True,
-) -> Optional[str]:
+) -> str | None:
     """Validate a URL that should point at an upload owned by the
     caller. Accepts:
       - "" (return "") when allow_empty=True

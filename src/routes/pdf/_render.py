@@ -511,7 +511,7 @@ def _companion_avatar_color(name: str) -> str:
     return palette[h]
 
 
-def _companion_card(rl, styles, page_w, margin_lr, name: str, role: str = "", chip_w: float | None = None, tr: "_T | None" = None):
+def _companion_card(rl, styles, page_w, margin_lr, name: str, role: str = "", chip_w: float | None = None, tr: _T | None = None):
     """A "contact card"-style chip for a companion — colored
     avatar tile with the person's initials in white, then their
     name (bold) and optional role (muted) on the right. Designed
@@ -572,7 +572,7 @@ def _companion_card(rl, styles, page_w, margin_lr, name: str, role: str = "", ch
     return chip
 
 
-def _companion_grid(rl, styles, page_w, margin_lr, companions: list, tr: "_T | None" = None):
+def _companion_grid(rl, styles, page_w, margin_lr, companions: list, tr: _T | None = None):
     """Pack companions into a grid of chips.
 
     Layout rules:
@@ -647,7 +647,7 @@ def _section_opener(rl, styles, page_w, margin_lr, number: str, title: str, kick
     ]
 
 
-def _expenses_section(rl, styles, page_w, margin_lr, expenses: list, tr: "_T",
+def _expenses_section(rl, styles, page_w, margin_lr, expenses: list, tr: _T,
                       total_spend_eur: float | None):
     """PDF-2: itemised expenses as a paginating multi-row table.
 
@@ -767,7 +767,7 @@ def _resolve_settle_party(nm, bal: dict) -> str:
 
 
 def _settle_section(rl, styles, page_w, margin_lr, expenses: list,
-                    settlements: list, companions: list, tr: "_T"):
+                    settlements: list, companions: list, tr: _T):
     """PDF-3: per-currency net balances + suggested transfers + the list
     of recorded settlements.
 
@@ -989,7 +989,7 @@ def _simplify_debts(balances: dict[str, float]) -> list[tuple[str, str, float]]:
 
 
 def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | None,
-              tr: "_T", day_photos: list[bytes] | None = None):
+              tr: _T, day_photos: list[bytes] | None = None):
     """Render one day as a flat list of flowables (PDF-1 fix).
 
     PRE-MK4 this wrapped the entire day in a SINGLE-CELL `Table([[inner]])`

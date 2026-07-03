@@ -35,7 +35,6 @@ from extensions import limiter
 from helpers import ensure_user_exists, user_daily_count, user_daily_increment
 from observability import get_logger, log_extra
 
-
 bp = Blueprint("follows", __name__)
 
 # BUG-079: per-account daily cap on NEW follows. The per-IP limiter

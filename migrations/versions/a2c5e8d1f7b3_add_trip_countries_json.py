@@ -27,16 +27,15 @@ nor any day-pin reverse-geocode data). Null is treated the same as
 empty by the read path so the column can be left unset for legacy
 rows; the upsert always writes either an array or `[]`.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 # revision identifiers, used by Alembic.
 revision: str = 'a2c5e8d1f7b3'
-down_revision: Union[str, Sequence[str], None] = 'e1b8d2a3c4f5'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'e1b8d2a3c4f5'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

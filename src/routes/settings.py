@@ -13,7 +13,7 @@ Endpoints:
 
 import time
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
@@ -23,7 +23,6 @@ from validators import (
     clean_text,
     validate_currency,
 )
-
 
 bp = Blueprint("settings", __name__)
 

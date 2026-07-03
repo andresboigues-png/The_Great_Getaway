@@ -22,15 +22,14 @@ ANSI standard — so "all trips → all categories → all users → €500" can
 only exist ONCE per user. That's the desired behaviour: an "everywhere"
 budget is a single global ceiling, not a stack.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = 'e4f5a6b7c8d9'
-down_revision: Union[str, Sequence[str], None] = 'd9a2f8e3c845'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'd9a2f8e3c845'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

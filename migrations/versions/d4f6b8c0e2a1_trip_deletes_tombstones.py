@@ -35,15 +35,14 @@ trips.updated_at so the Phase-2 delta cursor ranges over both uniformly.
 Additive + backward-compatible: only the new delete path writes it and
 only the new upsert guard + future delta read it.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = 'd4f6b8c0e2a1'
-down_revision: Union[str, Sequence[str], None] = 'c3e5a7b9d1f0'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'c3e5a7b9d1f0'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

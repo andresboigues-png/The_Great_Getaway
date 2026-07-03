@@ -32,11 +32,10 @@ renderer can re-key off `badge_id` once i18n catches up.
 """
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional
 
 from observability import get_logger, log_extra
-
 
 logger = get_logger(__name__)
 
@@ -57,7 +56,7 @@ class BadgeDef:
     emoji: str
     label: str
     description: str
-    check: Callable[..., Optional[dict]]
+    check: Callable[..., dict | None]
     # MK6 P3: a "milestone" badge that, once earned, is NEVER soft-revoked even
     # if its check later returns None (the underlying row was deleted). Used for
     # first_share / first_settle_up — "earning sticks", per their docstrings.
@@ -718,7 +717,7 @@ def check_user_achievements(cursor, user_id: str) -> list[dict]:
     for badge in BADGES:
         try:
             context = badge.check(cursor, user_id)
-        except Exception as e:
+        except Exception:
             # Don't let a bad rule poison the whole detection sweep —
             # log the badge id + skip. The other rules still run, and
             # this badge is re-evaluated on the next /api/data call.
@@ -775,7 +774,7 @@ def check_user_achievements(cursor, user_id: str) -> list[dict]:
                     "emoji": badge.emoji,
                     "description": badge.description,
                 })
-        except Exception as e:
+        except Exception:
             logger.warning(
                 "achievement insert failed: %s",
                 badge.id,

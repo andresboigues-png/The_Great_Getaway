@@ -6,6 +6,8 @@ test logic changed). Shared fixtures (client, auth_headers, seed_user,
 """
 
 
+from datetime import UTC
+
 from tests.conftest import _befriend, _create_trip, _make_friends, _seed_member
 
 
@@ -1545,10 +1547,10 @@ def test_explore_recency_decay(
     stale trips still surface but rank below recent ones. This test
     pins the new "ranked, not gated" contract: fresh > stale, but
     both present."""
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     # 90 days old, lots of views.
-    old_stamp = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%d %H:%M:%S")
+    old_stamp = (datetime.now(UTC) - timedelta(days=90)).strftime("%Y-%m-%d %H:%M:%S")
     _seed_shareable_trip(
         seed_other_user, "exp-stale", country_code="JP",
         share_views=0, created_at=old_stamp,
@@ -1566,7 +1568,7 @@ def test_explore_recency_decay(
 
     # A trip JUST INSIDE the original 60-day window with low engagement
     # should also surface — sanity-check the floor isn't broken.
-    recent_stamp = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+    recent_stamp = (datetime.now(UTC) - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
     _seed_shareable_trip(
         seed_other_user, "exp-recent", country_code="JP",
         share_views=0, created_at=recent_stamp,

@@ -39,7 +39,6 @@ from helpers import ensure_user_exists, json_body
 from routes.blocks import is_blocked
 from social import mutuals_of
 
-
 bp = Blueprint("friends", __name__)
 
 

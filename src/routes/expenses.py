@@ -24,7 +24,6 @@ from validators import (
     validate_upload_url,
 )
 
-
 bp = Blueprint("expenses", __name__)
 
 

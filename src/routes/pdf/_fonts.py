@@ -90,7 +90,6 @@ def _try_register_unicode_font() -> None:
     global _UNICODE_FONT, _UNICODE_FONT_BOLD, _UNICODE_FONT_OBLIQUE
     if _UNICODE_FONT is not None:
         return  # already registered
-    import os
     try:
         from reportlab.pdfbase import pdfmetrics
         from reportlab.pdfbase.ttfonts import TTFont

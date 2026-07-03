@@ -26,9 +26,6 @@ and pass Authorization headers only).
 
 from __future__ import annotations
 
-import pytest
-
-
 # ── helpers ───────────────────────────────────────────────────────────
 
 

@@ -23,15 +23,14 @@ acceptable because the original use case ("trips I just finished
 should show up in my friends' feed") only matters going forward.
 The next archive toggle on those rows stamps completed_at.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = 'e4f5a6b8c9d0'
-down_revision: Union[str, Sequence[str], None] = 'd3e4f5a6c7b9'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'd3e4f5a6c7b9'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

@@ -198,7 +198,7 @@ def init_db():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-        
+
         # Trips Table — full schema. Column-level docs migrated to
         # the catchup Alembic revision (migrations/versions/
         # f9a3b7e1c842*) since that's now the canonical place for
@@ -392,7 +392,7 @@ def init_db():
                 FOREIGN KEY(friend_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
-        
+
         # Trip Sharing (Collaboration) — legacy, retained so old DBs don't
         # error on schema upgrade. Phase 3 introduced `trip_members` below
         # which carries role + per-user archive + invitation lifecycle.

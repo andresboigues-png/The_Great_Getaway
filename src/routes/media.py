@@ -51,6 +51,7 @@ except Exception:
 # module import time gives the same protection without the leak.
 try:
     import warnings as _warnings
+
     from PIL import Image as _PILImageBootstrap
     # 25M px ≈ 5000×5000 — generous for any phone camera, tight enough
     # to refuse a 30k×30k bomb (~3.6GB raw pixels). The default ~178M

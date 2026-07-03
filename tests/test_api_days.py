@@ -8,7 +8,6 @@ test logic changed). Shared fixtures (client, auth_headers, seed_user,
 
 from tests.conftest import _create_trip
 
-
 # ── /api/days ────────────────────────────────────────────────────────────────
 
 def test_upsert_day_happy_path(client, seed_user, auth_headers):

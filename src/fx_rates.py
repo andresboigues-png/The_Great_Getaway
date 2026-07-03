@@ -37,7 +37,6 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Optional
 
 import requests
 
@@ -58,7 +57,7 @@ _TTL_SECONDS = 24 * 60 * 60
 _FRANKFURTER_LATEST = "https://api.frankfurter.dev/v1/latest?from=EUR"
 
 # Module-private cache.
-_cache: dict[str, Optional[float]] = {}
+_cache: dict[str, float | None] = {}
 _cache_set_at: float = 0.0
 # R2 audit fix: failed-fetch back-off. When Frankfurter is down,
 # _refresh() returns without bumping _cache_set_at, so every
@@ -103,7 +102,7 @@ def _refresh() -> None:
         _refresh_fail_until = time.time() + 300
         return
     raw = data.get("rates") or {}
-    new_cache: dict[str, Optional[float]] = {"EUR": 1.0}
+    new_cache: dict[str, float | None] = {"EUR": 1.0}
     for code, eur_to_code in raw.items():
         try:
             rate = float(eur_to_code)
@@ -161,7 +160,7 @@ def _maybe_refresh() -> None:
         _refresh()
 
 
-def get_rate_eur(code: str) -> Optional[float]:
+def get_rate_eur(code: str) -> float | None:
     """Returns the rate to convert 1 unit of `code` into EUR, or
     None if we don't have a rate for that currency (caller should
     skip the conversion). EUR itself returns 1.0."""
@@ -182,7 +181,7 @@ def get_all_rates_eur() -> dict[str, float]:
 def compute_euro_value(
     value: float,
     currency: str,
-    client_euro_value: Optional[float] = None,
+    client_euro_value: float | None = None,
 ) -> float:
     """R3-Fix #6: server-side euro_value derivation. Pre-fix every
     expense / settlement write trusted the client-supplied euroValue

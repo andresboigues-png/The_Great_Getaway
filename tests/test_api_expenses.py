@@ -8,7 +8,6 @@ test logic changed). Shared fixtures (client, auth_headers, seed_user,
 
 from tests.conftest import _create_trip
 
-
 # ── /api/expenses ────────────────────────────────────────────────────────────
 
 def test_upsert_expense_happy_path(client, seed_user, auth_headers):
@@ -488,8 +487,9 @@ def test_expense_euro_value_frozen_on_unchanged_money_edit(client, seed_user, au
     anti-tamper), but a label-only edit of a months-old foreign expense would
     otherwise silently drift every balance/budget/Insight as the rate moves.
     A CHANGED amount still recomputes at the current rate."""
-    import fx_rates
     import time as _time
+
+    import fx_rates
     fx_rates._cache = {"EUR": 1.0, "USD": 0.5}  # 1 USD = 0.5 EUR
     fx_rates._cache_set_at = _time.time()
     try:
@@ -592,8 +592,9 @@ def test_expense_metadata_edit_of_no_rate_currency_not_falsely_rejected(
     expense whose edit payload (correctly) omitted euroValue — it couldn't
     yet know the money was unchanged. USD (has a rate) never exercised this;
     only a genuinely unconvertible currency does."""
-    import fx_rates
     import time as _time
+
+    import fx_rates
     fx_rates._cache = {"EUR": 1.0, "USD": 0.5}  # JPY absent → no live rate
     fx_rates._cache_set_at = _time.time()
     try:

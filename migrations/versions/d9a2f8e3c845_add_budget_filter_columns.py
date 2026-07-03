@@ -34,15 +34,14 @@ keeps rendering correctly after this lands (no separate UPDATE
 pass required at the per-row layer — the COALESCE in the read
 path covers it).
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = 'd9a2f8e3c845'
-down_revision: Union[str, Sequence[str], None] = 'c8f1e9d2b734'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'c8f1e9d2b734'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

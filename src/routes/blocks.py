@@ -25,7 +25,6 @@ from database import get_db, retry_on_lock
 from extensions import limiter
 from helpers import ensure_user_exists
 
-
 bp = Blueprint("blocks", __name__)
 
 

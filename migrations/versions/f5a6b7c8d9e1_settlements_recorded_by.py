@@ -18,15 +18,14 @@ recorder when they differ from the payer ("Charlie recorded that
 Bob paid you €50 — confirm with them"). Existing rows get NULL
 and are treated as recorder-unknown by the renderer.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = 'f5a6b7c8d9e1'
-down_revision: Union[str, Sequence[str], None] = 'e4f5a6b8c9d0'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'e4f5a6b8c9d0'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

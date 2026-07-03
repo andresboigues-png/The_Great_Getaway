@@ -40,7 +40,6 @@ import sqlite3
 
 import pytest
 
-
 # ── Helpers ───────────────────────────────────────────────────────────
 
 
@@ -73,7 +72,7 @@ def test_get_db_has_foreign_keys_pragma_on(temp_db):
     suite would silently lie. Pinning the pragma value here catches
     any regression that removes the pragma call from get_db.
     """
-    from database import init_db, get_db
+    from database import get_db, init_db
     init_db()
     with get_db() as conn:
         result = conn.execute("PRAGMA foreign_keys").fetchone()
@@ -447,8 +446,9 @@ def test_audit_returns_zero_orphans_after_init_db_with_fks_on(temp_db):
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-    from database import init_db
     import fk_audit
+
+    from database import init_db
 
     init_db()
     classes = fk_audit.audit(temp_db, samples=0)

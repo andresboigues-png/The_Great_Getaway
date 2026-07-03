@@ -19,16 +19,15 @@ The legacy `day.tickets[]` and `day.photos[]` per-day arrays remain
 for backwards compatibility — the new Documents/Photos tabs on Home
 present a UNION view, so no migration is required for old data.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 # revision identifiers, used by Alembic.
 revision: str = 'd8a1f3e9b240'
-down_revision: Union[str, Sequence[str], None] = 'c374584f6044'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'c374584f6044'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

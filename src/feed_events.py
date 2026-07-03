@@ -46,9 +46,8 @@ contract is local to one file.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
-from typing import Callable, Optional
-
+from collections.abc import Callable
+from dataclasses import dataclass
 
 # ── Public dataclass types ────────────────────────────────────────────
 
@@ -115,7 +114,7 @@ class FeedEventType:
     id_pattern: re.Pattern
     visibility_check: Callable[..., bool]
     build: Callable[..., list]
-    engagement_recipient: Optional[Callable[..., Optional[str]]] = None
+    engagement_recipient: Callable[..., str | None] | None = None
     # MK4 SOC-4: single-event resolver, (cursor, components) ->
     # Optional[event_dict]. Reconstructs ONE event dict from its
     # event_id components, INDEPENDENT of the 30-day window + actor
@@ -125,7 +124,7 @@ class FeedEventType:
     # since-deleted items, applied by the caller). None for types we
     # don't surface in the bookmarks list (e.g. settled_up — private
     # to two parties, no bookmark affordance in the UI).
-    resolve: Optional[Callable[..., Optional[dict]]] = None
+    resolve: Callable[..., dict | None] | None = None
 
 
 # ── Shared helpers used by visibility checks ──────────────────────────
@@ -195,7 +194,7 @@ def is_trip_member(cursor, trip_id, user_id) -> bool:
     return cursor.fetchone() is not None
 
 
-def trip_owner(cursor, trip_id) -> Optional[str]:
+def trip_owner(cursor, trip_id) -> str | None:
     """Return the trip's `user_id` (owner) or None if the trip
     doesn't exist."""
     if not trip_id:
@@ -346,7 +345,7 @@ def _visible_to_achievement_friends(cursor, components, user_id) -> bool:
 # notification. Returns the user_id to notify, or None to suppress.
 
 
-def _recipient_for_post(cursor, components) -> Optional[str]:
+def _recipient_for_post(cursor, components) -> str | None:
     """share / repost: notify the feed_posts row's user_id."""
     post_id = int(components[0])
     cursor.execute("SELECT user_id FROM feed_posts WHERE id = ? LIMIT 1", (post_id,))
@@ -769,7 +768,7 @@ def _build_achievement_unlocked(cursor, ctx: FeedContext) -> list:
 # renderer + _attach_engagement_counts work unchanged).
 
 
-def _resolve_actor(cursor, user_id) -> Optional[dict]:
+def _resolve_actor(cursor, user_id) -> dict | None:
     """{id, name, picture} for a user, or None if they no longer exist."""
     if not user_id:
         return None
@@ -778,7 +777,7 @@ def _resolve_actor(cursor, user_id) -> Optional[dict]:
     return {"id": row["id"], "name": row["name"], "picture": row["picture"]} if row else None
 
 
-def _resolve_trip_event(cursor, components) -> Optional[dict]:
+def _resolve_trip_event(cursor, components) -> dict | None:
     """trip_created / trip_archived from a single trip_id. Emits a
     trip_created-shaped dict (the bookmarks list only needs actor +
     trip + when to render the card; the exact archived-vs-created verb
@@ -803,7 +802,7 @@ def _resolve_trip_event(cursor, components) -> Optional[dict]:
     }
 
 
-def _resolve_trip_joined(cursor, components) -> Optional[dict]:
+def _resolve_trip_joined(cursor, components) -> dict | None:
     """trip_joined from (trip_id, joiner_id)."""
     trip_id, joiner_id = components[0], components[1]
     cursor.execute(
@@ -825,7 +824,7 @@ def _resolve_trip_joined(cursor, components) -> Optional[dict]:
     }
 
 
-def _resolve_share(cursor, components) -> Optional[dict]:
+def _resolve_share(cursor, components) -> dict | None:
     """share_<post_id> — a feed_posts original (repost_of_post_id NULL)."""
     post_id = int(components[0])
     cursor.execute(
@@ -852,7 +851,7 @@ def _resolve_share(cursor, components) -> Optional[dict]:
     }
 
 
-def _resolve_repost(cursor, components) -> Optional[dict]:
+def _resolve_repost(cursor, components) -> dict | None:
     """repost_<post_id> — a feed_posts repost (repost_of_post_id set)."""
     post_id = int(components[0])
     cursor.execute(
@@ -883,7 +882,7 @@ def _resolve_repost(cursor, components) -> Optional[dict]:
     }
 
 
-def _resolve_achievement(cursor, components) -> Optional[dict]:
+def _resolve_achievement(cursor, components) -> dict | None:
     """achievement_<id> — a non-revoked user_achievements row."""
     from achievements import BADGES_BY_ID
 
@@ -914,7 +913,7 @@ def _resolve_achievement(cursor, components) -> Optional[dict]:
     }
 
 
-def _resolve_friendship(cursor, components) -> Optional[dict]:
+def _resolve_friendship(cursor, components) -> dict | None:
     """friendship_<viewer>_<other> — render the OTHER party as actor."""
     other_id = components[1]
     actor = _resolve_actor(cursor, other_id)
@@ -1028,7 +1027,7 @@ FEED_EVENT_TYPES: list[FeedEventType] = [
 # ── Dispatch helpers — used by routes/feed.py ─────────────────────────
 
 
-def parse_event_id(event_id) -> Optional[tuple]:
+def parse_event_id(event_id) -> tuple | None:
     """Return `(event_name, *components)` if `event_id` matches one of
     the registered patterns. None otherwise. Pure parser — no DB
     access. The first matching pattern wins.
@@ -1049,7 +1048,7 @@ def parse_event_id(event_id) -> Optional[tuple]:
 _BY_NAME = {et.name: et for et in FEED_EVENT_TYPES}
 
 
-def event_type_by_name(name: str) -> Optional[FeedEventType]:
+def event_type_by_name(name: str) -> FeedEventType | None:
     """Lookup the registry entry for an event type by name. None when
     the name isn't a registered event type (defensive — shouldn't
     happen if the caller got the name from parse_event_id)."""
@@ -1075,7 +1074,7 @@ def caller_can_see_event(cursor, event_id, user_id) -> bool:
     return bool(et.visibility_check(cursor, tuple(components), user_id))
 
 
-def resolve_event_by_id(cursor, event_id, user_id) -> Optional[dict]:
+def resolve_event_by_id(cursor, event_id, user_id) -> dict | None:
     """MK4 SOC-4: reconstruct a single feed-event dict from its
     event_id, re-running the per-event visibility_check so the caller
     (the bookmarks list) only gets events `user_id` is still allowed to
@@ -1099,7 +1098,7 @@ def resolve_event_by_id(cursor, event_id, user_id) -> Optional[dict]:
     return et.resolve(cursor, tuple(components))
 
 
-def engagement_recipient(cursor, event_id) -> Optional[str]:
+def engagement_recipient(cursor, event_id) -> str | None:
     """Resolve the user_id who should be notified when someone engages
     with this event (like / comment / repost). None when:
       - the event_id doesn't match a known type

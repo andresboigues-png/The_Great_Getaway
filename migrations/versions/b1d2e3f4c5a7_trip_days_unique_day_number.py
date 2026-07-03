@@ -41,15 +41,14 @@ Trade-offs:
     expects day_number to always be set; if it isn't, that's a
     separate bug to fix.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = 'b1d2e3f4c5a7'
-down_revision: Union[str, Sequence[str], None] = 'a9c0d1e2f3b4'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'a9c0d1e2f3b4'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

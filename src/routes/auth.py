@@ -13,10 +13,8 @@ import logging
 import os
 
 from flask import Blueprint, jsonify, make_response, request
-
-from helpers import json_body
-from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 
 from auth import (
     bump_user_jti,
@@ -26,16 +24,16 @@ from auth import (
     require_auth,
     revoke_session_by_jti,
     set_auth_cookie,
-    verify_token as _verify_token,
 )
 from database import get_db, retry_on_lock
 from extensions import limiter
+from helpers import json_body
+
 # Single source of truth for the dev/admin allowlist. The dev account is
 # always treated as a Creator (Trip Templates feature) regardless of the
 # users.is_creator flag. Importing from the leaf admin route module is
 # cycle-free (admin.py imports the lower-level `auth` module, not this one).
 from routes.admin import ADMIN_EMAILS
-
 
 logger = logging.getLogger(__name__)
 bp = Blueprint("auth", __name__)
@@ -321,9 +319,9 @@ def _extract_current_jti() -> str | None:
     session to revoke. We don't fully `verify_token` here because
     that'd add a DB round-trip we don't need — the @require_auth
     decorator on the route has already done that work."""
-    from auth import _extract_token
     import jwt as _jwt
-    from auth import _secret, JWT_ALGORITHM
+
+    from auth import JWT_ALGORITHM, _extract_token, _secret
     token = _extract_token()
     if not token:
         return None

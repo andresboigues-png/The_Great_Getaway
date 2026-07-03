@@ -16,7 +16,6 @@ import logging
 import subprocess
 from unittest import mock
 
-
 # ── resolve_release() ─────────────────────────────────────────────────
 
 

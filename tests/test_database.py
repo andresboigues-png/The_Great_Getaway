@@ -32,8 +32,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from database import retry_on_lock, _is_locked_error  # noqa: E402
-
+from database import _is_locked_error, retry_on_lock  # noqa: E402
 
 # ── _is_locked_error classification ─────────────────────────────────
 

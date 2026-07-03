@@ -32,15 +32,14 @@ Idempotency-guarded per R4-B5 convention (CREATE INDEX IF NOT EXISTS
 already covers the partial-UNIQUE case; we just bail safely on
 re-run).
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = '3df6a8b0c2d4'
-down_revision: Union[str, Sequence[str], None] = '2ce5f7a9b1c3'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = '2ce5f7a9b1c3'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

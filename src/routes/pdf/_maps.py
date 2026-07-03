@@ -30,9 +30,9 @@ logger = get_logger(__name__)
 # Promoted to validators.scrub_key in R3-Fix #14 so integrations.py can
 # share the same scrub before logging Gemini's response bodies. The
 # local alias keeps existing call sites in this file unchanged.
+from helpers import trip_member_role
 from validators import scrub_key as _scrub_key  # noqa: F401
 
-from helpers import trip_member_role
 
 def _safe_coord(value, lo: float, hi: float):
     """Validate a lat/lng-shaped value before interpolating into a
@@ -94,7 +94,7 @@ _MAP_CACHE_MAX = 200
 # PA worker. Evict on whichever cap trips first.
 _MAP_CACHE_MAX_BYTES = 24 * 1024 * 1024  # ~24 MB ceiling
 _MAP_CACHE_TTL_SECONDS = 60 * 60
-_map_cache: "collections.OrderedDict[str, tuple[float, bytes]]" = collections.OrderedDict()
+_map_cache: collections.OrderedDict[str, tuple[float, bytes]] = collections.OrderedDict()
 _map_cache_lock = _threading.Lock()
 
 

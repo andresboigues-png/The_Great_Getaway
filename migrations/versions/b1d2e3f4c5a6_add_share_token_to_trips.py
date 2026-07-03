@@ -27,16 +27,15 @@ UNIQUE constraint on share_token is enforced via a partial index
 (SQLite supports it natively); NULL values are not deduplicated,
 so unshared trips don't all collide on NULL.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 # revision identifiers, used by Alembic.
 revision: str = 'b1d2e3f4c5a6'
-down_revision: Union[str, Sequence[str], None] = 'a8c7e2f1b9d4'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'a8c7e2f1b9d4'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

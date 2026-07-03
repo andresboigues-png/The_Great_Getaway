@@ -21,6 +21,7 @@ from achievements import (
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
+from fx_rates import compute_euro_value, get_rate_eur
 from helpers import (
     batch_editable_trip_ids,
     batch_expense_writable_trip_ids,
@@ -31,16 +32,17 @@ from helpers import (
     serialize_trip_row,
     unwrap_legacy_plan_text,
 )
-from fx_rates import compute_euro_value, get_rate_eur
 from validators import (
     ValidationError,
-    clean_companions as _clean_companions_raw,
     clean_text,
     validate_currency,
     validate_date,
     validate_money,
     validate_splits,
     validate_upload_url,
+)
+from validators import (
+    clean_companions as _clean_companions_raw,
 )
 
 
@@ -1713,8 +1715,9 @@ def delete_user_data():
     # back.
     import os
     import shutil
-    from werkzeug.utils import secure_filename
+
     from flask import current_app
+    from werkzeug.utils import secure_filename
     safe_user_dir = secure_filename(user_id) or "anon"
     user_folder = os.path.join(
         current_app.config.get('UPLOAD_FOLDER', ''), safe_user_dir,

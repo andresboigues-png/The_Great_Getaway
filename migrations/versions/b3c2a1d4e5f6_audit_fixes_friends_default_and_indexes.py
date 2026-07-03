@@ -33,7 +33,6 @@ Three audit findings from the 2026-05-18 full-stack sweep:
 """
 from alembic import op
 
-
 # revision identifiers, used by Alembic.
 revision = 'b3c2a1d4e5f6'
 down_revision = 'a2c5e8d1f7b3'

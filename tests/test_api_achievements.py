@@ -10,7 +10,6 @@ import json
 
 from tests.conftest import _create_trip, _make_friends, _seed_member
 
-
 # ── §4.4 Achievements ────────────────────────────────────────────────
 # Each rule lives in src/achievements.py. We exercise the detection
 # loop end-to-end through /api/data + spot-check the rule semantics
@@ -150,8 +149,9 @@ def test_achievements_globe_trotter_counts_multi_country_legs(client, seed_user,
     trip, so a Portugal+Spain trip + a Japan+Korea trip would have
     earned only 2-country credit; post-§4.3 the same trips earn 4.
     """
-    from database import get_db
     import json as _json
+
+    from database import get_db
     with get_db() as conn:
         c = conn.cursor()
         # Trip 1: Iberia (PT + ES)
@@ -191,8 +191,9 @@ def test_achievements_globe_trotter_dedupes_primary_and_array(client, seed_user,
     dedupe so a single Portugal+Spain trip counts as 2, not 3 (PT
     from scalar + PT from array[0] + ES from array[1]).
     """
-    from database import get_db
     import json as _json
+
+    from database import get_db
     with get_db() as conn:
         c = conn.cursor()
         c.execute(
@@ -438,7 +439,6 @@ def test_achievements_most_companions(client, seed_user, auth_headers):
     """most_companions reads `trips.companions_json` (the per-trip
     roster array). Defensively skips malformed JSON / non-array
     values rather than raising."""
-    import json
     from database import get_db
 
     # Trip with 4 companions — under threshold.
@@ -873,6 +873,7 @@ def test_achievements_globe_trotter_credits_member_for_joint_multi_country_trip(
     accepted+archived membership contributes the trip's country
     set to the member's count."""
     import json as _json
+
     from database import get_db
 
     # Owner creates a 3-country trip (Iberia + East Asia tour with

@@ -13,14 +13,13 @@ sweep.
 import json
 import secrets
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 
 from achievements import check_user_achievements
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
 from helpers import (
-    _extract_upload_paths,
     can_edit_trip,
     collect_trip_upload_paths,
     delete_upload_files,
@@ -39,7 +38,6 @@ from validators import (
     is_safe_media_url,
     validate_upload_url,
 )
-
 
 bp = Blueprint("trips", __name__)
 

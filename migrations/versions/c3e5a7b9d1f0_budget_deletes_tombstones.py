@@ -36,15 +36,14 @@ Additive + backward-compatible: the table is only written by the new
 delete path and only read by the new upsert guard + the future delta, so
 this is safe to deploy ahead of the server/client changes that use it.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = 'c3e5a7b9d1f0'
-down_revision: Union[str, Sequence[str], None] = 'b2d4f6a8c0e1'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'b2d4f6a8c0e1'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

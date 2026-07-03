@@ -6,7 +6,6 @@ test logic changed). Shared fixtures (client, auth_headers, seed_user,
 """
 
 
-import json
 import sys
 
 import pytest
@@ -352,7 +351,7 @@ def test_csrf_origin_mismatch_blocks_cookie_request(client, seed_user):
     even if the cookie is valid. This is the CSRF defense-in-depth
     on top of SameSite=Lax."""
     # Seed a session cookie so the request is "cookie-authenticated".
-    from auth import issue_token, AUTH_COOKIE_NAME
+    from auth import AUTH_COOKIE_NAME, issue_token
     client.set_cookie(
         key=AUTH_COOKIE_NAME, value=issue_token(seed_user), domain="localhost",
     )
@@ -367,7 +366,7 @@ def test_csrf_origin_mismatch_blocks_cookie_request(client, seed_user):
 
 def test_csrf_same_origin_request_allowed(client, seed_user):
     """Same-origin POST with a matching Origin header passes."""
-    from auth import issue_token, AUTH_COOKIE_NAME
+    from auth import AUTH_COOKIE_NAME, issue_token
     client.set_cookie(
         key=AUTH_COOKIE_NAME, value=issue_token(seed_user), domain="localhost",
     )
@@ -675,6 +674,7 @@ def test_helpers_trip_member_role_owner_fallback(temp_db, seed_user):
     is_trip_owner fallback. Pin so an out-of-band table truncation
     doesn't lock the owner out of their own trip."""
     import sqlite3
+
     from helpers import trip_member_role
 
     conn = sqlite3.connect(temp_db)
@@ -1144,6 +1144,7 @@ def test_main_cleanup_feed_orphans_logs_when_rows_deleted(client, caplog):
     with a created_at that's past the 90-day cutoff.
     """
     import logging as _logging
+
     import main as main_module
     from database import get_db
 

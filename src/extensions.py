@@ -15,7 +15,6 @@ import `limiter` from this module — no circular dependency.
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-
 # `key_func` decides what to rate-limit by. Per-IP for now; will
 # switch to per-user once Phase G's auth lands across every route
 # (post-login traffic is identifiable by user_id, which is more

@@ -29,15 +29,14 @@ consequences.
 Idempotency-guarded (CREATE UNIQUE INDEX IF NOT EXISTS) per R4-B5
 convention.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = 'a1f4c7e2b9d3'
-down_revision: Union[str, Sequence[str], None] = 'd4f6b8c0e2a1'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'd4f6b8c0e2a1'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

@@ -27,14 +27,13 @@ everyone else needs users.is_creator = 1 (granted via POST /api/admin/creator).
 import json
 import secrets
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
 from helpers import ensure_owner_member_row, is_trip_owner, json_body
 from routes.admin import ADMIN_EMAILS
-
 
 bp = Blueprint("templates", __name__)
 
@@ -227,7 +226,8 @@ def _instantiate_template(cursor, snap, includes, new_owner_id, start_date=None)
     → blank dates (the legacy behaviour). Returns the new trip id, or None on
     repeated id collision."""
     import sqlite3
-    from datetime import date as _date, timedelta as _timedelta
+    from datetime import date as _date
+    from datetime import timedelta as _timedelta
 
     include_places = includes.get("places", True)
     include_checklist = includes.get("checklist", True)

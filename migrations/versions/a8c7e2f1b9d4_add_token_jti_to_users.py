@@ -18,16 +18,15 @@ but for an alpha-stage product the simple model is enough.
 The column is nullable. issue_token() lazily fills it on first call
 per user, so we don't need a data backfill.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 # revision identifiers, used by Alembic.
 revision: str = 'a8c7e2f1b9d4'
-down_revision: Union[str, Sequence[str], None] = 'd8a1f3e9b240'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'd8a1f3e9b240'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

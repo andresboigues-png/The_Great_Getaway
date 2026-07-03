@@ -175,6 +175,7 @@ def test_upload_rejects_decompression_bomb_warning_band(
     filters per test, so we reinstate it (inside catch_warnings so it doesn't
     leak) to reproduce the production environment."""
     import warnings
+
     import main as main_module
     monkeypatch.setitem(main_module.app.config, 'UPLOAD_FOLDER', str(tmp_path))
     monkeypatch.setattr(main_module, 'UPLOAD_FOLDER', str(tmp_path))
@@ -249,8 +250,8 @@ def test_uploads_anonymous_fetch_allowed_for_public_trip_cover(
     client.delete_cookie("gg_session", domain="localhost")
     res = client.get(url)
     assert res.status_code == 200, (
-        "anonymous fetch of a cover from a public trip must succeed; "
-        "got %s — public sharing renders covers via <img> with no auth" % res.status_code
+        f"anonymous fetch of a cover from a public trip must succeed; "
+        f"got {res.status_code} — public sharing renders covers via <img> with no auth"
     )
 
 

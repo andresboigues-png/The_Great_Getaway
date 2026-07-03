@@ -63,15 +63,14 @@ Downgrade is intentionally a no-op (raises). Reverting CHECK
 constraints to re-open the gate to invalid writes would undo a
 defense-in-depth fix. Same forward-only posture as e1b8d2a3c4f5.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = 'a8b9c0d1e2f3'
-down_revision: Union[str, Sequence[str], None] = 'f3c4d5e6a7b8'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'f3c4d5e6a7b8'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 _TRIPS_COLUMNS = [

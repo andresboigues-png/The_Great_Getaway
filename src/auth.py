@@ -37,15 +37,13 @@ jar. `_extract_token` walks cookie first, then header.
 import os
 import secrets
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from functools import wraps
-from typing import Optional
 
 import jwt
-from flask import request, jsonify, g
+from flask import g, jsonify, request
 
 from database import get_db
-
 
 JWT_ALGORITHM = "HS256"
 JWT_LIFETIME_DAYS = 30
@@ -228,7 +226,7 @@ def issue_token(user_id: str, device_label: str | None = None) -> str:
     UI (e.g. "iPhone Safari", "Chrome on Mac"). The route handler
     derives it from the User-Agent header.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     new_jti = _create_session(user_id, device_label)
     payload = {
         "sub": user_id,
@@ -239,7 +237,7 @@ def issue_token(user_id: str, device_label: str | None = None) -> str:
     return jwt.encode(payload, _secret(), algorithm=JWT_ALGORITHM)
 
 
-def verify_token(token: str) -> Optional[str]:
+def verify_token(token: str) -> str | None:
     """Return the user_id for a valid JWT, or None for
     invalid/expired/revoked.
 
@@ -440,7 +438,7 @@ def clear_auth_cookie(response) -> None:
     )
 
 
-def _cookie_token() -> Optional[str]:
+def _cookie_token() -> str | None:
     """Extract the JWT from the session cookie set by `set_auth_cookie`.
     Returns None if the cookie is absent or empty (which is the
     `clear_auth_cookie` state — the cookie technically still exists in
@@ -450,7 +448,7 @@ def _cookie_token() -> Optional[str]:
     return val.strip() if val else None
 
 
-def _bearer_token() -> Optional[str]:
+def _bearer_token() -> str | None:
     """Extract the token from the Authorization: Bearer ... header.
     Kept as the fallback path so (a) pytest fixtures that issue tokens
     via `issue_token` and pass them as Bearer keep working, (b) the
@@ -465,7 +463,7 @@ def _bearer_token() -> Optional[str]:
     return header[len("Bearer "):].strip() or None
 
 
-def _extract_token() -> Optional[str]:
+def _extract_token() -> str | None:
     """Find the JWT for the current request. Cookie wins over header
     when both are present — the cookie is the canonical post-§0.4-v2
     storage, and any browser that has both is mid-migration (old
@@ -475,7 +473,7 @@ def _extract_token() -> Optional[str]:
     return _cookie_token() or _bearer_token()
 
 
-def current_user_id() -> Optional[str]:
+def current_user_id() -> str | None:
     """Return the authenticated user's id, or None if no/bad token.
     Cached on `g` so a single request only decodes once even if multiple
     helpers ask."""

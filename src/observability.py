@@ -37,8 +37,7 @@ import logging
 import os
 import secrets
 import subprocess
-from typing import Any, Optional
-
+from typing import Any
 
 # ── Public helpers ───────────────────────────────────────────────────
 
@@ -70,7 +69,7 @@ def new_request_id() -> str:
     return secrets.token_hex(4)
 
 
-def resolve_release() -> Optional[str]:
+def resolve_release() -> str | None:
     """Resolve the deploy release identifier — used as Sentry's `release`
     tag so every error event is associated with a specific commit. The
     deploy script doesn't have to set anything; if a `.git` dir is reachable
@@ -217,7 +216,7 @@ def setup_sentry() -> bool:
     return True
 
 
-def bind_trip_context(trip_id: Optional[str]) -> None:
+def bind_trip_context(trip_id: str | None) -> None:
     """Stash the trip_id this request is operating on. Route handlers
     call this once they've resolved the trip from a URL param or body
     payload; the after_request hook then includes the trip_id on the

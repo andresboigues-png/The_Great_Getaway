@@ -46,7 +46,7 @@ import os
 import re
 import uuid
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from flask import Blueprint, current_app, jsonify, request, send_file
 
@@ -253,7 +253,7 @@ def export_trip(trip_id):
         manifest = {
             "format": FORMAT_ID,
             "formatVersion": FORMAT_VERSION,
-            "exportedAt": datetime.now(timezone.utc).isoformat(),
+            "exportedAt": datetime.now(UTC).isoformat(),
             "tripId": trip_id,           # informational (import re-keys)
             "tripName": trip_name,
             "sections": sections,

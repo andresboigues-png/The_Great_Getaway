@@ -12,7 +12,6 @@ import pytest
 
 from tests.conftest import _befriend, _create_trip, _seed_member
 
-
 # ── /api/trips ───────────────────────────────────────────────────────────────
 
 def test_upsert_trip_happy_path(client, seed_user, auth_headers):

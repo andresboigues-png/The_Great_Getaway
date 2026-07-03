@@ -467,6 +467,7 @@ def test_sync_archived_expense_loop_blocks_cross_trip_hijack(
     })
     # Sync returns 200 (partial-write semantics), but the victim's
     # row must be UNTOUCHED
+    assert res.status_code == 200
     pull = client.get("/api/data", headers=other_auth_headers)
     found = next(e for e in pull.get_json()["expenses"] if e["id"] == "exp-archived-victim")
     assert found["label"] == "Hotel", \
@@ -1052,8 +1053,9 @@ def test_sync_archived_expense_preserves_frozen_euro_value(client, seed_user, au
     expense with UNCHANGED money must preserve the frozen euro_value, not
     re-stamp it at today's FX — mirroring the active-expense loop + the nominal
     money invariant. Before the fix the archived loop always recomputed."""
-    import fx_rates
     import time as _time
+
+    import fx_rates
     from database import get_db
     # Live USD rate so a recompute would yield 90 (100 x 0.9), != the frozen 50.
     fx_rates._cache = {"EUR": 1.0, "USD": 0.9}

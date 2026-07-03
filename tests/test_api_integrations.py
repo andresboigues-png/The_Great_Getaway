@@ -601,7 +601,6 @@ def test_generate_itinerary_429_when_per_user_cap_hit(
     from datetime import date
     # Use the new shared bucket directly so we don't depend on
     # integrations.py's private dict shape.
-    import sys
     sys.path.insert(0, "src")
     import helpers
     helpers._USER_DAILY_BUCKETS.clear()
@@ -633,7 +632,6 @@ def test_ai_count_resets_across_day_boundary(seed_user):
     count is invisible today. Pin that contract so a refactor doesn't
     silently turn the cap into a lifetime quota."""
     from datetime import date
-    import sys
     sys.path.insert(0, "src")
     from routes import integrations
     # Yesterday's entry should NOT count toward today.

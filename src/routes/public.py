@@ -14,18 +14,16 @@ import json
 
 from flask import Blueprint, jsonify, make_response, request
 
+from achievements import list_user_achievements
 from auth import current_user_id
 from database import get_db
-from achievements import list_user_achievements
 from extensions import limiter
-from observability import bind_trip_context
 from helpers import (
-    serialize_expense_row,
     serialize_trip_row,
     unwrap_legacy_plan_text,
 )
+from observability import bind_trip_context
 from routes.follows import follower_counts, is_following
-
 
 bp = Blueprint("public", __name__)
 

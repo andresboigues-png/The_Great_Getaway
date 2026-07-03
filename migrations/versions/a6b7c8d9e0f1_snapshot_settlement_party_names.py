@@ -31,15 +31,14 @@ immediately (subject to the user.name being still set — if the
 user account was deleted entirely, the FK CASCADE already nuked
 the settlement row, so we don't have to worry about that case).
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = 'a6b7c8d9e0f1'
-down_revision: Union[str, Sequence[str], None] = 'f5a6b7c8d9e0'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'f5a6b7c8d9e0'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

@@ -22,15 +22,14 @@ Both are additive + backward-compatible. Idempotent (guards mirror the
 init_db CREATE for fresh installs). `down_revision` is the current head
 a1f4c7e2b9d3.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = 'e2a4c6b8d0f1'
-down_revision: Union[str, Sequence[str], None] = 'a1f4c7e2b9d3'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'a1f4c7e2b9d3'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

@@ -6,12 +6,12 @@ Budgets are per-user (not per-trip-membership), so the gate is
 just by guessing an id.
 """
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
-from fx_rates import get_rate_eur, compute_euro_value
+from fx_rates import compute_euro_value, get_rate_eur
 from helpers import can_edit_expenses, is_trip_archived_for, json_body
 from validators import (
     ValidationError,
@@ -19,7 +19,6 @@ from validators import (
     validate_currency,
     validate_money,
 )
-
 
 bp = Blueprint("budgets", __name__)
 

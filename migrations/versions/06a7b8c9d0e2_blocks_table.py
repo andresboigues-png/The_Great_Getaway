@@ -31,15 +31,14 @@ A's bell.
 UNIQUE(blocker_id, blocked_id) so the block op is idempotent.
 PK is the composite — there's no separate id column needed.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = '06a7b8c9d0e2'
-down_revision: Union[str, Sequence[str], None] = 'f5a6b7c8d9e1'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'f5a6b7c8d9e1'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

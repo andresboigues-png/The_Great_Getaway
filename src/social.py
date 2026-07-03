@@ -42,15 +42,13 @@ All helpers take a cursor (no get_db calls) so a multi-step caller can
 keep its transaction.
 """
 
-from typing import Set
 
 from observability import get_logger, log_extra
-
 
 logger = get_logger(__name__)
 
 
-def mutuals_of(cursor, user_id: str) -> Set[str]:
+def mutuals_of(cursor, user_id: str) -> set[str]:
     """Returns the set of user_ids in a mutual-follow relationship with
     `user_id`. Single self-joined query — cheaper than fanning out
     two follower/following calls and intersecting in Python."""
@@ -90,7 +88,7 @@ def is_mutual(cursor, user_a: str, user_b: str) -> bool:
     return cursor.fetchone() is not None
 
 
-def following_of(cursor, user_id: str) -> Set[str]:
+def following_of(cursor, user_id: str) -> set[str]:
     """The set of user_ids that `user_id` follows. Asymmetric — does
     NOT include people who follow `user_id` back unless `user_id`
     also follows them (that would be a mutual; use `mutuals_of` to
@@ -104,7 +102,7 @@ def following_of(cursor, user_id: str) -> Set[str]:
     return {r["followee_id"] for r in cursor.fetchall()}
 
 
-def followers_of(cursor, user_id: str) -> Set[str]:
+def followers_of(cursor, user_id: str) -> set[str]:
     """The set of user_ids that follow `user_id`. Used by the
     trip-public broadcast (notify everyone subscribed to the user)
     and the Followers tab on the profile page."""

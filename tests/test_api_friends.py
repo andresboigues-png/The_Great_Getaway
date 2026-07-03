@@ -8,7 +8,6 @@ test logic changed). Shared fixtures (client, auth_headers, seed_user,
 
 from tests.conftest import _create_trip, _make_friends
 
-
 # ── /api/friends ─────────────────────────────────────────────────────────────
 
 def test_friend_add_happy_path(client, seed_user, seed_other_user, auth_headers):

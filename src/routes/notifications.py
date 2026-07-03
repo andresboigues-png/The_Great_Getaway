@@ -6,13 +6,12 @@ effect IS the notification fan-out; the trip itself is just a label
 in the message body.
 """
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
 from helpers import json_body
-
 
 bp = Blueprint("notifications", __name__)
 
@@ -210,8 +209,8 @@ def notify_trip_public():
         # respects the asymmetric audience model where someone who
         # follows you without expecting follow-back still gets the
         # ping.
-        from social import followers_of
         from routes.blocks import blocked_ids_for, is_blocked
+        from social import followers_of
         recipients = followers_of(cursor, user_id)
         # R5-B2: filter out (a) followers the caller has blocked
         # (shouldn't see caller's activity) and (b) followers who

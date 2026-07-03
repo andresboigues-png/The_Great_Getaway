@@ -19,15 +19,14 @@ Places, the day's existing lat/lng are updated to the hotel coordinates
 Pre-existing rows get NULL (no accommodation), which the UI renders as
 an empty picker. No backfill.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = 'd8f3b1a06c52'
-down_revision: Union[str, Sequence[str], None] = 'c7e2a9b4d106'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'c7e2a9b4d106'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

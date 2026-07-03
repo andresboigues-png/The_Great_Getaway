@@ -21,7 +21,6 @@ cheap bonus where pillow-heif is available.
 """
 
 import io
-import os
 
 import pytest
 
@@ -111,6 +110,7 @@ def _set_trip_media_json(trip_id, *, photos=None, documents=None, marked=None):
     archived/version gates — we're setting up state, not testing the
     write path here)."""
     import json
+
     from database import get_db
     with get_db() as conn:
         conn.execute(
@@ -240,6 +240,7 @@ def test_med4_removed_member_still_denied(
     the removed member an UNRELATED shared trip with the owner to prove
     the gate doesn't broaden to 'shares any trip with owner'."""
     import json
+
     import main as main_module
     monkeypatch.setitem(main_module.app.config, 'UPLOAD_FOLDER', str(tmp_path))
     monkeypatch.setattr(main_module, 'UPLOAD_FOLDER', str(tmp_path))
@@ -278,7 +279,7 @@ def test_med4_removed_member_still_denied(
     res = client.get(url, headers=other_auth_headers)
     assert res.status_code == 404, (
         "removed member must lose access even when sharing an unrelated "
-        "trip with the owner (got %s)" % res.status_code
+        f"trip with the owner (got {res.status_code})"
     )
 
 
@@ -289,6 +290,7 @@ def test_med4_owner_and_member_reads_still_work(
     """The fast gate must not over-restrict: the owner reads their own
     file, and an accepted member of the referencing trip reads it too."""
     import json
+
     import main as main_module
     monkeypatch.setitem(main_module.app.config, 'UPLOAD_FOLDER', str(tmp_path))
     monkeypatch.setattr(main_module, 'UPLOAD_FOLDER', str(tmp_path))

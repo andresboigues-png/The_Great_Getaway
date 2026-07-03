@@ -22,7 +22,6 @@ from extensions import limiter
 from helpers import json_body
 from observability import get_logger
 
-
 bp = Blueprint("feed", __name__)
 logger = get_logger(__name__)
 
@@ -48,9 +47,17 @@ logger = get_logger(__name__)
 # writes leak through.
 from feed_events import (
     caller_can_see_event as _caller_can_see_event,
+)
+from feed_events import (
     engagement_recipient as _post_owner_for_event,
+)
+from feed_events import (
     event_type_by_name as _event_type_by_name,
+)
+from feed_events import (
     parse_event_id as _parse_event_id,
+)
+from feed_events import (
     resolve_event_by_id as _resolve_event_by_id,
 )
 
@@ -145,7 +152,8 @@ def _fire_engagement_notification(cursor, recipient_id, actor_id, kind, post_id)
 # back-compat with any test that asserted against the symbol name.
 from feed_events import (
     FEED_EVENT_TYPES,
-    FeedContext as _FeedContext,
+)
+from feed_events import (
     build_feed_context as _build_feed_context,
 )
 
@@ -222,6 +230,7 @@ def _attach_engagement_counts(cursor, events: list, user_id: str) -> None:
 # the request — a stale cursor on an old tab shouldn't break the feed.
 import base64 as _b64
 import json as _json
+from datetime import UTC
 
 
 def _encode_feed_cursor(when_iso: str, event_id: str) -> str:
@@ -498,9 +507,9 @@ def explore_feed():
         # finicky across versions; Python is clearer and the row count
         # is small (every trip with a share token across all users —
         # bounded by the share-feature's actual usage).
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         scored = []
         for r in rows:
             country_key = (r["country_code"] or "") or (r["country"] or "").lower()
@@ -523,7 +532,7 @@ def explore_feed():
                     (r["created_at"] or "").replace(" ", "T")
                 )
                 if created.tzinfo is None:
-                    created = created.replace(tzinfo=timezone.utc)
+                    created = created.replace(tzinfo=UTC)
                 age_days = max(0.0, (now - created).total_seconds() / 86400.0)
                 recency_factor = max(0.15, 1.0 - age_days / 180.0)
             except (ValueError, TypeError):

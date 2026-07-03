@@ -10,20 +10,21 @@ or a curl-wielding user fires the request anyway.
 
 import sqlite3
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
 from helpers import (
     _extract_upload_paths as _extract_upload_paths,
+)
+from helpers import (
     can_edit_trip,
     delete_upload_files,
     is_trip_archived_for,
     json_body,
 )
 from observability import bind_trip_context
-
 
 bp = Blueprint("days", __name__)
 

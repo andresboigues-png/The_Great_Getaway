@@ -41,16 +41,15 @@ Three sites that the audit flagged as full-scan-per-request:
 All indexes use `IF NOT EXISTS` so the migration is idempotent on
 DBs that may have been hand-patched.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 # revision identifiers, used by Alembic.
 revision: str = 'a9c0d1e2f3b4'
-down_revision: Union[str, Sequence[str], None] = 'b7c8d9e0f1a2'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'b7c8d9e0f1a2'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

@@ -29,15 +29,14 @@ Both are additive — the existing bulk path keeps working (it ignores
 updated_at and writes no tombstones), so this migration is safe to deploy
 ahead of the server/client changes that use them.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = 'b2d4f6a8c0e1'
-down_revision: Union[str, Sequence[str], None] = 'd0e1f2a3b4c5'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'd0e1f2a3b4c5'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

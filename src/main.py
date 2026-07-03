@@ -1,17 +1,14 @@
 import os
-import json
 import secrets
 import sqlite3
-import requests
-from flask import Flask, g, render_template, request, jsonify, send_from_directory, url_for
+
+from dotenv import load_dotenv
+from flask import Flask, g, jsonify, render_template, request, send_from_directory, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
-from dotenv import load_dotenv
-from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests
-from flask_limiter.util import get_remote_address
+
+from auth import current_user_id
 from database import get_db, init_db
-from auth import issue_token, current_user_id, require_auth
 from extensions import limiter
 from observability import (
     attach_request_context,
@@ -34,10 +31,12 @@ from routes.integrations import bp as integrations_bp
 from routes.media import bp as media_bp
 from routes.notifications import bp as notifications_bp
 from routes.pdf import bp as pdf_bp
-from routes.public import bp as public_bp, fetch_share_payload
+from routes.public import bp as public_bp
+from routes.public import fetch_share_payload
 from routes.settings import bp as settings_bp
 from routes.settlements import bp as settlements_bp
-from routes.templates import bp as templates_bp, fetch_template_preview
+from routes.templates import bp as templates_bp
+from routes.templates import fetch_template_preview
 from routes.trip_io import bp as trip_io_bp
 from routes.trips import bp as trips_bp
 
@@ -970,8 +969,8 @@ def healthz():
     (those flap on every deploy + may be missing in some
     environments).
     """
-    from observability import resolve_release
     from database import get_db
+    from observability import resolve_release
     release = resolve_release() or "unknown"
     # DB ping — cheapest query that exercises the connection +
     # confirms the FD is real (not a stale PA worker socket).
@@ -1012,7 +1011,8 @@ def healthz():
     # auto-wrap our explicit BEGIN in its own transaction.
     if db_ok:
         import sqlite3 as _sqlite3
-        from database import _db_path, BUSY_TIMEOUT_MS
+
+        from database import BUSY_TIMEOUT_MS, _db_path
         _probe = None
         try:
             _probe = _sqlite3.connect(_db_path(), isolation_level=None)
