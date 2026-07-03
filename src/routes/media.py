@@ -24,6 +24,7 @@ from flask import Blueprint, current_app, jsonify, request
 from werkzeug.utils import secure_filename
 
 from auth import current_user_id, require_auth
+from database import get_db
 from extensions import limiter
 
 # R3-Round 4 fix: register pillow-heif at import time so PIL.Image
@@ -129,6 +130,138 @@ def _looks_like_upload(head: bytes) -> bool:
     return False
 
 
+# ── MK6 upload storage quota ────────────────────────────────────────────
+# Per-user byte cap on the uploads directory. Pre-fix there was no ceiling:
+# a single account could fill PA's disk (shared, single small volume) with
+# unbounded 10 MB uploads and take the whole app down for everyone. 500 MB
+# is ~50 max-size files — generous for a real trip's photos/receipts, tight
+# enough to bound the blast radius. Env-overridable so PA / tests can tune
+# it (tests set a tiny cap to exercise the 507 path).
+_UPLOAD_QUOTA_BYTES = int(os.getenv("GG_UPLOAD_QUOTA_BYTES", str(500 * 1024 * 1024)))
+
+# Only reclaim files OLDER than this. A file uploaded seconds ago has a
+# valid URL the client is about to persist into a trip (photos_json /
+# receipt / avatar) via a follow-up /api/sync — sweeping it in that window
+# would break the pending reference. A day-old file with no DB reference is
+# a genuinely abandoned upload (the save happened long ago, or never came).
+_ORPHAN_GRACE_SECONDS = 24 * 3600
+
+
+def _user_dir_bytes(user_folder: str) -> int:
+    """Total bytes of regular files directly under the user's upload dir.
+    Uploads are flat per-user (no nesting), so a single listdir suffices."""
+    total = 0
+    try:
+        with os.scandir(user_folder) as it:
+            for entry in it:
+                try:
+                    if entry.is_file(follow_symlinks=False):
+                        total += entry.stat(follow_symlinks=False).st_size
+                except OSError:
+                    continue  # racing delete / vanished file — ignore
+    except FileNotFoundError:
+        return 0
+    return total
+
+
+def _incoming_size(file_storage) -> int:
+    """Byte length of the pending upload, read from the stream (browsers
+    routinely omit a per-part Content-Length, so `file.content_length` is
+    unreliable). Rewinds to 0 afterwards so the save path reads from the
+    start."""
+    stream = file_storage.stream
+    try:
+        stream.seek(0, os.SEEK_END)
+        size = stream.tell()
+    except (OSError, ValueError):
+        size = 0
+    finally:
+        try:
+            stream.seek(0)
+        except (OSError, ValueError):
+            pass
+    return size
+
+
+def _reclaim_orphan_bytes(safe_user_dir: str, user_folder: str) -> int:
+    """Best-effort disk reclaim for a user who is over quota: delete files
+    older than the grace period that NO DB row references, and return the
+    bytes freed.
+
+    Correctness hinges on covering EVERY column that can hold an upload URL
+    — miss one and we delete a live photo/receipt/avatar (silent data
+    loss). The full surface as of MK6:
+      users.picture (avatar); trips.cover_url + photos_json + documents_json
+      + marked_places_json + companions_json + checklist_json;
+      trip_days.photos + trip_days.documents; expenses.receipt_url.
+    (companions / feed_posts / trip_templates hold no upload URLs — the
+    former have none, templates pre-strip media at creation.) test_media_
+    quota.py locks each of these so a newly-added upload column trips a
+    loud test failure instead of quiet deletion. The needle is the FULL
+    per-file URL, whose 132-bit random salt makes a substring match
+    definitive; underscores are ESCAPEd so a filename char can't act as a
+    LIKE wildcard.
+    """
+    cutoff = time.time() - _ORPHAN_GRACE_SECONDS
+    reclaimed = 0
+    try:
+        names = [
+            e.name for e in os.scandir(user_folder)
+            if e.is_file(follow_symlinks=False)
+        ]
+    except FileNotFoundError:
+        return 0
+
+    with get_db() as conn:
+        cur = conn.cursor()
+        for name in names:
+            path = os.path.join(user_folder, name)
+            try:
+                st = os.stat(path)
+            except OSError:
+                continue
+            if st.st_mtime > cutoff:
+                continue  # inside the grace window — never touch
+            url = f"/static/uploads/{safe_user_dir}/{name}"
+            like = "%" + url.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+            if _url_is_referenced(cur, url, like):
+                continue
+            try:
+                os.remove(path)
+                reclaimed += st.st_size
+            except OSError:
+                continue
+    return reclaimed
+
+
+def _url_is_referenced(cur, url: str, like: str) -> bool:
+    """True if `url` appears in any upload-bearing column. Exact-match the
+    single-URL columns; LIKE (ESCAPE '\\') the JSON blobs that embed it."""
+    checks = (
+        ("SELECT 1 FROM users WHERE picture = ? LIMIT 1", (url,)),
+        (
+            "SELECT 1 FROM trips WHERE cover_url = ? "
+            "OR photos_json LIKE ? ESCAPE '\\' "
+            "OR documents_json LIKE ? ESCAPE '\\' "
+            "OR marked_places_json LIKE ? ESCAPE '\\' "
+            "OR companions_json LIKE ? ESCAPE '\\' "
+            "OR checklist_json LIKE ? ESCAPE '\\' LIMIT 1",
+            (url, like, like, like, like, like),
+        ),
+        (
+            "SELECT 1 FROM trip_days WHERE photos LIKE ? ESCAPE '\\' "
+            "OR documents LIKE ? ESCAPE '\\' LIMIT 1",
+            (like, like),
+        ),
+        ("SELECT 1 FROM expenses WHERE receipt_url = ? LIMIT 1", (url,)),
+    )
+    for sql, params in checks:
+        cur.execute(sql, params)
+        if cur.fetchone():
+            return True
+    return False
+
+
 @bp.route("/api/upload", methods=["POST"])
 @limiter.limit("30 per minute")
 @require_auth
@@ -186,6 +319,27 @@ def upload_file():
     user_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], safe_user_dir)
     os.makedirs(user_folder, exist_ok=True)
     out_path = os.path.join(user_folder, filename)
+
+    # MK6 upload quota: refuse the write if it would push the user over
+    # their per-user byte cap. Try reclaiming genuinely-orphaned files
+    # first (abandoned uploads a client never persisted into a trip); only
+    # 507 if still over after that. Runs BEFORE any bytes hit disk. The
+    # re-encode branch below can grow OR shrink the file, but the input
+    # size is a safe upper bound on what we're about to store, and the
+    # 10 MB MAX_CONTENT_LENGTH already caps a single upload.
+    incoming = _incoming_size(file)
+    used = _user_dir_bytes(user_folder)
+    if used + incoming > _UPLOAD_QUOTA_BYTES:
+        used -= _reclaim_orphan_bytes(safe_user_dir, user_folder)
+        if used + incoming > _UPLOAD_QUOTA_BYTES:
+            return jsonify({
+                "error": (
+                    "Storage limit reached — delete some photos or documents "
+                    "to free space, then try again."
+                ),
+                "quotaBytes": _UPLOAD_QUOTA_BYTES,
+                "usedBytes": max(used, 0),
+            }), 507
 
     # Audit fix (2026-05-26): strip EXIF GPS from JPEG/PNG/WebP
     # uploads before persisting. Pre-fix the file was saved bytes-
