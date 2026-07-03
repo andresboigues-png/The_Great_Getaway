@@ -1707,3 +1707,86 @@ def test_edit_comment_truncates_at_500(client, seed_user, auth_headers):
         f"truncation contract: body > 500 must store at exactly 500 chars; "
         f"got {len(saved[0]['body'])}"
     )
+
+
+def test_comment_list_excludes_authors_who_blocked_the_caller(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """MK6 P3 (bidirectional): after A blocks B, B (the caller) must NOT see A's
+    comments on a THIRD party's thread — A's content shouldn't keep reaching the
+    person A blocked. Pre-fix the list only hid authors the CALLER had blocked."""
+    from auth import issue_token
+    from database import get_db
+    user_c = "test-c-mk6bidi"
+    with get_db() as conn:
+        conn.execute("INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+                     (user_c, "cmk6@example.com", "Cee"))
+        conn.commit()
+    headers_c = {"Authorization": f"Bearer {issue_token(user_c)}"}
+    trip_id = _create_trip(client, headers_c, trip_id="trip-mk6bidi", public=True)
+    event_id = "share_" + str(
+        client.post("/api/feed/share", headers=headers_c, json={"trip_id": trip_id})
+        .get_json()["post_id"])
+    client.post(f"/api/feed/comment/{event_id}", headers=auth_headers, json={"body": "from A"})
+    client.post(f"/api/feed/comment/{event_id}", headers=other_auth_headers, json={"body": "from B"})
+    assert client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers).status_code == 200
+
+    bodies = {c["body"] for c in
+              client.get(f"/api/feed/comments/{event_id}", headers=other_auth_headers).get_json()}
+    assert "from A" not in bodies, "A's comment still reached B after A blocked B (one-directional filter)"
+    assert "from B" in bodies, "B's own comment wrongly hidden"
+
+
+def test_settled_up_card_hidden_after_blocking_counterparty(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """MK6 P3: a settled_up card whose counterparty the caller has blocked must
+    not surface — the builder bypasses the actor pool, so it had no block filter
+    and a blocked ex-counterparty's name+avatar lingered for 30 days."""
+    from database import get_db
+    _create_trip(client, auth_headers, trip_id="t-mk6set")
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO settlements (id, trip_id, from_user_id, to_user_id, "
+            "from_name, to_name, amount, currency, euro_value, recorded_by) "
+            "VALUES ('s-mk6', 't-mk6set', ?, ?, 'A', 'B', 45, 'EUR', 45, ?)",
+            (seed_user, seed_other_user, seed_user),
+        )
+        conn.commit()
+
+    def _has_settled(headers):
+        return any(e.get("type") == "settled_up"
+                   for e in client.get("/api/feed", headers=headers).get_json())
+
+    assert _has_settled(auth_headers), "settled_up card should surface for a party"
+    assert client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers).status_code == 200
+    assert not _has_settled(auth_headers), \
+        "settled_up card with a blocked counterparty still surfaced"
+
+
+def test_block_sweep_removes_engagement_on_trip_created_card(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """MK6 P3: blocking must remove the blocked user's engagement on the
+    blocker's trip_*/achievement_* cards too, not just share_/repost_ — else it
+    stays visible to mutual third parties (an inconsistent clean break)."""
+    from database import get_db
+    trip_id = _create_trip(client, auth_headers, trip_id="t-sweep", public=True)
+    event_id = f"trip_created_{trip_id}"
+    with get_db() as conn:
+        conn.execute("INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)",
+                     (seed_other_user, seed_user))  # B follows A → can see the card
+        conn.commit()
+    assert client.post(f"/api/feed/comment/{event_id}", headers=other_auth_headers,
+                       json={"body": "B here"}).status_code == 200
+
+    def _b_comment_count():
+        with get_db() as conn:
+            return conn.execute(
+                "SELECT COUNT(*) FROM feed_comments WHERE event_id=? AND user_id=?",
+                (event_id, seed_other_user)).fetchone()[0]
+
+    assert _b_comment_count() == 1, "B's comment should exist before the block"
+    assert client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers).status_code == 200
+    assert _b_comment_count() == 0, \
+        "block sweep left B's comment on A's trip_created card (visible to third parties)"

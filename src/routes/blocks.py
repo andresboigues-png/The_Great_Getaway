@@ -170,6 +170,38 @@ def block_user(user_id):
                     f"AND repost_of_post_id IN ({placeholders})",
                     [blocked] + blocker_post_ids,
                 )
+            # MK6 P3: also sweep the blocked user's engagement on the blocker's
+            # SYNTHESISED feed events (trip_created / trip_archived / trip_joined
+            # / achievement). Pre-fix only the share_/repost_ shapes above were
+            # swept, so a blocked user's like/comment on the blocker's
+            # trip_created card survived and stayed visible to mutual third
+            # parties — an inconsistent clean break. These cards aren't
+            # feed_posts rows, so their event_ids come from trips /
+            # user_achievements (+ trip_members for the per-member joined shape).
+            cursor.execute("SELECT id FROM trips WHERE user_id = ?", (blocker,))
+            _trip_ids = [r["id"] for r in cursor.fetchall()]
+            cursor.execute(
+                "SELECT id FROM user_achievements WHERE user_id = ?", (blocker,),
+            )
+            _synth_ids = [f"achievement_{r['id']}" for r in cursor.fetchall()]
+            for _tid in _trip_ids:
+                _synth_ids.append(f"trip_created_{_tid}")
+                _synth_ids.append(f"trip_archived_{_tid}")
+                cursor.execute(
+                    "SELECT user_id FROM trip_members "
+                    "WHERE trip_id = ? AND invitation_status = 'accepted'",
+                    (_tid,),
+                )
+                for _m in cursor.fetchall():
+                    _synth_ids.append(f"trip_joined_{_tid}_{_m['user_id']}")
+            if _synth_ids:
+                _ph = ",".join(["?"] * len(_synth_ids))
+                for table in ("feed_likes", "feed_comments", "feed_bookmarks"):
+                    cursor.execute(
+                        f"DELETE FROM {table} WHERE user_id = ? "
+                        f"AND event_id IN ({_ph})",
+                        [blocked] + _synth_ids,
+                    )
             # Notifications the blocker received from the blocked user.
             # related_id stores the ACTOR for engagement notifs.
             cursor.execute(

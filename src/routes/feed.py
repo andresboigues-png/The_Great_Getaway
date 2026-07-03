@@ -168,8 +168,12 @@ def _attach_engagement_counts(cursor, events: list, user_id: str) -> None:
         f"SELECT event_id, COUNT(*) AS c FROM feed_likes "
         f"WHERE event_id IN ({id_placeholders}) "
         f"  AND user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?) "
+        # MK6 P3: also exclude likers who blocked the CALLER (bidirectional,
+        # matching explore_feed / build_feed_context). One-directional counted
+        # a user-who-blocked-me's likes on a third party's share.
+        f"  AND user_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?) "
         f"GROUP BY event_id",
-        [*event_ids, user_id],
+        [*event_ids, user_id, user_id],
     )
     likes_count = {r['event_id']: r['c'] for r in cursor.fetchall()}
     cursor.execute(
@@ -193,8 +197,11 @@ def _attach_engagement_counts(cursor, events: list, user_id: str) -> None:
         f"SELECT event_id, COUNT(*) AS c FROM feed_comments "
         f"WHERE event_id IN ({id_placeholders}) "
         f"  AND user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?) "
+        # MK6 P3: bidirectional — exclude comment authors who blocked the caller
+        # too (matches list_feed_comments below so the chip count == rendered rows).
+        f"  AND user_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?) "
         f"GROUP BY event_id",
-        [*event_ids, user_id],
+        [*event_ids, user_id, user_id],
     )
     comments_count = {r['event_id']: r['c'] for r in cursor.fetchall()}
     for e in events:
@@ -1191,8 +1198,15 @@ def list_feed_comments(event_id):
               AND c.user_id NOT IN (
                   SELECT blocked_id FROM blocks WHERE blocker_id = ?
               )
+              -- MK6 P3: bidirectional — also hide comments by authors who
+              -- blocked the CALLER (matches explore_feed / build_feed_context).
+              -- One-directional let A's comments keep reaching B after A blocked
+              -- B, on a mutual friend's public thread.
+              AND c.user_id NOT IN (
+                  SELECT blocker_id FROM blocks WHERE blocked_id = ?
+              )
             ORDER BY c.created_at ASC, c.id ASC
-        ''', (event_id, user_id))
+        ''', (event_id, user_id, user_id))
         rows = cursor.fetchall()
     return jsonify([
         {

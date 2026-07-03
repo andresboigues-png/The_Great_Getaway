@@ -661,8 +661,19 @@ def _build_settled_up(cursor, ctx: FeedContext) -> list:
         "LEFT JOIN trips t ON t.id = s.trip_id "
         "WHERE (s.from_user_id = ? OR s.to_user_id = ?) "
         "  AND s.created_at >= datetime('now', '-30 days') "
+        # MK6 P3: hide a settlement whose COUNTERPARTY the caller has blocked
+        # (or who blocked the caller) — this builder bypasses the actor pool, so
+        # build_feed_context's block filter never reaches it, and a blocked
+        # ex-counterparty's name + avatar kept surfacing for up to 30 days. The
+        # caller can never be in their own block set (self-block is rejected), so
+        # checking BOTH parties is equivalent to checking the counterparty.
+        "  AND s.from_user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?) "
+        "  AND s.from_user_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?) "
+        "  AND s.to_user_id   NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?) "
+        "  AND s.to_user_id   NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?) "
         "ORDER BY s.created_at DESC",
-        (ctx.user_id, ctx.user_id),
+        (ctx.user_id, ctx.user_id,
+         ctx.user_id, ctx.user_id, ctx.user_id, ctx.user_id),
     )
     events = []
     for row in cursor.fetchall():
