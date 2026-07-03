@@ -1,16 +1,22 @@
-flask
-python-dotenv
-google-auth
-requests
-Flask-Limiter
-alembic
-pyjwt
+# MK1 Wave A (T1-3): PINNED. This file was fully unpinned — every deploy
+# (PA runs `pip3.11 install --user -r requirements.txt` in the standard
+# command) was a dependency lottery, and CI installed a different set
+# than any developer machine. Pins are exact versions the 727-test suite
+# was verified against on 2026-07-03 (local darwin/3.14 AND a fresh venv).
+# To upgrade: bump the pin, run the full suite, commit the pair together.
+flask==3.1.3
+python-dotenv==1.2.2
+google-auth==2.55.1
+requests==2.34.2
+Flask-Limiter==4.1.1
+alembic==1.18.5
+pyjwt==2.13.0
 
 # Observability (§3.8) — optional. Sentry only activates when
 # SENTRY_DSN is set in env. The application runs logging-only without
 # this installed; install with `pip install sentry-sdk[flask]` once
 # you have a DSN ready.
-sentry-sdk[flask]
+sentry-sdk[flask]==2.64.0
 
 # Trip-PDF export (2026-05-18). reportlab is pure-Python — no native
 # dep, resolves on PA's free-tier `pip install` without surprises.
@@ -19,7 +25,7 @@ sentry-sdk[flask]
 # library at build time (PA can't install that). reportlab is more
 # code per page but produces higher-fidelity PDFs and ships fonts
 # cleanly. The trip-PDF builder lives at routes/pdf.py.
-reportlab
+reportlab==5.0.0
 
 # R3-Fix #17: Pillow is imported directly by both routes/media.py
 # (EXIF strip on photo uploads) and routes/pdf.py (Static Maps
@@ -31,7 +37,7 @@ reportlab
 #   - PDF map sizing (would crash on `from PIL import Image`).
 # Pin explicitly so the install is deterministic regardless of
 # reportlab's resolution.
-Pillow>=10.0
+Pillow==12.3.0
 
 # R3-Round 4 fix: HEIC/HEIF decoder so iPhone "Most Compatible"
 # off uploads (the default for newer iPhones) flow through PIL's
@@ -40,4 +46,4 @@ Pillow>=10.0
 # pillow-heif registered, iOS users no longer have to change their
 # camera setting — HEIC uploads work end-to-end and get EXIF
 # stripped just like JPEG.
-pillow-heif
+pillow-heif==1.4.0

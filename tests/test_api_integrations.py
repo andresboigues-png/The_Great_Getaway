@@ -8,6 +8,28 @@ test logic changed). Shared fixtures (client, auth_headers, seed_user,
 import json
 import sys
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _fake_host_pool(monkeypatch):
+    """MK1 Wave A: deterministic one-slot host pool for every test in this
+    module. Pre-fix the itinerary tests leaned on the developer's REAL
+    .env keys (conftest now blanks those), so they passed locally and
+    failed on CI where no keys exist. Host-pool keys aren't shape-
+    validated (only BYO keys are), so any fake string works — the Gemini
+    HTTP call itself is always monkeypatched. Tests that exercise the
+    empty-pool 429 path delenv these on top of this baseline, and pool-
+    rotation tests set their own multi-slot layout. Also resets the
+    process-global cooldown map so one test's exhausted slot can't leak
+    into the next."""
+    monkeypatch.setenv("GEMINI_API_KEY", "test-host-pool-key")
+    for slot in range(2, 7):
+        monkeypatch.delenv(f"GEMINI_API_KEY_{slot}", raising=False)
+    import routes.integrations as _integrations
+
+    _integrations._exhausted_keys.clear()
+
 
 def test_generate_itinerary_rejects_missing_key(client, seed_user, auth_headers, monkeypatch):
     """No BYO key + every host-pool slot empty → 429 with a "shared AI

@@ -1,0 +1,9 @@
+# MK1 Wave A: pinned dev/test toolchain (NOT installed on PA).
+# Local: python3 -m pip install -r requirements-dev.txt
+# CI's pytest job should install `-r requirements.txt -r requirements-dev.txt`
+# instead of its former ad-hoc `pytest pytest-cov pypdf` tail.
+-r requirements.txt
+pytest==9.1.1
+pytest-cov==7.1.0
+pypdf==6.14.2      # PDF text-extraction assertions in tests/test_pdf_mk4.py
+ruff==0.15.20      # lint + format — config in pyproject.toml [tool.ruff]

@@ -25,6 +25,27 @@
 
 set -e
 
+# MK1 Wave A: Python gates. Pre-fix there was NO backend check anywhere
+# on the push→prod path (CI's pytest job was dead for a month targeting a
+# deleted file, and this hook only ran the frontend suite) — PA pulls
+# main on its own loop, so a backend-breaking commit was in prod within
+# minutes. ruff first (~1s), then the full pytest suite (~20s). Worth
+# every second; `git push --no-verify` remains the documented escape
+# hatch for emergencies.
+echo "==> pre-push: Python lint (ruff)…"
+python3 -m ruff check src tests migrations > /tmp/gg-pre-push-ruff.log 2>&1 || {
+    echo "❌ pre-push: ruff failed. Last 30 lines:"
+    tail -30 /tmp/gg-pre-push-ruff.log
+    exit 1
+}
+
+echo "==> pre-push: backend tests (pytest)…"
+python3 -m pytest tests/ -q > /tmp/gg-pre-push-pytest.log 2>&1 || {
+    echo "❌ pre-push: backend tests failed. Last 30 lines:"
+    tail -30 /tmp/gg-pre-push-pytest.log
+    exit 1
+}
+
 # Fast unit gate FIRST (fail before the slower build). Covers the pure
 # present-value money math (utils/presentValue), which used to be verifiable
 # only via a Python harness + a live browser — so a silent regression in the

@@ -16,16 +16,27 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-# MK1 NOW-2: neutralise Sentry for the whole test session. main.py runs
-# load_dotenv() (override=False) BEFORE setup_sentry(), so a real
-# SENTRY_DSN in the developer's .env had every local pytest run shipping
-# test-generated error events to the PRODUCTION Sentry project (the
-# "Sentry is attempting to send N pending events" trailer after each
-# run). Pre-setting the var to "" here wins: load_dotenv never overrides
-# an existing key, and setup_sentry treats a falsy DSN as opt-out.
+# MK1 NOW-2 (+ Wave A follow-up): neutralise the developer's .env for the
+# whole test session. main.py runs load_dotenv() (override=False) at import
+# time, so real secrets in .env silently leaked into every local pytest run:
+#   - SENTRY_DSN → test-generated error events shipped to PRODUCTION Sentry
+#     (the "Sentry is attempting to send N pending events" trailer);
+#   - GEMINI_API_KEY(_2..6) → the /api/generate_itinerary tests passed
+#     locally via the REAL host-key pool but failed on CI where no keys
+#     exist (the exact 10-test red the revived CI pytest job exposed);
+#   - GOOGLE_MAPS_API_KEY / _SERVER_KEY → risk of live Places/Static-Maps
+#     calls with real quota from tests that forget to delenv them.
+# Pre-setting "" here wins: load_dotenv never overrides an existing key,
+# and every consumer treats a falsy value as absent. Tests that NEED a key
+# monkeypatch.setenv a fake one explicitly (deterministic on CI + local).
 # Module-top (not a fixture) because it must run before ANY test module
 # triggers the `import main` chain.
 os.environ["SENTRY_DSN"] = ""
+os.environ["GEMINI_API_KEY"] = ""
+for _slot in range(2, 7):
+    os.environ[f"GEMINI_API_KEY_{_slot}"] = ""
+os.environ["GOOGLE_MAPS_API_KEY"] = ""
+os.environ["GOOGLE_MAPS_SERVER_KEY"] = ""
 
 
 @pytest.fixture

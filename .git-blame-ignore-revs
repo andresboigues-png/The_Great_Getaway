@@ -1,0 +1,6 @@
+# Mechanical, zero-behavior commits that `git blame` should skip.
+# Wire-up: git config blame.ignoreRevsFile .git-blame-ignore-revs
+# (GitHubs blame view honors this file automatically.)
+
+# MK1 Wave A: one-time repo-wide ruff format (116 files)
+82f44cdc81317d235a73b5d81b928b4d493f4744

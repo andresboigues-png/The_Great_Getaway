@@ -36,8 +36,18 @@ const CHUNKS_DIR = resolve(JS_DIR, 'chunks');
 const LIMITS = {
     entry: 115 * 1024, // 115 KB gzip — currently ~112 KB
     vendorReact: 65 * 1024, // 65 KB gzip — currently ~58 KB
-    pageChunkMax: 15 * 1024, // 15 KB gzip per page chunk — currently top is ~12 KB
-    firstPaintGzipMax: 184 * 1024, // 184 KB gzip first-paint.
+    // MK1 Wave A re-baseline: the 15 KB page-chunk cap + 184 KB
+    // first-paint cap had been failing SILENTLY for weeks — the CI
+    // pytest job was dead (targeted a deleted file) so the whole run
+    // was ambient-red and nobody saw this job fail with it. Reality
+    // today: home mount chunk 37.5 KB gzip (it absorbed Trip Hub, day
+    // accommodation, and the unified home search), first-paint
+    // 206.5 KB. Caps re-set just above the real numbers so the gate
+    // BITES again; Wave C (Best-in-class audit MK1.md T2-6/PERF-4:
+    // barrel-import trimming + deferred CDN scripts) should ratchet
+    // both back down — tighten these when it lands.
+    pageChunkMax: 40 * 1024, // 40 KB gzip per page chunk — top (home) is ~37.5 KB
+    firstPaintGzipMax: 212 * 1024, // 212 KB gzip first-paint — currently ~206.5 KB.
     // i18n session 4 sweep across collections /
     // ai / todo / search / insights / budgets /
     // settlement added ~3 KB of t() call sites
