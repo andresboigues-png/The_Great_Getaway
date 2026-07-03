@@ -9,10 +9,7 @@
 // the click handler for the "Create Trips" CTA stays at the call
 // site since it depends on the imperative `openNewTripModal()`.
 
-import { STATE } from '../../state.js';
-import { shortPlaceName } from '../../utils.js';
 import { t } from '../../i18n.js';
-import type { Trip } from '../../types';
 
 /** Empty-state HTML for users with no active trip selected.
  *  Hosts the cover-card slideshow image + quote pair (the slideshow
@@ -43,41 +40,4 @@ export function buildEmptyStateHtml(displayImages: string[], displayQuotes: stri
             </div>
         </div>
     `;
-}
-
-/** Choose the per-trip greeting line. Returns one of four random
- *  travel-flavoured greetings when the trip is "fresh" (no expenses
- *  + no days yet) AND the country is set, otherwise falls back to a
- *  generic "Welcome back, traveler" so the header never reads
- *  empty.
- *
- *  Behaviour preserved exactly from the inline implementation:
- *  same four templates, same Math.random pick, same fallback when
- *  the random index ever returns undefined (defensive for the typed
- *  array path). */
-export function pickGreeting(activeTrip: Trip | null | undefined, isFresh: boolean): string {
-    if (!isFresh || !activeTrip || !activeTrip.country) {
-        return t('home.greetingDefault');
-    }
-    // Compact display: drop postal-code prefixes AND extra comma-
-    // separated location chunks. Google returns localized
-    // formatted_address most-specific → least-specific, so the first
-    // token (city/town) is what reads cleanly in a header.
-    // E.g. "Atlanta, Geórgia, Estados Unidos" → "Atlanta",
-    //      "USA - California" → "California",
-    //      "8950 Castro Marim, Portugal" → "Castro Marim".
-    const displayCountry = shortPlaceName(activeTrip.country);
-    // BUG-080: the server only ever sends `name` (never firstName), so this
-    // always fell back to 'traveler'. Derive the first name from `name` like
-    // the rest of the app (modals/trip.ts), with a localized fallback word.
-    const firstName = STATE.user?.name?.split(' ')[0]?.trim() || t('home.greetingFallbackName');
-    // i18n session 1: each greeting localized via t() with placeholder
-    // interpolation. Random pick still picks one of four templates.
-    const greetings = [
-        t('home.greetingNamed', { name: firstName }),
-        t('home.greetingTripName', { trip: activeTrip.name }),
-        t('home.greetingCountryStart', { country: displayCountry }),
-        t('home.greetingCountryStory', { country: displayCountry }),
-    ];
-    return greetings[Math.floor(Math.random() * greetings.length)] ?? t('home.greetingDefault');
 }

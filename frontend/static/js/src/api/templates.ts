@@ -131,18 +131,6 @@ export async function deleteTemplate(id: string): Promise<boolean> {
     }
 }
 
-/** Public preview of a template by code — no auth required. Returns null
- *  on a bad/dead code (404) or network error. */
-export async function previewTemplate(code: string): Promise<TemplatePreview | null> {
-    try {
-        const res = await apiFetch(`/api/templates/preview/${encodeURIComponent(code)}`);
-        if (!res.ok) return null;
-        return (await res.json()) as TemplatePreview;
-    } catch {
-        return null;
-    }
-}
-
 /** Instantiate a template into a new owned trip. Returns the new trip id
  *  on success; `status` lets the caller distinguish 404 (bad code) from
  *  other failures. */

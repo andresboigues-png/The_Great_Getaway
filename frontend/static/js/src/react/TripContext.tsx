@@ -68,14 +68,6 @@ export interface ActiveTripSelection {
 }
 
 
-/** Returns just the active trip's id — cheap, no derived-field
- *  recomputation. Use this when all you need is `t.id === activeTripId`
- *  guards without paying for the filter/find passes the full hook does. */
-export function useActiveTripId(): string | null {
-    return useStore((s) => s.activeTripId);
-}
-
-
 /** The single source of truth for "what's the user looking at right
  *  now". Returns a stable object — the useMemo deps catch the slices
  *  that actually feed each derived field, so a notification poll (which

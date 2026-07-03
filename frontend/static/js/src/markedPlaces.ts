@@ -176,20 +176,6 @@ export function toggleMarkedPlaceForAI(trip: MaybeTrip, placeId: string): void {
     entry.forAI = !entry.forAI;
 }
 
-/** Set the AI tick on EVERY to-do-list entry to the given value.
- *  Powers the "Select all / Unselect all" affordance on the /todo
- *  page — saves the user from tapping each row individually when
- *  they want to include or exclude the whole list from the next AI
- *  generation. Only touches forManual items (the ones visible on
- *  the to-do surface); legacy non-manual rows stay untouched. */
-export function setAllMarkedPlacesForAI(trip: MaybeTrip, value: boolean): void {
-    if (!trip || !Array.isArray(trip.markedPlaces)) return;
-    for (const p of trip.markedPlaces) {
-        if (!p.forManual) continue;
-        p.forAI = !!value;
-    }
-}
-
 /** Set the AI tick on a SUBSET of to-do-list entries, identified
  *  by placeId. Powers the "Mark all for AI" button when the user
  *  has narrowed the visible list via the Show / Type filters —

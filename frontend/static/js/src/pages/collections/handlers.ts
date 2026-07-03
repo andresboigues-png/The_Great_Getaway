@@ -27,11 +27,6 @@ import { deleteTrip, unarchiveTripOnServer, upsertTrip, isUnretryableRejection }
  *  lives in routes/public.py, not on the client. */
 export type TripPrivacyLevel = 'private' | 'public-plan' | 'public-full';
 
-export function tripPrivacyLevel(trip: { isPublic?: boolean; publicShowExpenses?: boolean } | null | undefined): TripPrivacyLevel {
-    if (!trip || !trip.isPublic) return 'private';
-    return trip.publicShowExpenses ? 'public-full' : 'public-plan';
-}
-
 export const toggleTripPrivacy = async (id: string, level: TripPrivacyLevel) => {
     const trip = STATE.archivedTrips.find((t) => t.id === id) || STATE.trips.find((t) => t.id === id);
     if (!trip) return;

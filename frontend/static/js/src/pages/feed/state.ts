@@ -67,11 +67,6 @@ export function isBundleExpanded(bundleId: string): boolean {
     return _expandedBundles.has(bundleId);
 }
 
-export function isThreadOpen(eventId: string): boolean {
-    return _openThreads.has(eventId);
-}
-
-
 // ── Setters ────────────────────────────────────────────────────
 export function setCachedEvents(events: FeedEvent[]): void {
     _events = events;

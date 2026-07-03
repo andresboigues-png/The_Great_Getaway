@@ -700,9 +700,6 @@ export interface AppPreferences {
     locale?: 'en' | 'pt' | 'es' | 'fr';
 }
 
-/** Event names emitted via state.emit / subscribed via state.subscribe. */
-export type AppEvent = 'state:changed' | 'notifications:changed';
-
 // Globals injected by index.html / loaded scripts. Declared here so files
 // using them under `// @ts-check` don't trip on `any`.
 declare global {

@@ -25,22 +25,10 @@ export interface ManualYearRate {
     inflationPct?: number;
 }
 
-/** The whole map. `{ [CURRENCY]: { [year]: { fx?, inflationPct? } } }`. */
-export function getManualRates(): Record<string, Record<string, ManualYearRate>> {
-    return STATE.manualRates || {};
-}
-
 /** All year entries for one currency (UPPERCASE-keyed). Empty if none. */
 export function getManualRatesForCurrency(currency: string): Record<string, ManualYearRate> {
     const code = (currency || '').toUpperCase();
     return (STATE.manualRates && STATE.manualRates[code]) || {};
-}
-
-/** A single currency+year entry, or undefined. Used by the Insights calc. */
-export function getManualYearRate(currency: string, year: number | string): ManualYearRate | undefined {
-    const code = (currency || '').toUpperCase();
-    const byYear = STATE.manualRates && STATE.manualRates[code];
-    return byYear ? byYear[String(year)] : undefined;
 }
 
 /** True iff the currency has at least one year with a finite inflation %.
@@ -99,16 +87,6 @@ export function clearAllManualFx(): boolean {
         emit(EVENTS.STATE_CHANGED);
     }
     return changed;
-}
-
-/** Drop every year for one currency (the "reset to automatic" action). */
-export function clearManualRatesForCurrency(currency: string): void {
-    const code = (currency || '').toUpperCase();
-    if (!STATE.manualRates || !STATE.manualRates[code]) return;
-    const all = { ...STATE.manualRates };
-    delete all[code];
-    STATE.manualRates = all;
-    emit(EVENTS.STATE_CHANGED);
 }
 
 // ── Auto-fill ("Set automatically from my trips") ────────────────────────────

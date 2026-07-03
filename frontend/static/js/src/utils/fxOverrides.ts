@@ -27,30 +27,6 @@ export function getTripFxOverrides(tripId: string | null | undefined): Record<st
     return (STATE.fxOverridesByTrip && STATE.fxOverridesByTrip[tripId]) || {};
 }
 
-/** Set (or clear, when `ov` is null) one currency's override for a trip.
- *  Replaces the object references so useStore selectors / useMemo deps that
- *  key on `fxOverridesByTrip` recompute, then emits so subscribers re-render
- *  and the debounced saveState persists it. */
-export function setTripFxOverride(
-    tripId: string,
-    currency: string,
-    ov: FxOverride | null,
-): void {
-    if (!tripId || !currency) return;
-    const code = currency.toUpperCase();
-    const all = { ...(STATE.fxOverridesByTrip || {}) };
-    const trip = { ...(all[tripId] || {}) };
-    if (ov && Number.isFinite(ov.inflationPct) && Number.isFinite(ov.fxToHome) && ov.fxToHome > 0) {
-        trip[code] = { inflationPct: ov.inflationPct, fxToHome: ov.fxToHome };
-    } else {
-        delete trip[code];
-    }
-    if (Object.keys(trip).length > 0) all[tripId] = trip;
-    else delete all[tripId];
-    STATE.fxOverridesByTrip = all;
-    emit(EVENTS.STATE_CHANGED);
-}
-
 /** Drop EVERY trip's overrides. Called when the home currency changes — each
  *  override's `fxToHome` is denominated against the OLD home currency and would
  *  be silently misread otherwise (PV-6). Returns true if anything was cleared. */
@@ -61,13 +37,4 @@ export function clearAllFxOverrides(): boolean {
         return true;
     }
     return false;
-}
-
-/** Drop ALL overrides for a trip (the "reset to automatic" action). */
-export function clearTripFxOverrides(tripId: string): void {
-    if (!tripId || !STATE.fxOverridesByTrip || !STATE.fxOverridesByTrip[tripId]) return;
-    const all = { ...STATE.fxOverridesByTrip };
-    delete all[tripId];
-    STATE.fxOverridesByTrip = all;
-    emit(EVENTS.STATE_CHANGED);
 }

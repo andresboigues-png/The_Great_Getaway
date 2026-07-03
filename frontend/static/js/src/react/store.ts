@@ -72,14 +72,3 @@ export function useStore<T>(selector: (s: AppState) => T): T {
     );
     return selector(STATE);
 }
-
-/** Convenience hook for components that want the whole STATE object.
- *  Same re-render semantics as useStore() above. */
-export function useFullStore(): AppState {
-    useSyncExternalStore(
-        _subscribeToVersion,
-        _getVersionSnapshot,
-        _getVersionSnapshot,
-    );
-    return STATE;
-}

@@ -126,10 +126,6 @@ export function findAcceptedMemberUserId(
     return byFirst.length === 1 ? byFirst[0]!.userId : undefined;
 }
 
-export function tripHasCompanion(trip: TripWithCompanions | null | undefined, name: string): boolean {
-    return findTripCompanion(trip, name) !== undefined;
-}
-
 /** Add a companion to the trip's roster if a row with that name doesn't
  *  already exist. Returns the (existing or newly-created) Companion. The
  *  caller is responsible for persisting the trip via upsertTrip. */

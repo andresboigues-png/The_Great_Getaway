@@ -84,8 +84,3 @@ export const CONTINENT_SILHOUETTES: Record<string, string> = {
         'Q58 86 42 84 Q28 84 20 78 Q12 72 18 62 Z ' +
         'M22 60 Q18 52 24 50 Q29 52 27 60 Q25 64 22 60 Z',
 };
-
-/** True iff we have a silhouette for this continent key. */
-export function hasContinentSilhouette(key: string | null | undefined): boolean {
-    return !!key && key in CONTINENT_SILHOUETTES;
-}

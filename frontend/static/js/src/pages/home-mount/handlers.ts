@@ -71,16 +71,6 @@ export let activeHomeTab: HomeTab = 'days';
 
 
 // ── setters (exported for external callers) ────────────────────────
-export function setEditingDayId(id: string | null): void {
-    editingDayId = id;
-}
-
-export function setActiveMapClickListener(
-    cb: ((e: { latlng: { lat: number; lng: number } }) => void) | null,
-): void {
-    activeMapClickListener = cb;
-}
-
 export function setLocalTimeClockInterval(
     id: ReturnType<typeof setInterval> | null,
 ): void {

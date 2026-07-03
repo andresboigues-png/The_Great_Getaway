@@ -287,26 +287,3 @@ export function streetViewUrl(
     if (typeof heading === 'number') params.set('heading', String(heading));
     return `https://maps.googleapis.com/maps/api/streetview?${params.toString()}`;
 }
-
-/** Probe the Street View metadata endpoint to check if imagery
- *  exists for a coordinate. Cheap call (free tier separate from
- *  image requests) — useful when you want to decide whether to
- *  even render the image element vs a placeholder.
- *  @param {{lat: number, lng: number}} pos
- *  @returns {Promise<boolean>} true when status === 'OK'
- */
-export async function streetViewHasImagery(pos: { lat: number; lng: number } | null | undefined): Promise<boolean> {
-    const key = _apiKey();
-    if (!key || !pos) return false;
-    try {
-        const res = await fetch(
-            `https://maps.googleapis.com/maps/api/streetview/metadata`
-            + `?location=${pos.lat},${pos.lng}&key=${encodeURIComponent(key)}`,
-        );
-        if (!res.ok) return false;
-        const data = await res.json();
-        return data?.status === 'OK';
-    } catch {
-        return false;
-    }
-}

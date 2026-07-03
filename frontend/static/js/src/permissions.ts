@@ -71,16 +71,3 @@ export function canDelete(trip: TripPermInput): boolean {
     return isOwner(trip);
 }
 
-/** Can the current user invite/kick members? Same as `canManageRoster` for
- *  now; kept as a separate helper so a future "Co-Planner can invite but
- *  can't change roster names" rule is a single-line edit here. */
-export function canInviteMembers(trip: TripPermInput): boolean {
-    return isOwner(trip);
-}
-
-/** Can the current user archive their own copy of the trip? Always true
- *  for any accepted member (incl. relaxers — archive is just a personal
- *  hide flag, not a write to shared trip data). */
-export function canArchive(trip: TripPermInput): boolean {
-    return getMyRole(trip) !== null;
-}
