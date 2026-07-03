@@ -23,5 +23,22 @@ export default defineConfig({
     test: {
         environment: 'jsdom',
         include: ['frontend/static/js/src/**/*.test.ts'],
+        // MK1 Wave D (T1-4): coverage measurement. Scoped to the app
+        // source (excluding the locale tables — 8.5k lines of strings
+        // would drown the signal, and the tsc parity check already
+        // guards them). Run `npm run test:unit:coverage`; the summary
+        // is the BASELINE to ratchet, not a gate yet — the SPA's
+        // coverage story is young (13 test files when this landed).
+        coverage: {
+            provider: 'v8',
+            include: ['frontend/static/js/src/**'],
+            exclude: [
+                'frontend/static/js/src/locales/**',
+                'frontend/static/js/src/**/*.test.ts',
+                'frontend/static/js/src/types.d.ts',
+                'frontend/static/js/src/globals.d.ts',
+            ],
+            reporter: ['text-summary', 'text'],
+        },
     },
 });

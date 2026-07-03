@@ -155,6 +155,9 @@ test.describe('The Great Getaway — smoke', () => {
         // sequence — Playwright's actionability check times out on
         // the chip even though it's visible. dispatchEvent via
         // .evaluate(el => el.click()) skips the hit-test.
+        // MK1 Wave D: the plan area opens on the Trip Hub tab now; the
+        // day-chip strip (with the + chip) lives on the Days/Path tab.
+        await page.locator('.trip-tabnav__tab[data-tab="days"]').click({ timeout: 10000 });
         await page.locator('#pathAddDayChip').evaluate((el) => /** @type {HTMLElement} */ (el).click());
         await page.fill('#dayName', 'Shibuya wandering');
         await page.fill('#dayDate', '2026-06-15');

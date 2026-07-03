@@ -303,8 +303,17 @@ export function buildPathTabHtml(ctx: PathTabContext): string {
     // Empty state — the trip only has its Hub, no numbered days yet.
     // Prompts the user to add their first day (the Hub itself is now
     // reachable via the Trip Hub tab, not this wheel).
+    //
+    // MK1 Wave D: the prompt said "create some" but rendered NO way to
+    // do it — the + chip only appeared once numberedDays ≥ 1, so a
+    // fresh trip's Path tab was a dead end (caught by the revived
+    // smoke e2e). Render the same #pathAddDayChip here; the delegated
+    // click handler in TripBody already wires it by id.
     if (numberedDays.length === 0) {
-        return `<div class="card glass" style="padding:28px; border-radius:18px; text-align:center; color:var(--text-secondary);">${esc(t('pathTab.emptyState'))}</div>`;
+        const emptyAddChip = tripIsEditable
+            ? `<div style="margin-top:14px; display:flex; justify-content:center;"><button type="button" class="path-chip path-chip--add" id="pathAddDayChip" title="${esc(t('pathTab.addNewDay'))}" aria-label="${esc(t('pathTab.addNewDay'))}">+</button></div>`
+            : '';
+        return `<div class="card glass" style="padding:28px; border-radius:18px; text-align:center; color:var(--text-secondary);">${esc(t('pathTab.emptyState'))}${emptyAddChip}</div>`;
     }
     const totalDays = numberedDays.length;
     // 2026-05-24: i18n — summary line under the chip strip. Two shapes

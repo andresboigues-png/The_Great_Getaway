@@ -95,7 +95,14 @@ async function seedTripWithDays(page, headers, numberedDayDates) {
 /** Drive the photo-upload flow: open the modal, hand the file to the
  *  hidden input, wait for the upload toast + a new card to land. */
 async function uploadFixture(page, filePath, expectedCardCountAfter) {
-    await page.locator('.path-photos-btn').first().click();
+    // MK1 Wave D rewrite: trip-wide Photos moved OFF the Path tab —
+    // the redesigned day carousel shows numbered days only (no anchor
+    // card); the trip-media modals open from the TRIP HUB tab now
+    // (trip-features Wave 1). Hub is the default tab, but click it
+    // explicitly (a persisted tab pref could differ) and use its
+    // stable data-hub-action hook.
+    await page.locator('.trip-tabnav__tab[data-tab="hub"]').click({ timeout: 10000 });
+    await page.locator('[data-hub-action="photos"]').click({ timeout: 10000 });
     // The file input is hidden — set the file directly. Browser-native
     // upload then fires the existing change handler which runs the
     // EXIF parse + uploadMedia + addTripPhoto pipeline.
@@ -174,7 +181,9 @@ test.describe('EXIF auto-day-assign (§4.9)', () => {
         });
         // The Anchor bucket renders in UI copy as the "⭐ Hub" pill
         // (tripMedia.dayBucketAnchorShort) — the data concept is the
-        // anchor day (dayNumber 0), but the user-facing label is "Hub".
-        expect(selectedLabel).toContain('Hub');
+        // anchor day (dayNumber 0); the user-facing label was "Hub",
+        // renamed "Trip-wide" when the Trip Hub tab took the Hub name
+        // (MK1 Wave D rewrite).
+        expect(selectedLabel).toContain('Trip-wide');
     });
 });

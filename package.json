@@ -25,7 +25,8 @@
         "test:e2e:a11y": "playwright test tests/e2e/a11y.spec.js",
         "build:analyze": "ANALYZE=1 vite build",
         "check:bundle-size": "node scripts/check-bundle-size.mjs",
-        "prepare": "husky"
+        "prepare": "husky",
+        "test:unit:coverage": "vitest run --coverage"
     },
     "lint-staged": {
         "frontend/static/js/src/**/*.js": [
@@ -63,6 +64,7 @@
         "@types/react": "^19.2.14",
         "@types/react-dom": "^19.2.3",
         "@vitejs/plugin-react": "^6.0.1",
+        "@vitest/coverage-v8": "^4.1.9",
         "eslint": "^9.39.4",
         "eslint-config-prettier": "^10.1.8",
         "eslint-plugin-react-hooks": "^7.1.1",

@@ -481,6 +481,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                     <button
                         className={`trip-tabnav__tab${activeTab === 'hub' ? ' is-active' : ''}`}
                         role="tab"
+                        data-tab="hub"
                         aria-selected={activeTab === 'hub'}
                         onClick={() => switchTab('hub')}
                     >
@@ -505,6 +506,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                     <button
                         className={`trip-tabnav__tab${activeTab === 'days' ? ' is-active' : ''}`}
                         role="tab"
+                        data-tab="days"
                         aria-selected={activeTab === 'days'}
                         onClick={() => switchTab('days')}
                     >
@@ -528,6 +530,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                     <button
                         className={`trip-tabnav__tab${activeTab === 'companions' ? ' is-active' : ''}`}
                         role="tab"
+                        data-tab="companions"
                         aria-selected={activeTab === 'companions'}
                         onClick={() => switchTab('companions')}
                     >

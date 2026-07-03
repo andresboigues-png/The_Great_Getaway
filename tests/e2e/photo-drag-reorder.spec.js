@@ -53,7 +53,7 @@ async function seedTripWithPhotos(page, headers, photoSrcs) {
         name: 'Drag-reorder e2e trip',
         country: 'Portugal',
     });
-    await page.request.post('/api/days', {
+    const anchorRes = await page.request.post('/api/days', {
         headers,
         data: {
             day: {
@@ -65,6 +65,24 @@ async function seedTripWithPhotos(page, headers, photoSrcs) {
             },
         },
     });
+    expect(anchorRes.status()).toBe(200);
+    // MK1 Wave D: the redesigned Path tab shows an empty-state (no
+    // anchor card → no .path-photos-btn) when the trip has no NUMBERED
+    // days. Seed one so the day-card strip — anchor card included —
+    // actually renders.
+    const day1Res = await page.request.post('/api/days', {
+        headers,
+        data: {
+            day: {
+                id: uniqueId('day'),
+                tripId,
+                dayNumber: 1,
+                date: '2026-06-02',
+                name: 'Day one',
+            },
+        },
+    });
+    expect(day1Res.status()).toBe(200);
     // Photos are trip-MEDIA: seed via the dedicated endpoint, not the trip
     // payload (upsert_trip ignores media + /api/data doesn't ship it). The
     // client's fetchTripMedia() loads them once the trip is active.
@@ -102,10 +120,14 @@ test.describe('Photo drag-to-reorder (§4.9)', () => {
         }, tripId);
         await page.goto('/');
 
-        // Open photos modal. Each photo card carries the drag handle
-        // `.trip-photo-drag-handle` because all 3 seeded photos are
-        // trip-source (not day-source).
-        await page.locator('.path-photos-btn').first().click();
+        // MK1 Wave D rewrite: trip-wide Photos moved OFF the Path tab —
+        // the redesigned day carousel shows numbered days only (no anchor
+        // card); the trip-media modals open from the TRIP HUB tab now
+        // (trip-features Wave 1). Hub is the default tab, but click it
+        // explicitly (a persisted tab pref could differ) and use its
+        // stable data-hub-action hook.
+        await page.locator('.trip-tabnav__tab[data-tab="hub"]').click({ timeout: 10000 });
+        await page.locator('[data-hub-action="photos"]').click({ timeout: 10000 });
         await expect(page.locator('.trip-photo-card[data-photo-kind="image"]')).toHaveCount(3);
 
         // Dispatch pointerdown on A's handle, pointermove past the 6px
@@ -202,7 +224,14 @@ test.describe('Photo drag-to-reorder (§4.9)', () => {
         }, tripId);
         await page.goto('/');
 
-        await page.locator('.path-photos-btn').first().click();
+        // MK1 Wave D rewrite: trip-wide Photos moved OFF the Path tab —
+        // the redesigned day carousel shows numbered days only (no anchor
+        // card); the trip-media modals open from the TRIP HUB tab now
+        // (trip-features Wave 1). Hub is the default tab, but click it
+        // explicitly (a persisted tab pref could differ) and use its
+        // stable data-hub-action hook.
+        await page.locator('.trip-tabnav__tab[data-tab="hub"]').click({ timeout: 10000 });
+        await page.locator('[data-hub-action="photos"]').click({ timeout: 10000 });
         await expect(page.locator('.trip-photo-card[data-photo-kind="image"]')).toHaveCount(3);
 
         // Press + 2px move + release — under the 6px threshold.

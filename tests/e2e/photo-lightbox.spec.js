@@ -105,9 +105,11 @@ test.describe('Photo lightbox gallery (§4.9)', () => {
         // repopulates (R12 media is a separate read path). See helpers.js.
         await openTripWithMedia(page, auth.user.id, tripId);
 
-        // The Path tab is the default landing on a trip; click the
-        // 📸 Photos button. It lives on the Anchor day's options stack.
-        const photosBtn = page.locator('.path-photos-btn').first();
+        // MK1 Wave D rewrite: trip-wide Photos open from the TRIP HUB
+        // tab now (the Path carousel shows numbered days only; the
+        // anchor card was retired — "the Trip Hub tab owns the anchor").
+        await page.locator('.trip-tabnav__tab[data-tab="hub"]').click({ timeout: 10000 });
+        const photosBtn = page.locator('[data-hub-action="photos"]');
         await photosBtn.waitFor({ state: 'visible', timeout: 8000 });
         await photosBtn.click();
 
@@ -131,7 +133,10 @@ test.describe('Photo lightbox gallery (§4.9)', () => {
         const auth = await getAuthForApi(page, uniqueId('owner'));
         const tripId = await seedTripWithPhotos(page, auth.headers, [PHOTO_A, PHOTO_B, PHOTO_C]);
         await openTripWithMedia(page, auth.user.id, tripId);
-        await page.locator('.path-photos-btn').first().click();
+        // MK1 Wave D rewrite: trip-wide Photos open from the TRIP HUB
+        // tab now (the Path carousel shows numbered days only).
+        await page.locator('.trip-tabnav__tab[data-tab="hub"]').click({ timeout: 10000 });
+        await page.locator('[data-hub-action="photos"]').click({ timeout: 10000 });
         await page.locator('.trip-photo-card[data-photo-kind="image"]').first().click();
 
         // Start: counter is 1/3, prev hidden, next visible.
@@ -165,7 +170,10 @@ test.describe('Photo lightbox gallery (§4.9)', () => {
         const auth = await getAuthForApi(page, uniqueId('owner'));
         const tripId = await seedTripWithPhotos(page, auth.headers, [PHOTO_A, PHOTO_B, PHOTO_C]);
         await openTripWithMedia(page, auth.user.id, tripId);
-        await page.locator('.path-photos-btn').first().click();
+        // MK1 Wave D rewrite: trip-wide Photos open from the TRIP HUB
+        // tab now (the Path carousel shows numbered days only).
+        await page.locator('.trip-tabnav__tab[data-tab="hub"]').click({ timeout: 10000 });
+        await page.locator('[data-hub-action="photos"]').click({ timeout: 10000 });
         await page.locator('.trip-photo-card[data-photo-kind="image"]').first().click();
 
         await expect(page.locator('#lbCounter')).toContainText('1 / 3');
@@ -191,7 +199,10 @@ test.describe('Photo lightbox gallery (§4.9)', () => {
         const auth = await getAuthForApi(page, uniqueId('owner'));
         const tripId = await seedTripWithPhotos(page, auth.headers, [PHOTO_A, PHOTO_B]);
         await openTripWithMedia(page, auth.user.id, tripId);
-        await page.locator('.path-photos-btn').first().click();
+        // MK1 Wave D rewrite: trip-wide Photos open from the TRIP HUB
+        // tab now (the Path carousel shows numbered days only).
+        await page.locator('.trip-tabnav__tab[data-tab="hub"]').click({ timeout: 10000 });
+        await page.locator('[data-hub-action="photos"]').click({ timeout: 10000 });
         await page.locator('.trip-photo-card[data-photo-kind="image"]').first().click();
         await expect(page.locator('#lbImg')).toBeVisible();
 
@@ -220,7 +231,10 @@ test.describe('Photo lightbox gallery (§4.9)', () => {
         const auth = await getAuthForApi(page, uniqueId('owner'));
         const tripId = await seedTripWithPhotos(page, auth.headers, [PHOTO_A]);
         await openTripWithMedia(page, auth.user.id, tripId);
-        await page.locator('.path-photos-btn').first().click();
+        // MK1 Wave D rewrite: trip-wide Photos open from the TRIP HUB
+        // tab now (the Path carousel shows numbered days only).
+        await page.locator('.trip-tabnav__tab[data-tab="hub"]').click({ timeout: 10000 });
+        await page.locator('[data-hub-action="photos"]').click({ timeout: 10000 });
         await page.locator('.trip-photo-card[data-photo-kind="image"]').first().click();
 
         // Image opens, but the gallery chrome (counter + chevrons)

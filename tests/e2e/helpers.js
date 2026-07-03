@@ -360,6 +360,14 @@ export async function createTripViaApi(ctx, headers, trip = {}) {
     // upsert-trip endpoint accepts these as serialised JSON columns
     // (see routes/trips.py). Skipping when undefined so the server
     // falls back to its own defaults (NULL / empty array).
+    // MK1 Wave D: place fields — a REAL trip always has a destination,
+    // and the edit-trip modal's pure-rename path requires one
+    // (initialPlace keys off placeId/lat). Tests seeding placeless
+    // trips get the manual-fallback picker instead.
+    if (trip.placeId !== undefined) tripPayload.placeId = trip.placeId;
+    if (trip.lat !== undefined) tripPayload.lat = trip.lat;
+    if (trip.lng !== undefined) tripPayload.lng = trip.lng;
+    if (trip.countryCode !== undefined) tripPayload.countryCode = trip.countryCode;
     if (trip.markedPlaces !== undefined) tripPayload.markedPlaces = trip.markedPlaces;
     if (trip.companions !== undefined) tripPayload.companions = trip.companions;
     if (trip.documents !== undefined) tripPayload.documents = trip.documents;

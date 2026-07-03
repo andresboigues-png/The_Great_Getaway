@@ -598,43 +598,27 @@ test.describe('Critical flows — UI-driven', () => {
         await expect(railFriends).toHaveClass(/active/);
     });
 
-    test('sidebar Settings + Settlement items are clickable (no overlay intercept)', async ({ page }) => {
-        // Regression for a layout bug where a flex spacer
-        // `<div style="flex: 1;">` in the sidebar competed with
-        // `.sidebar-middle` (which already has flex: 1) for the
-        // column's vertical space. Each got half the height, the
-        // spacer expanded into the visual area of Settings +
-        // Personalization (the bottom two middle-block items), and
-        // any real user click on those items hit the spacer's
-        // empty div rather than the link — silent navigation
-        // failure.
-        //
-        // The existing helpers.navigateTo path used
-        // `el.click()` in the page context which bypasses the
-        // browser's hit-test, so this slipped past every other
-        // automated suite. This test deliberately uses Playwright's
-        // normal `.click()` (with hit-test enabled) on the visible
-        // sidebar item so a future regression of the same shape
-        // fails CI.
+    test('rail Settings + Settlement items are clickable (no overlay intercept)', async ({ page }) => {
+        // MK1 Wave D rewrite: the burger drawer + .sidebar this test
+        // originally exercised were REMOVED in round 18 — navigation is
+        // now the always-visible icon rail island (#sidebarRail, ≥721px
+        // viewports). The regression class it guards is unchanged and
+        // still worth guarding: an overlay/spacer stealing the browser
+        // hit-test from a nav item. helpers.navigateTo uses el.click()
+        // in the page context (bypasses hit-testing), so only a real
+        // Playwright .click() catches that shape of bug.
         const userId = uniqueId('user');
         await getAuthForApi(page, userId);
         await openFreshApp(page, userId);
 
-        // Open the sidebar drawer.
-        await page.click('#hamburgerBtn');
-        await page.waitForSelector('.sidebar.open', { state: 'visible', timeout: 5000 });
-
-        // Click Settings — Playwright's .click() respects hit-test,
-        // so an overlay intercept fails the click with a Timeout.
-        await page.locator('.sidebar.open .sidebar-item[data-page="settings"]:visible').click({ timeout: 5000 });
+        // The rail is an always-visible island on desktop — no drawer
+        // to open. Click Settings with hit-test enabled.
+        await page.locator('#sidebarRail .sidebar-rail__item[data-page="settings"]:visible').click({ timeout: 5000 });
         await expect.poll(() => page.evaluate(() => location.hash)).toBe('#settings');
 
-        // Re-open the drawer (closed automatically on nav) and click
-        // Settlement — same bottom flex-spacer area, same hit-test.
-        // (Personalization was folded into Settings on 2026-05-14.)
-        await page.click('#hamburgerBtn');
-        await page.waitForSelector('.sidebar.open', { state: 'visible', timeout: 5000 });
-        await page.locator('.sidebar.open .sidebar-item[data-page="settlement"]:visible').click({ timeout: 5000 });
+        // Settlement sits in a different rail group (its own dot
+        // cluster) — same hit-test requirement.
+        await page.locator('#sidebarRail .sidebar-rail__item[data-page="settlement"]:visible').click({ timeout: 5000 });
         await expect.poll(() => page.evaluate(() => location.hash)).toBe('#settlement');
     });
 
@@ -659,10 +643,14 @@ test.describe('Critical flows — UI-driven', () => {
         await expect(page.locator('#tripSelector')).toContainText('Archive Flow', { timeout: 5000 });
         await page.selectOption('#tripSelector', tripId);
 
-        // The Complete button is hidden by default (display: none) and
-        // gets unhidden by updateTripSelector once an active trip exists.
-        // Wait for that paint, then drive the archive confirm modal.
-        const completeBtn = page.locator('#completeTripBtn');
+        // MK1 Wave D rewrite: the inline #completeTripBtn was removed
+        // when desktop trip controls consolidated into the single "+"
+        // button (#newTripBtn) that opens #tripControlsPopover
+        // (commit 52fea5d1). Complete lives there as
+        // #completeTripBtnSidebar, unhidden by updateTripSelector once
+        // an active trip exists.
+        await page.locator('#newTripBtn:visible').click({ timeout: 5000 });
+        const completeBtn = page.locator('#completeTripBtnSidebar');
         await completeBtn.waitFor({ state: 'visible', timeout: 5000 });
         await completeBtn.click();
 
@@ -695,25 +683,35 @@ test.describe('Critical flows — UI-driven', () => {
         const userId = uniqueId('user');
         const auth = await getAuthForApi(page, userId);
         const tripId = uniqueId('trip-edit');
+        // Seed WITH place data: initialPlace (modals/trip.ts) keys off
+        // placeId/lat, and only a placed trip gets the documented
+        // pure-rename path (edit mode keeps the existing destination;
+        // Maps stubbed off wires NO fallback select for placed trips).
         await createTripViaApi(page, auth.headers, {
             id: tripId,
             name: 'Original Name',
+            placeId: 'test-place-original',
+            lat: 38.72,
+            lng: -9.14,
+            countryCode: 'PT',
         });
         await openFreshApp(page, userId);
         await expect(page.locator('#tripSelector')).toContainText('Original Name', { timeout: 5000 });
         await page.selectOption('#tripSelector', tripId);
 
         // Force the manual-fallback place picker (Google Maps not loaded
-        // in test env) — same trick createTrip uses.
+        // in test env) — same trick createTrip uses. (The old #sidebar
+        // drawer cleanup is gone with the drawer itself — round 18.)
         await page.evaluate(() => {
             /** @type {any} */ (window).google = undefined;
-            document.getElementById('sidebar')?.classList.remove('open');
-            document.getElementById('sidebarOverlay')?.classList.remove('open');
         });
 
-        // The edit-trip button is `#editTripBtn` on the trip header
-        // (icon-btn-square titled "Edit trip name and location").
-        const editBtn = page.locator('#editTripBtn');
+        // MK1 Wave D rewrite: the standalone #editTripBtn header button
+        // was consolidated into the "+" trip-options popover
+        // (#newTripBtn → #tripControlsPopover → #editTripBtnSidebar,
+        // commit 52fea5d1). The modal it opens is unchanged.
+        await page.locator('#newTripBtn:visible').click({ timeout: 5000 });
+        const editBtn = page.locator('#editTripBtnSidebar');
         await editBtn.waitFor({ state: 'visible', timeout: 5000 });
         await editBtn.click();
 
@@ -1105,7 +1103,10 @@ test.describe('Critical flows — UI-driven', () => {
         await card.waitFor({ state: 'visible', timeout: 5000 });
         const thumb = card.locator('.archived-card-cover');
         await expect(thumb).toBeVisible();
-        await expect(thumb).toHaveAttribute('src', coverUrl);
+        // MK1 Wave C: covers request the server-derived display variant
+        // (?size=display appended by utils/mediaUrl.ts::sizedUploadUrl;
+        // the server falls back to the original when no variant exists).
+        await expect(thumb).toHaveAttribute('src', `${coverUrl}?size=display`);
     });
 
     test('search page finds trips, expenses, and days across active trips', async ({ page }) => {

@@ -205,6 +205,7 @@ export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
                     <button
                         type="button"
                         className="day-action-btn day-action-btn--neutral"
+                        data-hub-action="documents"
                         onClick={() => openTripDocumentsModal(activeTrip)}
                     >
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
@@ -215,6 +216,7 @@ export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
                     <button
                         type="button"
                         className="day-action-btn day-action-btn--neutral"
+                        data-hub-action="photos"
                         onClick={() => openTripPhotosModal(activeTrip)}
                     >
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
