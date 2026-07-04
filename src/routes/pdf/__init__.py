@@ -51,6 +51,8 @@ from __future__ import annotations
 import io
 import json
 import os  # noqa: F401  (re-exported helpers reference os at call time)
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from datetime import datetime  # noqa: F401
 from typing import Any
 
@@ -323,6 +325,109 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
 
     days_renderable = [d for d in days if _day_has_content(d)]
 
+    # MK1 Wave I (T2-2): the ~850 lines of section building moved to the
+    # module-level _sec_* functions below — this function is now the
+    # orchestrator: build the shared context, run the sections in order,
+    # then build the document. todos/budgets are parsed HERE for the
+    # context (the cover TOC + their sections keep their own verbatim
+    # local parses — same expressions, unchanged double-parse behavior).
+    b = _PdfBuild(
+        rl=rl,
+        styles=styles,
+        tr=tr,
+        page_w=page_w,
+        margin_lr=margin_lr,
+        trip_row=trip_row,
+        options=options,
+        story=story,
+        companions=companions,
+        marked_places=marked_places,
+        trip_photos=trip_photos,
+        expenses=expenses,
+        settlements=settlements,
+        days_renderable=days_renderable,
+        ai_plan_extra=ai_plan_extra,
+        todos=_safe_json(trip_row.get("checklist_json"), []),
+        budgets=trip_row.get("budgets") or [],
+    )
+    _sec_cover(b)
+    _sec_days(b)
+    _sec_todos(b)
+    _sec_budgets(b)
+    _sec_expenses(b)
+    _sec_settle(b)
+    _sec_companions(b)
+    _sec_marked_places(b)
+    _sec_photos(b)
+    _sec_empty_hint(b)
+
+    # R3-Round 3 fix: wrap doc.build in try/except. A pathological
+    # per-day notes field (~30k+ chars) can raise ReportLab's
+    # LayoutError if a single Paragraph won't fit on one page, and
+    # pre-fix that propagated as an unhandled 500 with a stack trace.
+    # Now: surface a friendly 500 with operator-actionable text +
+    # log the underlying error for forensics.
+    try:
+        doc.build(story)
+    except Exception as e:
+        from observability import get_logger
+
+        get_logger(__name__).warning(
+            "PDF doc.build failed: %s",
+            e,
+        )
+        raise RuntimeError(
+            "PDF generation failed — likely a section too long to fit "
+            "on one page. Try shortening the longest note or splitting "
+            "the trip."
+        ) from e
+    return buf.getvalue()
+
+
+@dataclass
+class _PdfBuild:
+    """Shared state the PDF section builders read/append. One instance
+    per export; `story` is the accumulating flowables list, and
+    `section_num` threads the cover-TOC numbering through the section
+    openers exactly as the original closure variable did."""
+
+    rl: Any
+    styles: Any
+    tr: Any
+    page_w: float
+    margin_lr: float
+    trip_row: dict
+    options: dict
+    story: list
+    companions: list
+    marked_places: list
+    trip_photos: list
+    expenses: list
+    settlements: list
+    days_renderable: list
+    ai_plan_extra: list
+    todos: list
+    budgets: list
+    section_num: int = 1
+    photos_flowables: list = dataclass_field(default_factory=list)
+
+    def opt(self, k, default=True):
+        return bool(self.options.get(k, default))
+
+
+# ── MK1 Wave I (T2-2): _build_trip_pdf decomposed. Section bodies are
+# VERBATIM from the original closure — each function re-binds its
+# shared names from the _PdfBuild context at the top, so diffs stay
+# auditable. Bare _fetch_* names still resolve from THIS module's
+# globals (the test monkeypatch contract).
+
+
+def _sec_cover(b: _PdfBuild) -> None:
+    rl, styles, tr, story, opt = b.rl, b.styles, b.tr, b.story, b.opt
+    page_w, margin_lr, trip_row = b.page_w, b.margin_lr, b.trip_row
+    days_renderable, companions = b.days_renderable, b.companions
+    marked_places, expenses = b.marked_places, b.expenses
+    settlements, trip_photos = b.settlements, b.trip_photos
     # ── COVER PAGE ──
     # Full-bleed feel: tiny brand kicker → big hero title → country/
     # dates → hero map → stat tiles → "what's inside" mini-TOC.
@@ -508,10 +613,11 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             story.append(_toc_row(rl, styles, page_w, margin_lr, *entry))
             story.append(rl.Spacer(1, 0.18 * rl.cm))
 
-    # Section counter mirrors the TOC numbering above so the
-    # "01" on the section opener matches the "01" on the cover.
-    section_num = 1
 
+def _sec_days(b: _PdfBuild) -> None:
+    rl, styles, tr, story, opt = b.rl, b.styles, b.tr, b.story, b.opt
+    page_w, margin_lr, trip_row = b.page_w, b.margin_lr, b.trip_row
+    days_renderable, ai_plan_extra = b.days_renderable, b.ai_plan_extra
     # ── DAYS ──
     # days_renderable was computed earlier (Day 0 anchor + empty
     # days dropped) so the cover stats / TOC see the same count.
@@ -523,7 +629,7 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 styles,
                 page_w,
                 margin_lr,
-                number=f"{section_num:02d}",
+                number=f"{b.section_num:02d}",
                 title=tr("sec_days"),
                 kicker=(
                     f"{tr('sec_days')} — "
@@ -533,7 +639,7 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 color=_BRAND_BLUE,
             )
         )
-        section_num += 1
+        b.section_num += 1
 
         # Hero overview map — pins for every day that has coords.
         # Goes BEFORE the first day card so the reader sees "where
@@ -727,6 +833,10 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 )
                 story.append(rl.KeepTogether([card, rl.Spacer(1, 0.35 * rl.cm)]))
 
+
+def _sec_todos(b: _PdfBuild) -> None:
+    rl, styles, tr, story, opt = b.rl, b.styles, b.tr, b.story, b.opt
+    page_w, margin_lr, trip_row = b.page_w, b.margin_lr, b.trip_row
     # ── TO-DOs ──
     todos = _safe_json(trip_row.get("checklist_json"), [])
     if opt("includeTodos") and todos:
@@ -737,13 +847,13 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 styles,
                 page_w,
                 margin_lr,
-                number=f"{section_num:02d}",
+                number=f"{b.section_num:02d}",
                 title=tr("sec_checklist"),
                 kicker="",
                 color=_BRAND_PURPLE,
             )
         )
-        section_num += 1
+        b.section_num += 1
         # Group by category if items have one; else flat list.
         by_cat: dict[str, list[dict]] = {}
         for t in todos:
@@ -780,6 +890,10 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             )
             story.append(rl.KeepTogether([cat_card, rl.Spacer(1, 0.3 * rl.cm)]))
 
+
+def _sec_budgets(b: _PdfBuild) -> None:
+    rl, styles, tr, story, opt = b.rl, b.styles, b.tr, b.story, b.opt
+    page_w, margin_lr, trip_row = b.page_w, b.margin_lr, b.trip_row
     # ── BUDGETS ──
     budgets = trip_row.get("budgets") or []
     if opt("includeBudgets") and budgets:
@@ -790,13 +904,13 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 styles,
                 page_w,
                 margin_lr,
-                number=f"{section_num:02d}",
+                number=f"{b.section_num:02d}",
                 title=tr("sec_budgets"),
                 kicker="",
                 color=_BRAND_GREEN,
             )
         )
-        section_num += 1
+        b.section_num += 1
         # Each budget's planned amount alongside the trip's TOTAL spend
         # (one number, footer row) so the reader still gets the
         # at-a-glance "did I stay under" answer without a misleading
@@ -877,6 +991,11 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         )
         story.append(budget_table)
 
+
+def _sec_expenses(b: _PdfBuild) -> None:
+    rl, styles, tr, story, opt = b.rl, b.styles, b.tr, b.story, b.opt
+    page_w, margin_lr, trip_row = b.page_w, b.margin_lr, b.trip_row
+    expenses = b.expenses
     # ── EXPENSES (PDF-2) ──
     # An itemised list the budget aggregate never showed: a 40-expense
     # trip used to collapse to a single number. Rendered as a MULTI-ROW
@@ -891,13 +1010,13 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 styles,
                 page_w,
                 margin_lr,
-                number=f"{section_num:02d}",
+                number=f"{b.section_num:02d}",
                 title=tr("sec_expenses"),
                 kicker="",
                 color=_BRAND_GREEN,
             )
         )
-        section_num += 1
+        b.section_num += 1
         story.extend(
             _expenses_section(
                 rl,
@@ -910,6 +1029,11 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             )
         )
 
+
+def _sec_settle(b: _PdfBuild) -> None:
+    rl, styles, tr, story, opt = b.rl, b.styles, b.tr, b.story, b.opt
+    page_w, margin_lr = b.page_w, b.margin_lr
+    expenses, settlements, companions = b.expenses, b.settlements, b.companions
     # ── SETTLE UP (PDF-3) ──
     # The group-trip "who owes whom" story was entirely absent. We
     # compute per-currency net balances from the trip's non-settlement
@@ -924,13 +1048,13 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 styles,
                 page_w,
                 margin_lr,
-                number=f"{section_num:02d}",
+                number=f"{b.section_num:02d}",
                 title=tr("sec_settle"),
                 kicker="",
                 color=_BRAND_GREEN,
             )
         )
-        section_num += 1
+        b.section_num += 1
         story.extend(
             _settle_section(
                 rl,
@@ -944,6 +1068,10 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             )
         )
 
+
+def _sec_companions(b: _PdfBuild) -> None:
+    rl, styles, tr, story, opt = b.rl, b.styles, b.tr, b.story, b.opt
+    page_w, margin_lr, companions = b.page_w, b.margin_lr, b.companions
     # ── COMPANIONS ──
     if opt("includeCompanions") and companions:
         story.append(rl.PageBreak())
@@ -953,17 +1081,22 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 styles,
                 page_w,
                 margin_lr,
-                number=f"{section_num:02d}",
+                number=f"{b.section_num:02d}",
                 title=tr("sec_companions"),
                 kicker="",
                 color=_BRAND_PURPLE,
             )
         )
-        section_num += 1
+        b.section_num += 1
         # Pretty avatar grid — each companion gets a colored
         # initials tile + name/role on the right, 2 per row.
         story.append(_companion_grid(rl, styles, page_w, margin_lr, companions, tr))
 
+
+def _sec_marked_places(b: _PdfBuild) -> None:
+    rl, styles, tr, story, opt = b.rl, b.styles, b.tr, b.story, b.opt
+    page_w, margin_lr, trip_row = b.page_w, b.margin_lr, b.trip_row
+    marked_places = b.marked_places
     # ── MARKED PLACES ──
     if opt("includeMarkedPlaces") and marked_places:
         story.append(rl.PageBreak())
@@ -973,13 +1106,13 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 styles,
                 page_w,
                 margin_lr,
-                number=f"{section_num:02d}",
+                number=f"{b.section_num:02d}",
                 title=tr("sec_places"),
                 kicker="",
                 color=_BRAND_BLUE,
             )
         )
-        section_num += 1
+        b.section_num += 1
 
         # Overview map of all marked places with letter-labeled
         # pins (A, B, C…). Sits at the top of the section so the
@@ -1079,12 +1212,17 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             )
             story.append(rl.KeepTogether([place_card, rl.Spacer(1, 0.18 * rl.cm)]))
 
+
+def _sec_photos(b: _PdfBuild) -> None:
+    rl, styles, tr, story, opt = b.rl, b.styles, b.tr, b.story, b.opt
+    page_w, margin_lr = b.page_w, b.margin_lr
+    trip_photos, days_renderable = b.trip_photos, b.days_renderable
     # ── PHOTOS (PDF-4) ──
     # A dedicated gallery for the trip-wide photos store + any per-day
     # photos not already inlined in the day cards. Off by default. Each
     # photo is fetched fail-soft + size-capped + re-validated through PIL
     # (see _load_photo_png), then laid out in a paginating grid.
-    photos_section_flowables: list[Any] = []
+    b.photos_flowables: list[Any] = []
     if opt("includePhotos", default=False):
         # BUG-035: when the day cards are rendered (includeDays on), exclude
         # photos already inlined there (tagged with a renderable day's id), else
@@ -1105,8 +1243,8 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         if gallery:
             grid = _photo_grid(rl, gallery, page_w - 2 * margin_lr, cols=3)
             if grid is not None:
-                photos_section_flowables.append(grid)
-    if photos_section_flowables:
+                b.photos_flowables.append(grid)
+    if b.photos_flowables:
         story.append(rl.PageBreak())
         story.extend(
             _section_opener(
@@ -1114,15 +1252,21 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 styles,
                 page_w,
                 margin_lr,
-                number=f"{section_num:02d}",
+                number=f"{b.section_num:02d}",
                 title=tr("sec_photos"),
                 kicker="",
                 color=_BRAND_PURPLE,
             )
         )
-        section_num += 1
-        story.extend(photos_section_flowables)
+        b.section_num += 1
+        story.extend(b.photos_flowables)
 
+
+def _sec_empty_hint(b: _PdfBuild) -> None:
+    rl, styles, tr, story, opt = b.rl, b.styles, b.tr, b.story, b.opt
+    days_renderable, todos, budgets = b.days_renderable, b.todos, b.budgets
+    expenses, settlements = b.expenses, b.settlements
+    companions, marked_places = b.companions, b.marked_places
     # R3-Round 3 fix: also fire the cover-only hint when the user
     # selected sections but every one is empty (a freshly-created
     # trip with 0 days / 0 expenses / 0 todos / 0 companions / 0
@@ -1138,7 +1282,7 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         or len(settlements) > 0
         or len(companions) > 0
         or len(marked_places) > 0
-        or bool(photos_section_flowables)
+        or bool(b.photos_flowables)
     )
     no_sections_selected = not any(
         opt(
@@ -1173,28 +1317,6 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 styles["muted"],
             )
         )
-
-    # R3-Round 3 fix: wrap doc.build in try/except. A pathological
-    # per-day notes field (~30k+ chars) can raise ReportLab's
-    # LayoutError if a single Paragraph won't fit on one page, and
-    # pre-fix that propagated as an unhandled 500 with a stack trace.
-    # Now: surface a friendly 500 with operator-actionable text +
-    # log the underlying error for forensics.
-    try:
-        doc.build(story)
-    except Exception as e:
-        from observability import get_logger
-
-        get_logger(__name__).warning(
-            "PDF doc.build failed: %s",
-            e,
-        )
-        raise RuntimeError(
-            "PDF generation failed — likely a section too long to fit "
-            "on one page. Try shortening the longest note or splitting "
-            "the trip."
-        ) from e
-    return buf.getvalue()
 
 
 @bp.route("/api/trips/<trip_id>/pdf", methods=["POST"])
