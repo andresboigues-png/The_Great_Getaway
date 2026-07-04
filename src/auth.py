@@ -43,6 +43,7 @@ from functools import wraps
 import jwt
 from flask import g, jsonify, request
 
+from config import is_dev_env
 from database import get_db
 
 JWT_ALGORITHM = "HS256"
@@ -75,11 +76,8 @@ def _secret() -> str:
     s = os.getenv("GG_JWT_SECRET")
     if s:
         return s
-    is_dev = (
-        os.getenv("FLASK_ENV") == "development"
-        or os.getenv("FLASK_DEBUG") == "1"
-        or os.getenv("PYTEST_CURRENT_TEST") is not None
-    )
+    # MK1 Wave H (T2-3): the canonical triple lives in config.is_dev_env.
+    is_dev = is_dev_env()
     if not is_dev:
         raise RuntimeError(
             "GG_JWT_SECRET is not set. Refusing to start in production "
@@ -392,11 +390,8 @@ def _cookie_secure_flag() -> bool:
     Playwright harness sets FLASK_ENV=development for the localhost-http
     cookie behaviour it needs.
     """
-    is_dev = (
-        os.getenv("FLASK_ENV") == "development"
-        or os.getenv("FLASK_DEBUG") == "1"
-        or os.getenv("PYTEST_CURRENT_TEST") is not None
-    )
+    # MK1 Wave H (T2-3): the canonical triple lives in config.is_dev_env.
+    is_dev = is_dev_env()
     if not is_dev:
         return True
     return _is_secure_request()

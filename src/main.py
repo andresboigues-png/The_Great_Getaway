@@ -5,6 +5,7 @@ from flask import Flask, render_template, request, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from auth import current_user_id
+from config import is_dev_env
 from database import init_db
 from extensions import limiter
 from observability import (
@@ -136,20 +137,12 @@ limiter.init_app(app)
 
 
 def _is_dev_env() -> bool:
-    """Mirror auth.py's dev-detection so the prod-only boot guards
-    below stay consistent with the JWT-secret guard. Dev/test if ANY
-    of: FLASK_ENV=development, FLASK_DEBUG=1, or running under pytest.
-
-    MK6 (GG_ALLOW_TEST_LOGIN blast-radius fix): dropped GG_ALLOW_TEST_LOGIN
-    from this set. That flag only unlocks the test-login shortcut; letting
-    it also skip the CLIENT_ID_GOOGLE_AUTH fail-fast + expose dev-only
-    routes widened its blast radius. The Playwright dev server sets
-    FLASK_ENV=development explicitly (playwright.config.js)."""
-    return (
-        os.getenv("FLASK_ENV") == "development"
-        or os.getenv("FLASK_DEBUG") == "1"
-        or os.getenv("PYTEST_CURRENT_TEST") is not None
-    )
+    """MK1 Wave H (T2-3): delegates to config.is_dev_env — the canonical
+    dev/test detection (was one of THREE inline copies of the same
+    triple). Kept as a module-level name because tests monkeypatch
+    `main._is_dev_env` and the dev-only routes resolve it via this
+    module's globals."""
+    return is_dev_env()
 
 
 # R12-B1: warn loudly when running in production on the default
