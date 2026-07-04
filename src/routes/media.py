@@ -20,7 +20,7 @@ import os
 import secrets
 import time
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, send_from_directory
 from werkzeug.utils import secure_filename
 
 from auth import current_user_id, require_auth
@@ -682,3 +682,236 @@ def upload_file():
             "name": file.filename,
         }
     )
+
+
+# ── MK1 Wave G (T2-1): the auth-gated upload SERVER moved here from
+# main.py so the read ACL lives beside the write path (upload_file +
+# quota + variants above) and gets reviewed with it. Verbatim except:
+# the module-global UPLOAD_FOLDER became _upload_root() (config lookup —
+# same value; tests monkeypatch app.config['UPLOAD_FOLDER'] too).
+
+
+def _upload_root() -> str:
+    return current_app.config["UPLOAD_FOLDER"]
+
+
+# --- Auth-gated user uploads ---------------------------------------------
+#
+# R2 audit fix: the previous "auth-gate on /static/uploads/" task was
+# scoped only at the upload-write side (unguessable 132-bit filename via
+# `secrets.token_urlsafe(16)`). The READ side still served via Flask's
+# default static handler with zero auth — anyone holding (or guessing,
+# or harvesting from an OG-preview, browser history, server log) a URL
+# could pull the bytes.
+#
+# Stronger gate: catch /static/uploads/<user_dir>/<filename> BEFORE the
+# default static handler. Tier the access by caller identity:
+#
+#   1. Caller is signed in           → allow (trusting the unguessable
+#                                       filename + the auth wall as
+#                                       defense-in-depth; users routinely
+#                                       see receipts shared by other
+#                                       trip members and we don't want
+#                                       to query trip membership on
+#                                       every photo render).
+#   2. Caller is anonymous           → allow IFF the file is referenced
+#                                       by at least one trip with
+#                                       is_public=1. Public shares need
+#                                       to render their cover + photos
+#                                       to anonymous /share/<token>
+#                                       viewers; nothing else should
+#                                       reach anonymous callers.
+#
+# The /static/uploads route is registered explicitly so it wins over
+# Flask's default /static/<path:filename> rule. The shared base dir is
+# UPLOAD_FOLDER (which can be remapped via GG_UPLOAD_ROOT for PA), so
+# we serve from there directly rather than via the static_folder
+# subdirectory (which may not be the same path on prod).
+def _send_upload(relpath: str):
+    """MK1 Wave C (T1-5): honour `?size=thumb|display` by serving the
+    downscaled variant when one exists, falling back to the original
+    (PDFs, animated images, pre-variant uploads, or an original already
+    smaller than the requested edge). Called ONLY after serve_upload's
+    ACL has passed on the ORIGINAL path — variants inherit exactly the
+    original's access control. Unknown size values are ignored."""
+    size = request.args.get("size")
+    if size in ("thumb", "display"):
+        head, name = os.path.split(relpath)
+        ext = os.path.splitext(name)[1].lower()
+        variant_rel = os.path.join(head, "_variants", f"{name}.{size}{ext}")
+        if os.path.isfile(os.path.join(_upload_root(), variant_rel)):
+            return send_from_directory(_upload_root(), variant_rel)
+    return send_from_directory(_upload_root(), relpath)
+
+
+@bp.route("/static/uploads/<path:relpath>")
+def serve_upload(relpath: str):
+    from auth import current_user_id
+
+    # R3-Fix #1: pre-fix this called `_extract_token(request)` but the
+    # helper takes ZERO arguments, raising TypeError. The bare
+    # `except Exception` swallowed it, so every authenticated request
+    # silently fell into the anonymous branch and 404'd for the file's
+    # own owner. `current_user_id()` does cookie+bearer extraction +
+    # verify_token + auth_sessions revocation check internally, returns
+    # the user_id string (NOT a dict — `payload.get("sub")` would have
+    # AttributeError'd too).
+    caller_id = current_user_id()
+    needle_exact = f"/static/uploads/{relpath}"
+
+    if caller_id:
+        # 4.8 audit PLAT-3: gate authenticated reads by ownership +
+        # membership. Pre-fix ANY signed-in user could read ANY upload —
+        # including expense RECEIPTS — just by holding the URL (harvested
+        # from an /api/data or /api/public-trip payload, browser history,
+        # or a log), and a removed/declined trip member kept that access
+        # FOREVER (files are only deleted when the whole trip/day is).
+        # Now:
+        #   1. Owner fast-path — the first path segment is the uploader's
+        #      secure_filename(user_id); no DB hit for your own files.
+        #   2. Else allow only if the caller is an ACCEPTED member of a
+        #      trip referencing the file (cover / photos / documents) or
+        #      an expense receipt on such a trip.
+        #   3. Else fall through to the public-cover check below, so an
+        #      authenticated non-member can still render a PUBLIC trip's
+        #      cover (same surface an anonymous viewer gets).
+        owner_dir = relpath.split('/', 1)[0]
+        if owner_dir == secure_filename(caller_id):
+            return _send_upload(relpath)
+        # Anchored JSON-string match, same shape as the anon cover check.
+        _like = f'%"{needle_exact}"%'
+        with get_db() as conn:
+            c = conn.cursor()
+            # MK4 audit MED-4: the original gate ran a `LIKE '%"url"%'`
+            # substring scan across EVERY accepted trip's photos_json +
+            # documents_json (each up to ~512KB, un-indexable) on every
+            # foreign-image render — a per-image scale cliff on a shared
+            # gallery. Uploads encode the owner in the path
+            # (/static/uploads/<owner_dir>/...), and owner_dir is
+            # secure_filename(owner_user_id) — which is the identity for
+            # every real user id (Google `sub` = digits; test ids =
+            # alnum/hyphen). So resolve the owner via a PRIMARY-KEY lookup
+            # and add an indexed trip_members self-join keyed on the owner:
+            # only trips where BOTH the caller AND the owner are accepted
+            # members can reference the file, which shrinks the candidate
+            # set (via idx_trip_members_trip_user) BEFORE the JSON LIKE
+            # runs — so the LIKE touches a handful of shared-trip rows
+            # instead of all of the caller's trips.
+            #
+            # Removed-member-loses-access is PRESERVED: the file's trip is
+            # only matched when the caller is still an `accepted` member of
+            # it (the secondary JSON tightening is kept, not dropped), so a
+            # member removed from the file's trip fails the join even if
+            # they share an UNRELATED trip with the owner — verified by
+            # test_serve_upload_removed_member_denied in test_media_mk4.py.
+            #
+            # The narrowed query is used only when owner_dir resolves to a
+            # real user id (the ~100% case). If it doesn't (a legacy
+            # secure_filename-altered id), we fall back to the original
+            # caller-only query so no legitimate render regresses.
+            c.execute("SELECT id FROM users WHERE id = ?", (owner_dir,))
+            owner_row = c.fetchone()
+            owner_id = owner_row["id"] if owner_row else None
+            if owner_id is not None:
+                c.execute(
+                    "SELECT 1 FROM trips t "
+                    "JOIN trip_members tm_caller "
+                    "  ON tm_caller.trip_id = t.id "
+                    " AND tm_caller.user_id = ? "
+                    " AND tm_caller.invitation_status = 'accepted' "
+                    "JOIN trip_members tm_owner "
+                    "  ON tm_owner.trip_id = t.id "
+                    " AND tm_owner.user_id = ? "
+                    " AND tm_owner.invitation_status = 'accepted' "
+                    "WHERE (t.cover_url = ? OR t.photos_json LIKE ? "
+                    "       OR t.documents_json LIKE ?) "
+                    "LIMIT 1",
+                    (caller_id, owner_id, needle_exact, _like, _like),
+                )
+                if c.fetchone():
+                    return _send_upload(relpath)
+                # Receipts, same owner-narrowed shape.
+                c.execute(
+                    "SELECT 1 FROM expenses e "
+                    "JOIN trip_members tm_caller "
+                    "  ON tm_caller.trip_id = e.trip_id "
+                    " AND tm_caller.user_id = ? "
+                    " AND tm_caller.invitation_status = 'accepted' "
+                    "JOIN trip_members tm_owner "
+                    "  ON tm_owner.trip_id = e.trip_id "
+                    " AND tm_owner.user_id = ? "
+                    " AND tm_owner.invitation_status = 'accepted' "
+                    "WHERE e.receipt_url = ? LIMIT 1",
+                    (caller_id, owner_id, needle_exact),
+                )
+                if c.fetchone():
+                    return _send_upload(relpath)
+            else:
+                # Fallback: owner_dir didn't map to a real user id (rare
+                # legacy secure_filename-altered path). Use the original
+                # caller-only gate so a legitimate member still renders it.
+                c.execute(
+                    "SELECT 1 FROM trips t "
+                    "JOIN trip_members tm ON tm.trip_id = t.id "
+                    "WHERE tm.user_id = ? AND tm.invitation_status = 'accepted' "
+                    "  AND (t.cover_url = ? OR t.photos_json LIKE ? OR t.documents_json LIKE ?) "
+                    "LIMIT 1",
+                    (caller_id, needle_exact, _like, _like),
+                )
+                if c.fetchone():
+                    return _send_upload(relpath)
+                c.execute(
+                    "SELECT 1 FROM expenses e "
+                    "JOIN trip_members tm ON tm.trip_id = e.trip_id "
+                    "WHERE tm.user_id = ? AND tm.invitation_status = 'accepted' "
+                    "  AND e.receipt_url = ? LIMIT 1",
+                    (caller_id, needle_exact),
+                )
+                if c.fetchone():
+                    return _send_upload(relpath)
+        # Not owner, not a member of any referencing trip → fall through
+        # to the public-cover check (a public trip's cover is readable by
+        # anyone, authenticated or not). Don't 404 yet.
+
+    # Anonymous (or authenticated-non-member) branch — allow when at
+    # least one trip with PUBLIC reach references the file as its cover.
+    # "Public reach" = is_public=1 (Explore feed) OR share_token IS NOT
+    # NULL (share-link surface).
+    #
+    # R3-Fix #13: pre-fix this only checked is_public=1. Share-only
+    # trips (share_token set but is_public=0) rendered as broken images
+    # to every recipient because the cover_url all 404'd through the SW.
+    #
+    # R3-Fix #22: cover_url is matched by exact-equality so a malicious
+    # owner who plants a scheme-prefixed pollution string can't match.
+    with get_db() as conn:
+        cursor = conn.cursor()
+        # R5-B1: anonymous viewers can ONLY fetch a trip's cover_url
+        # (the share + explore templates only render the cover; photos
+        # and documents are members-only by contract). Pre-fix the
+        # photos_json / documents_json LIKE clauses widened the anon
+        # surface to every photo/document on any public-or-shared trip
+        # — fine when nothing links to them, but a defense-in-depth
+        # liability if a future template tweak, OG-crawler log, or
+        # browser-history leak ever exposes a deep URL. Anon stays
+        # cover-only; authenticated members get the rest via the
+        # session_user_id branch above (which already gates by membership
+        # and includes the photos/documents matches).
+        cursor.execute(
+            "SELECT 1 FROM trips "
+            "WHERE (is_public = 1 OR share_token IS NOT NULL) "
+            "  AND cover_url = ? "
+            "LIMIT 1",
+            (needle_exact,),
+        )
+        if cursor.fetchone():
+            return _send_upload(relpath)
+    # Anonymous + no public-trip reference → 404 (don't differentiate
+    # from "file doesn't exist" to avoid leaking the existence of
+    # private uploads via status-code differential).
+    from flask import abort
+
+    abort(404)
+
+
+# --- Authentication ---
