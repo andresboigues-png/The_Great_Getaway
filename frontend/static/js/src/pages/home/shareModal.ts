@@ -1,26 +1,16 @@
-// pages/home/shareModal.ts — share-to-feed modal + the visual
-// state machines for the Share + Silence buttons. Phase B1
-// fifth slice. Extracted from home.ts.
+// pages/home/shareModal.ts — share-to-feed modal + the Silence-button
+// visual state machine.
 //
-// Two things live here:
-//   - applySilenceBtnVisual(btn, silenced) — paints the trip
-//     header's silence/mute button. Outline = visible, filled
-//     red = silenced. Swaps the SVG icon to match.
-//   - openShareToFeedModal(trip, onSubmit, seedCaption?) —
-//     opens the caption-textarea modal that drives the actual
-//     share-to-feed POST. Calls back with the cleaned caption.
-//
-// All three are pure UI helpers — no closure deps, no module-
-// level state. They mutate the DOM the caller hands in, and
-// (for the modal) wire close handlers to the showModal()
-// primitive.
+// MK1 Wave M (FE-1): the caption modal moved to React —
+// react/components/ShareToFeedModal.tsx via the openReactModal bridge;
+// this file keeps openShareToFeedModal's name + signature so the two
+// callers (HomeHeader, collections' ArchivedTripDetail via the home.ts
+// barrel) don't change. applySilenceBtnVisual stays here as-is: it's a
+// DOM painter for the trip header's mute button, not a modal.
 
-import { showModal } from '../../components/Modal.js';
-import { navigate } from '../../router.js';
-import { PAGES } from '../../constants.js';
-import { esc } from '../../utils.js';
-import { t } from '../../i18n.js';
-import { iconSvg } from '../../icons.js';
+import { createElement } from 'react';
+import { openReactModal } from '../../react/reactModal.js';
+import { ShareToFeedModal, type ShareSubmitResult } from '../../react/components/ShareToFeedModal.js';
 
 
 /** Flip the Silence-trip button between outline and filled
@@ -67,89 +57,23 @@ export function applySilenceBtnVisual(btn: HTMLElement | null, silenced: boolean
 }
 
 
-/** Open the Share-to-feed modal: a textarea for an optional
- *  ≤280-char caption + a Cancel/Share pair. The textarea
- *  pre-fills with `seedCaption` when the user is editing an
- *  existing share. The submit callback gets the cleaned caption
- *  string (or empty for "no caption").
- *
- *  Exported because the Share button moved from home.ts to the
- *  public-trip detail page in collections.ts; that page reuses
- *  this modal so the share UX stays identical regardless of
- *  entry point. */
+/** Open the Share-to-feed modal: a textarea for an optional ≤280-char
+ *  caption + Cancel/Share. Prefills with `seedCaption` when editing an
+ *  existing share; the submit callback gets the cleaned caption.
+ *  Contract (unchanged): onSubmit returning false keeps the modal open
+ *  (share failed); 'feed' closes-for-navigation and routes to the
+ *  feed; anything else closes in place. */
 export function openShareToFeedModal(
     trip: { name: string; country?: string; isPublic?: boolean },
-    onSubmit: (caption: string) => Promise<boolean | 'feed' | void> | boolean | 'feed' | void,
+    onSubmit: (caption: string) => ShareSubmitResult,
     seedCaption: string = '',
 ): void {
-    // BUG-14 (MK2 audit): sharing a PRIVATE trip to the feed silently
-    // flips it public — and (after the BUG-44 fix) also mints a
-    // share_token, so the trip becomes discoverable in Explore and via
-    // its public link, not just visible to friends. The chooser
-    // subtitle ("Post to your friends") doesn't hint at any of that, so
-    // a user reasonably expects a friends-only post. Surface a clear
-    // consent notice when the trip isn't already public; hitting Share
-    // is then an informed choice. Public trips skip the notice (nothing
-    // changes for them).
-    const willGoPublic = !trip.isPublic;
-    const { root, close, closeForNavigation } = showModal({
+    openReactModal({
+        ariaLabel: 'Share to your feed',
         cardClass: 'card glass',
-        cardStyle: 'width: 480px; max-width: calc(100vw - 32px); padding: 28px; border-radius: 28px; background: white;',
-        innerHTML: `
-            <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom: 14px;">
-                <div>
-                    <h2 style="margin:0 0 4px; font-size:1.5rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Share to your feed</h2>
-                    <p style="margin:0; color:var(--text-secondary); font-size:0.85rem;">${esc(trip.name)}${trip.country ? ` · ${esc(trip.country)}` : ''}</p>
-                </div>
-                <button id="shareModalClose" class="close-x-btn" aria-label="${t('common.close')}">✕</button>
-            </div>
-            ${willGoPublic ? `
-            <div role="note" style="display:flex; gap:10px; align-items:flex-start; padding:11px 13px; margin-bottom:16px; background:rgba(255,149,0,0.10); border:1px solid rgba(255,149,0,0.30); border-radius:14px;">
-                <span style="flex:0 0 auto; color:#c8791a; margin-top:1px; line-height:0;">${iconSvg('globe', { size: 16 })}</span>
-                <p style="margin:0; font-size:0.82rem; line-height:1.45; color:#8a5a12;">${t('share.feedMakesPublicWarning')}</p>
-            </div>` : ''}
-            <label style="display:block; font-size:0.78rem; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Add a caption (optional)</label>
-            <textarea id="shareCaptionInput" maxlength="280" placeholder="e.g. Adding Lisbon for Easter — anyone been?"
-                style="width:100%; box-sizing:border-box; min-height: 90px; padding:12px 14px; border:1px solid rgba(0,45,91,0.12); border-radius:14px; font-size:0.95rem; font-family: inherit; color:#002d5b; background:rgba(0,113,227,0.04); resize: vertical; line-height:1.45;">${esc(seedCaption || '')}</textarea>
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px;">
-                <span id="shareCaptionCount" style="font-size:0.72rem; color:var(--text-secondary); font-weight:700;">${(seedCaption || '').length}/280</span>
-                <span style="font-size:0.72rem; color:var(--text-secondary);">Friends can like, comment, repost.</span>
-            </div>
-            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:18px;">
-                <button id="shareModalCancel" class="btn" style="padding: 10px 18px; border-radius: 999px; background:rgba(0,0,0,0.06); color:#002d5b; font-weight:700;">Cancel</button>
-                <button id="shareModalSubmit" class="btn-primary" style="padding: 10px 22px; border-radius: 999px;">Share</button>
-            </div>
-        `,
+        cardStyle:
+            'width: 480px; max-width: calc(100vw - 32px); padding: 28px; border-radius: 28px; background: white;',
+        render: (close, { closeForNavigation }) =>
+            createElement(ShareToFeedModal, { trip, onSubmit, seedCaption, close, closeForNavigation }),
     });
-    const textarea = (root.querySelector('#shareCaptionInput') as HTMLTextAreaElement | null);
-    const counter = (root.querySelector('#shareCaptionCount') as HTMLElement | null);
-    if (textarea && counter) {
-        textarea.addEventListener('input', () => {
-            counter.textContent = `${textarea.value.length}/280`;
-        });
-        // Defer focus so the modal's open-animation doesn't
-        // fight it.
-        setTimeout(() => textarea.focus(), 80);
-    }
-    (root.querySelector('#shareModalClose') as HTMLButtonElement | null)?.addEventListener('click', close);
-    (root.querySelector('#shareModalCancel') as HTMLButtonElement | null)?.addEventListener('click', close);
-    (root.querySelector('#shareModalSubmit') as HTMLButtonElement | null)?.addEventListener('click', () => { void (async () => {
-        const caption = (textarea?.value || '').trim();
-        // Run the share FIRST, then close ONLY if it didn't fail. On error the
-        // modal stays open so the user remains on this page to fix it (e.g.
-        // flip the trip to Public) — closing first risks the modal's
-        // history-back over-popping all the way back to Home, losing their
-        // place. (onSubmit returns false on failure; undefined/true = success.)
-        const ok = await onSubmit(caption);
-        if (ok === false) return; // error → keep the modal open, stay on the page
-        if (ok === 'feed') {
-            // Success + caller wants the feed: close WITHOUT the history-back
-            // (which would clobber the destination hash), then navigate so the
-            // user lands on their freshly-posted trip.
-            closeForNavigation();
-            navigate(PAGES.FEED);
-            return;
-        }
-        close(); // other success → close in place
-    })(); });
 }

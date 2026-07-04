@@ -41,11 +41,19 @@ import { showModal } from '../components/Modal.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 
 export function openReactModal(opts: {
-    /** Renders the card content. Call `close` to dismiss the modal. */
-    render: (close: () => void) => ReactNode;
+    /** Renders the card content. Call `close` to dismiss the modal.
+     *  The second arg additionally carries `closeForNavigation` — the
+     *  Modal.ts variant for "close AND navigate() in the same handler"
+     *  (skips the async history.back() that would clobber the
+     *  destination hash; see Modal.ts). Most modals only need `close`. */
+    render: (
+        close: () => void,
+        controls: { close: () => void; closeForNavigation: () => void },
+    ) => ReactNode;
     /** Accessible dialog name (see header — heading auto-derivation
      *  can't see React content, so this is mandatory). */
     ariaLabel: string;
+    variant?: 'glass' | 'glass-light' | 'confirm';
     cardClass?: string;
     cardStyle?: string;
     closeOnBackdrop?: boolean;
@@ -53,7 +61,7 @@ export function openReactModal(opts: {
     /** Runs after the modal closes (any path: ✕, backdrop, Escape,
      *  hardware back), before the React tree unmounts. */
     onClose?: () => void;
-}): { close: () => void } {
+}): { close: () => void; closeForNavigation: () => void } {
     const { render, ariaLabel, onClose, ...modalOpts } = opts;
 
     const handle = showModal({
@@ -84,9 +92,12 @@ export function openReactModal(opts: {
         reactRoot.render(
             createElement(ErrorBoundary, {
                 surface: 'modal',
-                children: render(handle.close),
+                children: render(handle.close, {
+                    close: handle.close,
+                    closeForNavigation: handle.closeForNavigation,
+                }),
             }),
         );
     });
-    return { close: handle.close };
+    return { close: handle.close, closeForNavigation: handle.closeForNavigation };
 }
