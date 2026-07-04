@@ -61,7 +61,7 @@ export function openReactModal(opts: {
     /** Runs after the modal closes (any path: ✕, backdrop, Escape,
      *  hardware back), before the React tree unmounts. */
     onClose?: () => void;
-}): { close: () => void; closeForNavigation: () => void } {
+}): { close: () => void; closeForNavigation: () => void; root: HTMLElement } {
     const { render, ariaLabel, onClose, ...modalOpts } = opts;
 
     const handle = showModal({
@@ -99,5 +99,10 @@ export function openReactModal(opts: {
             }),
         );
     });
-    return { close: handle.close, closeForNavigation: handle.closeForNavigation };
+    // `root` is the overlay element — exposed for the rare marker-attribute
+    // contract (e.g. Edit Trip's BUG-069 `dataset.editingTripId`, which
+    // pullFromServer reads to preserve the trip's object identity while a
+    // background poll lands mid-edit). Not for content manipulation —
+    // React owns the card.
+    return { close: handle.close, closeForNavigation: handle.closeForNavigation, root: handle.root };
 }
