@@ -241,8 +241,21 @@ function buildOptionsStack(
     tripIsEditable: boolean,
     editingDayId: string | null,
 ): string {
-    if (!day || !tripIsEditable) return '';
+    if (!day) return '';
     const { isAnchor } = flags;
+    // MK1 Wave M: viewer roles (budgeteer / relaxer) get exactly ONE
+    // button — "Open full plan", whose openDayDetail gate routes them
+    // to the READ-ONLY day view. That fall-through has existed since
+    // the permission gate landed (dayDetailModal.ts documents "relaxers
+    // can still see what's planned"), but this early return silently
+    // removed its only entry point during the path redesign — a viewer
+    // on an active trip had NO way to read a day's plan. Caught by the
+    // day-view-readonly e2e. (Anchor stays bare for viewers: its
+    // primary is the checklist, reachable from the Trip Hub tab.)
+    if (!tripIsEditable) {
+        if (isAnchor) return '';
+        return `<div class="path-options-stack"><button class="path-primary-btn day-detail-btn" data-day-id="${esc(day.id)}">${_btnContent('plan', t('pathTab.btnOpenFullPlan'))}</button></div>`;
+    }
     const buttons: string[] = [];
     // Primary button — different identity per day type. Anchor: Trip
     // checklist takes the gold-gradient primary slot. Numbered days:
