@@ -195,14 +195,14 @@ def add_friend():
     user_id = current_user_id()
     friend_id = json_body().get("friend_id")
     if not friend_id:
-        return jsonify({"status": "error", "message": "Missing data"}), 400
+        return jsonify({"error": "Missing data"}), 400
     if user_id == friend_id:
-        return jsonify({"status": "error", "message": "Can't friend yourself"}), 400
+        return jsonify({"error": "Can't friend yourself"}), 400
 
     with get_db() as conn:
         cursor = conn.cursor()
         if not ensure_user_exists(cursor, friend_id):
-            return jsonify({"status": "error", "message": "Friend not found"}), 404
+            return jsonify({"error": "Friend not found"}), 404
         # DSGN-039: surface a distinct 'blocked' status when the caller has
         # blocked the target. _follow() no-ops silently on a block edge
         # (returns False, same as an already-following idempotent re-call),
@@ -238,14 +238,14 @@ def accept_friend():
     user_id = current_user_id()
     friend_id = json_body().get("friend_id")
     if not friend_id:
-        return jsonify({"status": "error", "message": "Missing data"}), 400
+        return jsonify({"error": "Missing data"}), 400
     if user_id == friend_id:
-        return jsonify({"status": "error", "message": "Can't accept yourself"}), 400
+        return jsonify({"error": "Can't accept yourself"}), 400
 
     with get_db() as conn:
         cursor = conn.cursor()
         if not ensure_user_exists(cursor, friend_id):
-            return jsonify({"status": "error", "message": "User not found"}), 404
+            return jsonify({"error": "User not found"}), 404
         _follow(cursor, user_id, friend_id, source='accepted_request')
         conn.commit()
     return jsonify({"status": "success"})
@@ -288,7 +288,7 @@ def remove_friend():
     user_id = current_user_id()
     friend_id = json_body().get("friend_id")
     if not friend_id:
-        return jsonify({"status": "error", "message": "Missing data"}), 400
+        return jsonify({"error": "Missing data"}), 400
 
     with get_db() as conn:
         cursor = conn.cursor()

@@ -154,7 +154,7 @@ def notify_trip_public():
     user_id = current_user_id()
     trip_id = json_body().get("trip_id")
     if not trip_id:
-        return jsonify({"status": "error", "message": "Missing trip_id"}), 400
+        return jsonify({"error": "Missing trip_id"}), 400
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -177,18 +177,13 @@ def notify_trip_public():
         )
         trip_row = cursor.fetchone()
         if not trip_row:
-            return jsonify(
-                {
-                    "status": "error",
-                    "message": "Trip not found, not yours, or not public",
-                }
-            ), 403
+            return jsonify({"error": "Trip not found, not yours, or not public"}), 403
         trip_name = trip_row["name"] or "a trip"
 
         cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
         user_row = cursor.fetchone()
         if not user_row:
-            return jsonify({"status": "error", "message": "User not found"}), 404
+            return jsonify({"error": "User not found"}), 404
         user_name = user_row["name"]
 
         # Daily dedupe — one fan-out per (caller, trip) per 24h.

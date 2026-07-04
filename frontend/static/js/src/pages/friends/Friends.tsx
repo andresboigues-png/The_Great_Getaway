@@ -244,7 +244,9 @@ export function Friends() {
                 // the follow; surface an honest message rather than 'Request sent!'.
                 showLiquidAlert(t('friends.toastBlockedCannotFollow'));
             } else if (data.status === 'error') {
-                showLiquidAlert(data.message || t('friends.toastSendFailed'));
+                // MK1 Wave K: unified error envelope is {error}; `.message` kept as a
+                // transition fallback for one deploy overlap.
+                showLiquidAlert(data.error || data.message || t('friends.toastSendFailed'));
             }
         } catch (e) {
             showLiquidAlert(t('friends.toastSendFailedNetwork'));
@@ -278,7 +280,7 @@ export function Friends() {
                     if (data.status === 'success') {
                         showLiquidAlert(t('friends.toastRemoveDone'), 'info');
                     } else {
-                        showLiquidAlert(data.message || t('friends.toastRemoveFailed'));
+                        showLiquidAlert(data.error || data.message || t('friends.toastRemoveFailed'));
                     }
                 } catch (err) {
                     showLiquidAlert(t('friends.toastRemoveFailedNetwork'));
