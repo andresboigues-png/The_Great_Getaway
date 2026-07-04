@@ -34,7 +34,11 @@ const CHUNKS_DIR = resolve(JS_DIR, 'chunks');
 // load lazily on navigation and don't affect time-to-interactive on
 // first visit.
 const LIMITS = {
-    entry: 115 * 1024, // 115 KB gzip — currently ~112 KB
+    // MK1 Wave F ratchet: the PERF-4 barrel fix (modal openers now
+    // dynamic-import at click time) dropped the entry 111→81.5 KB and
+    // first-paint 207→177 KB — the caps come DOWN with it, restoring
+    // the original 184 KB first-paint budget and an 88 KB entry cap.
+    entry: 88 * 1024, // 88 KB gzip — currently ~81.5 KB
     vendorReact: 65 * 1024, // 65 KB gzip — currently ~58 KB
     // MK1 Wave A re-baseline: the 15 KB page-chunk cap + 184 KB
     // first-paint cap had been failing SILENTLY for weeks — the CI
@@ -47,7 +51,7 @@ const LIMITS = {
     // barrel-import trimming + deferred CDN scripts) should ratchet
     // both back down — tighten these when it lands.
     pageChunkMax: 40 * 1024, // 40 KB gzip per page chunk — top (home) is ~37.5 KB
-    firstPaintGzipMax: 212 * 1024, // 212 KB gzip first-paint — currently ~206.5 KB.
+    firstPaintGzipMax: 184 * 1024, // 184 KB gzip first-paint — currently ~177 KB.
     // i18n session 4 sweep across collections /
     // ai / todo / search / insights / budgets /
     // settlement added ~3 KB of t() call sites

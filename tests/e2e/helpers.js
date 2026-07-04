@@ -5,6 +5,14 @@
 
 import { expect } from '@playwright/test';
 
+// MK1 Wave F fix: the e2e server's origin, derived from the SAME env
+// override playwright.config.js uses for its PORT — a hardcoded
+// 'http://localhost:5001' here survived the Wave-E port move (e2e now
+// runs isolated on 5010) and 403'd every cookie-carrying API POST via
+// the CSRF same-origin gate. Single source of truth, exported for
+// specs that set Origin explicitly (auth-cookie.spec.js).
+export const E2E_ORIGIN = `http://localhost:${process.env.GG_E2E_PORT || 5010}`;
+
 /**
  * Sign the page in as a deterministic test user. Hits /api/auth/google
  * with the `test:<user_id>` token shortcut (gated by GG_ALLOW_TEST_LOGIN
@@ -332,7 +340,7 @@ export async function getAuthForApi(page, userId = 'test-user-1') {
         // automatically, so without it every authed API POST 403s.
         headers: {
             Authorization: `Bearer ${body.token}`,
-            Origin: 'http://localhost:5001',
+            Origin: E2E_ORIGIN,
         },
     };
 }

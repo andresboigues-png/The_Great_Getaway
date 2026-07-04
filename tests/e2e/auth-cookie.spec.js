@@ -17,6 +17,7 @@
 //     ships.
 
 import { test, expect } from '@playwright/test';
+import { E2E_ORIGIN } from './helpers.js';
 
 // Each test is desktop-only — cookie behaviour is viewport-agnostic, and
 // mobile would add ~3-4s with zero extra signal.
@@ -98,7 +99,7 @@ test.describe('Cookie session (§0.4 v2)', () => {
         // sends Origin automatically on a same-origin fetch; page.request
         // does not, so we set it explicitly to mirror the browser.
         const logoutRes = await page.request.post('/api/auth/logout', {
-            headers: { Origin: 'http://localhost:5001' },
+            headers: { Origin: E2E_ORIGIN },
         });
         expect(logoutRes.status()).toBe(200);
 

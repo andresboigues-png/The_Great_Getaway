@@ -14,7 +14,20 @@ import { STATE } from '../state.js';
 import { navigate, preloadBottomTabChunks, type NavAnimDir } from '../router.js';
 import { markNotificationsRead } from '../api.js';
 import { PAGES, type PageName } from '../constants.js';
-import { openNewTripModal, openEditTripModal, openDownloadChooserModal } from '../modals.js';
+// MK1 Wave F (T2-6/PERF-4): the modal openers used to come from the
+// '../modals.js' BARREL as static imports — which dragged every modal
+// module (trip + flatpickr, pdf, tripExport, share, day) into the entry
+// bundle on every cold load. They're click-time actions, so load them
+// on click: the first open pays one ~50ms chunk fetch, then it's cached.
+const openNewTripModal = async () => (await import('../modals/trip.js')).openNewTripModal();
+const openEditTripModal = async (trip: unknown) =>
+    (await import('../modals/trip.js')).openEditTripModal(
+        trip as Parameters<typeof import('../modals/trip.js').openEditTripModal>[0]
+    );
+const openDownloadChooserModal = async (trip: unknown) =>
+    (await import('../modals/tripExport.js')).openDownloadChooserModal(
+        trip as Parameters<typeof import('../modals/tripExport.js').openDownloadChooserModal>[0]
+    );
 import { initMobileSwipe } from '../mobileSwipe.js';
 import { renderNotificationDropdown, handleNotificationClick } from './notifications.js';
 import { archiveActiveTrip, deleteActiveTrip, toggleActiveTripSilence } from './trip-controls.js';
@@ -384,7 +397,7 @@ export function wireNavChrome(): void {
     // directly. New Trip itself lives inside the popover (#newTripBtnSidebar
     // below), alongside Edit / Download / Silence / Complete / Delete.
     document.getElementById('newTripBtn')?.addEventListener('click', (e) => togglePopover(e));
-    document.getElementById('newTripBtnSidebar')?.addEventListener('click', () => openNewTripModal());
+    document.getElementById('newTripBtnSidebar')?.addEventListener('click', () => void openNewTripModal());
 
     // Mark-all-read — present in BOTH dropdown copies so either bell's
     // dropdown can dismiss the unread state in one tap. Pulls every
@@ -418,13 +431,13 @@ export function wireNavChrome(): void {
         const tr = STATE.trips.find((x) => x.id === STATE.activeTripId);
         if (!tr) return;
         closeTripControlsPopover();
-        openEditTripModal(tr);
+        void openEditTripModal(tr);
     });
     document.getElementById('downloadTripBtnSidebar')?.addEventListener('click', () => {
         const tr = STATE.trips.find((x) => x.id === STATE.activeTripId);
         if (!tr) return;
         closeTripControlsPopover();
-        openDownloadChooserModal(tr);
+        void openDownloadChooserModal(tr);
     });
     document.getElementById('silenceTripBtnSidebar')?.addEventListener('click', () => void toggleActiveTripSilence());
 

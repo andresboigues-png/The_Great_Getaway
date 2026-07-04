@@ -11,7 +11,12 @@ import { t, getIntlLocale } from '../i18n.js';
 import { navigate } from '../router.js';
 import { PAGES } from '../constants.js';
 import { esc } from '../utils.js';
-import { openTripInviteResponseModal } from '../modals.js';
+// MK1 Wave F (T2-6/PERF-4): lazy — see nav-chrome.ts. Loaded when the
+// user clicks an invite notification, not on every cold boot.
+const openTripInviteResponseModal = async (n: unknown) =>
+    (await import('../modals/share.js')).openTripInviteResponseModal(
+        n as Parameters<typeof import('../modals/share.js').openTripInviteResponseModal>[0]
+    );
 import { markNotificationRead } from '../api.js';
 
 /**
@@ -319,7 +324,7 @@ export function handleNotificationClick(notification: { type?: string; related_i
         case 'trip_invite':
             // Same one-tap decision pattern as the companion-link invite.
             // The accept path's data shows up via the next /api/data poll.
-            openTripInviteResponseModal(notification);
+            void openTripInviteResponseModal(notification);
             break;
         case 'trip_invite_accepted':
         case 'trip_invite_declined':
