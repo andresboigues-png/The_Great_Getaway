@@ -7,3 +7,4 @@ pytest==9.1.1
 pytest-cov==7.1.0
 pypdf==6.14.2      # PDF text-extraction assertions in tests/test_pdf_mk4.py
 ruff==0.15.20      # lint + format — config in pyproject.toml [tool.ruff]
+hypothesis==6.156.1  # property-based money-math tests (tests/test_money_properties.py)
