@@ -30,7 +30,7 @@ logger = get_logger(__name__)
 # Promoted to validators.scrub_key in R3-Fix #14 so integrations.py can
 # share the same scrub before logging Gemini's response bodies. The
 # local alias keeps existing call sites in this file unchanged.
-from helpers import trip_member_role
+from helpers import can_read_trip
 from validators import scrub_key as _scrub_key  # noqa: F401
 
 
@@ -149,11 +149,10 @@ def _map_cache_put(key: str, content: bytes) -> None:
             total -= len(evicted)
 
 
-def _can_read_trip(cursor, trip_id: str, user_id: str) -> bool:
-    """True if the caller can read this trip for export. Owner +
-    accepted members qualify. We don't restrict to editors — even
-    a relaxer should be able to download their own copy of the plan."""
-    return trip_member_role(cursor, trip_id, user_id) is not None
+# MK1 Wave H (T2-4): promoted to helpers.can_read_trip — this module keeps
+# the underscore alias because routes/pdf/__init__ re-exports it (the
+# load-bearing re-export namespace tests monkeypatch through).
+_can_read_trip = can_read_trip
 
 
 def _fetch_cover_map(lat: float | None, lng: float | None, place_id: str | None) -> bytes | None:

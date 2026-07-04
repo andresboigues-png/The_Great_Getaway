@@ -189,6 +189,34 @@ def ensure_owner_member_row(cursor, trip_id, owner_id):
     )
 
 
+def is_trip_member(cursor, trip_id, user_id) -> bool:
+    """THE canonical accepted-membership predicate — true iff `user_id`
+    is an accepted member of `trip_id` (the owner qualifies via the
+    synthetic accepted-member row the /api/trips upsert maintains).
+
+    MK1 Wave H (T2-4): promoted from feed_events.py; the same SQL was
+    re-implemented inline in feed.py, trips.py and public.py — the
+    sibling-drift disease, in AUTHORIZATION code. Never inline this
+    query again."""
+    if not trip_id or not user_id:
+        return False
+    cursor.execute(
+        "SELECT 1 FROM trip_members "
+        "WHERE trip_id = ? AND user_id = ? AND invitation_status = 'accepted' "
+        "LIMIT 1",
+        (trip_id, user_id),
+    )
+    return cursor.fetchone() is not None
+
+
+def can_read_trip(cursor, trip_id: str, user_id: str) -> bool:
+    """True if the caller may READ the trip (owner + any accepted member,
+    role irrelevant — even a relaxer can view/export their own copy).
+    MK1 Wave H (T2-4): promoted from routes/pdf/_maps.py where it hid as
+    _can_read_trip."""
+    return trip_member_role(cursor, trip_id, user_id) is not None
+
+
 def trip_member_role(cursor, trip_id, user_id):
     """Returns the user's role on the trip ('planner' / 'relaxer' /
     future extensions) or None if they aren't an accepted member.

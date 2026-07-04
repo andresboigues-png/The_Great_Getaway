@@ -19,7 +19,7 @@ from flask import Blueprint, jsonify, request
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
-from helpers import json_body
+from helpers import is_trip_member, json_body
 from observability import get_logger
 
 bp = Blueprint("feed", __name__)
@@ -635,12 +635,7 @@ def share_trip_to_feed():
         # check; only owners + accepted members reach the privacy
         # branch (and the message text is meaningful there).
         if not is_owner:
-            cursor.execute(
-                "SELECT 1 FROM trip_members WHERE trip_id = ? "
-                "AND user_id = ? AND invitation_status = 'accepted'",
-                (trip_id, user_id),
-            )
-            if not cursor.fetchone():
+            if not is_trip_member(cursor, trip_id, user_id):
                 return jsonify({"error": "Not found"}), 404
         if not trip_row["is_public"]:
             # Auto-publish on share is kept for ACTIVE trips only — they have no

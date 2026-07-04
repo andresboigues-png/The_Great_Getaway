@@ -49,6 +49,8 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from helpers import is_trip_member
+
 # ── Public dataclass types ────────────────────────────────────────────
 
 
@@ -181,21 +183,6 @@ def is_following(cursor, viewer_id, actor_id) -> bool:
     return cursor.fetchone() is not None
 
 
-def is_trip_member(cursor, trip_id, user_id) -> bool:
-    """True iff `user_id` is an accepted member of `trip_id`. Includes
-    the trip owner (they get a synthetic accepted-member row by
-    convention in /api/trips upsert)."""
-    if not trip_id or not user_id:
-        return False
-    cursor.execute(
-        "SELECT 1 FROM trip_members "
-        "WHERE trip_id = ? AND user_id = ? AND invitation_status = 'accepted' "
-        "LIMIT 1",
-        (trip_id, user_id),
-    )
-    return cursor.fetchone() is not None
-
-
 def trip_owner(cursor, trip_id) -> str | None:
     """Return the trip's `user_id` (owner) or None if the trip
     doesn't exist."""
@@ -284,12 +271,7 @@ def _visible_to_post_friends(cursor, components, user_id) -> bool:
         # Private now — author + accepted members only.
         if user_id == row["user_id"]:
             return True
-        cursor.execute(
-            "SELECT 1 FROM trip_members WHERE trip_id = ? AND user_id = ? "
-            "AND invitation_status = 'accepted' LIMIT 1",
-            (row["trip_id"], user_id),
-        )
-        return cursor.fetchone() is not None
+        return is_trip_member(cursor, row["trip_id"], user_id)
     # BUG-20 (MK2 audit): a PUBLIC share is engageable by ANYONE, matching the
     # repost rule (feed.py lets any user repost a public trip) and the
     # public-discovery intent — pre-fix you could repost a public trip but got

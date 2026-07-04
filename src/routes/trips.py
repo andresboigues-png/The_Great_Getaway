@@ -26,6 +26,7 @@ from helpers import (
     ensure_owner_member_row,
     ensure_user_exists,
     is_trip_archived_for,
+    is_trip_member,
     is_trip_owner,
     json_body,
     trip_member_role,
@@ -1647,13 +1648,8 @@ def _caller_can_see_trip(cursor, trip_id, user_id):
         return True
     if row['user_id'] == user_id:
         return True
-    cursor.execute(
-        "SELECT 1 FROM trip_members "
-        "WHERE trip_id = ? AND user_id = ? AND invitation_status = 'accepted' "
-        "LIMIT 1",
-        (trip_id, user_id),
-    )
-    return cursor.fetchone() is not None
+    # MK1 Wave H (T2-4): canonical predicate — see helpers.is_trip_member.
+    return is_trip_member(cursor, trip_id, user_id)
 
 
 @bp.route("/api/trips/clone/<source_id>", methods=["POST"])

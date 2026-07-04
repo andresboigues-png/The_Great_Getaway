@@ -19,6 +19,7 @@ from auth import current_user_id
 from database import get_db
 from extensions import limiter
 from helpers import (
+    is_trip_member,
     serialize_trip_row,
     unwrap_legacy_plan_text,
 )
@@ -122,12 +123,8 @@ def get_public_trip(trip_id):
                 is_visible = True
                 is_member = True
             else:
-                cursor.execute(
-                    "SELECT 1 FROM trip_members WHERE trip_id = ? AND user_id = ? "
-                    "AND invitation_status = 'accepted' LIMIT 1",
-                    (trip_id, caller_id),
-                )
-                if cursor.fetchone():
+                # MK1 Wave H (T2-4): canonical predicate (helpers.is_trip_member).
+                if is_trip_member(cursor, trip_id, caller_id):
                     is_visible = True
                     is_member = True
         elif is_public and caller_id:
