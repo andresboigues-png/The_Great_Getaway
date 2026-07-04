@@ -19,12 +19,13 @@ registration global) and is imported here for ``_esc`` / ``_parse_day_slot``.
 from __future__ import annotations
 
 import io
-import json
 from typing import Any
 
 from observability import get_logger
 
 logger = get_logger(__name__)
+
+from helpers import safe_json_loads
 
 from ._fonts import _font, _strip_emoji  # noqa: F401  (_strip_emoji re-exported)
 from ._i18n import _T  # noqa: F401  (type hints reference "_T")
@@ -1393,15 +1394,6 @@ def _toc_row(rl, styles, page_w, margin_lr, number: str, title: str, sub: str, c
     return t
 
 
-def _safe_json(raw: Any, fallback: Any) -> Any:
-    """Decode a JSON column defensively; if the column is already
-    a list/dict (sqlite3 row deserialization isn't doing this but
-    /api/data sometimes pre-parses), return as-is."""
-    if raw is None:
-        return fallback
-    if isinstance(raw, (list, dict)):
-        return raw
-    try:
-        return json.loads(raw)
-    except (json.JSONDecodeError, TypeError, ValueError):
-        return fallback
+# MK1 Wave K (T3-7/PY-7): the canonical guard lives in helpers now; the
+# underscore alias stays because routes/pdf/__init__ re-exports it.
+_safe_json = safe_json_loads

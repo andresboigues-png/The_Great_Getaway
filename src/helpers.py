@@ -189,6 +189,24 @@ def ensure_owner_member_row(cursor, trip_id, owner_id):
     )
 
 
+def safe_json_loads(raw, fallback):
+    """Decode a JSON column defensively — THE canonical guard (MK1 Wave K,
+    T3-7/PY-7: this existed as two named implementations plus ~two dozen
+    ad-hoc try/except copies). None → fallback; already-parsed list/dict
+    → returned as-is (some callers pre-parse); anything json.loads can't
+    take (empty string, garbage, wrong type) → fallback. The CHECK
+    (json_valid) column constraints reject bad WRITES, but pre-constraint
+    prod rows and future column repurposing must never 500 a reader."""
+    if raw is None:
+        return fallback
+    if isinstance(raw, (list, dict)):
+        return raw
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return fallback
+
+
 def insert_notification(
     cursor,
     *,
@@ -486,13 +504,9 @@ def serialize_trip_row(row):
     # 500 the entire /api/data response. Each parse falls back to
     # the column's documented "empty" shape — [] for arrays, None
     # for scalars / shapeless blobs.
-    def _safe_json(raw, default):
-        if not raw:
-            return default
-        try:
-            return json.loads(raw)
-        except (json.JSONDecodeError, TypeError, ValueError):
-            return default
+    # MK1 Wave K: delegates to the canonical module-level guard. For the
+    # inputs this ever sees (TEXT columns / None) behavior is identical.
+    _safe_json = safe_json_loads
 
     t = dict(row)
     t['ownerId'] = t.get('user_id')
