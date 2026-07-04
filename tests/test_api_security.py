@@ -9,6 +9,8 @@ import sys
 
 import pytest
 
+import maintenance
+
 
 def test_auth_google_test_mode_disabled_by_default(client, monkeypatch):
     """Without GG_ALLOW_TEST_LOGIN, `test:<id>` tokens fall through to
@@ -1176,9 +1178,8 @@ def test_main_cleanup_feed_orphans_runs_without_crashing(client):
 
     Audit fix (2026-05-27): the sweep grew to cover notifications +
     auth_sessions too. Both default to 0 on a fresh DB."""
-    import main as main_module
 
-    result = main_module._cleanup_feed_orphans()
+    result = maintenance._cleanup_feed_orphans()
     assert result == {
         "likes": 0,
         "comments": 0,
@@ -1208,7 +1209,6 @@ def test_main_cleanup_feed_orphans_logs_when_rows_deleted(client, caplog):
     """
     import logging as _logging
 
-    import main as main_module
     from database import get_db
 
     with get_db() as conn:
@@ -1234,7 +1234,7 @@ def test_main_cleanup_feed_orphans_logs_when_rows_deleted(client, caplog):
         conn.commit()
 
     with caplog.at_level(_logging.INFO, logger="main"):
-        result = main_module._cleanup_feed_orphans()
+        result = maintenance._cleanup_feed_orphans()
     assert result["likes"] >= 1
     assert result["comments"] >= 1
     assert any("removed" in rec.getMessage() for rec in caplog.records)
@@ -1249,7 +1249,6 @@ def test_cleanup_preserves_engagement_on_live_evergreen_post(client, seed_user):
 
     Now orphan-only: rows referencing a LIVE feed_posts row survive
     no matter their age (up to the 365-day backstop)."""
-    import main as main_module
     from database import get_db
 
     with get_db() as conn:
@@ -1282,7 +1281,7 @@ def test_cleanup_preserves_engagement_on_live_evergreen_post(client, seed_user):
             (seed_user, "share_9999", "still relevant"),
         )
         conn.commit()
-    main_module._cleanup_feed_orphans()
+    maintenance._cleanup_feed_orphans()
     # Both rows MUST survive — the underlying feed_posts row is alive.
     with get_db() as conn:
         c = conn.cursor()
