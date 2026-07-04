@@ -35,6 +35,7 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from helpers import insert_notification
 from observability import get_logger, log_extra
 
 logger = get_logger(__name__)
@@ -838,11 +839,13 @@ def notify_achievements(cursor, user_id: str, newly_earned: list[dict]) -> None:
     if not newly_earned:
         return
     for badge in newly_earned:
-        cursor.execute(
-            "INSERT INTO notifications "
-            "(user_id, type, title, related_id, message, is_read) "
-            "VALUES (?, 'achievement_unlocked', 'Achievement unlocked', ?, ?, 0)",
-            (user_id, badge["badgeId"], f"{badge['emoji']} {badge['label']}"),
+        insert_notification(
+            cursor,
+            user_id=user_id,
+            kind='achievement_unlocked',
+            title='Achievement unlocked',
+            related_id=badge["badgeId"],
+            message=f"{badge['emoji']} {badge['label']}",
         )
 
 

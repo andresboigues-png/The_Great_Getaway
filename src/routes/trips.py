@@ -25,6 +25,7 @@ from helpers import (
     delete_upload_files,
     ensure_owner_member_row,
     ensure_user_exists,
+    insert_notification,
     is_trip_archived_for,
     is_trip_member,
     is_trip_owner,
@@ -1032,10 +1033,13 @@ def invite_trip_member():
         trip_name = trip_row["name"] if trip_row else "their trip"
 
         msg = f"{inviter_name} invited you to {trip_name} as a {role.title()}."
-        cursor.execute(
-            "INSERT INTO notifications (user_id, type, title, related_id, message, is_read) "
-            "VALUES (?, 'trip_invite', 'Trip invitation', ?, ?, 0)",
-            (target, trip_id, msg),
+        insert_notification(
+            cursor,
+            user_id=target,
+            kind='trip_invite',
+            title='Trip invitation',
+            related_id=trip_id,
+            message=msg,
         )
         conn.commit()
     return jsonify({"status": "ok"})
@@ -1158,10 +1162,13 @@ def respond_trip_invite():
         from routes.blocks import is_blocked
 
         if inviter_id and not is_blocked(cursor, inviter_id, user_id):
-            cursor.execute(
-                "INSERT INTO notifications (user_id, type, title, related_id, message, is_read) "
-                "VALUES (?, ?, 'Trip invite update', ?, ?, 0)",
-                (inviter_id, note_type, trip_id, msg),
+            insert_notification(
+                cursor,
+                user_id=inviter_id,
+                kind=note_type,
+                title='Trip invite update',
+                related_id=trip_id,
+                message=msg,
             )
         conn.commit()
     return jsonify({"status": "ok"})
@@ -1253,10 +1260,13 @@ def remove_trip_member():
             trip_row = cursor.fetchone()
             trip_name = trip_row["name"] if trip_row else "a trip"
             msg = f"{actor_name} removed you from {trip_name}."
-            cursor.execute(
-                "INSERT INTO notifications (user_id, type, title, related_id, message, is_read) "
-                "VALUES (?, 'trip_member_removed', 'Removed from trip', ?, ?, 0)",
-                (target, trip_id, msg),
+            insert_notification(
+                cursor,
+                user_id=target,
+                kind='trip_member_removed',
+                title='Removed from trip',
+                related_id=trip_id,
+                message=msg,
             )
         conn.commit()
     return jsonify({"status": "ok"})

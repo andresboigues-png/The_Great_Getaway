@@ -43,7 +43,7 @@ from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
 from fx_rates import compute_euro_value, get_rate_eur
-from helpers import is_trip_archived_for, json_body, trip_member_role
+from helpers import insert_notification, is_trip_archived_for, json_body, trip_member_role
 from observability import bind_trip_context, get_logger, log_extra
 from validators import (
     ValidationError,
@@ -469,11 +469,13 @@ def create_settlement():
                 )
             else:
                 message = f"{from_name} settled {amount_f:g} {currency} with you for {trip_name}."
-            cursor.execute(
-                "INSERT INTO notifications "
-                "(user_id, type, title, related_id, message, is_read) "
-                "VALUES (?, 'settled_up', 'Settled up', ?, ?, 0)",
-                (to_user_id, trip_id, message),
+            insert_notification(
+                cursor,
+                user_id=to_user_id,
+                kind='settled_up',
+                title='Settled up',
+                related_id=trip_id,
+                message=message,
             )
 
         conn.commit()
@@ -648,11 +650,13 @@ def delete_settlement(settlement_id):
                 message = (
                     f"{payer_name} reverted a settlement of {amount:g} {currency} on {trip_name}."
                 )
-            cursor.execute(
-                "INSERT INTO notifications "
-                "(user_id, type, title, related_id, message, is_read) "
-                "VALUES (?, 'settled_up_reverted', 'Settlement reverted', ?, ?, 0)",
-                (recipient_id, row["trip_id"], message),
+            insert_notification(
+                cursor,
+                user_id=recipient_id,
+                kind='settled_up_reverted',
+                title='Settlement reverted',
+                related_id=row["trip_id"],
+                message=message,
             )
 
         conn.commit()

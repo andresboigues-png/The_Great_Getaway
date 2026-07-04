@@ -189,6 +189,32 @@ def ensure_owner_member_row(cursor, trip_id, owner_id):
     )
 
 
+def insert_notification(
+    cursor,
+    *,
+    user_id: str,
+    kind: str,
+    title: str,
+    related_id,
+    message: str,
+    post_id=None,
+) -> None:
+    """THE canonical notifications INSERT. MK1 Wave K (T3-7/PY-8): the
+    same INSERT was hand-written ~10× across 7 files with two drifting
+    column shapes (with/without post_id) — one more sibling-drift
+    habitat. `related_id` is polymorphic by design (trip id, badge id,
+    actor id — see routes/notifications.py); `post_id` (share-engagement
+    deep-link, migration f5a6b7c8d9e0) is NULL for everything else,
+    which is exactly what the old 6-column inserts produced. is_read
+    always starts 0."""
+    cursor.execute(
+        "INSERT INTO notifications "
+        "(user_id, type, title, related_id, message, post_id, is_read) "
+        "VALUES (?, ?, ?, ?, ?, ?, 0)",
+        (user_id, kind, title, related_id, message, post_id),
+    )
+
+
 def is_trip_member(cursor, trip_id, user_id) -> bool:
     """THE canonical accepted-membership predicate — true iff `user_id`
     is an accepted member of `trip_id` (the owner qualifies via the

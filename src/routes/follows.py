@@ -32,7 +32,7 @@ from flask import Blueprint, jsonify
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
-from helpers import ensure_user_exists, user_daily_count, user_daily_increment
+from helpers import ensure_user_exists, insert_notification, user_daily_count, user_daily_increment
 from observability import get_logger, log_extra
 
 bp = Blueprint("follows", __name__)
@@ -146,11 +146,13 @@ def follow_user(user_id):
                 cursor.execute("SELECT name FROM users WHERE id = ?", (caller_id,))
                 row = cursor.fetchone()
                 actor_name = (row["name"] if row else "Someone") or "Someone"
-                cursor.execute(
-                    "INSERT INTO notifications "
-                    "(user_id, type, title, related_id, message, is_read) "
-                    "VALUES (?, 'followed_you', 'New follower', ?, ?, 0)",
-                    (user_id, caller_id, f"{actor_name} started following you."),
+                insert_notification(
+                    cursor,
+                    user_id=user_id,
+                    kind='followed_you',
+                    title='New follower',
+                    related_id=caller_id,
+                    message=f"{actor_name} started following you.",
                 )
                 # BUG-079: meter this genuinely-new (first-ever, notifying)
                 # follow against the daily cap — after the notification is

@@ -35,7 +35,7 @@ from flask import Blueprint, jsonify, request
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
-from helpers import ensure_user_exists, json_body
+from helpers import ensure_user_exists, insert_notification, json_body
 from routes.blocks import is_blocked
 from social import mutuals_of
 
@@ -171,17 +171,13 @@ def _follow(cursor, follower_id: str, followee_id: str, source: str) -> bool:
             cursor.execute("SELECT name FROM users WHERE id = ?", (follower_id,))
             row = cursor.fetchone()
             actor_name = (row["name"] if row else None) or "Someone"
-            cursor.execute(
-                "INSERT INTO notifications "
-                "(user_id, type, title, related_id, message, is_read) "
-                "VALUES (?, ?, ?, ?, ?, 0)",
-                (
-                    followee_id,
-                    source,
-                    'New follower' if source == 'followed_you' else 'Friend Request',
-                    follower_id,
-                    f"{actor_name} started following you.",
-                ),
+            insert_notification(
+                cursor,
+                user_id=followee_id,
+                kind=source,
+                title='New follower' if source == 'followed_you' else 'Friend Request',
+                related_id=follower_id,
+                message=f"{actor_name} started following you.",
             )
     return is_new
 

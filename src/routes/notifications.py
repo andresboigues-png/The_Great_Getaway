@@ -11,7 +11,7 @@ from flask import Blueprint, jsonify
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
-from helpers import json_body
+from helpers import insert_notification, json_body
 
 bp = Blueprint("notifications", __name__)
 
@@ -230,16 +230,17 @@ def notify_trip_public():
             if is_blocked(cursor, recipient_id, user_id):
                 continue
             msg = f"{user_name} completed their trip to {trip_name} and made it public!"
-            cursor.execute(
-                "INSERT INTO notifications "
-                "(user_id, type, title, related_id, message, is_read) "
-                "VALUES (?, 'trip_public', 'Trip Completed!', ?, ?, 0)",
-                # related_id = trip_id so the daily-dedupe SELECT above
-                # keys on (trip, day) rather than (caller, day). The UI
-                # already treats related_id as polymorphic (per the
-                # routes/notifications.py top-level comment), so the
-                # recipient's click-through deep-link still resolves.
-                (recipient_id, trip_id, msg),
+            # related_id = trip_id so the daily-dedupe SELECT above keys on
+            # (trip, day) rather than (caller, day). The UI already treats
+            # related_id as polymorphic, so the recipient's click-through
+            # deep-link still resolves.
+            insert_notification(
+                cursor,
+                user_id=recipient_id,
+                kind='trip_public',
+                title='Trip Completed!',
+                related_id=trip_id,
+                message=msg,
             )
 
         conn.commit()

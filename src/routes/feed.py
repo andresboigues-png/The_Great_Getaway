@@ -19,7 +19,7 @@ from flask import Blueprint, jsonify, request
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
-from helpers import is_trip_member, json_body
+from helpers import insert_notification, is_trip_member, json_body
 from observability import get_logger
 
 bp = Blueprint("feed", __name__)
@@ -138,10 +138,14 @@ def _fire_engagement_notification(cursor, recipient_id, actor_id, kind, post_id)
         "share_reposted": "New repost",
     }.get(kind, "Feed activity")
     msg = f"{actor_name} {verb}."
-    cursor.execute(
-        "INSERT INTO notifications (user_id, type, title, related_id, message, post_id, is_read) "
-        "VALUES (?, ?, ?, ?, ?, ?, 0)",
-        (recipient_id, kind, title, actor_id, msg, post_id),
+    insert_notification(
+        cursor,
+        user_id=recipient_id,
+        kind=kind,
+        title=title,
+        related_id=actor_id,
+        message=msg,
+        post_id=post_id,
     )
 
 
