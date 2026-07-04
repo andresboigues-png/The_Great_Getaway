@@ -727,53 +727,85 @@ declare global {
          *  routing through STATE. */
         __ggGeneralSubTab?: string;
     }
-    /** Loaded via <script> from Google Identity / Maps. The `google`
-     *  variable is `any` for runtime ergonomics; the nested `google.maps`
-     *  namespace below gives type-position usages (`google.maps.Marker`)
-     *  a place to resolve to without pulling in @types/google.maps. */
-    const google: any;
+    // ── CDN-loaded SDKs (google.maps, Chart.js, SheetJS) ────────────────
+    // MK1: these were `const X: any` (google.maps a hand-rolled all-`any`
+    // namespace) — ~767 member accesses went unchecked. Now wired to the
+    // real types (devDeps @types/google.maps + chart.js; skipLibCheck keeps
+    // their .d.ts internals out of our build). The runtime globals still
+    // arrive via <script> from the CDN — these are TYPE-ONLY bindings, so
+    // nothing extra is bundled (no value import references either package).
+    //
+    // google.maps: @types/google.maps declares the `google.maps` namespace
+    // (and the `google` value, via its classes) at global scope — it merges
+    // in automatically (auto-included from node_modules/@types). No stub
+    // needed here. `window.google` above (typed `any`) is the SEPARATE
+    // Google Identity SDK script; the two `google` surfaces coexist.
+
+    // Ambient augmentations to @types/google.maps — it covers google.maps
+    // but NOT:
+    //   (a) the SEPARATE Google Identity Services SDK, which also hangs off
+    //       the global `google` (google.accounts.id.*) — auth.ts + the
+    //       login wall use it;
+    //   (b) two InfoWindow methods the map code defensively OPTIONAL-calls
+    //       (getAnchor / getMap) — present on the live InfoWindow, absent
+    //       from @types@3.65. Declared optional so the `?.()` call sites
+    //       keep their exact runtime-guard semantics.
     namespace google {
+        namespace accounts {
+            namespace id {
+                function initialize(config: {
+                    client_id?: string;
+                    callback?: (response: { credential?: string; [k: string]: unknown }) => void;
+                    [k: string]: unknown;
+                }): void;
+                function renderButton(parent: HTMLElement, options: Record<string, unknown>): void;
+            }
+        }
         namespace maps {
-            // Everything `any` — we don't model the Maps API here, we
-            // just need the namespace to exist so JSDoc type annotations
-            // like `@type {google.maps.Marker | null}` resolve cleanly.
-            type Map = any;
-            type Marker = any;
-            type Polyline = any;
-            type TrafficLayer = any;
-            type LatLng = any;
-            type LatLngLiteral = any;
-            type LatLngBounds = any;
-            type LatLngBoundsLiteral = any;
-            type MapOptions = any;
-            type MarkerOptions = any;
-            type InfoWindow = any;
-            type Geocoder = any;
-            type DirectionsService = any;
-            type DirectionsRenderer = any;
-            type DirectionsResult = any;
-            type DirectionsStatus = any;
-            type GeocoderResult = any;
-            type GeocoderAddressComponent = any;
-            type GeocoderStatus = any;
-            type MapMouseEvent = any;
-            type MapTypeStyle = any;
-            type Data = any;
-            type DataFeature = any;
-            namespace places {
-                type Autocomplete = any;
-                type AutocompleteService = any;
-                type AutocompletionRequest = any;
-                type PlacesService = any;
-                type PlaceResult = any;
-                type AutocompletePrediction = any;
-                type PlacesServiceStatus = any;
-                type PlaceSearchPagination = any;
+            interface InfoWindow {
+                getAnchor?(): google.maps.MVCObject | null;
+                getMap?(): google.maps.Map | null;
             }
         }
     }
-    /** Loaded via chart.js CDN. */
-    const Chart: any;
-    /** Loaded via SheetJS CDN. */
-    const XLSX: any;
+
+    /** Chart.js UMD global (loaded from the jsDelivr CDN via lazyCdn.ts).
+     *  Typed to the package's Chart class so `new Chart(ctx, config)` and
+     *  the instance methods (.update/.destroy/.resize) are checked. */
+    const Chart: typeof import('chart.js').Chart;
+
+    /** SheetJS (xlsx) global — only read + utils.sheet_to_json are used, so
+     *  a minimal accurate stub avoids pulling the heavy package for two
+     *  calls. sheet_to_json is generic so callers pin the row shape
+     *  (default `unknown`, which forces validation at the parse site). */
+    namespace XLSX {
+        interface WorkSheet {
+            [cell: string]: unknown;
+        }
+        interface WorkBook {
+            Sheets: Record<string, WorkSheet>;
+            SheetNames: string[];
+        }
+        function read(
+            data: unknown,
+            opts?: {
+                type?: 'array' | 'binary' | 'string' | 'base64' | 'buffer' | 'file';
+                cellDates?: boolean;
+                [k: string]: unknown;
+            },
+        ): WorkBook;
+        namespace utils {
+            function sheet_to_json<T = unknown>(
+                ws: WorkSheet,
+                opts?: {
+                    header?: 1 | 'A' | string[];
+                    defval?: unknown;
+                    blankrows?: boolean;
+                    raw?: boolean;
+                    range?: number | string;
+                    [k: string]: unknown;
+                },
+            ): T[];
+        }
+    }
 }

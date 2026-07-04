@@ -541,8 +541,11 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                     await loadXlsx();
                     const data = new Uint8Array(evt.target?.result as ArrayBuffer);
                     const workbook = XLSX.read(data, { type: 'array' });
-                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                    aoa = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
+                    const firstSheetName = workbook.SheetNames[0];
+                    if (!firstSheetName) { setImportError(true); return; }
+                    const sheet = workbook.Sheets[firstSheetName];
+                    if (!sheet) { setImportError(true); return; }
+                    aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 });
                 }
                 const cells = parseRatesGrid(aoa, mode);
                 const applied = applyParsedCells(cells);

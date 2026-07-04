@@ -388,7 +388,8 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 });
                 iw.open({ map, anchor: marker });
                 map.panTo(loc);
-                if (map.getZoom() < 17) map.setZoom(17);
+                const zoom = map.getZoom();
+                if (zoom !== undefined && zoom < 17) map.setZoom(17);
             });
             return marker;
         };
@@ -446,6 +447,11 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                     resolve([]);
                     return;
                 }
+                // Post-guard the coords are provably numbers; TS loses that
+                // narrowing inside the nested runSearch closure below, so re-bind
+                // to a locally-typed literal (same values, read identically by
+                // nearbySearch).
+                const searchLocation: google.maps.LatLngLiteral = { lat: center.lat, lng: center.lng };
                 const svc = getPlacesService();
                 if (!svc) {
                     resolve([]);
@@ -457,7 +463,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 let pendingSearches = typesToSearch.length + keywordsToSearch.length;
                 const sharedHandle = (
                     results: google.maps.places.PlaceResult[] | null,
-                    status: google.maps.places.PlacesServiceStatus,
+                    status: google.maps.places.PlacesServiceStatusString,
                     pagination: google.maps.places.PlaceSearchPagination | null,
                 ) => {
                     const ok =
@@ -483,8 +489,8 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 const runSearch = (extra: Record<string, unknown>) => {
                     const base =
                         cat.searchStrategy === 'distance'
-                            ? { location: center, rankBy: google.maps.places.RankBy.DISTANCE }
-                            : { location: center, radius: 50000 };
+                            ? { location: searchLocation, rankBy: google.maps.places.RankBy.DISTANCE }
+                            : { location: searchLocation, radius: 50000 };
                     svc.nearbySearch({ ...base, ...extra }, sharedHandle);
                 };
                 typesToSearch.forEach((t) => runSearch({ type: t }));
@@ -701,7 +707,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
         if (activeMapClickListener) {
             const cb = activeMapClickListener;
             map.addListener('click', (e: google.maps.MapMouseEvent) =>
-                cb({ latlng: { lat: e.latLng.lat(), lng: e.latLng.lng() } }),
+                cb({ latlng: { lat: e.latLng!.lat(), lng: e.latLng!.lng() } }),
             );
             mapContainer.style.cursor = 'crosshair';
         }
@@ -723,11 +729,11 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
         map.addListener('idle', () => {
             if (!allowViewSave || !tripMapKey) return;
             if (!STATE.mapViews) STATE.mapViews = {};
-            const center = map.getCenter();
+            const center = map.getCenter()!;
             STATE.mapViews[tripMapKey] = {
                 lat: center.lat(),
                 lng: center.lng(),
-                zoom: map.getZoom(),
+                zoom: map.getZoom()!,
             };
         });
 
@@ -749,9 +755,10 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 });
             } else {
                 const geocoder = new google.maps.Geocoder();
-                geocoder.geocode(
+                // Promise-returning in the SDK types; callback form used, promise ignored.
+                void geocoder.geocode(
                     { address: cleanQuery },
-                    (results: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
+                    (results, status) => {
                         if (status !== 'OK' || !results || !results[0]) return;
                         const bounds = results[0].geometry.viewport;
                         google.maps.event.addListenerOnce(map, 'tilesloaded', () => {

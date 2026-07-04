@@ -22,8 +22,11 @@ import { runBatchImport, cellToText } from '../upload.js';
 import { t } from '../../i18n.js';
 import { showLiquidAlert } from '../../utils.js';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SheetJS sheet_to_json yields heterogeneous cells (string|number|Date); typing as unknown[][] would break the preview's cellToText coercion + runBatchImport's parseFloat without a runtime change
-type SheetRows = { header: any[]; rows: any[][] };
+// SheetJS sheet_to_json (with header:1) yields rows of heterogeneous cells
+// (string | number | Date | …). They're all coerced at the use sites
+// (cellToText for the preview, parseFloat inside runBatchImport), so `unknown`
+// is honest here — the consumers narrow.
+type SheetRows = { header: unknown[]; rows: unknown[][] };
 
 const POPULARS = [
     { id: 'tricount', name: 'Tricount Export (CSV/XLSX)' },
@@ -94,10 +97,15 @@ export function BatchUpload() {
                 // expense collapsed to Jan 1).
                 const workbook = XLSX.read(data, { type: 'array', cellDates: true });
                 const firstSheetName = workbook.SheetNames[0];
+                if (!firstSheetName) return;
                 const worksheet = workbook.Sheets[firstSheetName];
-                const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                if (!worksheet) return;
+                // header:1 → each element is a row (array of cells). The
+                // sheet_to_json stub is generic, so pin the row shape to
+                // unknown[] (rows-of-cells) rather than casting.
+                const json = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1 });
                 if (json.length < 2) return;
-                const header = json[0];
+                const header = json[0] ?? [];
                 // BUG-076: keep any row with at least one non-empty cell —
                 // NOT just rows whose FIRST cell is truthy. The meaningful
                 // column depends on the format/mapping (a custom format may
@@ -108,7 +116,7 @@ export function BatchUpload() {
                 // decide what's unusable so nothing vanishes unreported.
                 const rows = json
                     .slice(1)
-                    .filter((r: unknown[]) => Array.isArray(r) && r.some((cell) => cell !== '' && cell != null));
+                    .filter((r) => Array.isArray(r) && r.some((cell) => cell !== '' && cell != null));
                 setParsed({ header, rows });
                 setStatus(null);
             } catch (err) {

@@ -136,9 +136,15 @@ export function ensureGsiInitialized(): boolean {
     if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
         return false;
     }
+    // exactOptionalPropertyTypes: omit client_id entirely when it's undefined
+    // rather than passing `client_id: undefined` (runtime-equivalent — GSI reads
+    // a missing key the same as an undefined one).
+    const clientId = window.globalGoogleClientId;
     google.accounts.id.initialize({
-        client_id: window.globalGoogleClientId,
-        callback: handleGoogleLogin,
+        ...(clientId !== undefined ? { client_id: clientId } : {}),
+        // GSI's callback type is `=> void`; handleGoogleLogin is async, so wrap
+        // it to discard the promise (matches window.handleGoogleLogin above).
+        callback: (response) => void handleGoogleLogin(response),
     });
     _gsiInitialized = true;
     return true;

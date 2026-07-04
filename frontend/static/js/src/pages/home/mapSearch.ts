@@ -39,7 +39,7 @@ export interface MapSearchContext {
     map: google.maps.Map;
     activeTrip: Trip;
     getInfoWindow: () => google.maps.InfoWindow;
-    getPlacesService: () => google.maps.places.PlacesService;
+    getPlacesService: () => google.maps.places.PlacesService | null;
     buildInfoWindowHtml: (cat: PoiCategory, place: google.maps.places.PlaceResult) => string;
     wireInfoWindowMarkButtons: (cat: PoiCategory, place: google.maps.places.PlaceResult) => void;
 }
@@ -246,12 +246,21 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         paintResults();
         resultsEl.scrollTop = keepScroll;
         const svc = getPlacesService();
+        if (!svc) {
+            // Places SDK not ready (google.maps.places absent) — clear the
+            // in-flight loading state and surface the same error the non-OK
+            // Text Search path uses, rather than leaving the panel spinning.
+            placesLoading = false;
+            paintResults();
+            showSearchError(t('map.searchLoadError'));
+            return;
+        }
         // Build the request without naming the TextSearchRequest type (absent
         // from this project's trimmed google.maps typings); the object literal
         // is structurally checked against textSearch's signature.
         const bounds = map.getBounds();
         const req = bounds ? { query: q, bounds } : { query: q };
-        svc.textSearch(req, (results: google.maps.places.PlaceResult[] | null, status: google.maps.places.PlacesServiceStatus) => {
+        svc.textSearch(req, (results, status) => {
             placesLoading = false;
             // Stale guard — the input moved on while the search was in flight.
             if (searchInput.value.trim() !== q) return;
@@ -444,10 +453,16 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
 
     const fetchDetails = (placeId: string) => {
         const svc = getPlacesService();
+        if (!svc) {
+            // Places SDK not ready — surface the same error the getDetails
+            // failure path uses instead of throwing on a null service.
+            showSearchError(t('map.searchLoadError'));
+            return;
+        }
         svc.getDetails({
             placeId,
             fields: ['place_id', 'name', 'formatted_address', 'vicinity', 'geometry', 'types', 'rating', 'user_ratings_total', 'icon', 'url'],
-        }, (place: google.maps.places.PlaceResult | null, status: google.maps.places.PlacesServiceStatus) => {
+        }, (place, status) => {
             if (status !== google.maps.places.PlacesServiceStatus.OK || !place) {
                 // DSGN-060: getDetails failed — surface error instead of silent
                 // dead-end after user clicked a search result.
@@ -513,7 +528,10 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
             if (activeTrip && typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
                 req.origin = { lat: activeTrip.lat, lng: activeTrip.lng };
             }
-            autocomplete.getPlacePredictions(req, (preds: google.maps.places.AutocompletePrediction[] | null, status: google.maps.places.PlacesServiceStatus) => {
+            // The real SDK types getPlacePredictions as promise-returning (it
+            // supports both forms); we use the callback, so `void` marks the
+            // returned promise as intentionally ignored (no runtime change).
+            void autocomplete.getPlacePredictions(req, (preds, status) => {
                 // Places resolved — cancel the internal-only fallback so we
                 // render both halves together (the common, no-reflow path).
                 clearTimeout(internalFallback);

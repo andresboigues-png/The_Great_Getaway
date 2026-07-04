@@ -71,11 +71,11 @@ export function useAiMap(
                 map.addListener('idle', () => {
                     const aiTripMapKey = activeTrip.id + '_ai';
                     if (!STATE.mapViews) STATE.mapViews = {};
-                    const c = map.getCenter();
+                    const c = map.getCenter()!;
                     STATE.mapViews[aiTripMapKey] = {
                         lat: c.lat(),
                         lng: c.lng(),
-                        zoom: map.getZoom(),
+                        zoom: map.getZoom()!,
                     };
                     emit('state:changed');
                 });
@@ -129,12 +129,11 @@ export function useAiMap(
                         )
                         .trim();
                 }
-                geocoder.geocode(
+                // geocode is promise-returning in the SDK types; we use the
+                // callback, so `void` marks the promise intentionally ignored.
+                void geocoder.geocode(
                     { address: loc + ', ' + tripCountry },
-                    (
-                        results: google.maps.GeocoderResult[] | null,
-                        status: google.maps.GeocoderStatus,
-                    ) => {
+                    (results, status) => {
                         // Bail if the effect re-ran (trip switch or
                         // itinerary regen) — don't mutate the day or
                         // create a stranded marker.
@@ -227,12 +226,10 @@ function zoomToLocation(map: google.maps.Map, location: string, activeTrip: Trip
         query = query.split(' - ')[1] + ', USA';
     }
     const geocoder = new google.maps.Geocoder();
-    geocoder.geocode(
+    // Promise-returning in the SDK types; callback form used, promise ignored.
+    void geocoder.geocode(
         { address: query },
-        (
-            results: google.maps.GeocoderResult[] | null,
-            status: google.maps.GeocoderStatus,
-        ) => {
+        (results, status) => {
             if (status === 'OK' && results && results[0]) {
                 map.fitBounds(results[0].geometry.viewport);
             }

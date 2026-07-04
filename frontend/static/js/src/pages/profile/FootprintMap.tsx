@@ -160,15 +160,15 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
             .then((res) => res.json())
             .then((data) => {
                 map.data.addGeoJson(data);
-                map.data.setStyle((feature: google.maps.DataFeature) => {
-                    const iso2 = (
-                        feature.getProperty('ISO_A2') || feature.getProperty('iso_a2') || ''
+                map.data.setStyle((feature: google.maps.Data.Feature) => {
+                    const iso2 = String(
+                        feature.getProperty('ISO_A2') || feature.getProperty('iso_a2') || '',
                     ).toUpperCase();
-                    const countryName = (
+                    const countryName = String(
                         feature.getProperty('NAME') ||
                         feature.getProperty('name') ||
                         feature.getProperty('admin') ||
-                        ''
+                        '',
                     ).toLowerCase();
                     if (!iso2 && !countryName) return { visible: false };
                     // Fast path — ISO match.
@@ -321,12 +321,16 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
                     (tr) => typeof tr.lat === 'number' && typeof tr.lng === 'number',
                 );
                 if (withCoords) {
-                    placeMarker({ lat: withCoords.lat, lng: withCoords.lng }, countryKey, tps);
+                    // The find() predicate above already proved both coords are
+                    // numbers; `!` re-states that (TS doesn't narrow the found
+                    // element's optional props from the predicate).
+                    placeMarker({ lat: withCoords.lat!, lng: withCoords.lng! }, countryKey, tps);
                     continue; // no API call, no throttle needed
                 }
-                geocoder.geocode(
+                // Promise-returning in the SDK types; callback form used, promise ignored.
+                void geocoder.geocode(
                     { address: countryKey },
-                    (results: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
+                    (results, status) => {
                         if (status === 'OK' && results && results[0]) {
                             placeMarker(results[0].geometry.location, countryKey, tps);
                         }

@@ -37,6 +37,13 @@ type MaybeTrip = Trip | null | undefined;
  *  `any` in types.d.ts) — kept loose on purpose at this boundary. */
 type PlaceResult = google.maps.places.PlaceResult;
 
+/** Coerce a LatLng coordinate accessor to a number, tolerating both the
+ *  real SDK shape (where `LatLng.lat`/`lng` are METHODS) and a plain
+ *  `{ lat, lng }` literal (where they're numbers). Nullish → 0. This mirrors
+ *  the prior inline `location?.lat?.() ?? location?.lat ?? 0` fallback. */
+const coordVal = (v: number | (() => number) | null | undefined): number =>
+    (typeof v === 'function' ? v() : (v ?? 0));
+
 /** Read marked places off a trip object (always returns an array). */
 export function getMarkedPlaces(trip: MaybeTrip): MarkedPlace[] {
     return Array.isArray(trip?.markedPlaces) ? trip.markedPlaces : [];
@@ -129,8 +136,8 @@ export function toggleTodoListMembership(
         placeId: place.place_id,
         name: place.name || '',
         address: place.vicinity || place.formatted_address || '',
-        lat: place.geometry?.location?.lat?.() ?? place.geometry?.location?.lat ?? 0,
-        lng: place.geometry?.location?.lng?.() ?? place.geometry?.location?.lng ?? 0,
+        lat: coordVal(place.geometry?.location?.lat),
+        lng: coordVal(place.geometry?.location?.lng),
         icon: cat?.icon || '📍',
         color: cat?.color || '#9b59b6',
         forAI: true,        // pre-ticked for AI by default — see helper docs

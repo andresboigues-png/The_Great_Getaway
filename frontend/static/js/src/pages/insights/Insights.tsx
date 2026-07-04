@@ -35,6 +35,7 @@ import { computeTripBalances } from '../settlement/balances.js';
 import { budgetStatus, budgetTitle } from '../budgets/helpers.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Expense, Category } from '../../types';
+import type { TooltipItem } from 'chart.js';
 import { t } from '../../i18n.js';
 import { openNewTripModal } from '../../modals.js';
 import { showModal } from '../../components/Modal.js';
@@ -43,18 +44,13 @@ import { esc } from '../../utils.js';
 
 // Chart is loaded via CDN in index.html and declared as a global in types.d.ts.
 
-/** Minimal Chart.js tooltip-context shapes the callbacks below read. We
- *  don't pull in @types/chart.js (Chart is a CDN `any`), so only the
- *  fields actually touched are modelled. `parsed` is a scalar for
- *  pie/doughnut charts and an {x,y} point for line/bar charts. */
+/** Minimal Chart.js tooltip-context shape the doughnut callbacks below read.
+ *  The line/bar callbacks use chart.js's own `TooltipItem<'line'|'bar'>`
+ *  (imported above); the doughnut ones only touch `label` + a scalar
+ *  `parsed`, so this narrow local shape stays. */
 interface PieTooltipCtx {
     label: string;
     parsed: number;
-}
-interface XYTooltipCtx {
-    label: string;
-    parsed: { x: number; y: number };
-    dataset: { label?: string };
 }
 
 interface ConvertedExpense {
@@ -843,15 +839,18 @@ export function Insights() {
                         cornerRadius: 10,
                         titleColor: '#ffffff',
                         bodyColor: 'rgba(255,255,255,0.82)',
-                        titleFont: { size: 13, weight: '700' },
+                        titleFont: { size: 13, weight: 700 },
                         bodyFont: { size: 13 },
                         callbacks: {
-                            title: (items: XYTooltipCtx[]) => {
+                            title: (items: TooltipItem<'line'>[]) => {
                                 const v = items && items[0] ? Number(items[0].parsed.x) : NaN;
                                 if (!Number.isFinite(v)) return '';
                                 return timelineDateLabel(new Date(v).toISOString().slice(0, 10), includeYear);
                             },
-                            label: (ctx: XYTooltipCtx) => targetSym + formatNumberForCurrency(ctx.parsed.y, targetCurr),
+                            // chart.js types parsed.y as number|null; for a plotted
+                            // line point it's always a number, so `!` restates that
+                            // without changing what's passed through.
+                            label: (ctx: TooltipItem<'line'>) => targetSym + formatNumberForCurrency(ctx.parsed.y!, targetCurr),
                         },
                     },
                 },
@@ -1032,7 +1031,7 @@ export function Insights() {
         const chart = new Chart(spenderPieRef.current, {
             type: 'doughnut',
             data: { labels: spenderRows.map((r) => r.name), datasets: [{ data: spenderRows.map((r) => r.value), backgroundColor: spenderRows.map((_, i) => DASH_PALETTE[i % DASH_PALETTE.length] ?? '#0071e3'), borderWidth: 0 }] },
-            options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { display: false }, tooltip: { displayColors: false, backgroundColor: 'rgba(17,24,39,0.92)', padding: 10, cornerRadius: 10, titleColor: '#ffffff', bodyColor: 'rgba(255,255,255,0.82)', titleFont: { size: 13, weight: '700' }, bodyFont: { size: 13 }, callbacks: { title: (items: PieTooltipCtx[]) => items[0]?.label ?? '', label: (ctx: PieTooltipCtx) => `${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}` } } } },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { display: false }, tooltip: { displayColors: false, backgroundColor: 'rgba(17,24,39,0.92)', padding: 10, cornerRadius: 10, titleColor: '#ffffff', bodyColor: 'rgba(255,255,255,0.82)', titleFont: { size: 13, weight: 700 }, bodyFont: { size: 13 }, callbacks: { title: (items: PieTooltipCtx[]) => items[0]?.label ?? '', label: (ctx: PieTooltipCtx) => `${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}` } } } },
         });
         return () => chart.destroy();
     }, [chartLibReady, targetCurr, targetSym, spenderRows.map((r) => `${r.name}:${r.value.toFixed(2)}`).join('|')]);
@@ -1045,7 +1044,7 @@ export function Insights() {
         const chart = new Chart(perPieRef.current, {
             type: 'doughnut',
             data: { labels: perRows.rows.map((r) => r.label), datasets: [{ data: perRows.rows.map((r) => (isCount ? r.count : r.value)), backgroundColor: perRows.rows.map((_, i) => DASH_PALETTE[i % DASH_PALETTE.length] ?? '#0071e3'), borderWidth: 0 }] },
-            options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { display: false }, tooltip: { displayColors: false, backgroundColor: 'rgba(17,24,39,0.92)', padding: 10, cornerRadius: 10, titleColor: '#ffffff', bodyColor: 'rgba(255,255,255,0.82)', titleFont: { size: 13, weight: '700' }, bodyFont: { size: 13 }, callbacks: { title: (items: PieTooltipCtx[]) => items[0]?.label ?? '', label: (ctx: PieTooltipCtx) => (isCount ? `${ctx.parsed} ${t('insights.transactionsAbbrev')}` : `${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}`) } } } },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { display: false }, tooltip: { displayColors: false, backgroundColor: 'rgba(17,24,39,0.92)', padding: 10, cornerRadius: 10, titleColor: '#ffffff', bodyColor: 'rgba(255,255,255,0.82)', titleFont: { size: 13, weight: 700 }, bodyFont: { size: 13 }, callbacks: { title: (items: PieTooltipCtx[]) => items[0]?.label ?? '', label: (ctx: PieTooltipCtx) => (isCount ? `${ctx.parsed} ${t('insights.transactionsAbbrev')}` : `${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}`) } } } },
         });
         return () => chart.destroy();
     }, [chartLibReady, targetCurr, targetSym, perMetric, perRows.rows.map((r) => `${r.label}:${(perMetric === 'count' ? r.count : r.value).toFixed(2)}`).join('|')]);
@@ -1106,7 +1105,9 @@ export function Insights() {
                     legend: { position: 'bottom' },
                     tooltip: {
                         callbacks: {
-                            label: (ctx: XYTooltipCtx) => `${ctx.dataset.label}: ${targetSym}${formatNumberForCurrency(ctx.parsed.y, targetCurr)}`,
+                            // parsed.y is number|null in chart.js types but always a
+                            // number for a plotted bar; `!` restates that.
+                            label: (ctx: TooltipItem<'bar'>) => `${ctx.dataset.label}: ${targetSym}${formatNumberForCurrency(ctx.parsed.y!, targetCurr)}`,
                         },
                     },
                 },

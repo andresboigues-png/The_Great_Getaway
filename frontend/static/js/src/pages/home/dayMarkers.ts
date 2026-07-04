@@ -112,7 +112,10 @@ export function paintDayMarkers(ctx: DayMarkersContext): Record<string, google.m
         // marker for the anchor. Numbered days only.
         if (Number(day.dayNumber) === 0) return;
         if (!(day.lat && (day.lon || day.lng))) return;
-        const lon = day.lon || day.lng;
+        // The guard above already proved `day.lat` and `day.lon || day.lng`
+        // are both truthy numbers; `!` re-states that for the recomputed `lon`
+        // (TS can't carry the narrowing from the combined guard expression).
+        const lon = (day.lon || day.lng)!;
         const isEditing = editingDayId === day.id;
 
         const marker = new google.maps.Marker({

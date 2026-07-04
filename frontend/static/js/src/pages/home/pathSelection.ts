@@ -169,7 +169,8 @@ export function setSelectedDay(tripId: string, dayId: string): void {
     try {
         if (lat != null && lng != null) {
             map.panTo({ lat, lng });
-            if (typeof map.getZoom === 'function' && map.getZoom() < 13) map.setZoom(13);
+            const zoom = typeof map.getZoom === 'function' ? map.getZoom() : undefined;
+            if (zoom !== undefined && zoom < 13) map.setZoom(13);
         } else if (day.dayNumber === 0) {
             // Anchor with no day-pin — fall back to the trip's
             // anchor.

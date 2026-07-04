@@ -162,11 +162,13 @@ export async function fetchDayRoutePath(legs: Leg[]): Promise<RouteResult | null
             // a hung request doesn't block subsequent legs.
             const result = await Promise.race([
                 new Promise((resolve, reject) => {
-                    service.route({
+                    // route is promise-returning in the SDK types; callback form
+                    // used, so `void` marks the returned promise as ignored.
+                    void service.route({
                         origin,
                         destination: dest,
                         travelMode: google.maps.TravelMode.DRIVING,
-                    }, (response: google.maps.DirectionsResult | null, status: google.maps.DirectionsStatus) => {
+                    }, (response, status) => {
                         if (status === 'OK' && response) resolve(response);
                         else reject(new Error(String(status)));
                     });

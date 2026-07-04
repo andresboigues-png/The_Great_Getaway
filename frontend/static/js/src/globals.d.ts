@@ -1,3 +1,13 @@
+/// <reference types="google.maps" />
+// ^ MK1: pull in @types/google.maps (devDep) so the `google.maps.*`
+// namespace resolves project-wide as REAL types instead of the former
+// hand-rolled all-`any` stub (~767 unchecked member accesses). An
+// explicit reference — not auto-inclusion — because `include` scopes
+// the program to frontend/src and the ambient namespace must be forced
+// into global scope from here (this file is already the project's
+// ambient-script anchor). The runtime global still arrives via the
+// Maps <script>; @types/google.maps is type-only, nothing is bundled.
+
 // Ambient global declarations.
 //
 // This file is INTENTIONALLY a "script" (no top-level `import` or
