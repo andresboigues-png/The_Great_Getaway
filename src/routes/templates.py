@@ -27,7 +27,7 @@ everyone else needs users.is_creator = 1 (granted via POST /api/admin/creator).
 import json
 import secrets
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, current_app, jsonify, render_template, url_for
 
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
@@ -698,3 +698,35 @@ def create_from_template(code):
         )
         conn.commit()
     return jsonify({"tripId": new_trip_id})
+
+
+# ── MK1 Wave G (T2-1): the public /t/<code> template preview moved here
+# from main.py, next to fetch_template_preview. Verbatim.
+@bp.route("/t/<code>")
+@limiter.limit("60/minute")
+def template_preview_page(code):
+    """Public, server-rendered preview of a Trip Template by code, with a
+    "Use this template" CTA that deep-links into the SPA
+    (/?fromTemplate=<code>). The SPA's template-intent.ts captures the code
+    and instantiates it into a new owned trip after sign-in. Read-only; the
+    preview payload is pre-stripped of all sensitive data by construction, so
+    nothing private can leak here."""
+    preview = fetch_template_preview(code)
+    canonical = url_for(".template_preview_page", code=code, _external=True)
+    og_image = url_for("static", filename="favicon.svg", _external=True)
+    status = 200 if preview else 404
+    response = current_app.make_response(
+        (
+            render_template(
+                "template.html",
+                preview=preview,
+                canonical_url=canonical,
+                og_image_url=og_image,
+            ),
+            status,
+        )
+    )
+    # Same privacy posture as the share page — don't let intermediaries
+    # cache a per-code response.
+    response.headers["Cache-Control"] = "private, no-store"
+    return response

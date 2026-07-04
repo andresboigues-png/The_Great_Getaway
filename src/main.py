@@ -1,7 +1,7 @@
 import os
 
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, send_from_directory, url_for
+from flask import Flask, render_template, request, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
@@ -30,11 +30,9 @@ from routes.notifications import bp as notifications_bp
 from routes.ops import bp as ops_bp
 from routes.pdf import bp as pdf_bp
 from routes.public import bp as public_bp
-from routes.public import fetch_share_payload
 from routes.settings import bp as settings_bp
 from routes.settlements import bp as settlements_bp
 from routes.templates import bp as templates_bp
-from routes.templates import fetch_template_preview
 from routes.trip_io import bp as trip_io_bp
 from routes.trips import bp as trips_bp
 
@@ -293,179 +291,8 @@ def home():
     )
 
 
-# ── FIXING_ROADMAP §4.1 — public share page ──────────────────────────
-# The URL the owner pastes into WhatsApp / iMessage / LinkedIn. Renders
-# a standalone HTML page (NOT the SPA shell) so link-preview crawlers
-# get OG meta tags in the first response, and so a fresh visitor on
-# a slow connection sees the trip without downloading the React bundle.
-#
-# View counter: each visit increments share_views, deduped by an
-# anonymous 24h cookie keyed on the token. Refreshing the page or
-# coming back the same day doesn't double-count; a new visitor (or
-# the same person tomorrow) does.
-@app.route("/share/<token>")
-@limiter.limit("60/minute")
-def share_page(token):
-    # R10-B6c S1: thread the (possibly None) caller_id so a signed-in
-    # viewer who's mutually blocked with the trip owner sees the
-    # same friendly empty page as a wrong/revoked token. Anonymous
-    # hits (caller_id=None) fall through; share URLs are designed to
-    # work for logged-out recipients by definition.
-    payload = fetch_share_payload(token, caller_id=current_user_id())
-    if not payload:
-        # Wrong / revoked token. Render a friendly empty page instead
-        # of leaking "this trip used to exist" vs "this trip never
-        # existed" via differential 404s.
-        return render_template(
-            "share.html",
-            trip={"name": "This trip isn't available", "country": "", "coverUrl": None, "views": 0},
-            days=[],
-            owner=None,
-            cost=None,
-            og_description="This trip's share link has expired or been revoked.",
-            og_image_url=url_for("static", filename="favicon.svg", _external=True),
-            # R5-B6: canonical url is the clean /share/<token> path.
-            # Pre-fix this was `request.url`, which reflected any
-            # visitor-appended query string (e.g. /share/<token>?utm=x)
-            # into the rendered og:url metatag AND into the clone-CTA
-            # href (where the trailing-slash split yielded a polluted
-            # "<token>?utm=x" pseudo-token that broke the clone flow).
-            canonical_url=url_for("share_page", token=token, _external=True),
-        ), 404
-
-    # Dedup by anonymous cookie. The cookie value is just "1" — we
-    # don't need to identify the visitor, just whether THIS browser
-    # has seen THIS token in the last 24h. The cookie is httponly so
-    # JS can't tamper with it; samesite=lax so it follows link clicks
-    # from chat apps.
-    # R3-Round 3 fix: hash the token before using it as a cookie
-    # name suffix. Pre-fix the first 16 chars of the share_token
-    # rode in plain text in the `Set-Cookie` header — a determined
-    # observer (SW debug, browser DevTools, network log) could lift
-    # ~16/22 = 73% of the token from a single share-page response.
-    # SHA-256 keeps the dedup property (same token → same cookie
-    # name → same dedup window) without leaking any source bytes.
-    import hashlib
-
-    cookie_name = f"gg_viewed_{hashlib.sha256(token.encode()).hexdigest()[:16]}"
-    has_seen = request.cookies.get(cookie_name) is not None
-    if not has_seen:
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE trips SET share_views = COALESCE(share_views, 0) + 1 WHERE share_token = ?",
-                (token,),
-            )
-            # R3-Round 3 fix: only mutate the payload when the UPDATE
-            # actually wrote a row. If the owner revoked the token
-            # between fetch_share_payload and this UPDATE (microsecond
-            # race), rowcount=0 — pre-fix the payload still showed
-            # `+1` views, a phantom increment the visitor would see
-            # in their session that never made it to DB.
-            row_count = cursor.rowcount
-            conn.commit()
-        if row_count == 1:
-            payload["trip"]["views"] = payload["trip"].get("views", 0) + 1
-
-    # Build the OG description from what's in the payload — keep it
-    # short (LinkedIn caps around 200 chars) and lead with the most
-    # interesting datum we have. Cost banner wins if enabled, then
-    # country, then a generic phrase.
-    cost = payload.get("cost")
-    if cost and cost.get("total"):
-        og_description = (
-            f"€{int(cost['total']):,} across {cost.get('dayCount', 0)} days "
-            f"in {payload['trip']['country'] or 'the world'}."
-        )
-    elif payload["trip"].get("country"):
-        og_description = f"A trip to {payload['trip']['country']} on The Great Getaway."
-    else:
-        og_description = "A trip shared on The Great Getaway."
-
-    # OG image — prefer the trip's cover photo (absolute URL needed for
-    # crawlers). Cover URLs in the DB are stored relative (e.g.
-    # /static/uploads/abc.jpg); convert to absolute against the
-    # current request host. Fall back to the favicon SVG which most
-    # crawlers can render at preview size.
-    cover_rel = payload["trip"].get("coverUrl")
-    if cover_rel:
-        if cover_rel.startswith("http://") or cover_rel.startswith("https://"):
-            og_image_url = cover_rel
-        else:
-            og_image_url = request.url_root.rstrip("/") + cover_rel
-    else:
-        og_image_url = url_for("static", filename="favicon.svg", _external=True)
-
-    response = app.make_response(
-        render_template(
-            "share.html",
-            trip=payload["trip"],
-            days=payload["days"],
-            owner=payload["owner"],
-            cost=payload["cost"],
-            og_description=og_description,
-            og_image_url=og_image_url,
-            # R5-B6: canonical url is the clean /share/<token> path.
-            # Pre-fix this was `request.url`, which reflected any
-            # visitor-appended query string (e.g. /share/<token>?utm=x)
-            # into the rendered og:url metatag AND into the clone-CTA
-            # href (where the trailing-slash split yielded a polluted
-            # "<token>?utm=x" pseudo-token that broke the clone flow).
-            canonical_url=url_for("share_page", token=token, _external=True),
-        )
-    )
-    # R3-Fix #15: don't let intermediaries (CDNs, corp proxies,
-    # transparent ISP caches) hold a copy of this response. The
-    # body embeds the dedup cookie + view counter — caching it
-    # means visitor B downstream sees visitor A's set-cookie +
-    # view count rather than incrementing their own.
-    response.headers["Cache-Control"] = "private, no-store"
-    if not has_seen:
-        response.set_cookie(
-            cookie_name,
-            "1",
-            max_age=24 * 60 * 60,
-            httponly=True,
-            samesite="Lax",
-            # R5-B6: Secure flag so the token-hash cookie doesn't
-            # leak in cleartext if a visitor's first contact is
-            # over http (captive portals, injected http img tags
-            # downgrading the connection). HSTS protects most
-            # users post-first-visit, but the first visit on a
-            # fresh host can still be plain http.
-            secure=request.is_secure,
-        )
-    return response
-
-
-@app.route("/t/<code>")
-@limiter.limit("60/minute")
-def template_preview_page(code):
-    """Public, server-rendered preview of a Trip Template by code, with a
-    "Use this template" CTA that deep-links into the SPA
-    (/?fromTemplate=<code>). The SPA's template-intent.ts captures the code
-    and instantiates it into a new owned trip after sign-in. Read-only; the
-    preview payload is pre-stripped of all sensitive data by construction, so
-    nothing private can leak here."""
-    preview = fetch_template_preview(code)
-    canonical = url_for("template_preview_page", code=code, _external=True)
-    og_image = url_for("static", filename="favicon.svg", _external=True)
-    status = 200 if preview else 404
-    response = app.make_response(
-        (
-            render_template(
-                "template.html",
-                preview=preview,
-                canonical_url=canonical,
-                og_image_url=og_image,
-            ),
-            status,
-        )
-    )
-    # Same privacy posture as the share page — don't let intermediaries
-    # cache a per-code response.
-    response.headers["Cache-Control"] = "private, no-store"
-    return response
+# MK1 Wave G (T2-1): /share/<token> lives in routes/public.py;
+# /t/<code> in routes/templates.py — each beside its data helper.
 
 
 @app.route("/components")
@@ -570,7 +397,6 @@ def serve_upload(relpath: str):
     # AttributeError'd too).
     caller_id = current_user_id()
     needle_exact = f"/static/uploads/{relpath}"
-    from database import get_db
 
     if caller_id:
         # 4.8 audit PLAT-3: gate authenticated reads by ownership +
