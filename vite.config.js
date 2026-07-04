@@ -77,18 +77,16 @@ export default defineConfig({
     // which the Flask static handler serves directly.
     base: '/static/js/',
     build: {
-        // D5 (perf): disable Vite's modulepreload helper. By default it
-        // adds `<link rel="modulepreload" href="chunks/X.js">` calls
-        // for every dynamic-import dep so the chunk fetch overlaps the
-        // entry's parse. The helper stamps the bare filename into the
-        // href without applying `base`, so on this app's mount path
-        // (`/static/js/app.bundle.js` served at `/`) the preload tries
-        // `/chunks/X.js` (404) and the actual `import()` resolves the
-        // chunk fine via relative-to-script-URL semantics. Real-world
-        // we lose ~1 RTT per first-time chunk fetch; in exchange the
-        // server logs are quiet and the rest of the bundle stays
-        // correctly base-prefixed.
-        modulePreload: false,
+        // MK1 Wave F (PERF-8): RE-ENABLED. The original D5 disable was
+        // for a real bug — the old helper stamped bare `chunks/X.js`
+        // hrefs without applying `base`, 404ing every preload on this
+        // app's mount path. The current rolldown-vite emits a runtime
+        // preload-helper that resolves deps relative to the MODULE URL
+        // (import.meta.url), so the base prefix is honoured. Verified
+        // empirically 2026-07-04: full pages.spec run with preload on →
+        // 0 × 404, 582 healthy chunk fetches. Buys back the ~1 RTT per
+        // first-time chunk navigation the disable traded away.
+        modulePreload: true,
         rollupOptions: {
             input: path.resolve(__dirname, 'frontend/static/js/src/main.ts'),
             output: {
