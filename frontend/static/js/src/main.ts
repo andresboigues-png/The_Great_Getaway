@@ -173,11 +173,15 @@ async function init() {
     updateNotificationUI();
     updateTripSelector();
 
-    // D6 (i18n): paint i18n bindings on boot + re-paint on every
-    // state:changed (so a locale switch in Settings updates without
-    // a reload). Cheap — walks `[data-i18n-key]` and sets textContent.
+    // D6 (i18n): paint i18n bindings on boot + re-paint on locale
+    // switch. MK1 PERF-6: this used to ride STATE_CHANGED, which
+    // meant three document-wide querySelectorAll sweeps + 37 DOM
+    // writes on EVERY emit (keystrokes, polls, modal toggles). The
+    // bound elements are the static index.html chrome — their text
+    // only changes when the locale does, and the boot-time server
+    // locale hydration happens above, before the initial paint here.
     paintI18nBindings();
-    subscribe(EVENTS.STATE_CHANGED, paintI18nBindings);
+    subscribe(EVENTS.LOCALE_CHANGED, paintI18nBindings);
 
     // Determine start page based on hash or default to home
     const startPage = resolvePage(window.location.hash.replace('#', '') || PAGES.HOME);

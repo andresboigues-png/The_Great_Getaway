@@ -178,6 +178,11 @@ export async function setLocale(locale: Locale): Promise<void> {
         localStorage.setItem('gg.locale', locale);
     } catch { /* private mode / quota — non-fatal */ }
     emit(EVENTS.STATE_CHANGED);
+    // MK1 PERF-6: the [data-i18n-*] chrome repaint listens to this
+    // dedicated event instead of the generic one above — three
+    // document-wide querySelectorAll sweeps only make sense when the
+    // locale actually changed, not on every expense keystroke/poll.
+    emit(EVENTS.LOCALE_CHANGED);
     // Persist to server. Static import of apiFetch keeps the chunk
     // graph stable — an earlier draft of this used dynamic
     // import('./api.js') to avoid a hard dep, but Vite's chunker

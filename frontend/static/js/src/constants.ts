@@ -31,6 +31,11 @@ export type PageName = typeof PAGES[keyof typeof PAGES];
 export const EVENTS = {
     STATE_CHANGED: 'state:changed',
     NOTIFICATIONS_CHANGED: 'notifications:changed',
+    // Fired by setLocale() ONLY — lets locale-priced work (the
+    // document-wide [data-i18n-*] repaint) subscribe without paying
+    // on every generic state emit. setLocale still emits STATE_CHANGED
+    // too, so t()-rendered page content keeps refreshing as before.
+    LOCALE_CHANGED: 'locale:changed',
 } as const;
 export type EventName = typeof EVENTS[keyof typeof EVENTS];
 

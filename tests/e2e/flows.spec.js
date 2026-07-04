@@ -899,8 +899,10 @@ test.describe('Critical flows — UI-driven', () => {
         // Phase D6: Settings → General has three peer sub-tabs:
         // Map pills, Appearance, and (per user request) Language as
         // its own card. Picking pt rewrites STATE.preferences.locale
-        // and emits state:changed; main.ts's paintI18nBindings
-        // subscriber re-paints every `[data-i18n-key]` in the DOM.
+        // and emits locale:changed (PERF-6 — the chrome repaint no
+        // longer rides the generic state:changed); main.ts's
+        // paintI18nBindings subscriber re-paints every
+        // `[data-i18n-key]` in the DOM.
         const userId = uniqueId('user');
         await getAuthForApi(page, userId);
         await openFreshApp(page, userId);
@@ -920,7 +922,7 @@ test.describe('Critical flows — UI-driven', () => {
         await page.getByRole('tab', { name: 'Language' }).click();
 
         // Click Português; expect the navbar text to update without a
-        // page reload (paintI18nBindings re-runs on state:changed).
+        // page reload (paintI18nBindings re-runs on locale:changed).
         // Locale cards are label-identified now (no data-locale-value attr).
         const ptBtn = page.locator('.theme-option-card', { hasText: 'Português' });
         await ptBtn.waitFor({ state: 'visible', timeout: 5000 });
