@@ -195,6 +195,7 @@ export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
                     <button
                         type="button"
                         className="day-action-btn day-action-btn--neutral"
+                        data-hub-action="checklist"
                         onClick={() => openTripChecklistModal(activeTrip)}
                     >
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>

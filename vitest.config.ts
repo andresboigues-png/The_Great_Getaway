@@ -12,8 +12,10 @@
 // `window.onhashchange = …`). jsdom provides those globals so the import graph
 // loads; the assertions themselves remain pure.
 //
-// Scope is narrow on purpose: only `*.test.ts` under the frontend src tree, so
-// the Playwright e2e specs in tests/e2e (*.spec.js) are never picked up here.
+// Scope is narrow on purpose: only `*.test.ts(x)` under the frontend src tree,
+// so the Playwright e2e specs in tests/e2e (*.spec.js) are never picked up
+// here. (.tsx joined in MK1 Wave M — component tests for the React modal
+// convergence live beside their components.)
 //
 // Run with `npm run test:unit`. Wired into the pre-push hook so the money math
 // can't silently regress.
@@ -22,7 +24,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
     test: {
         environment: 'jsdom',
-        include: ['frontend/static/js/src/**/*.test.ts'],
+        include: ['frontend/static/js/src/**/*.test.{ts,tsx}'],
         // MK1 Wave D (T1-4): coverage measurement. Scoped to the app
         // source (excluding the locale tables — 8.5k lines of strings
         // would drown the signal, and the tsc parity check already
@@ -34,7 +36,7 @@ export default defineConfig({
             include: ['frontend/static/js/src/**'],
             exclude: [
                 'frontend/static/js/src/locales/**',
-                'frontend/static/js/src/**/*.test.ts',
+                'frontend/static/js/src/**/*.test.{ts,tsx}',
                 'frontend/static/js/src/types.d.ts',
                 'frontend/static/js/src/globals.d.ts',
             ],

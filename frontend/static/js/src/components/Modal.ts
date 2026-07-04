@@ -239,6 +239,16 @@ export function showModal(opts: {
     // Esc closes; Tab traps focus inside the modal.
     const onKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape' && closeOnEscape) {
+            // MK1 Wave M: this listener is CAPTURE-phase on document, so it
+            // fires before the focused element's own keydown handler — an
+            // Escape meant to cancel an inline edit inside the modal was
+            // closing the whole modal instead (the content handler was
+            // unreachable dead code). Content that handles its own Escape
+            // marks the element (or an ancestor) with
+            // data-modal-local-escape; we then let the event through
+            // untouched and leave the modal open.
+            const target = e.target as HTMLElement | null;
+            if (target?.closest?.('[data-modal-local-escape]')) return;
             e.stopPropagation();
             close();
             return;
@@ -272,6 +282,13 @@ export function showModal(opts: {
 
     // Focus the [autofocus] element if any, else the first focusable.
     queueMicrotask(() => {
+        // MK1 Wave M: if the caller already placed focus inside the modal,
+        // leave it. React modal content (openReactModal) commits via
+        // flushSync before this microtask runs, and React's autoFocus prop
+        // focuses imperatively WITHOUT rendering an [autofocus] attribute —
+        // the query below can't see it and would steal focus to the first
+        // focusable (usually the ✕ button).
+        if (overlay.contains(document.activeElement)) return;
         const autoEl = (overlay.querySelector('[autofocus]') as HTMLElement | null);
         if (autoEl) { autoEl.focus(); return; }
         const first = (overlay.querySelector(FOCUSABLE) as HTMLElement | null);
