@@ -529,6 +529,7 @@ export const fr: Translations = {
             one: 'ami',
             other: 'amis',
         },
+        listEmpty: 'Rien ici pour l’instant.',
         photoUploaded: 'Photo de profil mise à jour.',
         blockBtnLabel: 'Bloquer cet utilisateur',
         blockConfirmTitle: 'Bloquer {name} ?',

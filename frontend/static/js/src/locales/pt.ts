@@ -528,6 +528,7 @@ export const pt: Translations = {
             one: 'amigo',
             other: 'amigos',
         },
+        listEmpty: 'Nada por aqui ainda.',
         photoUploaded: 'Foto de perfil atualizada.',
         blockBtnLabel: 'Bloquear este utilizador',
         blockConfirmTitle: 'Bloquear {name}?',

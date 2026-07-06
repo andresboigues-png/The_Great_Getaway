@@ -18,10 +18,10 @@
 //     it's now a React component the router mounts via mountReact, so it
 //     no longer lives here.)
 //
-//   - `openFriendsListModal(friends)` — used by the React
-//     Profile.tsx's FriendsStat sub-component. showModal-driven
-//     overlay listing every accepted friend with click-through to
-//     each friend's profile.
+//   - `openStatListModal(opts)` — used by the React Profile.tsx stat
+//     captions. showModal-driven searchable overlay listing a stat's
+//     data (trips / countries / followers / following / friends);
+//     people rows click through to each profile.
 //
 //   - `updateUserUI()` — used by main.ts + bootstrap/auth.ts on
 //     login/logout boundaries. Updates the sidebar-rail + burger-
@@ -86,51 +86,89 @@ export const logout = async () => {
     } catch (e) {}
 };
 
-/** Pop a modal listing the caller's accepted friends — each row is a
- *  click target that closes the modal and navigates to that friend's
- *  public profile page. Mirrors the avatar-+-name+-email row pattern
- *  from the Friends page so the two surfaces feel like one thing.
- *
- *  Exported so the React Profile page's FriendsStat sub-component
- *  can dispatch it from its click handler. */
-export function openFriendsListModal(friends: ProfileFriend[]) {
-    const rowHtml = (f: ProfileFriend) => {
-        const initial = (f.name || f.email || '?').charAt(0).toUpperCase();
-        const avatar = f.picture
-            ? `<img src="${esc(f.picture)}" alt="" referrerpolicy="no-referrer" loading="lazy" decoding="async" width="40" height="40" style="width:40px; height:40px; border-radius:50%; object-fit:cover; flex-shrink:0;">`
-            : `<div style="width:40px; height:40px; border-radius:50%; background: var(--gradient-day); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1rem; flex-shrink:0;">${esc(initial)}</div>`;
+/** One row in an openStatListModal list. */
+export interface StatListItem {
+    /** Optional id (people rows carry a user id for navigation). */
+    id?: string | undefined;
+    primary: string;
+    secondary?: string | undefined;
+    avatarUrl?: string | undefined;
+    /** Fallback avatar glyph when there's no image. Omit for text-only
+     *  rows (e.g. the country list). */
+    avatarInitial?: string | undefined;
+    /** Present → row is a button that closes the modal and runs this. */
+    onClick?: (() => void) | undefined;
+}
+
+/** Aesthetic, searchable list modal behind the profile stat captions
+ *  (Trips / Countries / Followers / Following / Friends). A live search
+ *  box filters rows; a row with an onClick closes the modal and runs it
+ *  (people rows → that person's profile). Replaces the old
+ *  friends-only modal — same avatar-+-name-+-email row look. */
+export function openStatListModal(opts: {
+    title: string;
+    items: StatListItem[];
+    searchPlaceholder?: string;
+    emptyText?: string;
+}) {
+    const { items } = opts;
+    const rowHtml = (it: StatListItem, idx: number) => {
+        const clickable = !!it.onClick;
+        const searchKey = `${it.primary} ${it.secondary || ''}`.toLowerCase();
+        const hasAvatar = !!(it.avatarUrl || it.avatarInitial);
+        const avatar = !hasAvatar
+            ? ''
+            : it.avatarUrl
+              ? `<img src="${esc(it.avatarUrl)}" alt="" referrerpolicy="no-referrer" loading="lazy" decoding="async" class="pf-listrow__avatar">`
+              : `<div class="pf-listrow__avatar pf-listrow__avatar--fallback">${esc(it.avatarInitial || '?')}</div>`;
+        const secondary = it.secondary ? `<div class="pf-listrow__secondary">${esc(it.secondary)}</div>` : '';
+        const tag = clickable ? 'button' : 'div';
         return `
-            <button type="button" class="profile-friend-row" data-user-id="${esc(f.id)}"
-                style="display:flex; align-items:center; gap:12px; padding:10px 12px; background:transparent; border:0; border-radius:12px; cursor:pointer; width:100%; text-align:left; transition: background 0.15s;"
-                onmouseover="this.style.background='rgba(0,113,227,0.06)'" onmouseout="this.style.background='transparent'">
+            <${tag}${clickable ? ' type="button"' : ''} class="pf-listrow${clickable ? ' pf-listrow--tappable' : ''}" data-idx="${idx}" data-search="${esc(searchKey)}">
                 ${avatar}
-                <div style="flex:1; min-width:0;">
-                    <div style="font-weight:700; color:#002d5b; font-size:0.95rem; line-height:1.2;">${esc(f.name || 'Friend')}</div>
-                    <div style="font-size:0.78rem; color:var(--text-secondary); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(f.email || '')}</div>
+                <div class="pf-listrow__text">
+                    <div class="pf-listrow__primary">${esc(it.primary)}</div>
+                    ${secondary}
                 </div>
-            </button>
-        `;
+                ${clickable ? '<span class="pf-listrow__chev" aria-hidden="true">›</span>' : ''}
+            </${tag}>`;
     };
     const { root, close } = showModal({
-        cardClass: 'card glass',
-        cardStyle: 'width: 440px; max-width: calc(100vw - 32px); max-height: 80vh; overflow:hidden; padding: 24px; border-radius: 24px; background: white; display:flex; flex-direction:column;',
+        cardStyle: 'width: 440px; max-width: calc(100vw - 32px); max-height: 82vh; padding: 22px; border-radius: 24px; background: white; display:flex; flex-direction:column;',
         innerHTML: `
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 14px;">
-                <h2 style="margin:0; font-size:1.4rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Your friends <span style="background:rgba(0,113,227,0.1); color:#005bb8; padding:2px 10px; border-radius:999px; font-size:0.78rem; font-weight:800; margin-left:6px; vertical-align:2px;">${friends.length}</span></h2>
-                <button id="friendsListClose" class="close-x-btn" aria-label="${t('common.close')}">✕</button>
+            <div class="pf-list-head">
+                <h2 class="pf-list-title">${esc(opts.title)}<span class="pf-list-count">${items.length}</span></h2>
+                <button id="statListClose" class="close-x-btn" aria-label="${esc(t('common.close'))}">✕</button>
             </div>
-            <div style="overflow-y:auto; display:flex; flex-direction:column; gap:4px; min-height:0;">
-                ${friends.map(rowHtml).join('')}
+            <div class="pf-list-search-wrap">
+                <input id="statListSearch" type="text" class="pf-list-search" autocomplete="off"
+                    placeholder="${esc(opts.searchPlaceholder || t('common.search'))}">
             </div>
+            <div id="statListRows" class="pf-list-rows">${items.map(rowHtml).join('')}</div>
+            <p id="statListEmpty" class="pf-list-empty">${esc(opts.emptyText || t('profile.listEmpty'))}</p>
         `,
     });
-    (root.querySelector('#friendsListClose') as HTMLButtonElement | null)?.addEventListener('click', close);
-    root.querySelectorAll('.profile-friend-row').forEach(btn => {
-        (btn as HTMLButtonElement).onclick = () => {
-            const id = (btn as HTMLElement).dataset.userId;
+    (root.querySelector('#statListClose') as HTMLButtonElement | null)?.addEventListener('click', close);
+    const searchEl = root.querySelector('#statListSearch') as HTMLInputElement | null;
+    const rowsEl = root.querySelector('#statListRows') as HTMLElement | null;
+    const emptyEl = root.querySelector('#statListEmpty') as HTMLElement | null;
+    if (emptyEl) emptyEl.style.display = items.length === 0 ? 'block' : 'none';
+    searchEl?.addEventListener('input', () => {
+        const q = searchEl.value.trim().toLowerCase();
+        let shown = 0;
+        rowsEl?.querySelectorAll<HTMLElement>('[data-search]').forEach((row) => {
+            const match = !q || (row.dataset.search || '').includes(q);
+            row.style.display = match ? '' : 'none';
+            if (match) shown += 1;
+        });
+        if (emptyEl) emptyEl.style.display = shown === 0 ? 'block' : 'none';
+    });
+    rowsEl?.querySelectorAll<HTMLElement>('.pf-listrow--tappable').forEach((row) => {
+        row.addEventListener('click', () => {
+            const item = items[Number(row.dataset.idx)];
             close();
-            if (id) navigate('profile', { userId: id });
-        };
+            item?.onClick?.();
+        });
     });
 }
 

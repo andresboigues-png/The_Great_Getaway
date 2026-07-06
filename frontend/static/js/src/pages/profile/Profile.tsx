@@ -40,8 +40,9 @@ import { clearAllFxOverrides } from '../../utils/fxOverrides.js';
 import { t, tn } from '../../i18n.js';
 import {
     logout,
-    openFriendsListModal,
+    openStatListModal,
     type ProfileFriend,
+    type StatListItem,
 } from '../profile.js';
 import { LoginWall } from './LoginWall.js';
 import { FootprintMap } from './FootprintMap.js';
@@ -471,6 +472,8 @@ function ProfileContent({
                     <ProfileInfoSection
                         isOwnProfile={isOwnProfile}
                         user={user}
+                        trips={trips}
+                        uniqueCountries={uniqueCountries}
                         tripCount={trips.length}
                         countryCount={countryCountForChip}
                         followers={followers}
@@ -478,7 +481,6 @@ function ProfileContent({
                         followSnap={followSnap}
                         targetUserId={targetUserId}
                         onFollowersChange={setFollowers}
-                        onShowFootprint={() => setSection('footprint')}
                     />
                 </div>
             ) : (
@@ -723,6 +725,9 @@ function ProfilePicSection({
 interface ProfileInfoSectionProps {
     isOwnProfile: boolean;
     user: User & { bio?: string; status?: string };
+    /** Backing data for the Trips / Countries list modals. */
+    trips: Trip[];
+    uniqueCountries: string[];
     tripCount: number;
     countryCount: number;
     followers: number;
@@ -732,13 +737,13 @@ interface ProfileInfoSectionProps {
     /** Lifted to ProfileContent so the stat bar + the FollowButton here
      *  share one follower count. */
     onFollowersChange: (n: number) => void;
-    /** Switch the profile to the Footprint section (trips/countries taps). */
-    onShowFootprint: () => void;
 }
 
 function ProfileInfoSection({
     isOwnProfile,
     user,
+    trips,
+    uniqueCountries,
     tripCount,
     countryCount,
     followers,
@@ -746,25 +751,73 @@ function ProfileInfoSection({
     followSnap,
     targetUserId,
     onFollowersChange,
-    onShowFootprint,
 }: ProfileInfoSectionProps) {
-    const friends = useFriendsCount(isOwnProfile);
-    // Each stat's caption taps through to the surface it relates to: trips +
-    // countries → the Footprint map; followers/following → the network page;
-    // friends → the friends list. (Follower/following links are own-profile
-    // only — they'd point at the viewer's network, not a friend's.)
-    const toFriends = () => navigate('friends');
+    const follow = useFollowLists(targetUserId ?? user.id);
+    // Each stat's caption opens its own searchable list modal of that data.
+    const searchPh = t('common.search');
     const stats: Stat[] = [
-        { num: String(tripCount), label: tn('profile.publicTripsLabel', tripCount), onClick: onShowFootprint },
-        { num: String(countryCount), label: tn('profile.countriesLabel', countryCount), onClick: onShowFootprint },
-        { num: String(followers), label: tn('profile.followersLabel', followers), onClick: isOwnProfile ? toFriends : undefined },
-        { num: String(following), label: tn('profile.followingLabel', following), onClick: isOwnProfile ? toFriends : undefined },
+        {
+            num: String(tripCount),
+            label: tn('profile.publicTripsLabel', tripCount),
+            onClick: trips.length
+                ? () =>
+                      openStatListModal({
+                          title: tn('profile.publicTripsLabel', tripCount),
+                          searchPlaceholder: searchPh,
+                          items: trips.map((tp) => ({ primary: tp.name || 'Trip', secondary: tp.country || undefined })),
+                      })
+                : undefined,
+        },
+        {
+            num: String(countryCount),
+            label: tn('profile.countriesLabel', countryCount),
+            onClick: uniqueCountries.length
+                ? () =>
+                      openStatListModal({
+                          title: tn('profile.countriesLabel', countryCount),
+                          searchPlaceholder: searchPh,
+                          items: uniqueCountries.map((c) => ({ primary: c })),
+                      })
+                : undefined,
+        },
+        {
+            num: String(followers),
+            label: tn('profile.followersLabel', followers),
+            onClick: follow.followers.length
+                ? () =>
+                      openStatListModal({
+                          title: tn('profile.followersLabel', follow.followers.length),
+                          searchPlaceholder: searchPh,
+                          items: peopleItems(follow.followers),
+                      })
+                : undefined,
+        },
+        {
+            num: String(following),
+            label: tn('profile.followingLabel', following),
+            onClick: follow.following.length
+                ? () =>
+                      openStatListModal({
+                          title: tn('profile.followingLabel', follow.following.length),
+                          searchPlaceholder: searchPh,
+                          items: peopleItems(follow.following),
+                      })
+                : undefined,
+        },
     ];
     if (isOwnProfile) {
+        const friendsCount = follow.loaded ? follow.friends.length : null;
         stats.push({
-            num: friends.count === null ? '—' : String(friends.count),
-            label: tn('profile.friendsLabel', friends.count ?? 0),
-            onClick: friends.onClick,
+            num: friendsCount === null ? '—' : String(friendsCount),
+            label: tn('profile.friendsLabel', friendsCount ?? 0),
+            onClick: follow.friends.length
+                ? () =>
+                      openStatListModal({
+                          title: tn('profile.friendsLabel', follow.friends.length),
+                          searchPlaceholder: searchPh,
+                          items: peopleItems(follow.friends),
+                      })
+                : undefined,
         });
     }
     return (
@@ -836,36 +889,54 @@ interface Stat {
     onClick?: (() => void) | undefined;
 }
 
-// Own-profile friends count + click-through, gated so a friend's profile
-// doesn't fetch the VIEWER's friend list.
-function useFriendsCount(enabled: boolean) {
-    const [cache, setCache] = useState<ProfileFriend[]>([]);
-    const [loaded, setLoaded] = useState(false);
+// The viewed profile's follow graph — one /api/follows/<id>?include=lists
+// call gives followersOnly / followingOnly / mutuals, which back BOTH the
+// slab friends count AND the Followers / Following / Friends list modals.
+interface FollowLists {
+    followers: ProfileFriend[]; // full followers = followersOnly + mutuals
+    following: ProfileFriend[]; // full following = followingOnly + mutuals
+    friends: ProfileFriend[]; // mutuals
+    loaded: boolean;
+}
+function useFollowLists(profileUserId: string | undefined): FollowLists {
+    const [state, setState] = useState<FollowLists>({ followers: [], following: [], friends: [], loaded: false });
     useEffect(() => {
-        if (!enabled) return;
+        if (!profileUserId) return;
         let alive = true;
-        apiFetch('/api/friends/list')
-            .then((r) => (r.ok ? r.json() : []))
-            .then((list) => {
-                if (!alive || !Array.isArray(list)) return;
-                setCache(list);
-                setLoaded(true);
+        apiFetch(`/api/follows/${encodeURIComponent(profileUserId)}?include=lists`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((data: { followersOnly?: ProfileFriend[]; followingOnly?: ProfileFriend[]; mutuals?: ProfileFriend[] } | null) => {
+                if (!alive || !data) return;
+                const followersOnly = Array.isArray(data.followersOnly) ? data.followersOnly : [];
+                const followingOnly = Array.isArray(data.followingOnly) ? data.followingOnly : [];
+                const mutuals = Array.isArray(data.mutuals) ? data.mutuals : [];
+                setState({
+                    followers: [...followersOnly, ...mutuals],
+                    following: [...followingOnly, ...mutuals],
+                    friends: mutuals,
+                    loaded: true,
+                });
             })
             .catch(() => {
-                /* leave the "—" placeholder */
+                /* leave the empty defaults */
             });
         return () => {
             alive = false;
         };
-    }, [enabled]);
-    const onClick = () => {
-        if (cache.length === 0) {
-            navigate('friends');
-            return;
-        }
-        openFriendsListModal(cache);
-    };
-    return { count: loaded ? cache.length : null, onClick };
+    }, [profileUserId]);
+    return state;
+}
+
+/** Build the people rows for a follows list modal (→ each taps to profile). */
+function peopleItems(people: ProfileFriend[]): StatListItem[] {
+    return people.map((p) => ({
+        id: p.id,
+        primary: p.name || 'Someone',
+        secondary: p.email || undefined,
+        avatarUrl: p.picture || undefined,
+        avatarInitial: (p.name || p.email || '?').charAt(0).toUpperCase(),
+        onClick: () => navigate('profile', { userId: p.id }),
+    }));
 }
 
 // Plain (non-interactive) cell — the numbers are read through the loupe;

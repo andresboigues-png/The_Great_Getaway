@@ -439,3 +439,139 @@
 .pf-setting-row__control {
     flex-shrink: 0;
 }
+
+/* ── Stat list modal (Trips / Countries / Followers / … ) ─────────
+   Opened by the profile stat captions. A titled, searchable list of
+   avatar-+-name rows; people rows tap through to their profile. */
+.pf-list-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.pf-list-title {
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #002d5b;
+    text-transform: capitalize;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.pf-list-count {
+    background: rgba(0, 113, 227, 0.1);
+    color: #005bb8;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: none;
+}
+.pf-list-search-wrap {
+    margin-bottom: 8px;
+    flex-shrink: 0;
+}
+.pf-list-search {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 45, 91, 0.12);
+    background: rgba(0, 45, 91, 0.03);
+    color: #002d5b;
+    font: inherit;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.pf-list-search:focus-visible {
+    border-color: var(--accent-blue, #0071e3);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.16);
+}
+.pf-list-search::placeholder {
+    color: rgba(0, 45, 91, 0.45);
+}
+.pf-list-rows {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 0;
+    margin: 0 -6px;
+    padding: 0 6px;
+}
+.pf-list-empty {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    padding: 22px 0;
+    margin: 0;
+}
+.pf-listrow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    text-align: left;
+    padding: 9px 10px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+}
+.pf-listrow--tappable {
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+.pf-listrow--tappable:hover,
+.pf-listrow--tappable:focus-visible {
+    background: rgba(0, 113, 227, 0.07);
+}
+.pf-listrow__avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+.pf-listrow__avatar--fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--gradient-day, linear-gradient(135deg, #0071e3, #5856d6));
+    color: #fff;
+    font-weight: 800;
+    font-size: 1rem;
+}
+.pf-listrow__text {
+    flex: 1;
+    min-width: 0;
+}
+.pf-listrow__primary {
+    font-weight: 700;
+    color: #002d5b;
+    font-size: 0.95rem;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pf-listrow__secondary {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pf-listrow__chev {
+    color: rgba(0, 45, 91, 0.35);
+    font-size: 1.2rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}

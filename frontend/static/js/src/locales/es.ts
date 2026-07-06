@@ -524,6 +524,7 @@ export const es: Translations = {
             one: 'amigo',
             other: 'amigos',
         },
+        listEmpty: 'Aún no hay nada aquí.',
         photoUploaded: 'Foto de perfil actualizada.',
         blockBtnLabel: 'Bloquear a este usuario',
         blockConfirmTitle: '¿Bloquear a {name}?',

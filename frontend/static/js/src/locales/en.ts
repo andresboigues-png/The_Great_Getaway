@@ -644,6 +644,7 @@ export const en = {
             one: 'friend',
             other: 'friends',
         },
+        listEmpty: 'Nothing here yet.',
         // Photo upload + sync flow (Round 5 polish).
         photoUploaded: 'Profile photo updated.',
         blockBtnLabel: 'Block this user',
