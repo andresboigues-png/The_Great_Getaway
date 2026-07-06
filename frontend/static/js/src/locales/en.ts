@@ -1130,6 +1130,9 @@ export const en = {
         // Section labels.
         sectionTravelDates: '📅 Travel Dates',
         sectionRequirements: '📝 Requirements',
+        planToggleInfo: 'Trip info',
+        planToggleReqs: 'Requirements',
+        planToggleAria: 'Plan section',
         sectionAiEngine: '✦ AI Engine — Gemini',
         // Generate button — idle + in-flight.
         generateBtn: '✦ Generate My Itinerary',

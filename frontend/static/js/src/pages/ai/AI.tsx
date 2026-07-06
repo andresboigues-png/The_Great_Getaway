@@ -28,6 +28,7 @@
 //   - The route still mounts /ai via pages/ai/mount.ts. That
 //     wiring is unchanged.
 
+import { useState, useRef, useLayoutEffect } from 'react';
 import { useActiveTrip } from '../../react/TripContext.js';
 import { useStore } from '../../react/store.js';
 import { canEdit } from '../../permissions.js';
@@ -52,6 +53,65 @@ import { useAiMap } from './useAiMap.js';
 import { navigate } from '../../router.js';
 import { setActiveHomeTab } from '../home-mount/handlers.js';
 import { requestAccommodationModalOnHome } from '../home/accommodationModal.js';
+
+
+// ── Plan-section toggle ────────────────────────────────────────
+// Segmented switch letting the user flip the left controls column
+// between the "Trip info" (dates) card and the "Requisitos"
+// (food + sightseeing prefs) card, showing one at a time. Reuses the
+// app-wide .seg-control pill + sliding lens, same as the Profile page.
+type PlanSection = 'info' | 'requisitos';
+function PlanSectionToggle({
+    value,
+    onChange,
+}: {
+    value: PlanSection;
+    onChange: (v: PlanSection) => void;
+}) {
+    const ref = useRef<HTMLDivElement | null>(null);
+    const [lens, setLens] = useState<{ left: number; width: number } | null>(null);
+    useLayoutEffect(() => {
+        const measure = () => {
+            const el = ref.current?.querySelector<HTMLElement>('[data-active="true"]');
+            if (el) setLens({ left: el.offsetLeft, width: el.offsetWidth });
+        };
+        measure();
+        const node = ref.current;
+        if (!node || typeof ResizeObserver === 'undefined') return;
+        const ro = new ResizeObserver(measure);
+        ro.observe(node);
+        return () => ro.disconnect();
+    }, [value]);
+    const opts: Array<{ v: PlanSection; label: string }> = [
+        { v: 'info', label: t('ai.planToggleInfo') },
+        { v: 'requisitos', label: t('ai.planToggleReqs') },
+    ];
+    return (
+        <div ref={ref} role="tablist" aria-label={t('ai.planToggleAria')} className="seg-control">
+            {lens ? <div aria-hidden="true" className="seg-lens" style={{ left: lens.left, width: lens.width }} /> : null}
+            {opts.map((o) => {
+                const active = o.v === value;
+                return (
+                    <button
+                        key={o.v}
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        data-active={active}
+                        onClick={() => onChange(o.v)}
+                        className="seg-btn"
+                        style={{
+                            fontWeight: active ? 700 : 500,
+                            color: active ? 'var(--text-brand-navy)' : 'var(--text-secondary)',
+                        }}
+                    >
+                        {o.label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
 
 
 // ── Top-level ──────────────────────────────────────────────────
@@ -91,6 +151,11 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
 
     // Form state + host-key pool + generate/accept flows.
     const plan = useAiPlan(activeTrip, tripCountry);
+
+    // Which controls card is visible: "Trip info" (dates) or
+    // "Requisitos" (food + sightseeing prefs). The other card stays
+    // mounted in state via useAiPlan, so switching never loses input.
+    const [planSection, setPlanSection] = useState<PlanSection>('info');
 
     // Google Map + per-day markers. Repaints markers when the
     // itinerary changes; exposes the container ref + day-row refs the
@@ -170,8 +235,17 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         onShowKeyHelp={plan.onShowKeyHelp}
                     />
 
-                    {/* Dates */}
-                    <div className="card glass p-5 flex-none">
+                    {/* Section toggle: Trip info (dates) ⇆ Requisitos */}
+                    <div className="flex justify-center flex-none">
+                        <PlanSectionToggle value={planSection} onChange={setPlanSection} />
+                    </div>
+
+                    {/* Dates — hidden via inline display so the .flex class
+                        can't override [hidden]; stays mounted to keep input. */}
+                    <div
+                        className="card glass p-5 flex-auto flex flex-col min-h-0"
+                        style={{ display: planSection === 'info' ? undefined : 'none' }}
+                    >
                         <h2
                             className="card-title text-[0.85rem] uppercase tracking-[0.07em] text-accent-blue-deep mb-3.5"
                         >
@@ -231,6 +305,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         sightseeing prefs separately. */}
                     <div
                         className="card glass p-5 flex-auto flex flex-col min-h-0 gap-[14px]"
+                        style={{ display: planSection === 'requisitos' ? undefined : 'none' }}
                     >
                         <h2
                             className="card-title text-[0.85rem] uppercase text-accent-blue-deep mb-0 tracking-wider"
