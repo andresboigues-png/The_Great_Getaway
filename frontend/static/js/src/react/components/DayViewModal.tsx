@@ -20,14 +20,14 @@ import { formatDayDate } from '../../utils.js';
 import { openPdfPreview, looksLikePdfUrl } from '../../pages/home/lightbox.js';
 import { t } from '../../i18n.js';
 import { iconSvg } from '../../icons.js';
+import { PlanTextOrEmpty } from './PlanText.js';
 import type { TripDay, TripPhoto, TripDocument } from '../../types';
 
+// Plan notes render markdown-lite (bold + bullet lists) via PlanText so a
+// day reads as an organised list, not one pre-wrap blob. Empty falls back
+// to the "nothing planned yet" placeholder.
 function Paragraph({ text }: { text: string | null | undefined }) {
-    if (!text || !text.trim()) {
-        return <p className="dvm-italic-muted">{t('dayView.nothingPlanned')}</p>;
-    }
-    // .dvm-plan-text is pre-wrap, preserving the user's line breaks.
-    return <p className="dvm-plan-text">{text}</p>;
+    return <PlanTextOrEmpty text={text ?? null} />;
 }
 
 export function DayViewModal({ day, close }: { day: TripDay; close: () => void }) {

@@ -6654,6 +6654,82 @@ main#app-container.nav-anim-backward {
     color: #002d5b;
 }
 
+/* ── Markdown-lite plan notes (PlanText.tsx) ──────────────────────
+   Rendered output for day-plan notes: bold + bullet lists so a plan
+   reads as an organised list instead of one pre-wrap blob. Shared by the
+   read-only DayViewModal and the live preview under the DayDetailModal
+   editor textareas. */
+.plan-md {
+    color: #002d5b;
+    line-height: 1.55;
+}
+.plan-md__p {
+    margin: 0 0 6px;
+    overflow-wrap: anywhere;
+}
+.plan-md__p:last-child {
+    margin-bottom: 0;
+}
+.plan-md__list {
+    margin: 0 0 6px;
+    padding-left: 1.15em;
+    list-style: disc;
+}
+.plan-md__list:last-child {
+    margin-bottom: 0;
+}
+.plan-md__list li {
+    margin: 2px 0;
+    overflow-wrap: anywhere;
+}
+.plan-md strong {
+    font-weight: 800;
+}
+
+/* Formatting toolbar above each editor textarea. */
+.plan-md-toolbar {
+    display: flex;
+    gap: 6px;
+    margin: 4px 0 6px;
+}
+.plan-md-toolbar__btn {
+    min-width: 34px;
+    height: 28px;
+    padding: 0 9px;
+    border: 1px solid rgba(0, 45, 91, 0.14);
+    border-radius: 8px;
+    background: rgba(0, 45, 91, 0.04);
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.plan-md-toolbar__btn:hover,
+.plan-md-toolbar__btn:focus-visible {
+    background: rgba(0, 113, 227, 0.1);
+    border-color: rgba(0, 113, 227, 0.35);
+    color: var(--accent-blue-deep, #005bb8);
+}
+
+/* Live preview of the rendered notes, under the editor textarea. */
+.plan-md-preview {
+    margin-top: 8px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(0, 45, 91, 0.035);
+    border: 1px solid rgba(0, 45, 91, 0.07);
+}
+.plan-md-preview__label {
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+}
+
 /* Italic muted helper text. */
 .dvm-italic-muted {
     margin: 0;

@@ -71,6 +71,7 @@ import { openAccommodationModal } from '../../pages/home/accommodationModal.js';
 import { repaintPathTab } from '../../pages/home/pathSelection.js';
 import { iconSvg } from '../../icons.js';
 import { sizedUploadUrl } from '../../utils/mediaUrl';
+import { PlanText, planTextHasContent } from './PlanText.js';
 import type { MarkedPlace, Trip, TripChecklistItem, TripDay } from '../../types';
 
 type Slot = 'morning' | 'afternoon' | 'evening';
@@ -291,6 +292,58 @@ export function DayDetailModal({
         flashStatus(t('dayDetail.statusEditing'));
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         saveTimerRef.current = setTimeout(() => { saveTimerRef.current = null; void persistNow(); }, 700);
+    };
+
+    // ── Markdown-lite toolbar ─────────────────────────────────
+    // The plan textareas stay UNCONTROLLED (see the header): these helpers
+    // mutate `ta.value` directly, exactly like the imperative model, then
+    // re-run the same autoGrow → queueSave → forceRender the onInput path
+    // does, so the draft, the autosave, and the live preview all track.
+    // Bold wraps the selection in **…**; Bullet prefixes the selected
+    // line(s) with "- ". forceRender repaints the preview below the field.
+    const wrapPlanSelection = (slot: Slot, marker: string) => {
+        const ta = planTaRef(slot).current;
+        if (!ta) return;
+        const start = ta.selectionStart ?? ta.value.length;
+        const end = ta.selectionEnd ?? ta.value.length;
+        const selected = ta.value.slice(start, end);
+        ta.value = ta.value.slice(0, start) + marker + selected + marker + ta.value.slice(end);
+        ta.focus();
+        // Caret lands after the opening marker + selection so typing
+        // continues inside the emphasis when nothing was selected.
+        const caret = start + marker.length + selected.length;
+        ta.setSelectionRange(caret, caret);
+        autoGrowPlan(ta);
+        queueSave();
+        forceRender();
+    };
+    const bulletPlanLines = (slot: Slot) => {
+        const ta = planTaRef(slot).current;
+        if (!ta) return;
+        const val = ta.value;
+        const selStart = ta.selectionStart ?? 0;
+        const selEnd = ta.selectionEnd ?? 0;
+        const lineStart = val.lastIndexOf('\n', selStart - 1) + 1;
+        let lineEnd = val.indexOf('\n', selEnd);
+        if (lineEnd === -1) lineEnd = val.length;
+        const block = val.slice(lineStart, lineEnd);
+        // Toggle: if every non-empty line already starts with "- ", strip
+        // it; otherwise add it. Keeps the button reversible.
+        const lines = block.split('\n');
+        const nonEmpty = lines.filter((l) => l.trim());
+        const allBulleted = nonEmpty.length > 0 && nonEmpty.every((l) => /^\s*[-*]\s+/.test(l));
+        const next = lines
+            .map((l) => {
+                if (!l.trim()) return l;
+                return allBulleted ? l.replace(/^(\s*)[-*]\s+/, '$1') : `- ${l}`;
+            })
+            .join('\n');
+        ta.value = val.slice(0, lineStart) + next + val.slice(lineEnd);
+        ta.focus();
+        ta.setSelectionRange(lineStart, lineStart + next.length);
+        autoGrowPlan(ta);
+        queueSave();
+        forceRender();
     };
 
     // Notes are trip-wide (shared with the Trip Hub). They persist on
@@ -757,14 +810,41 @@ export function DayDetailModal({
                         {places.map(renderPlaceCard)}
                     </div>
                 )}
+                {/* Markdown-lite toolbar — inserts ** ** / "- " markers.
+                    Kept a sibling of the (uncontrolled) textarea so it never
+                    interferes with the draft. */}
+                <div className="plan-md-toolbar" role="toolbar" aria-label={t('dayDetail.fmtToolbarAria')}>
+                    <button type="button" className="plan-md-toolbar__btn" aria-label={t('dayDetail.fmtBoldAria')}
+                        title={t('dayDetail.fmtBoldAria')} onClick={() => wrapPlanSelection(slot, '**')}>
+                        <strong>B</strong>
+                    </button>
+                    <button type="button" className="plan-md-toolbar__btn" aria-label={t('dayDetail.fmtBulletAria')}
+                        title={t('dayDetail.fmtBulletAria')} onClick={() => bulletPlanLines(slot)}>
+                        {'• —'}
+                    </button>
+                </div>
                 <textarea ref={planTaRef(slot)} className="plain-textarea plan-input" data-time={slot}
                     placeholder={slotPlaceholder[slot]}
                     defaultValue={(day.plan as Record<string, string> | undefined)?.[slot] || ''}
                     onInput={(ev) => {
                         autoGrowPlan(ev.currentTarget);
                         queueSave();
-                        forceRender(); // tab count chips track non-empty lines live
+                        forceRender(); // tab count chips + live preview track live
                     }} />
+                {/* Live preview of the markdown-lite result. Reads the
+                    textarea's current value (ref set after the first commit;
+                    falls back to the saved plan before that). forceRender on
+                    every input keeps it in step. Hidden while empty. */}
+                {(() => {
+                    const live = planTaRef(slot).current?.value ?? ((day.plan as Record<string, string> | undefined)?.[slot] || '');
+                    if (!planTextHasContent(live)) return null;
+                    return (
+                        <div className="plan-md-preview" aria-hidden="true">
+                            <div className="plan-md-preview__label">{t('dayDetail.notesPreviewLabel')}</div>
+                            <PlanText text={live} />
+                        </div>
+                    );
+                })()}
             </div>
         );
     };
