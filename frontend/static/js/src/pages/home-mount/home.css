@@ -1578,6 +1578,13 @@
     .day-detail-body--numbered {
         flex-direction: column;
         gap: var(--space-5);
+        /* The base .day-detail-body--numbered sets align-items:flex-start
+           for its desktop ROW layout (plan | drawer). Once we flip to a
+           COLUMN here, flex-start becomes a CROSS-AXIS (width) rule, so the
+           plan `__main` shrank to its content width (~206px) and left a big
+           empty gutter on the right. stretch makes the plan + drawer fill
+           the modal width, as a stacked mobile layout should. */
+        align-items: stretch;
     }
     .day-detail-drawer {
         flex-direction: column-reverse;
