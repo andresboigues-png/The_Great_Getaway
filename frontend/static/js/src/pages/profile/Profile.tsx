@@ -1157,7 +1157,7 @@ function BioBlock({
     // Uncontrolled inputs with refs — match the legacy pattern. Save
     // button reads values on click. We track dirty state via a single
     // boolean that flips on the first change of any field.
-    const statusRef = useRef<HTMLSelectElement | null>(null);
+    const statusRef = useRef<HTMLInputElement | null>(null);
     const bioRef = useRef<HTMLTextAreaElement | null>(null);
     const homeCurrencyRef = useRef<HTMLSelectElement | null>(null);
     const homeCountryRef = useRef<HTMLSelectElement | null>(null);
@@ -1306,31 +1306,44 @@ function BioBlock({
                 onInput={() => setDirty(true)}
             />
 
-            {/* Status */}
+            {/* Status — free text the user authors themselves. The chips are
+                just tappable suggestions (no emoji, deliberately plain); the
+                stored value is whatever's in the input, so any language /
+                wording works. */}
             <div className="pf-setting-row">
                 <div className="pf-setting-row__text">
                     <div className="pf-setting-row__label">{t('profile.statusRowLabel')}</div>
                 </div>
-                <div className="pf-setting-row__control relative inline-block">
-                    <select
-                        ref={statusRef}
-                        className="brand-select pf-pill-sm"
-                        aria-label={t('profile.statusAriaLabel')}
-                        defaultValue={user.status || ''}
-                        onChange={() => setDirty(true)}
-                    >
-                        <option value="" disabled>
-                            {t('profile.statusSet')}
-                        </option>
-                        {/* value stays English (stored in users.status);
-                            display labels are translated (R11-B4). */}
-                        <option value="Deliberating next trip">{t('profile.statusDeliberating')}</option>
-                        <option value="Preparing a trip right now">{t('profile.statusPreparing')}</option>
-                        <option value="Exploring the world">{t('profile.statusExploring')}</option>
-                        <option value="Resting at home base">{t('profile.statusResting')}</option>
-                        <option value="Hunting for flight deals">{t('profile.statusHunting')}</option>
-                    </select>
-                    {chevron}
+                <input
+                    ref={statusRef}
+                    type="text"
+                    className="pf-status-input"
+                    aria-label={t('profile.statusAriaLabel')}
+                    placeholder={t('profile.statusSet')}
+                    defaultValue={user.status || ''}
+                    maxLength={70}
+                    onInput={() => setDirty(true)}
+                />
+                <div className="pf-status-suggest">
+                    {[
+                        t('profile.statusExploring'),
+                        t('profile.statusPreparing'),
+                        t('profile.statusResting'),
+                        t('profile.statusDeliberating'),
+                        t('profile.statusHunting'),
+                    ].map((s) => (
+                        <button
+                            key={s}
+                            type="button"
+                            className="pf-status-chip"
+                            onClick={() => {
+                                if (statusRef.current) statusRef.current.value = s;
+                                setDirty(true);
+                            }}
+                        >
+                            {s}
+                        </button>
+                    ))}
                 </div>
             </div>
 
@@ -1384,32 +1397,21 @@ function BioBlock({
 
             <div className="pf-divider" />
 
-            {/* Save (appears when dirty) + Log out. */}
-            <div className="flex items-center justify-between gap-3">
+            {/* Save (only while there are unsaved edits) + Log out — both
+                centered, stacked. */}
+            <div className="pf-actions">
+                {dirty && (
+                    <button
+                        type="button"
+                        className="pf-save-btn"
+                        onClick={() => void onSave()}
+                        disabled={saving}
+                    >
+                        {saving ? 'Saving…' : 'Save Profile'}
+                    </button>
+                )}
                 <button type="button" className="btn-logout" onClick={onLogout}>
                     {t('profile.logOut')}
-                </button>
-                <button
-                    type="button"
-                    className="btn btn-small"
-                    onClick={() => void onSave()}
-                    disabled={saving || !dirty}
-                    style={{
-                        background: 'var(--text-primary)',
-                        color: 'var(--bg-color)',
-                        padding: '10px 20px',
-                        minHeight: 'var(--tap-min)',
-                        borderRadius: 999,
-                        border: 0,
-                        fontWeight: 700,
-                        fontSize: '0.85rem',
-                        opacity: dirty ? 1 : 0,
-                        transition: 'opacity 0.3s',
-                        pointerEvents: dirty ? 'auto' : 'none',
-                        cursor: dirty ? 'pointer' : 'default',
-                    }}
-                >
-                    {saving ? 'Saving…' : 'Save Profile'}
                 </button>
             </div>
         </div>

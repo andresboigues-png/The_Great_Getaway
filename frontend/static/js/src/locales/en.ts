@@ -608,11 +608,11 @@ export const en = {
         statusAriaLabel: 'Set your travel status',
         statusSet: 'Set status...',
         statusDefault: 'Active Traveler',
-        statusDeliberating: '🤔 Deliberating next trip',
-        statusPreparing: '🎒 Preparing a trip right now',
-        statusExploring: '🌍 Exploring the world',
-        statusResting: '🏠 Resting at home base',
-        statusHunting: '✈️ Hunting for flight deals',
+        statusDeliberating: 'Deliberating next trip',
+        statusPreparing: 'Preparing a trip right now',
+        statusExploring: 'Exploring the world',
+        statusResting: 'Resting at home base',
+        statusHunting: 'Hunting for flight deals',
         bioPlaceholder: 'Add a bio...',
         // R3-Round 3: shown on a public profile when the user hasn't
         // written one. Pre-fix the fallback "No bio yet." was

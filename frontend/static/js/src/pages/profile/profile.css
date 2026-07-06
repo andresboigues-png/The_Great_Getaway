@@ -378,6 +378,79 @@
     flex-shrink: 0;
 }
 
+/* Status: user-authored free text (centered) + a row of tappable
+   no-emoji suggestion chips. Reads as "your own words" rather than a
+   canned dropdown. */
+.pf-status-input {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.12));
+    background: var(--surface-2, rgba(0, 45, 91, 0.03));
+    color: var(--text-primary);
+    font-size: var(--font-sm);
+    font-family: inherit;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+.pf-status-input::placeholder {
+    color: var(--text-secondary);
+}
+.pf-status-input:focus {
+    border-color: var(--gg-blue, #0071e3);
+    background: var(--bg-color, #fff);
+}
+.pf-status-suggest {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 7px;
+}
+.pf-status-chip {
+    padding: 6px 13px;
+    border-radius: 999px;
+    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.12));
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.pf-status-chip:hover,
+.pf-status-chip:active {
+    color: var(--gg-blue, #0071e3);
+    border-color: var(--gg-blue, #0071e3);
+    background: rgba(0, 113, 227, 0.06);
+}
+
+/* Save + Log out: centered vertical stack (was a left/right split). */
+.pf-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-top: 4px;
+}
+.pf-save-btn {
+    background: var(--text-primary);
+    color: var(--bg-color);
+    padding: 10px 24px;
+    min-height: var(--tap-min);
+    border-radius: 999px;
+    border: 0;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.pf-save-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
 /* ── Stat list modal (Trips / Countries / Followers / … ) ─────────
    Opened by the profile stat captions. A titled, searchable list of
    avatar-+-name rows; people rows tap through to their profile. */

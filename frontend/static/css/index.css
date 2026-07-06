@@ -2851,6 +2851,7 @@ body.is-signed-out .trip-controls-popover {
 /* Profile inline-bio textarea — invisible until focused, then a subtle
    surface appears. Replaces inline `onfocus`/`onblur` handlers. */
 .bio-input {
+    display: block;
     width: 100%;
     max-width: 500px;
     min-height: 40px;
@@ -2864,7 +2865,8 @@ body.is-signed-out .trip-controls-popover {
     resize: none;
     outline: none;
     padding: 6px;
-    margin-left: -6px;
+    margin: 0 auto;
+    text-align: center;
     transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 .bio-input:focus {
