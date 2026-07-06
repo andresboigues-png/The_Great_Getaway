@@ -42,6 +42,45 @@ let isInternalNav = false;
  *  the user was just interacting halfway down the list). */
 let currentPage: PageName | null = null;
 
+/** Per-page remembered scroll position (window.scrollY). Saved when
+ *  leaving a page so returning to it — Home especially — lands where the
+ *  user left off instead of snapping to the top / mid-page. In-memory
+ *  only (mirrors currentPage): a full page reload starts fresh. */
+const scrollByPage = new Map<PageName, number>();
+
+/** Restore window scroll to `targetY`, re-applying across a few frames
+ *  while async content (Home's map + images) is still growing the
+ *  document — otherwise the browser clamps us short of the mark and the
+ *  page "lands mid-way". Stops as soon as the document is tall enough to
+ *  hold the position (so it never fights the user afterwards) or after a
+ *  short cap. */
+function restoreScrollTo(targetY: number): void {
+    if (targetY <= 0) {
+        window.scrollTo(0, 0);
+        return;
+    }
+    let tries = 0;
+    const step = () => {
+        const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+        window.scrollTo(0, Math.min(targetY, Math.max(0, maxScroll)));
+        // Keep re-applying only while the document still can't reach
+        // targetY (content loading in). Once it can — or after ~0.5s —
+        // stop, so a user who scrolls immediately isn't yanked back.
+        if (maxScroll < targetY - 2 && tries < 30) {
+            tries += 1;
+            requestAnimationFrame(step);
+        }
+    };
+    requestAnimationFrame(() => requestAnimationFrame(step));
+}
+
+// Take manual control of scroll restoration so the browser's built-in
+// "restore scroll on back/forward" doesn't fight our explicit per-page
+// restore below — that fight was a cause of Home landing mid-page.
+if (typeof history !== 'undefined' && 'scrollRestoration' in history) {
+    history.scrollRestoration = 'manual';
+}
+
 /** FIXING_ROADMAP §1.8 — per-navigation AbortController.
  *
  * Before this, an `apiFetch` started while the user was on Page A could
@@ -81,6 +120,11 @@ export interface NavigateParams {
      *  engagement happened on so the feed page can scroll to / outline
      *  that card. Unset for normal navigation to FEED. */
     highlightPostId?: string;
+    /** 2026-07-06: set by the nav chrome (rail / bottom-tab / brand) so a
+     *  tap on the ALREADY-active tab scrolls to the top of the page. A
+     *  same-page navigate() WITHOUT this flag is a mutation re-render and
+     *  keeps the user's scroll position. Only genuine chrome clicks set it. */
+    fromNavClick?: boolean;
 }
 
 /** Direction hint for the post-mount slide-in animation on the
@@ -328,6 +372,16 @@ export function navigate(
     // hide, filter toggles, etc.).
     const savedScrollY = window.scrollY;
     const willBeSamePage = currentPage === page;
+    // A tap on the ALREADY-active nav item (set by the nav chrome) means
+    // "go to the top"; a same-page navigate() without it is a mutation
+    // re-render that should keep the user's scroll.
+    const fromNavClick = params?.fromNavClick === true;
+    // Remember where we were on the page we're LEAVING so returning to it
+    // (Home in particular) can restore the position. currentPage is still
+    // the OLD page here — it's only reassigned at the end of navigate().
+    if (currentPage !== null) {
+        scrollByPage.set(currentPage, window.scrollY);
+    }
 
     // R8-B5: nav-state DOM mutation moved INTO the loader's .then()
     // so visual + semantic + actually-mounted page stay in lockstep.
@@ -373,16 +427,25 @@ export function navigate(
         // enters from the side the swipe came from, matching the
         // user's gesture instead of materialising in place.
         if (animDir) applyNavAnimation(content, animDir);
-        // Restore the saved scroll for same-page renders. RAF defers
-        // until after React has committed the new tree so the document
-        // is tall enough to actually scroll to that y — otherwise the
-        // call lands while scrollHeight is still post-clear and the
-        // browser silently clamps back to 0.
-        if ((preserveScroll || willBeSamePage) && savedScrollY > 0) {
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => window.scrollTo(0, savedScrollY));
-            });
+        // Scroll positioning after the new tree is committed. Deferred
+        // into restoreScrollTo's rAF loop so the document is tall enough
+        // to actually reach the target (post-clear scrollHeight is 0).
+        //   - same page + active-tab tap → top.
+        //   - same page mutation re-render / explicit preserveScroll →
+        //     keep the user's position.
+        //   - returning to Home → restore where they left it.
+        //   - any other fresh page → top.
+        let targetY: number;
+        if (willBeSamePage && fromNavClick) {
+            targetY = 0;
+        } else if (preserveScroll || willBeSamePage) {
+            targetY = savedScrollY;
+        } else if (page === PAGES.HOME) {
+            targetY = scrollByPage.get(PAGES.HOME) ?? 0;
+        } else {
+            targetY = 0;
         }
+        restoreScrollTo(targetY);
     }).catch((err) => {
         console.error(`[router] failed to load chunk for "${page}":`, err);
         // Last-ditch fallback: load home instead of leaving the user
@@ -417,18 +480,11 @@ export function navigate(
     isInternalNav = true;
     window.location.hash = page;
 
-    // Scroll-to-top decision tree:
-    //   - Caller passed preserveScroll: keep position (existing override).
-    //   - Same page as last render: this is a mutation re-render
-    //     (user just edited a doc, toggled a filter, etc.) — preserving
-    //     scroll keeps them at the row they were touching. The previous
-    //     behaviour snapped to the top on every save, which was jarring.
-    //   - New page: this is a real navigation, top is the right
-    //     starting position for a fresh page.
-    const isSamePage = currentPage === page;
-    if (!preserveScroll && !isSamePage) {
-        window.scrollTo(0, 0);
-    }
+    // Scroll positioning now happens in the loader's .then() (see the
+    // targetY block above) so it lands AFTER the new tree is committed and
+    // the document is tall enough. Doing it synchronously here scrolled
+    // the still-visible OLD page and got clamped by the post-clear
+    // zero-height document.
     currentPage = page;
 }
 

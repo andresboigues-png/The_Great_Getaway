@@ -214,7 +214,8 @@ export function wireNavChrome(): void {
     const brand = document.querySelector('.nav-brand') as HTMLElement | null;
     if (brand) {
         brand.style.cursor = 'pointer';
-        brand.onclick = () => navigate(PAGES.HOME);
+        // fromNavClick so tapping the brand while already on Home jumps to top.
+        brand.onclick = () => navigate(PAGES.HOME, { fromNavClick: true });
     }
 
     // ── Notification bells (mobile + desktop pair) ──
@@ -532,7 +533,10 @@ export function wireNavChrome(): void {
                     animDir = toIdx > fromIdx ? 'forward' : 'backward';
                 }
             }
-            navigate(page, null, false, animDir);
+            // fromNavClick: a genuine chrome tap. Lets the router send a
+            // tap on the ALREADY-active tab to the top of the page (and
+            // distinguishes it from a same-page mutation re-render).
+            navigate(page, { fromNavClick: true }, false, animDir);
             // Round 18: the burger drawer (and its overlay + inert) is gone,
             // so navigating no longer needs to close it. The rail island is
             // non-modal and intentionally stays open across navigation.
