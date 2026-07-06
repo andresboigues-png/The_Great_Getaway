@@ -27,7 +27,7 @@
 // lifetime regardless of how many times the Profile component
 // remounts.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useStore } from '../../react/store.js';
 import { STATE, emit } from '../../state.js';
 import { apiFetch, uploadMedia, blockUser } from '../../api.js';
@@ -342,6 +342,66 @@ interface ProfileContentProps {
     targetUserId: string | undefined;
 }
 
+// ── Segmented toggle to switch between the Info and Footprint sections.
+// Reuses the app-wide .seg-control pill + sliding lens (as in Insights).
+type ProfileSection = 'info' | 'footprint';
+function ProfileSectionToggle({
+    value,
+    onChange,
+    infoLabel,
+    footprintLabel,
+}: {
+    value: ProfileSection;
+    onChange: (v: ProfileSection) => void;
+    infoLabel: string;
+    footprintLabel: string;
+}) {
+    const ref = useRef<HTMLDivElement | null>(null);
+    const [lens, setLens] = useState<{ left: number; width: number } | null>(null);
+    useLayoutEffect(() => {
+        const measure = () => {
+            const el = ref.current?.querySelector<HTMLElement>('[data-active="true"]');
+            if (el) setLens({ left: el.offsetLeft, width: el.offsetWidth });
+        };
+        measure();
+        const node = ref.current;
+        if (!node || typeof ResizeObserver === 'undefined') return;
+        const ro = new ResizeObserver(measure);
+        ro.observe(node);
+        return () => ro.disconnect();
+    }, [value, infoLabel, footprintLabel]);
+    const opts: Array<{ v: ProfileSection; label: string }> = [
+        { v: 'info', label: infoLabel },
+        { v: 'footprint', label: footprintLabel },
+    ];
+    return (
+        <div ref={ref} role="tablist" aria-label="Profile section" className="seg-control">
+            {lens ? <div aria-hidden="true" className="seg-lens" style={{ left: lens.left, width: lens.width }} /> : null}
+            {opts.map((o) => {
+                const active = o.v === value;
+                return (
+                    <button
+                        key={o.v}
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        data-active={active}
+                        onClick={() => onChange(o.v)}
+                        className="seg-btn"
+                        style={{
+                            fontWeight: active ? 700 : 500,
+                            color: active ? 'var(--text-brand-navy)' : 'var(--text-secondary)',
+                        }}
+                    >
+                        {o.label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
+
 function ProfileContent({
     isOwnProfile,
     user,
@@ -350,6 +410,8 @@ function ProfileContent({
     followSnap,
     targetUserId,
 }: ProfileContentProps) {
+    const [section, setSection] = useState<ProfileSection>('info');
+    const firstName = user.name.split(' ')[0];
     const uniqueCountries = deriveUniqueCountries(trips);
     // §4.3: separate ISO-code list so the footprint map's fast-path
     // ISO match + the country-count chip both cover multi-country
@@ -384,75 +446,66 @@ function ProfileContent({
                 </button>
             ) : null}
 
-            {/* ── SECTION 1 · Info ─────────────────────────────────── */}
-            <div className="pf-section-header">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                </svg>
-                {isOwnProfile ? 'Info' : `${user.name.split(' ')[0]}'s info`}
-            </div>
-            <div className="pf-card">
-                <ProfileInfoSection
-                    isOwnProfile={isOwnProfile}
-                    user={user}
-                    trips={trips}
-                    uniqueCountries={uniqueCountries}
-                    countryCount={countryCountForChip}
-                    followSnap={followSnap}
-                    targetUserId={targetUserId}
+            {/* Section switcher — Info ⇆ Footprint (one shows at a time). */}
+            <div className="flex justify-center mb-6">
+                <ProfileSectionToggle
+                    value={section}
+                    onChange={setSection}
+                    infoLabel={isOwnProfile ? 'Info' : `${firstName}'s info`}
+                    footprintLabel="Footprint"
                 />
             </div>
 
-            {/* ── SECTION 2 · Your footprint (achievements + map) ──── */}
-            <div className="pf-section-header">
-                {/* Literal footprint glyph (sole + 5 toes). */}
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <ellipse cx="12" cy="14" rx="4.2" ry="6" />
-                    <ellipse cx="6.5" cy="6" rx="1.4" ry="1.7" />
-                    <ellipse cx="9.6" cy="3.7" rx="1.3" ry="1.6" />
-                    <ellipse cx="13.1" cy="3.4" rx="1.3" ry="1.6" />
-                    <ellipse cx="16.3" cy="4.5" rx="1.3" ry="1.6" />
-                    <ellipse cx="18.4" cy="7.4" rx="1.3" ry="1.6" />
-                </svg>
-                {isOwnProfile ? 'Your footprint' : `${user.name.split(' ')[0]}'s footprint`}
-            </div>
-            <div className="pf-card">
-                {/* Achievements — shown on own profile even when empty so the
-                    surface is discoverable; hidden on a friend's profile when
-                    nothing's earned. */}
-                {(achievements.length > 0 || isOwnProfile) ? (
-                    <>
-                        <div className="flex items-baseline justify-between mb-[14px]">
-                            <h3 className="m-0 text-base font-extrabold tracking-[-0.02em] text-primary">
-                                🏅 Achievements
-                            </h3>
-                            <span className="text-[0.8rem] text-secondary font-semibold">
-                                {achievements.length} earned
-                            </span>
-                        </div>
-                        {achievements.length === 0 ? (
-                            <p className="m-0 text-secondary text-[0.85rem] text-center py-3 px-0">
-                                Earn your first badge by creating a trip, completing one, or settling up with a friend.
-                            </p>
-                        ) : (
-                            <AchievementsStrip achievements={achievements} />
-                        )}
-                        <div className="pf-divider" />
-                    </>
-                ) : null}
+            {section === 'info' ? (
+                <div className="pf-card">
+                    <ProfileInfoSection
+                        isOwnProfile={isOwnProfile}
+                        user={user}
+                        trips={trips}
+                        uniqueCountries={uniqueCountries}
+                        countryCount={countryCountForChip}
+                        followSnap={followSnap}
+                        targetUserId={targetUserId}
+                    />
+                </div>
+            ) : (
+                <div className="pf-card">
+                    {/* Achievements — shown on own profile even when empty so the
+                        surface is discoverable; hidden on a friend's profile when
+                        nothing's earned. */}
+                    {(achievements.length > 0 || isOwnProfile) ? (
+                        <>
+                            <div className="flex items-baseline justify-between mb-[14px]">
+                                <h3 className="m-0 text-base font-extrabold tracking-[-0.02em] text-primary">
+                                    🏅 Achievements
+                                </h3>
+                                <span className="text-[0.8rem] text-secondary font-semibold">
+                                    {achievements.length} earned
+                                </span>
+                            </div>
+                            {achievements.length === 0 ? (
+                                <p className="m-0 text-secondary text-[0.85rem] text-center py-3 px-0">
+                                    Earn your first badge by creating a trip, completing one, or settling up with a friend.
+                                </p>
+                            ) : (
+                                <AchievementsStrip achievements={achievements} />
+                            )}
+                            <div className="pf-divider" />
+                        </>
+                    ) : null}
 
-                <p className="text-secondary text-center mt-0 mb-5 text-[0.88rem]">
-                    {isOwnProfile
-                        ? "Every country you've been to, lit up."
-                        : `Explore where ${user.name.split(' ')[0]} has been.`}
-                </p>
-                <FootprintMap
-                    trips={trips}
-                    uniqueCountries={uniqueCountries}
-                    uniqueCountryCodes={uniqueCountryCodes}
-                />
-            </div>
+                    <p className="text-secondary text-center mt-0 mb-5 text-[0.88rem]">
+                        {isOwnProfile
+                            ? "Every country you've been to, lit up."
+                            : `Explore where ${firstName} has been.`}
+                    </p>
+                    <FootprintMap
+                        trips={trips}
+                        uniqueCountries={uniqueCountries}
+                        uniqueCountryCodes={uniqueCountryCodes}
+                    />
+                </div>
+            )}
         </div>
     );
 }
