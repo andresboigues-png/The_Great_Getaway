@@ -539,6 +539,7 @@ export const fr: Translations = {
             other: 'continents',
         },
         topCountryLabel: 'pays favori',
+        bestCompanionLabel: 'meilleur compagnon',
         photoUploaded: 'Photo de profil mise à jour.',
         blockBtnLabel: 'Bloquer cet utilisateur',
         blockConfirmTitle: 'Bloquer {name} ?',

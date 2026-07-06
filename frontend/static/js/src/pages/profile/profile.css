@@ -244,23 +244,35 @@
 
 /* ── Stats strip (inside the Info card) ──────────────────────
    A horizontally-scrollable row of tappable stat chips (each opens its
-   list modal). On a phone it scrolls (swipe); on desktop it fits inline. */
+   list modal). When one set overflows it renders three copies and loops
+   the scroll (swipe goes around); when it fits it's a single centred row. */
 .pf-statstrip {
     display: flex;
     gap: 8px;
     overflow-x: auto;
     margin: 18px -6px 2px;
     padding: 2px 6px 8px;
-    scroll-snap-type: x proximity;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+    justify-content: flex-start;
 }
 .pf-statstrip::-webkit-scrollbar {
     display: none;
 }
+/* When it fits (no loop), centre the single set. */
+.pf-statstrip:not(.pf-statstrip--loop) {
+    justify-content: center;
+}
+/* Each copy of the stat set — a flex row of chips, same gap as between
+   sets so the loop has no visible seam. */
+.pf-statstrip__set {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 8px;
+}
 .pf-statchip {
     flex: 0 0 auto;
-    min-width: 76px;
+    min-width: 78px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -272,7 +284,6 @@
     border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.06));
     cursor: pointer;
     font: inherit;
-    scroll-snap-align: center;
     transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
 }
 .pf-statchip:hover,
@@ -299,13 +310,7 @@
     color: var(--text-secondary);
     white-space: nowrap;
 }
-/* Desktop / browser — the card is wide, so centre the row (wraps if the
-   set ever gets very long). */
 @media (min-width: 620px) {
-    .pf-statstrip {
-        justify-content: center;
-        flex-wrap: wrap;
-    }
     .pf-statchip {
         min-width: 88px;
     }

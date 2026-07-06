@@ -787,6 +787,38 @@ function ProfileInfoSection({
         });
         return { name, count };
     })();
+    // Best companion: the person on the most trips (excluding the profile
+    // owner's own self-companion). Keyed by linkedUserId when present, else
+    // by name, and counted once per trip.
+    const bestCompanion = (() => {
+        const profileId = targetUserId ?? user.id;
+        const firstName = (user.name.split(' ')[0] || '').toLowerCase();
+        const counts = new Map<string, { name: string; trips: number }>();
+        for (const tp of trips) {
+            const seen = new Set<string>();
+            for (const c of tp.companions || []) {
+                if (!c.name) continue;
+                const isOwner = (c.linkedUserId && c.linkedUserId === profileId) || c.name.toLowerCase() === firstName;
+                if (isOwner) continue;
+                const key = c.linkedUserId || c.name.toLowerCase();
+                if (seen.has(key)) continue;
+                seen.add(key);
+                const cur = counts.get(key) || { name: c.name, trips: 0 };
+                cur.trips += 1;
+                cur.name = c.name;
+                counts.set(key, cur);
+            }
+        }
+        let name = '';
+        let count = 0;
+        counts.forEach((v) => {
+            if (v.trips > count) {
+                count = v.trips;
+                name = v.name;
+            }
+        });
+        return { name, count };
+    })();
 
     // Each stat's caption opens its own searchable list modal of that data.
     // The caption is ALWAYS a live link (opens the modal even when the list
@@ -838,6 +870,18 @@ function ProfileInfoSection({
             onClick: openList(
                 topCountry.name || t('profile.topCountryLabel'),
                 trips.filter((tp) => tp.country === topCountry.name).map((tp) => ({ primary: tp.name || 'Trip', secondary: tp.country || undefined })),
+            ),
+        },
+        {
+            num: bestCompanion.count ? String(bestCompanion.count) : '—',
+            label: bestCompanion.name || t('profile.bestCompanionLabel'),
+            onClick: openList(
+                bestCompanion.name || t('profile.bestCompanionLabel'),
+                trips
+                    .filter((tp) =>
+                        (tp.companions || []).some((c) => (c.name || '').toLowerCase() === bestCompanion.name.toLowerCase()),
+                    )
+                    .map((tp) => ({ primary: tp.name || 'Trip', secondary: tp.country || undefined })),
             ),
         },
         {
@@ -980,18 +1024,81 @@ function peopleItems(people: ProfileFriend[]): StatListItem[] {
 }
 
 // Swipeable stat strip — a horizontally-scrollable row of tappable stat
-// chips, each opening its list modal. Replaced the loupe magnifier: with up
-// to 8 stats a fixed magnifier row was too cramped on phones. A scroll strip
-// gives every stat full, readable width and still fits inline on desktop.
+// chips (each opens its list modal). When one set overflows the width it
+// renders THREE copies and wraps the scroll position, so swiping loops
+// around endlessly; when it fits it renders one, centred.
 function StatStrip({ stats }: { stats: Stat[] }) {
-    return (
-        <div className="pf-statstrip">
+    const scrollerRef = useRef<HTMLDivElement | null>(null);
+    const setRef = useRef<HTMLDivElement | null>(null);
+    const unitRef = useRef(0); // one set's width + the gap to the next
+    const [loop, setLoop] = useState(false);
+
+    // Loop only when one set overflows the scroller (a phone); otherwise fit.
+    useEffect(() => {
+        const scroller = scrollerRef.current;
+        const set = setRef.current;
+        if (!scroller || !set) return;
+        const check = () => {
+            const w = set.getBoundingClientRect().width;
+            const cs = getComputedStyle(scroller);
+            const gap = parseFloat(cs.columnGap || cs.gap || '0') || 0;
+            unitRef.current = w + gap;
+            setLoop(w > scroller.clientWidth + 4);
+        };
+        check();
+        if (typeof ResizeObserver === 'undefined') return;
+        const ro = new ResizeObserver(check);
+        ro.observe(scroller);
+        ro.observe(set);
+        return () => ro.disconnect();
+    }, [stats.length]);
+
+    // Park the scroll on the middle (real) set and wrap it back whenever it
+    // drifts into a clone, so a swipe carries on around forever.
+    useEffect(() => {
+        const scroller = scrollerRef.current;
+        if (!scroller || !loop || unitRef.current <= 0) return;
+        scroller.scrollLeft = unitRef.current;
+        let raf = 0;
+        const onScroll = () => {
+            if (raf) return;
+            raf = requestAnimationFrame(() => {
+                raf = 0;
+                const u = unitRef.current;
+                if (u <= 0) return;
+                if (scroller.scrollLeft < u * 0.5) scroller.scrollLeft += u;
+                else if (scroller.scrollLeft >= u * 1.5) scroller.scrollLeft -= u;
+            });
+        };
+        scroller.addEventListener('scroll', onScroll, { passive: true });
+        return () => {
+            scroller.removeEventListener('scroll', onScroll);
+            if (raf) cancelAnimationFrame(raf);
+        };
+    }, [loop, stats.length]);
+
+    const renderSet = (key: string, real: boolean) => (
+        <div className="pf-statstrip__set" key={key} ref={real ? setRef : undefined} aria-hidden={real ? undefined : true}>
             {stats.map((s, i) => (
-                <button key={i} type="button" className="pf-statchip" onClick={() => s.onClick?.()}>
+                <button
+                    key={`${key}-${i}`}
+                    type="button"
+                    className="pf-statchip"
+                    tabIndex={real ? undefined : -1}
+                    onClick={() => s.onClick?.()}
+                >
                     <span className="pf-statchip__num">{s.num}</span>
                     <span className="pf-statchip__label">{s.label}</span>
                 </button>
             ))}
+        </div>
+    );
+
+    return (
+        <div className={`pf-statstrip${loop ? ' pf-statstrip--loop' : ''}`} ref={scrollerRef}>
+            {loop ? renderSet('clone-a', false) : null}
+            {renderSet('real', true)}
+            {loop ? renderSet('clone-b', false) : null}
         </div>
     );
 }

@@ -654,6 +654,7 @@ export const en = {
             other: 'continents',
         },
         topCountryLabel: 'top country',
+        bestCompanionLabel: 'best companion',
         // Photo upload + sync flow (Round 5 polish).
         photoUploaded: 'Profile photo updated.',
         blockBtnLabel: 'Block this user',
