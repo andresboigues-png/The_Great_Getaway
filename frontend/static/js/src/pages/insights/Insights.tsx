@@ -1617,7 +1617,7 @@ export function Insights() {
                 </div>
                 <div className={spenderRows.length >= 2 ? 'grid-2 grid-cols-2 gap-6 items-center' : ''}>
                     {spenderRows.length >= 2 ? (
-                        <div className="relative h-[220px] w-full"><canvas ref={spenderPieRef}></canvas></div>
+                        <div className="relative h-[220px] w-full min-w-0"><canvas ref={spenderPieRef}></canvas></div>
                     ) : null}
                     <div className="flex flex-col gap-1">
                         {(() => {
@@ -1631,8 +1631,8 @@ export function Insights() {
                                         className="flex flex-col gap-1 py-1.5"
                                         style={index < spenderRows.length - 1 ? { borderBottom: '1px solid var(--border-subtle)' } : undefined}
                                     >
-                                        <div className="flex items-baseline justify-between gap-3">
-                                            <span className="font-bold text-primary wrap-anywhere min-w-0 flex items-center gap-2">
+                                        <div className="flex items-baseline justify-between gap-3 min-w-0">
+                                            <span className="font-bold text-primary break-words min-w-0 flex items-center gap-2">
                                                 <span className="inline-block rounded-full" style={{ width: 10, height: 10, flexShrink: 0, background: DASH_PALETTE[index % DASH_PALETTE.length] ?? '#0071e3' }} />
                                                 {r.name}
                                             </span>
@@ -1701,7 +1701,7 @@ export function Insights() {
                 ) : (
                     <div className={perRows.rows.length >= 2 ? 'grid-2 grid-cols-2 gap-6 items-center' : ''}>
                         {perRows.rows.length >= 2 ? (
-                            <div className="relative h-[240px] w-full"><canvas ref={perPieRef}></canvas></div>
+                            <div className="relative h-[240px] w-full min-w-0"><canvas ref={perPieRef}></canvas></div>
                         ) : null}
                         <div className="flex flex-col gap-[10px]">
                             {(() => {
@@ -1713,8 +1713,8 @@ export function Insights() {
                                     const sharePct = denom > 0 ? (metricVal / denom) * 100 : 0;
                                     return (
                                         <div key={r.label} className="flex flex-col gap-1">
-                                            <div className="flex justify-between items-baseline gap-3">
-                                                <span className="font-bold text-[0.95rem] text-primary wrap-anywhere min-w-0 flex items-center gap-2">
+                                            <div className="flex justify-between items-baseline gap-3 min-w-0">
+                                                <span className="font-bold text-[0.95rem] text-primary break-words min-w-0 flex items-center gap-2">
                                                     <span className="inline-block rounded-full" style={{ width: 10, height: 10, flexShrink: 0, background: DASH_PALETTE[index % DASH_PALETTE.length] ?? '#0071e3' }} />
                                                     {r.label}
                                                 </span>

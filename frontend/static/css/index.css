@@ -5229,7 +5229,13 @@ main#app-container.nav-anim-backward {
        canonical 2-column wrapper used app-wide; this rule covers
        Insights AND any other page that uses it. */
     .grid-2 {
-        grid-template-columns: 1fr !important;
+        /* minmax(0, 1fr) — NOT plain `1fr` (= minmax(auto, 1fr)) — so the
+           single mobile column can shrink below its content's min-content
+           width. Plain 1fr floored the track at a chart <canvas>'s intrinsic
+           width, so the Insights donuts spilled ~35-50px past the card on
+           narrow phones (≤375px). minmax(0,…) lets the canvas be constrained
+           to the card instead. */
+        grid-template-columns: minmax(0, 1fr) !important;
         gap: 16px;
     }
     /* Inline `gridTemplateColumns: '1fr 1fr'` from the Insights
