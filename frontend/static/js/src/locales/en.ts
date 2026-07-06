@@ -645,6 +645,15 @@ export const en = {
             other: 'friends',
         },
         listEmpty: 'Nothing here yet.',
+        daysLabel: {
+            one: 'day',
+            other: 'days',
+        },
+        continentsLabel: {
+            one: 'continent',
+            other: 'continents',
+        },
+        topCountryLabel: 'top country',
         // Photo upload + sync flow (Round 5 polish).
         photoUploaded: 'Profile photo updated.',
         blockBtnLabel: 'Block this user',

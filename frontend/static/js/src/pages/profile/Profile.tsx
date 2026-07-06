@@ -37,6 +37,7 @@ import { CONVERSION_RATES, CURRENCY_SYMBOLS, COUNTRIES } from '../../constants.j
 import { navigate } from '../../router.js';
 import { clearAllManualFx } from '../../utils/manualRates.js';
 import { clearAllFxOverrides } from '../../utils/fxOverrides.js';
+import { countryCodeToContinent, countryNameToContinent } from '../../utils/place-names.js';
 import { t, tn } from '../../i18n.js';
 import {
     logout,
@@ -753,6 +754,40 @@ function ProfileInfoSection({
     onFollowersChange,
 }: ProfileInfoSectionProps) {
     const follow = useFollowLists(targetUserId ?? user.id);
+
+    // Travel stats derived from the (completed) trips.
+    const dayCount = (tp: Trip): number => {
+        if (!tp.dateFrom || !tp.dateTo) return 0;
+        const a = Date.parse(tp.dateFrom);
+        const b = Date.parse(tp.dateTo);
+        if (Number.isNaN(a) || Number.isNaN(b) || b < a) return 0;
+        return Math.round((b - a) / 86400000) + 1; // inclusive of both ends
+    };
+    const daysTravelled = trips.reduce((s, tp) => s + dayCount(tp), 0);
+    const continents: string[] = (() => {
+        const set = new Set<string>();
+        for (const tp of trips) {
+            const c = countryCodeToContinent(tp.countryCode) || countryNameToContinent(tp.country);
+            if (c) set.add(c);
+        }
+        return [...set];
+    })();
+    const topCountry = (() => {
+        const counts = new Map<string, number>();
+        for (const tp of trips) {
+            if (tp.country) counts.set(tp.country, (counts.get(tp.country) || 0) + 1);
+        }
+        let name = '';
+        let count = 0;
+        counts.forEach((c, n) => {
+            if (c > count) {
+                count = c;
+                name = n;
+            }
+        });
+        return { name, count };
+    })();
+
     // Each stat's caption opens its own searchable list modal of that data.
     // The caption is ALWAYS a live link (opens the modal even when the list
     // is empty → "Nothing here yet"), so it never greys out.
@@ -774,6 +809,35 @@ function ProfileInfoSection({
             onClick: openList(
                 tn('profile.countriesLabel', countryCount),
                 uniqueCountries.map((c) => ({ primary: c })),
+            ),
+        },
+        {
+            num: String(daysTravelled),
+            label: tn('profile.daysLabel', daysTravelled),
+            onClick: openList(
+                tn('profile.daysLabel', daysTravelled),
+                trips.map((tp) => ({
+                    primary: tp.name || 'Trip',
+                    secondary: dayCount(tp)
+                        ? `${dayCount(tp)} ${tn('profile.daysLabel', dayCount(tp))}`
+                        : tp.country || undefined,
+                })),
+            ),
+        },
+        {
+            num: String(continents.length),
+            label: tn('profile.continentsLabel', continents.length),
+            onClick: openList(
+                tn('profile.continentsLabel', continents.length),
+                continents.map((c) => ({ primary: c })),
+            ),
+        },
+        {
+            num: topCountry.count ? String(topCountry.count) : '—',
+            label: topCountry.name || t('profile.topCountryLabel'),
+            onClick: openList(
+                topCountry.name || t('profile.topCountryLabel'),
+                trips.filter((tp) => tp.country === topCountry.name).map((tp) => ({ primary: tp.name || 'Trip', secondary: tp.country || undefined })),
             ),
         },
         {

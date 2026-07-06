@@ -284,8 +284,8 @@
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 5px;
-    padding: 0 3px;
+    gap: 4px;
+    padding: 0 2px;
     text-align: center;
 }
 .pf-statcell + .pf-statcell::before {
@@ -299,19 +299,20 @@
 }
 /* Deliberately tiny — the loupe is how you read them. */
 .pf-statcell__num {
-    font-size: 0.6rem;
+    font-size: 0.56rem;
     font-weight: 800;
     letter-spacing: -0.02em;
     line-height: 1;
     color: var(--text-primary);
 }
 .pf-statcell__label {
-    font-size: 0.4rem;
+    font-size: 0.37rem;
     font-weight: 700;
-    letter-spacing: 0.02em;
-    line-height: 1.2;
+    letter-spacing: 0.01em;
+    line-height: 1.15;
     text-transform: uppercase;
     color: var(--text-secondary);
+    overflow-wrap: break-word;
 }
 
 /* ── Liquid-glass loupe over the stat slab ────────────────────────
@@ -391,15 +392,28 @@
 .pf-statcaption:disabled::after {
     display: none;
 }
-@media (max-width: 360px) {
+@media (max-width: 380px) {
     .pf-statcell__num {
-        font-size: 0.54rem;
+        font-size: 0.48rem;
     }
     .pf-statcell__label {
-        font-size: 0.38rem;
+        font-size: 0.32rem;
     }
     .pf-statcaption {
-        font-size: 0.76rem;
+        font-size: 0.74rem;
+    }
+}
+/* Desktop / browser — the card is far wider, so let the stats breathe. */
+@media (min-width: 620px) {
+    .pf-statcell {
+        padding: 0 6px;
+    }
+    .pf-statcell__num {
+        font-size: 0.95rem;
+    }
+    .pf-statcell__label {
+        font-size: 0.52rem;
+        letter-spacing: 0.03em;
     }
 }
 

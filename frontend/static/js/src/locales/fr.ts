@@ -530,6 +530,15 @@ export const fr: Translations = {
             other: 'amis',
         },
         listEmpty: 'Rien ici pour l’instant.',
+        daysLabel: {
+            one: 'jour',
+            other: 'jours',
+        },
+        continentsLabel: {
+            one: 'continent',
+            other: 'continents',
+        },
+        topCountryLabel: 'pays favori',
         photoUploaded: 'Photo de profil mise à jour.',
         blockBtnLabel: 'Bloquer cet utilisateur',
         blockConfirmTitle: 'Bloquer {name} ?',

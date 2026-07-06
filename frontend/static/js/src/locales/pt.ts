@@ -529,6 +529,15 @@ export const pt: Translations = {
             other: 'amigos',
         },
         listEmpty: 'Nada por aqui ainda.',
+        daysLabel: {
+            one: 'dia',
+            other: 'dias',
+        },
+        continentsLabel: {
+            one: 'continente',
+            other: 'continentes',
+        },
+        topCountryLabel: 'país favorito',
         photoUploaded: 'Foto de perfil atualizada.',
         blockBtnLabel: 'Bloquear este utilizador',
         blockConfirmTitle: 'Bloquear {name}?',
