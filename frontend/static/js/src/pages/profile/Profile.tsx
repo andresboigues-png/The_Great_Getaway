@@ -1160,13 +1160,12 @@ function countryCodeFromName(name: string | null | undefined): string {
     return _homeCountryToCode[name.trim().toLowerCase()] || '';
 }
 
-/** ISO alpha-2 code → regional-indicator flag emoji ('' if not 2 letters).
- *  Renders as a flag on the mobile targets; degrades to nothing elsewhere. */
-function codeToFlag(code: string): string {
-    if (!code || code.length !== 2 || !/^[a-zA-Z]{2}$/.test(code)) return '';
-    const A = 0x1f1e6;
-    const cc = code.toUpperCase();
-    return String.fromCodePoint(A + cc.charCodeAt(0) - 65, A + cc.charCodeAt(1) - 65);
+/** Served path to a country's flag image (vendored flag-icons, 4:3 SVG).
+ *  Local + same-origin, so it works offline and leaks nothing to a flag
+ *  CDN. '' when there's no ISO code, so callers can fall back cleanly. */
+function flagUrl(code: string | null | undefined): string {
+    if (!code || !/^[a-zA-Z]{2}$/.test(code)) return '';
+    return `/static/flags/${code.toLowerCase()}.svg`;
 }
 
 function BioBlock({
@@ -1300,7 +1299,7 @@ function BioBlock({
             },
             ...getCountryOptions().map(({ code, name }) => ({
                 primary: name,
-                avatarInitial: codeToFlag(code) || '🏳',
+                avatarUrl: flagUrl(code),
                 onClick: () => {
                     setHomeCountry(name);
                     setDirty(true);
@@ -1411,9 +1410,17 @@ function BioBlock({
                         aria-label={t('profile.homeCountryAria')}
                     >
                         {homeCountry && countryCodeFromName(homeCountry) ? (
-                            <span className="pf-tile__flag" aria-hidden="true">
-                                {codeToFlag(countryCodeFromName(homeCountry))}
-                            </span>
+                            <img
+                                className="pf-tile__flag-img"
+                                src={flagUrl(countryCodeFromName(homeCountry))}
+                                alt=""
+                                aria-hidden="true"
+                                loading="lazy"
+                                decoding="async"
+                                onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                }}
+                            />
                         ) : null}
                         <span className="pf-tile__scrim" aria-hidden="true" />
                         <span className="pf-tile__label">

@@ -496,22 +496,24 @@
 .pf-tile:active {
     transform: scale(0.98);
 }
-/* Flag scaled to COVER the square (edges crop) so it reads as a field,
-   not a centred glyph. Renders on the mobile target; elsewhere the tile
-   just falls back to the deep-navy base + name. */
-.pf-tile__flag {
+/* Real flag image (vendored flag-icons SVG) scaled to COVER the square so
+   it reads as a full-bleed field. On error the <img> hides itself and the
+   deep-navy base + name show through. */
+.pf-tile__flag-img {
     position: absolute;
     inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13rem;
-    line-height: 1;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
+/* Centre + bottom darkening keeps the white name readable over ANY flag
+   (including pale ones) without washing out the flag's colours. */
 .pf-tile__scrim {
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, rgba(0, 20, 45, 0.12) 0%, rgba(0, 20, 45, 0.5) 100%);
+    background:
+        radial-gradient(ellipse at 50% 50%, rgba(3, 12, 28, 0.5) 0%, rgba(3, 12, 28, 0.16) 62%),
+        linear-gradient(180deg, rgba(3, 12, 28, 0.18) 0%, rgba(3, 12, 28, 0.55) 100%);
 }
 .pf-tile__label {
     position: relative;
@@ -524,7 +526,7 @@
     text-align: center;
     padding: 0 10px;
     line-height: 1.16;
-    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+    text-shadow: 0 1px 10px rgba(0, 0, 0, 0.85), 0 0 2px rgba(0, 0, 0, 0.5);
 }
 .pf-tile--empty .pf-tile__label {
     opacity: 0.9;
