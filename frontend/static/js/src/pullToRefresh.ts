@@ -66,10 +66,21 @@ const DIRECTION_LOCK_PX = 8;
 // Selectors where a vertical drag belongs to that element, not to us. Mirrors
 // the spirit of mobileSwipe.ts's opt-out list:
 // - .sidebar: the open burger drawer scrolls its own content vertically.
+// - .rail-scrubber: the right-edge nav scrubber IS a vertical-drag control —
+//   dragging down it must move its selector, never refresh the page.
+// - .sidebar-rail: the icon rail owns its own vertical drag (scroll / the
+//   scrubber gesture); a downward drag on it isn't a page pull.
 // - .modal, .modal-overlay: bottom-sheets / dialogs own their drag (and we
 //   also hard-gate on an open modal-overlay below).
 // - .gm-style: Google Maps panning is a vertical drag on the map, not a pull.
-const OPT_OUT_SELECTORS = ['.sidebar', '.modal', '.modal-overlay', '.gm-style'].join(',');
+const OPT_OUT_SELECTORS = [
+    '.sidebar',
+    '.rail-scrubber',
+    '.sidebar-rail',
+    '.modal',
+    '.modal-overlay',
+    '.gm-style',
+].join(',');
 
 let _wired = false;
 
