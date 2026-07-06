@@ -787,6 +787,29 @@ def init_db():
             )
         ''')
 
+        # Profile quotes: short notes other users leave ON a profile
+        # (author_id) about its owner (profile_owner_id). New quotes land
+        # hidden (is_visible=0) — the owner curates which become publicly
+        # visible, so a visitor can't force copy onto someone's profile.
+        # CHECK forbids self-quotes. Owner-scoped index backs the list read.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS profile_quotes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_owner_id TEXT NOT NULL,
+                author_id TEXT NOT NULL,
+                content TEXT NOT NULL,
+                is_visible INTEGER NOT NULL DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (profile_owner_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE,
+                CHECK (profile_owner_id != author_id)
+            )
+        ''')
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_profile_quotes_owner "
+            "ON profile_quotes(profile_owner_id)"
+        )
+
         # Achievements Table (FIXING_ROADMAP §4.4).
         # Per-user record of which badges have been earned. Each badge
         # is a string id from src/achievements.py's BADGES registry —

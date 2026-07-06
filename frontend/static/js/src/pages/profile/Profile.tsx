@@ -27,7 +27,7 @@
 // lifetime regardless of how many times the Profile component
 // remounts.
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode, PointerEvent as ReactPointerEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { useStore } from '../../react/store.js';
 import { STATE, emit } from '../../state.js';
@@ -349,7 +349,7 @@ interface ProfileContentProps {
 // Reuses the app-wide .seg-control pill + sliding lens; the buttons carry
 // just an icon (a circled "i" for Info, a globe for Footprint) with the
 // text label kept as the accessible name / tooltip.
-type ProfileSection = 'info' | 'footprint';
+type ProfileSection = 'info' | 'footprint' | 'quotes';
 const SECTION_ICONS: Record<ProfileSection, ReactNode> = {
     info: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -367,21 +367,30 @@ const SECTION_ICONS: Record<ProfileSection, ReactNode> = {
             <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
         </svg>
     ),
+    quotes: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+    ),
 };
 function ProfileSectionToggle({
     value,
     onChange,
     infoLabel,
     footprintLabel,
+    quotesLabel,
 }: {
     value: ProfileSection;
     onChange: (v: ProfileSection) => void;
     infoLabel: string;
     footprintLabel: string;
+    quotesLabel: string;
 }) {
     const opts: Array<{ v: ProfileSection; label: string }> = [
         { v: 'info', label: infoLabel },
         { v: 'footprint', label: footprintLabel },
+        { v: 'quotes', label: quotesLabel },
     ];
     return (
         <div className="pf-bookmarks" role="tablist" aria-label="Profile section">
@@ -422,7 +431,7 @@ function ProfileContent({
     // button updates it optimistically on a friend's profile).
     const [followers, setFollowers] = useState(followSnap.followers);
     useEffect(() => setFollowers(followSnap.followers), [followSnap.followers]);
-    const firstName = user.name.split(' ')[0];
+    const firstName = user.name.split(' ')[0] ?? '';
     const uniqueCountries = deriveUniqueCountries(trips);
     // §4.3: separate ISO-code list so the footprint map's fast-path
     // ISO match + the country-count chip both cover multi-country
@@ -465,6 +474,7 @@ function ProfileContent({
                     onChange={setSection}
                     infoLabel={isOwnProfile ? 'Info' : `${firstName}'s info`}
                     footprintLabel="Footprint"
+                    quotesLabel={t('profile.quotesTab')}
                 />
             </div>
 
@@ -484,7 +494,7 @@ function ProfileContent({
                         onFollowersChange={setFollowers}
                     />
                 </div>
-            ) : (
+            ) : section === 'footprint' ? (
                 <div className="pf-card">
                         {/* Achievements — shown on own profile even when empty so the
                             surface is discoverable; hidden on a friend's profile when
@@ -519,6 +529,14 @@ function ProfileContent({
                         trips={trips}
                         uniqueCountries={uniqueCountries}
                         uniqueCountryCodes={uniqueCountryCodes}
+                    />
+                </div>
+            ) : (
+                <div className="pf-card">
+                    <QuotesSection
+                        profileUserId={user.id}
+                        isOwnProfile={isOwnProfile}
+                        firstName={firstName}
                     />
                 </div>
             )}
@@ -1166,6 +1184,204 @@ function countryCodeFromName(name: string | null | undefined): string {
 function flagUrl(code: string | null | undefined): string {
     if (!code || !/^[a-zA-Z]{2}$/.test(code)) return '';
     return `/static/flags/${code.toLowerCase()}.svg`;
+}
+
+interface QuoteItem {
+    id: number;
+    text: string;
+    isVisible: boolean;
+    createdAt: string;
+    author: { id: string; name: string; picture?: string };
+}
+
+// Quotes tab: other users leave short quotes on this profile; new ones
+// arrive hidden and the owner curates which become publicly visible.
+// All text renders as JSX children (auto-escaped) — never innerHTML.
+function QuotesSection({
+    profileUserId,
+    isOwnProfile,
+    firstName,
+}: {
+    profileUserId: string;
+    isOwnProfile: boolean;
+    firstName: string;
+}) {
+    const [quotes, setQuotes] = useState<QuoteItem[] | null>(null);
+    const [failed, setFailed] = useState(false);
+    const [draft, setDraft] = useState('');
+    const [posting, setPosting] = useState(false);
+
+    const load = useCallback(async () => {
+        setFailed(false);
+        try {
+            const res = await apiFetch(`/api/quotes/${encodeURIComponent(profileUserId)}`);
+            if (!res.ok) {
+                setFailed(true);
+                setQuotes([]);
+                return;
+            }
+            const data = await res.json();
+            setQuotes(Array.isArray(data.quotes) ? data.quotes : []);
+        } catch {
+            setFailed(true);
+            setQuotes([]);
+        }
+    }, [profileUserId]);
+
+    useEffect(() => {
+        void load();
+    }, [load]);
+
+    const post = async () => {
+        const text = draft.trim();
+        if (!text || posting) return;
+        setPosting(true);
+        try {
+            const res = await apiFetch(`/api/quotes/${encodeURIComponent(profileUserId)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text }),
+            });
+            if (res.ok) {
+                setDraft('');
+                showLiquidAlert(t('profile.quotesPosted', { name: firstName }), 'success');
+                void load();
+            } else {
+                showLiquidAlert(t('profile.saveFailed', { status: res.status }));
+            }
+        } catch {
+            showLiquidAlert(t('profile.saveNetwork'));
+        } finally {
+            setPosting(false);
+        }
+    };
+
+    const setVisibility = async (id: number, visible: boolean) => {
+        // Optimistic — reload on failure so the UI never lies.
+        setQuotes((qs) => (qs ? qs.map((q) => (q.id === id ? { ...q, isVisible: visible } : q)) : qs));
+        try {
+            const res = await apiFetch(`/api/quotes/item/${id}/visibility`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ visible }),
+            });
+            if (!res.ok) {
+                showLiquidAlert(t('profile.saveFailed', { status: res.status }));
+                void load();
+            }
+        } catch {
+            showLiquidAlert(t('profile.saveNetwork'));
+            void load();
+        }
+    };
+
+    const remove = (id: number) => {
+        showConfirmModal({
+            title: t('profile.quotesDeleteTitle'),
+            message: t('profile.quotesDeleteBody'),
+            confirmText: t('profile.quotesDelete'),
+            onConfirm: () => {
+                setQuotes((qs) => (qs ? qs.filter((q) => q.id !== id) : qs));
+                // apiFetch resolves (doesn't throw) on a non-2xx response, so
+                // reconcile on BOTH an HTTP error and a network rejection —
+                // otherwise a rejected delete stays gone from the UI only.
+                void (async () => {
+                    try {
+                        const res = await apiFetch(`/api/quotes/item/${id}`, { method: 'DELETE' });
+                        if (!res.ok) {
+                            showLiquidAlert(t('profile.saveFailed', { status: res.status }));
+                            void load();
+                        }
+                    } catch {
+                        void load();
+                    }
+                })();
+            },
+        });
+    };
+
+    return (
+        <div className="pf-quotes">
+            {!isOwnProfile ? (
+                <div className="pf-quote-composer">
+                    <textarea
+                        className="pf-quote-input"
+                        placeholder={t('profile.quotesPlaceholder', { name: firstName })}
+                        maxLength={280}
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                    />
+                    <button
+                        type="button"
+                        className="pf-save-btn pf-quote-post"
+                        onClick={() => void post()}
+                        disabled={posting || !draft.trim()}
+                    >
+                        {t('profile.quotesPost')}
+                    </button>
+                </div>
+            ) : null}
+
+            {quotes === null ? (
+                <p className="pf-quotes-note">{t('common.loading')}</p>
+            ) : failed ? (
+                <p className="pf-quotes-note">{t('profile.quotesError')}</p>
+            ) : quotes.length === 0 ? (
+                <p className="pf-quotes-note">
+                    {isOwnProfile ? t('profile.quotesEmptyOwn') : t('profile.quotesEmptyVisitor', { name: firstName })}
+                </p>
+            ) : (
+                <ul className="pf-quote-list">
+                    {quotes.map((q) => (
+                        <li
+                            key={q.id}
+                            className={`pf-quote${isOwnProfile && !q.isVisible ? ' pf-quote--hidden' : ''}`}
+                        >
+                            <div className="pf-quote-head">
+                                {q.author.picture ? (
+                                    <img
+                                        className="pf-quote-avatar"
+                                        src={q.author.picture}
+                                        alt=""
+                                        referrerPolicy="no-referrer"
+                                        loading="lazy"
+                                        decoding="async"
+                                    />
+                                ) : (
+                                    <div className="pf-quote-avatar pf-quote-avatar--fallback">
+                                        {(q.author.name || '?').charAt(0).toUpperCase()}
+                                    </div>
+                                )}
+                                <span className="pf-quote-author">{q.author.name}</span>
+                                {isOwnProfile && !q.isVisible ? (
+                                    <span className="pf-quote-badge">{t('profile.quotesHiddenBadge')}</span>
+                                ) : null}
+                            </div>
+                            <blockquote className="pf-quote-text">{q.text}</blockquote>
+                            {isOwnProfile ? (
+                                <div className="pf-quote-actions">
+                                    <button
+                                        type="button"
+                                        className="pf-quote-toggle"
+                                        onClick={() => void setVisibility(q.id, !q.isVisible)}
+                                    >
+                                        {q.isVisible ? t('profile.quotesHide') : t('profile.quotesShow')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="pf-quote-del"
+                                        onClick={() => remove(q.id)}
+                                    >
+                                        {t('profile.quotesDelete')}
+                                    </button>
+                                </div>
+                            ) : null}
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
 }
 
 function BioBlock({

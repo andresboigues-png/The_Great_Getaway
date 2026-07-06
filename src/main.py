@@ -30,6 +30,7 @@ from routes.notifications import bp as notifications_bp
 from routes.ops import bp as ops_bp
 from routes.pdf import bp as pdf_bp
 from routes.public import bp as public_bp
+from routes.quotes import bp as quotes_bp
 from routes.settings import bp as settings_bp
 from routes.settlements import bp as settlements_bp
 from routes.templates import bp as templates_bp
@@ -180,6 +181,7 @@ app.register_blueprint(feed_bp)
 app.register_blueprint(follows_bp)
 app.register_blueprint(friends_bp)
 app.register_blueprint(integrations_bp)
+app.register_blueprint(quotes_bp)
 app.register_blueprint(media_bp)
 app.register_blueprint(notifications_bp)
 app.register_blueprint(ops_bp)
