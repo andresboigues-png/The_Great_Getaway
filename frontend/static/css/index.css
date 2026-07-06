@@ -6720,6 +6720,12 @@ main#app-container.nav-anim-backward {
     border-color: rgba(0, 113, 227, 0.35);
     color: var(--accent-blue-deep, #005bb8);
 }
+/* Icon variant (bullet-list glyph) — centre the SVG. */
+.plan-md-toolbar__btn--icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
 
 /* Live preview of the rendered notes, under the editor textarea. */
 .plan-md-preview {

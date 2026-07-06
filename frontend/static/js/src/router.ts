@@ -318,6 +318,22 @@ export function navigate(
     const content = document.getElementById('app-container');
     if (!content) return;
 
+    // Tapping the ALREADY-active nav tab is a "scroll to top" gesture (like
+    // iOS). Handle it SYNCHRONOUSLY here and bail — no page re-mount needed,
+    // and doing it inline (rather than in the async loader .then()) makes it
+    // reliable regardless of chunk/mount timing, which was why the deferred
+    // version didn't always fire. Guarded to genuine chrome taps on the
+    // current page while signed in.
+    if (
+        params?.fromNavClick === true &&
+        !preserveScroll &&
+        !!STATE.user &&
+        currentPage === page
+    ) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+    }
+
     // FIXING_ROADMAP §1.8 — abort any in-flight requests from the
     // previous page and start a fresh controller for this nav. Anything
     // the previous page was awaiting (chunk-load notwithstanding)

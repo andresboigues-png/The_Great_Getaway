@@ -71,7 +71,7 @@ import { openAccommodationModal } from '../../pages/home/accommodationModal.js';
 import { repaintPathTab } from '../../pages/home/pathSelection.js';
 import { iconSvg } from '../../icons.js';
 import { sizedUploadUrl } from '../../utils/mediaUrl';
-import { PlanText, planTextHasContent } from './PlanText.js';
+import { PlanText, planTextHasFormatting } from './PlanText.js';
 import type { MarkedPlace, Trip, TripChecklistItem, TripDay } from '../../types';
 
 type Slot = 'morning' | 'afternoon' | 'evening';
@@ -825,12 +825,26 @@ export function DayDetailModal({
                     interferes with the draft. */}
                 <div className="plan-md-toolbar" role="toolbar" aria-label={t('dayDetail.fmtToolbarAria')}>
                     <button type="button" className="plan-md-toolbar__btn" aria-label={t('dayDetail.fmtBoldAria')}
-                        title={t('dayDetail.fmtBoldAria')} onClick={() => wrapPlanSelection(slot, '**')}>
+                        title={t('dayDetail.fmtBoldAria')}
+                        onPointerDown={(e) => e.preventDefault()}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => wrapPlanSelection(slot, '**')}>
                         <strong>B</strong>
                     </button>
-                    <button type="button" className="plan-md-toolbar__btn" aria-label={t('dayDetail.fmtBulletAria')}
-                        title={t('dayDetail.fmtBulletAria')} onClick={() => bulletPlanLines(slot)}>
-                        {'• —'}
+                    <button type="button" className="plan-md-toolbar__btn plan-md-toolbar__btn--icon"
+                        aria-label={t('dayDetail.fmtBulletAria')} title={t('dayDetail.fmtBulletAria')}
+                        onPointerDown={(e) => e.preventDefault()}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => bulletPlanLines(slot)}>
+                        {/* Standard bullet-list glyph — three dots + lines. */}
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <circle cx="4" cy="6" r="1.7" />
+                            <circle cx="4" cy="12" r="1.7" />
+                            <circle cx="4" cy="18" r="1.7" />
+                            <rect x="8.5" y="5" width="11.5" height="2" rx="1" />
+                            <rect x="8.5" y="11" width="11.5" height="2" rx="1" />
+                            <rect x="8.5" y="17" width="11.5" height="2" rx="1" />
+                        </svg>
                     </button>
                 </div>
                 <textarea ref={planTaRef(slot)} className="plain-textarea plan-input" data-time={slot}
@@ -841,13 +855,15 @@ export function DayDetailModal({
                         queueSave();
                         forceRender(); // tab count chips + live preview track live
                     }} />
-                {/* Live preview of the markdown-lite result. Reads the
-                    textarea's current value (ref set after the first commit;
-                    falls back to the saved plan before that). forceRender on
-                    every input keeps it in step. Hidden while empty. */}
+                {/* Live preview — shown ONLY when the note actually uses
+                    formatting (**bold** or a "- " bullet). For plain text it
+                    stays hidden, so it no longer reads as a confusing duplicate
+                    of what you just typed; it appears only when it's genuinely
+                    useful (to show how the markers will render). Reads the
+                    textarea's live value; forceRender on input keeps it fresh. */}
                 {(() => {
                     const live = planTaRef(slot).current?.value ?? ((day.plan as Record<string, string> | undefined)?.[slot] || '');
-                    if (!planTextHasContent(live)) return null;
+                    if (!planTextHasFormatting(live)) return null;
                     return (
                         <div className="plan-md-preview" aria-hidden="true">
                             <div className="plan-md-preview__label">{t('dayDetail.notesPreviewLabel')}</div>

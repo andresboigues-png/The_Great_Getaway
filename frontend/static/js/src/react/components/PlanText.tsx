@@ -36,6 +36,14 @@ export function planTextHasContent(text?: string | null): boolean {
     return !!text && !!text.trim();
 }
 
+/** True when the notes actually USE markdown-lite formatting — a **bold**
+ *  span or a "- "/"* " bullet line. Used to show the editor preview only
+ *  when it's meaningful (never for plain text). */
+export function planTextHasFormatting(text?: string | null): boolean {
+    if (!text) return false;
+    return /\*\*[^*\n]+\*\*/.test(text) || /(^|\n)[ \t]*[-*][ \t]+\S/.test(text);
+}
+
 export function PlanText({
     text,
     emptyText,
