@@ -384,11 +384,15 @@ function ProfileContent({
                 </button>
             ) : null}
 
-            {/* Profile Header */}
-            <div
-                className="profile-header flex items-start gap-10 py-[30px] px-5 border-b border-[var(--glass-border)] mb-[30px]"
-            >
-                <ProfilePicSection isOwnProfile={isOwnProfile} user={user} />
+            {/* ── SECTION 1 · Info ─────────────────────────────────── */}
+            <div className="pf-section-header">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                </svg>
+                {isOwnProfile ? 'Info' : `${user.name.split(' ')[0]}'s info`}
+            </div>
+            <div className="pf-card">
                 <ProfileInfoSection
                     isOwnProfile={isOwnProfile}
                     user={user}
@@ -400,64 +404,45 @@ function ProfileContent({
                 />
             </div>
 
-            {/* Footprint label */}
-            <div className="flex justify-center mb-6">
-                {/* a11y: -deep (#005bb8) not plain accent-blue (#0071e3) —
-                    this small bold label sits on the #f5f5f7 subtle surface
-                    where #0071e3 is only 4.31:1 (fails WCAG AA). The deep
-                    token clears it and matches Settings.tsx's label pattern. */}
-                <div
-                    className="flex items-center gap-2 font-bold text-[0.9rem] tracking-wider uppercase text-accent-blue-deep"
-                >
-                    {/* Literal footprint glyph (sole + 5 toes). */}
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <ellipse cx="12" cy="14" rx="4.2" ry="6" />
-                        <ellipse cx="6.5" cy="6" rx="1.4" ry="1.7" />
-                        <ellipse cx="9.6" cy="3.7" rx="1.3" ry="1.6" />
-                        <ellipse cx="13.1" cy="3.4" rx="1.3" ry="1.6" />
-                        <ellipse cx="16.3" cy="4.5" rx="1.3" ry="1.6" />
-                        <ellipse cx="18.4" cy="7.4" rx="1.3" ry="1.6" />
-                    </svg>
-                    {isOwnProfile ? 'Your footprint' : `${user.name.split(' ')[0]}'s footprint`}
-                </div>
+            {/* ── SECTION 2 · Your footprint (achievements + map) ──── */}
+            <div className="pf-section-header">
+                {/* Literal footprint glyph (sole + 5 toes). */}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <ellipse cx="12" cy="14" rx="4.2" ry="6" />
+                    <ellipse cx="6.5" cy="6" rx="1.4" ry="1.7" />
+                    <ellipse cx="9.6" cy="3.7" rx="1.3" ry="1.6" />
+                    <ellipse cx="13.1" cy="3.4" rx="1.3" ry="1.6" />
+                    <ellipse cx="16.3" cy="4.5" rx="1.3" ry="1.6" />
+                    <ellipse cx="18.4" cy="7.4" rx="1.3" ry="1.6" />
+                </svg>
+                {isOwnProfile ? 'Your footprint' : `${user.name.split(' ')[0]}'s footprint`}
             </div>
+            <div className="pf-card">
+                {/* Achievements — shown on own profile even when empty so the
+                    surface is discoverable; hidden on a friend's profile when
+                    nothing's earned. */}
+                {(achievements.length > 0 || isOwnProfile) ? (
+                    <>
+                        <div className="flex items-baseline justify-between mb-[14px]">
+                            <h3 className="m-0 text-base font-extrabold tracking-[-0.02em] text-primary">
+                                🏅 Achievements
+                            </h3>
+                            <span className="text-[0.8rem] text-secondary font-semibold">
+                                {achievements.length} earned
+                            </span>
+                        </div>
+                        {achievements.length === 0 ? (
+                            <p className="m-0 text-secondary text-[0.85rem] text-center py-3 px-0">
+                                Earn your first badge by creating a trip, completing one, or settling up with a friend.
+                            </p>
+                        ) : (
+                            <AchievementsStrip achievements={achievements} />
+                        )}
+                        <div className="pf-divider" />
+                    </>
+                ) : null}
 
-            {/* Achievements — visible on own profile even when empty
-                (so the surface is discoverable). Hidden entirely on a
-                friend's profile when there's nothing earned. */}
-            {(achievements.length > 0 || isOwnProfile) ? (
-                <div
-                    className="mt-[30px] p-5 rounded-[16px] bg-[rgba(0,113,227,0.04)] border border-[var(--glass-border)]"
-                >
-                    <div
-                        className="flex items-baseline justify-between mb-[14px]"
-                    >
-                        <h3
-                            className="m-0 text-base font-extrabold tracking-[-0.02em] text-primary"
-                        >
-                            🏅 Achievements
-                        </h3>
-                        <span className="text-[0.8rem] text-secondary font-semibold">
-                            {achievements.length} earned
-                        </span>
-                    </div>
-                    {achievements.length === 0 ? (
-                        <p
-                            className="m-0 text-secondary text-[0.85rem] text-center py-3 px-0"
-                        >
-                            Earn your first badge by creating a trip, completing one, or settling up with a friend.
-                        </p>
-                    ) : (
-                        <AchievementsStrip achievements={achievements} />
-                    )}
-                </div>
-            ) : null}
-
-            {/* Footprint section */}
-            <div className="mt-5">
-                <p
-                    className="text-secondary text-center mt-0 mb-6 text-[0.9rem]"
-                >
+                <p className="text-secondary text-center mt-0 mb-5 text-[0.88rem]">
                     {isOwnProfile
                         ? "Every country you've been to, lit up."
                         : `Explore where ${user.name.split(' ')[0]} has been.`}
@@ -697,36 +682,22 @@ function ProfileInfoSection({
     useEffect(() => setFollowers(followSnap.followers), [followSnap.followers]);
 
     return (
-        <div className="profile-info flex-1 pt-[10px] min-w-0">
-            <div
-                className="profile-name-row flex items-center justify-between mb-6 gap-3"
-            >
-                <h2
-                    className="m-0 text-[1.6rem] font-bold text-primary tracking-[-0.02em] min-w-0 wrap-anywhere"
-                >
-                    {user.name}
-                </h2>
-                {isOwnProfile ? (
-                    <button
-                        type="button"
-                        className="btn-logout"
-                        onClick={() => {
-                            void logout();
-                        }}
-                    >
-                        {t('profile.logOut')}
-                    </button>
-                ) : targetUserId ? (
-                    <div className="flex items-center gap-2">
+        <>
+            {/* Identity — avatar + name + email + status/follow, centred. */}
+            <div className="pf-identity">
+                <ProfilePicSection isOwnProfile={isOwnProfile} user={user} />
+                <h2 className="pf-identity__name">{user.name}</h2>
+                <span className="pf-identity__email">{user.email}</span>
+                {!isOwnProfile && targetUserId ? (
+                    <div className="flex items-center gap-2 mt-1">
                         <FollowButton
                             targetUserId={targetUserId}
                             initialIsFollowing={followSnap.isFollowing}
                             onFollowersChange={setFollowers}
                         />
-                        {/* Audit MK5 P1: the Block primitive is fully enforced
-                            server-side but had NO UI entry point. Overflow
-                            button next to Follow → confirm → blockUser. Unblock
-                            lives in Settings → Blocked. */}
+                        {/* Audit MK5 P1: Block was server-enforced but had NO UI
+                            entry — overflow next to Follow → confirm → blockUser.
+                            Unblock lives in Settings → Blocked. */}
                         <button
                             type="button"
                             className="btn-small bg-[rgba(0,0,0,0.05)] text-primary border border-[var(--glass-border)] rounded-md w-8 h-8 flex items-center justify-center font-bold leading-none shrink-0"
@@ -757,30 +728,19 @@ function ProfileInfoSection({
                 ) : null}
             </div>
 
-            {/* Profile stats — visual identity shared across all 4
-                values. Each row reads `{count}  {accent-blue label}`.
-                The blue label colour comes from --accent-blue-deep
-                so it pops on both light + dark. Friends is an extra
-                button (interactive); the other three are read-only
-                spans but adopt the same visual rhythm. */}
-            <div
-                className="profile-stats flex gap-8 mb-6 flex-wrap"
-            >
-                <ProfileStat
-                    count={trips.length}
-                    label={tn('profile.publicTripsLabel', trips.length)}
-                />
-                <ProfileStat
-                    count={countryCount}
-                    label={tn('profile.countriesLabel', countryCount)}
-                />
+            {/* Stats — trips / countries / followers / following / friends. */}
+            <div className="pf-stats">
+                <ProfileStat count={trips.length} label={tn('profile.publicTripsLabel', trips.length)} />
+                <ProfileStat count={countryCount} label={tn('profile.countriesLabel', countryCount)} />
                 <ProfileStat count={followers} label={tn('profile.followersLabel', followers)} />
                 <ProfileStat count={followSnap.following} label={tn('profile.followingLabel', followSnap.following)} />
                 {isOwnProfile ? <FriendsStat /> : null}
             </div>
 
-            <BioBlock isOwnProfile={isOwnProfile} user={user} />
-        </div>
+            <div className="pf-divider" />
+
+            <BioBlock isOwnProfile={isOwnProfile} user={user} onLogout={() => void logout()} />
+        </>
     );
 }
 
@@ -792,15 +752,9 @@ function ProfileInfoSection({
 // the same inner span styles.
 function ProfileStat({ count, label }: { count: number; label: string }) {
     return (
-        <div className="text-left inline-flex items-baseline gap-1">
-            <span className="pf-heading-name">
-                {count}
-            </span>
-            <span
-                className="text-[1.1rem] text-accent-blue-deep font-semibold"
-            >
-                {label}
-            </span>
+        <div className="pf-stat">
+            <span className="pf-stat__count">{count}</span>
+            <span className="pf-stat__label">{label}</span>
         </div>
     );
 }
@@ -845,21 +799,10 @@ function FriendsStat() {
         <button
             type="button"
             onClick={onClick}
-            className="bg-none border-0 p-0 cursor-pointer text-left inline-flex items-baseline gap-1 font-[inherit]"
+            className="pf-stat pf-stat--tappable bg-none border-0 p-0 cursor-pointer font-[inherit]"
         >
-            <span className="pf-heading-name">
-                {count === null ? '—' : String(count)}
-            </span>
-            <span
-                style={{
-                    fontSize: '1.1rem',
-                    color: 'var(--accent-blue-deep)',
-                    fontWeight: 600,
-                    textDecoration: 'underline',
-                    textDecorationColor: 'rgba(0,113,227,0.32)',
-                    textUnderlineOffset: 3,
-                }}
-            >
+            <span className="pf-stat__count">{count === null ? '—' : String(count)}</span>
+            <span className="pf-stat__label underline decoration-[rgba(0,113,227,0.32)] underline-offset-2">
                 {tn('profile.friendsLabel', count ?? 0)}
             </span>
         </button>
@@ -871,9 +814,11 @@ function FriendsStat() {
 function BioBlock({
     isOwnProfile,
     user,
+    onLogout,
 }: {
     isOwnProfile: boolean;
     user: User & { bio?: string; status?: string };
+    onLogout: () => void;
 }) {
     // Uncontrolled inputs with refs — match the legacy pattern. Save
     // button reads values on click. We track dirty state via a single
@@ -985,163 +930,154 @@ function BioBlock({
         }
     };
 
-    return (
-        <div className="profile-bio-block">
-            <div
-                className="profile-email text-[0.95rem] font-bold text-primary mb-1 wrap-anywhere"
-            >
-                {user.email}
-            </div>
+    // Chevron for a settings-row <select> (the brand-select is styled
+    // appearance:none, so it needs an explicit glyph).
+    const chevron = <div className="brand-select-chevron pf-right-10">▼</div>;
 
-            <div className="relative inline-block mb-2">
-                {isOwnProfile ? (
-                    <>
-                        <select
-                            ref={statusRef}
-                            className="brand-select pt-0.5 pr-6 pb-0.5 pl-2.5 text-[length:var(--font-base)]"
-                            aria-label={t('profile.statusAriaLabel')}
-                            defaultValue={user.status || ''}
-                            onChange={() => setDirty(true)}
-                        >
-                            <option value="" disabled>
-                                {t('profile.statusSet')}
-                            </option>
-                            {/* R11-B4 i18n: the `value` stays English
-                                because that's what gets stored in
-                                users.status — translating values would
-                                orphan every existing user's stored
-                                status. Display labels are translated. */}
-                            <option value="Deliberating next trip">{t('profile.statusDeliberating')}</option>
-                            <option value="Preparing a trip right now">{t('profile.statusPreparing')}</option>
-                            <option value="Exploring the world">{t('profile.statusExploring')}</option>
-                            <option value="Resting at home base">{t('profile.statusResting')}</option>
-                            <option value="Hunting for flight deals">{t('profile.statusHunting')}</option>
-                        </select>
-                        <div className="brand-select-chevron right-2">
-                            ▼
-                        </div>
-                    </>
-                ) : (
-                    <div
-                        className="bg-[rgba(0,_113,_227,_0.05)] text-[#005bb8] rounded-[var(--radius-md)] py-1 px-3 text-[length:var(--font-base)] font-bold inline-block"
-                    >
-                        {(() => {
-                            // R11-B4: translate well-known stored statuses
-                            // for display. Unknown statuses (custom edits
-                            // via direct DB or future server fields) pass
-                            // through unchanged so we don't lose data.
-                            if (!user.status) return t('profile.statusDefault');
-                            const lookup: Record<string, string> = {
-                                'Deliberating next trip': t('profile.statusDeliberating'),
-                                'Preparing a trip right now': t('profile.statusPreparing'),
-                                'Exploring the world': t('profile.statusExploring'),
-                                'Resting at home base': t('profile.statusResting'),
-                                'Hunting for flight deals': t('profile.statusHunting'),
-                            };
-                            return lookup[user.status] || user.status;
-                        })()}
+    if (!isOwnProfile) {
+        // Foreign profile — status pill + read-only bio.
+        const statusLabel = (() => {
+            if (!user.status) return t('profile.statusDefault');
+            const lookup: Record<string, string> = {
+                'Deliberating next trip': t('profile.statusDeliberating'),
+                'Preparing a trip right now': t('profile.statusPreparing'),
+                'Exploring the world': t('profile.statusExploring'),
+                'Resting at home base': t('profile.statusResting'),
+                'Hunting for flight deals': t('profile.statusHunting'),
+            };
+            return lookup[user.status] || user.status;
+        })();
+        return (
+            <div className="profile-bio-block">
+                <div className="flex justify-center mb-3">
+                    <div className="bg-[rgba(0,113,227,0.06)] text-[#005bb8] rounded-full py-1.5 px-4 text-[0.85rem] font-bold">
+                        {statusLabel}
                     </div>
-                )}
-            </div>
-
-            {isOwnProfile ? (
-                <>
-                    <textarea
-                        ref={bioRef}
-                        className="bio-input"
-                        placeholder={t('profile.bioPlaceholder')}
-                        defaultValue={user.bio || ''}
-                        onInput={() => setDirty(true)}
-                    />
-
-                    <div className="pf-section-container">
-                        <label
-                            className="block text-xs font-bold text-secondary mb-1.5 tracking-[0.04em]"
-                        >
-                            Home country — where you call "home base"
-                        </label>
-                        <div className="relative inline-block">
-                            <select
-                                ref={homeCountryRef}
-                                className="brand-select pf-pill-sm"
-                                aria-label={t('profile.homeCountryAria')}
-                                defaultValue={user.homeCountry || ''}
-                                onChange={() => setDirty(true)}
-                            >
-                                {/* Empty option = "not set" sentinel.
-                                    Picking it clears the home country
-                                    server-side (we send null). */}
-                                <option value="">— Not set —</option>
-                                {COUNTRIES.map((c) => (
-                                    <option key={c} value={c}>
-                                        {c}
-                                    </option>
-                                ))}
-                            </select>
-                            <div className="brand-select-chevron pf-right-10">
-                                ▼
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="pf-section-container">
-                        <label
-                            className="block text-xs font-bold text-secondary mb-1.5 tracking-[0.04em]"
-                        >
-                            Home currency — what you'll see totals and insights in
-                        </label>
-                        <div className="relative inline-block">
-                            <select
-                                ref={homeCurrencyRef}
-                                className="brand-select pf-pill-sm"
-                                aria-label={t('profile.homeCurrencyAria')}
-                                defaultValue={getHomeCurrency()}
-                                onChange={() => void onHomeCurrencyChange()}
-                            >
-                                {Object.keys(CONVERSION_RATES).map((code) => (
-                                    <option key={code} value={code}>
-                                        {CURRENCY_SYMBOLS[code] || code}&nbsp;&nbsp;{code}
-                                    </option>
-                                ))}
-                            </select>
-                            <div className="brand-select-chevron pf-right-10">
-                                ▼
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mt-2">
-                        <button
-                            type="button"
-                            className="btn btn-small"
-                            onClick={() => void onSave()}
-                            disabled={saving || !dirty}
-                            style={{
-                                background: 'var(--text-primary)',
-                                color: 'var(--bg-color)',
-                                padding: '10px 18px',
-                                minHeight: 'var(--tap-min)',
-                                borderRadius: 999,
-                                border: 0,
-                                fontWeight: 700,
-                                fontSize: '0.85rem',
-                                opacity: dirty ? 1 : 0,
-                                transition: 'opacity 0.3s',
-                                pointerEvents: dirty ? 'auto' : 'none',
-                                cursor: dirty ? 'pointer' : 'default',
-                            }}
-                        >
-                            {saving ? 'Saving…' : 'Save Profile'}
-                        </button>
-                    </div>
-                </>
-            ) : (
-                <p
-                    className="text-[0.95rem] text-primary leading-[1.5] my-1 mx-0"
-                >
+                </div>
+                <p className="text-[0.95rem] text-primary leading-[1.55] text-center m-0">
                     {user.bio || t('profile.noBioYet')}
                 </p>
-            )}
+            </div>
+        );
+    }
+
+    // Own profile — editable bio + settings rows + save/logout.
+    return (
+        <div className="profile-bio-block">
+            <textarea
+                ref={bioRef}
+                className="bio-input"
+                placeholder={t('profile.bioPlaceholder')}
+                defaultValue={user.bio || ''}
+                onInput={() => setDirty(true)}
+            />
+
+            {/* Status */}
+            <div className="pf-setting-row">
+                <div className="pf-setting-row__text">
+                    <div className="pf-setting-row__label">Status</div>
+                </div>
+                <div className="pf-setting-row__control relative inline-block">
+                    <select
+                        ref={statusRef}
+                        className="brand-select pf-pill-sm"
+                        aria-label={t('profile.statusAriaLabel')}
+                        defaultValue={user.status || ''}
+                        onChange={() => setDirty(true)}
+                    >
+                        <option value="" disabled>
+                            {t('profile.statusSet')}
+                        </option>
+                        {/* value stays English (stored in users.status);
+                            display labels are translated (R11-B4). */}
+                        <option value="Deliberating next trip">{t('profile.statusDeliberating')}</option>
+                        <option value="Preparing a trip right now">{t('profile.statusPreparing')}</option>
+                        <option value="Exploring the world">{t('profile.statusExploring')}</option>
+                        <option value="Resting at home base">{t('profile.statusResting')}</option>
+                        <option value="Hunting for flight deals">{t('profile.statusHunting')}</option>
+                    </select>
+                    {chevron}
+                </div>
+            </div>
+
+            {/* Home country */}
+            <div className="pf-setting-row">
+                <div className="pf-setting-row__text">
+                    <div className="pf-setting-row__label">Home country</div>
+                </div>
+                <div className="pf-setting-row__control relative inline-block">
+                    <select
+                        ref={homeCountryRef}
+                        className="brand-select pf-pill-sm"
+                        aria-label={t('profile.homeCountryAria')}
+                        defaultValue={user.homeCountry || ''}
+                        onChange={() => setDirty(true)}
+                    >
+                        {/* Empty = "not set" sentinel → cleared server-side (null). */}
+                        <option value="">— Not set —</option>
+                        {COUNTRIES.map((c) => (
+                            <option key={c} value={c}>
+                                {c}
+                            </option>
+                        ))}
+                    </select>
+                    {chevron}
+                </div>
+            </div>
+
+            {/* Home currency */}
+            <div className="pf-setting-row">
+                <div className="pf-setting-row__text">
+                    <div className="pf-setting-row__label">Home currency</div>
+                </div>
+                <div className="pf-setting-row__control relative inline-block">
+                    <select
+                        ref={homeCurrencyRef}
+                        className="brand-select pf-pill-sm"
+                        aria-label={t('profile.homeCurrencyAria')}
+                        defaultValue={getHomeCurrency()}
+                        onChange={() => void onHomeCurrencyChange()}
+                    >
+                        {Object.keys(CONVERSION_RATES).map((code) => (
+                            <option key={code} value={code}>
+                                {CURRENCY_SYMBOLS[code] || code}&nbsp;&nbsp;{code}
+                            </option>
+                        ))}
+                    </select>
+                    {chevron}
+                </div>
+            </div>
+
+            <div className="pf-divider" />
+
+            {/* Save (appears when dirty) + Log out. */}
+            <div className="flex items-center justify-between gap-3">
+                <button type="button" className="btn-logout" onClick={onLogout}>
+                    {t('profile.logOut')}
+                </button>
+                <button
+                    type="button"
+                    className="btn btn-small"
+                    onClick={() => void onSave()}
+                    disabled={saving || !dirty}
+                    style={{
+                        background: 'var(--text-primary)',
+                        color: 'var(--bg-color)',
+                        padding: '10px 20px',
+                        minHeight: 'var(--tap-min)',
+                        borderRadius: 999,
+                        border: 0,
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        opacity: dirty ? 1 : 0,
+                        transition: 'opacity 0.3s',
+                        pointerEvents: dirty ? 'auto' : 'none',
+                        cursor: dirty ? 'pointer' : 'default',
+                    }}
+                >
+                    {saving ? 'Saving…' : 'Save Profile'}
+                </button>
+            </div>
         </div>
     );
 }

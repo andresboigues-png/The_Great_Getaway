@@ -156,3 +156,125 @@
     font-weight: 700;
     color: var(--text-primary);
 }
+
+/* ── Profile redesign — Info + Your footprint sections ────────────
+   Two premium cards, each under a small uppercase section header.
+   Apple-ish: soft white cards, generous radius + spacing, hairline
+   dividers, controls that read as settings rows rather than a form. */
+.pf-section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 800;
+    font-size: 0.76rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent-blue-deep, #005bb8);
+    margin: 0 6px 12px;
+}
+.pf-section-header svg {
+    flex-shrink: 0;
+}
+
+.pf-card {
+    background: var(--card-bg, #ffffff);
+    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.07));
+    border-radius: 26px;
+    padding: 28px 24px;
+    box-shadow: 0 12px 34px rgba(0, 45, 91, 0.06);
+    margin-bottom: 30px;
+}
+
+/* Card 1 (Info) top block — avatar + name + status, centred + airy. */
+.pf-identity {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+}
+.pf-identity__name {
+    margin: 4px 0 0;
+    font-size: 1.55rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+}
+.pf-identity__email {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    overflow-wrap: anywhere;
+}
+
+/* Stats row — evenly split, hairline separators, tap-legible. */
+.pf-stats {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px 22px;
+    margin: 22px 0 4px;
+}
+.pf-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    min-width: 62px;
+}
+.pf-stat__count {
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    line-height: 1.1;
+}
+.pf-stat__label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-secondary);
+    text-transform: lowercase;
+}
+.pf-stat--tappable .pf-stat__label {
+    color: var(--accent-blue-deep, #005bb8);
+}
+
+.pf-divider {
+    height: 1px;
+    background: var(--glass-border, rgba(0, 45, 91, 0.08));
+    margin: 22px -24px;
+}
+
+/* iOS-style setting row: label (with hint) left, control right. */
+.pf-setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 15px 0;
+}
+.pf-setting-row + .pf-setting-row {
+    border-top: 1px solid var(--glass-border, rgba(0, 45, 91, 0.07));
+}
+.pf-setting-row__text {
+    min-width: 0;
+}
+.pf-setting-row__label {
+    font-size: 0.94rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+}
+.pf-setting-row__hint {
+    display: block;
+    font-size: 0.74rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+.pf-setting-row__control {
+    flex-shrink: 0;
+}
