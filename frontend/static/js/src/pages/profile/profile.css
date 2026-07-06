@@ -208,128 +208,86 @@
     overflow-wrap: anywhere;
 }
 
-/* ── Stats tiles (top of the profile) ─────────────────────────────
-   Shaded squares, one metric each, in a responsive grid. Each tile
-   carries its own tint via data-tone so the row reads as a set of
-   distinct, colourful cards rather than a flat number row. */
-.pf-tiles {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
-    gap: 10px;
-    margin-bottom: 22px;
+/* ── Icon toggle (Info ⇆ Footprint) on top ────────────────────────
+   Reuses the app-wide .seg-control; these overrides just centre the icon
+   in each segment and give the two-option pill comfortable tap targets. */
+.pf-seg-icons .seg-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 68px;
+    padding: 8px 0;
 }
-.pf-tile {
+
+/* ── Stats bar (inside the Info card) ─────────────────────────────
+   An understated row: navy numbers over tiny uppercase labels, split by
+   hairline vertical dividers. Monochrome + minimal — no coloured tiles. */
+.pf-statbar {
+    display: flex;
+    margin: 20px 0 2px;
+    padding: 12px 2px;
+    border-radius: 16px;
+    background: rgba(0, 45, 91, 0.025);
+    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.06));
+}
+.pf-statcell {
+    position: relative;
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
     gap: 3px;
-    padding: 15px 8px;
-    border-radius: 18px;
-    background: var(--pf-tile-bg, rgba(0, 45, 91, 0.05));
-    border: 1px solid var(--pf-tile-border, rgba(0, 45, 91, 0.08));
-    text-align: center;
-    min-height: 76px;
+    padding: 2px 4px;
 }
-.pf-tile--tappable {
-    cursor: pointer;
-    transition: transform 0.12s ease, box-shadow 0.15s ease;
+.pf-statcell + .pf-statcell::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1px;
+    height: 58%;
+    background: var(--glass-border, rgba(0, 45, 91, 0.1));
 }
-.pf-tile--tappable:hover,
-.pf-tile--tappable:focus-visible {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(0, 45, 91, 0.1);
-}
-.pf-tile__count {
-    font-size: 1.5rem;
+.pf-statcell__num {
+    font-size: 1.35rem;
     font-weight: 800;
     letter-spacing: -0.02em;
     line-height: 1;
-    color: var(--pf-tile-fg, var(--text-primary));
+    color: var(--text-primary);
 }
-.pf-tile__label {
-    font-size: 0.66rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    color: var(--text-secondary);
-    text-transform: lowercase;
-}
-.pf-tile[data-tone="0"] {
-    --pf-tile-bg: rgba(0, 113, 227, 0.08);
-    --pf-tile-border: rgba(0, 113, 227, 0.14);
-    --pf-tile-fg: #0071e3;
-}
-.pf-tile[data-tone="1"] {
-    --pf-tile-bg: rgba(88, 86, 214, 0.08);
-    --pf-tile-border: rgba(88, 86, 214, 0.14);
-    --pf-tile-fg: #5856d6;
-}
-.pf-tile[data-tone="2"] {
-    --pf-tile-bg: rgba(52, 199, 89, 0.09);
-    --pf-tile-border: rgba(52, 199, 89, 0.16);
-    --pf-tile-fg: #248a3d;
-}
-.pf-tile[data-tone="3"] {
-    --pf-tile-bg: rgba(255, 149, 0, 0.1);
-    --pf-tile-border: rgba(255, 149, 0, 0.18);
-    --pf-tile-fg: #c86a00;
-}
-.pf-tile[data-tone="4"] {
-    --pf-tile-bg: rgba(216, 27, 72, 0.08);
-    --pf-tile-border: rgba(216, 27, 72, 0.15);
-    --pf-tile-fg: #d81b48;
-}
-
-/* ── Section card + side bookmark switch ──────────────────────────
-   The switch is a pair of vertical "bookmark" tabs pinned to the right
-   gutter beside the section card; the active tab is accent-filled. */
-.pf-section-wrap {
-    position: relative;
-    padding-right: 46px;
-}
-.pf-bookmark {
-    position: absolute;
-    top: 22px;
-    right: 0;
-    width: 40px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    z-index: 3;
-}
-.pf-bookmark__tab {
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-    padding: 14px 9px;
-    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.08));
-    border-right: 0;
-    border-radius: 12px 0 0 12px;
-    background: var(--card-bg, #fff);
-    color: var(--text-secondary);
+.pf-statcell__label {
+    font-size: 0.56rem;
     font-weight: 700;
-    font-size: 0.78rem;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+.pf-statcell--tappable {
     cursor: pointer;
-    box-shadow: -4px 4px 14px rgba(0, 45, 91, 0.06);
-    transition: color 0.15s ease, background 0.2s ease, box-shadow 0.2s ease;
+    background: none;
+    border: 0;
 }
-.pf-bookmark__tab[data-active="true"] {
-    background: linear-gradient(180deg, var(--accent-blue, #0071e3), #5856d6);
-    color: #fff;
-    border-color: transparent;
-    box-shadow: -4px 6px 16px rgba(0, 113, 227, 0.3);
+.pf-statcell--tappable:hover .pf-statcell__num,
+.pf-statcell--tappable:focus-visible .pf-statcell__num {
+    color: var(--accent-blue-deep, #005bb8);
 }
-/* Very narrow phones: trim the reserved gutter a touch. */
-@media (max-width: 380px) {
-    .pf-section-wrap {
-        padding-right: 40px;
+/* Narrow phones: shrink so all five cells + their labels stay on one row. */
+@media (max-width: 390px) {
+    .pf-statbar {
+        padding: 11px 0;
     }
-    .pf-bookmark {
-        width: 34px;
+    .pf-statcell {
+        padding: 2px 2px;
     }
-    .pf-bookmark__tab {
-        font-size: 0.72rem;
-        padding: 12px 7px;
+    .pf-statcell__num {
+        font-size: 1.15rem;
+    }
+    .pf-statcell__label {
+        font-size: 0.5rem;
+        letter-spacing: 0.02em;
     }
 }
 
