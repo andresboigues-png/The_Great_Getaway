@@ -23,7 +23,7 @@ import {
     removeTripMember,
     type FriendListEntry,
 } from '../api.js';
-import { findTripCompanion, addTripCompanion, removeTripCompanion } from '../companions.js';
+import { findTripCompanion, addTripCompanion, removeTripCompanion, dedupeLinkedCompanions } from '../companions.js';
 import { computeTripBalances } from '../pages/settlement/balances.js';
 import { ROLE_PLANNER, ROLE_BUDGETEER, ROLE_RELAXER, canManageRoster } from '../permissions.js';
 import { showModal } from '../components/Modal.js';
@@ -77,6 +77,19 @@ export const openCompanionPickerModal = (tripId: string) => {
             .filter(Boolean)
             .map((n) => String(n).toLocaleLowerCase())
     );
+
+    // Does a companion NAME still carry balance-affecting history on this
+    // trip (an expense payer/split key, or a per-person budget)? Used by
+    // the merge so a duplicate self/friend row that owns real history is
+    // kept (de-linked) rather than deleted — settlements are user_id-keyed
+    // so they follow the surviving link and don't count here.
+    const companionNameHasHistory = (name: string): boolean => {
+        const lower = name.toLocaleLowerCase();
+        if (referencedNames.has(lower)) return true;
+        return (STATE.budgets || []).some(
+            (b) => b.tripId === tripId && (b.user || '').toLocaleLowerCase() === lower,
+        );
+    };
 
     // Members on the trip already (accepted invitations). Used to render
     // role badges on linked rows.
@@ -221,9 +234,9 @@ export const openCompanionPickerModal = (tripId: string) => {
         // "This is me" row — shown only when LINKING an existing companion
         // (a fresh "Add a friend" shouldn't re-add the owner). Lets the owner
         // mark an imported name (e.g. "Andi") as themselves with NO invite.
-        // Allowed even if another row is already self-linked: the server
-        // dedupes companions by name, so two names can resolve to the owner,
-        // and the home chips collapse them into the single owner chip.
+        // If another row is already self-linked (e.g. the auto-stamped self
+        // companion), dedupeLinkedCompanions collapses the two on link so
+        // exactly ONE row stays the owner — never a duplicate You.
         const selfRow = (linkTarget && myId)
             ? `
             <div class="companion-row friend-pick-row picker-self-row">
@@ -395,7 +408,14 @@ export const openCompanionPickerModal = (tripId: string) => {
             const linkTarget = friendSheet.dataset.linkTargetName;
             if (linkTarget && myId) {
                 const c = findTripCompanion(trip, linkTarget);
-                if (c) c.linkedUserId = myId;
+                if (c) {
+                    c.linkedUserId = myId;
+                    // Merge away any pre-existing "Me" row (typically the
+                    // auto-stamped self companion) so linking never leaves a
+                    // duplicate You. The history-less auto row is deleted; a
+                    // row with real expense/budget history is kept, de-linked.
+                    dedupeLinkedCompanions(trip, myId, c.name, companionNameHasHistory);
+                }
                 delete friendSheet.dataset.linkTargetName;
                 emit('state:changed');
                 void upsertTrip(trip);
@@ -442,18 +462,23 @@ export const openCompanionPickerModal = (tripId: string) => {
             // Promote the row named by `linkTargetName` when set, else promote a
             // same-named unlinked row, else add a brand-new linked companion.
             const linkTarget = friendSheet.dataset.linkTargetName;
+            let survivorName = friendName;
             if (linkTarget) {
                 const c = findTripCompanion(trip, linkTarget);
-                if (c) c.linkedUserId = friendId;
+                if (c) { c.linkedUserId = friendId; survivorName = c.name; }
                 delete friendSheet.dataset.linkTargetName;
             } else {
                 const existingByName = findTripCompanion(trip, friendName);
                 if (existingByName && !existingByName.linkedUserId) {
                     existingByName.linkedUserId = friendId;
+                    survivorName = existingByName.name;
                 } else {
-                    addTripCompanion(trip, friendName, friendId);
+                    survivorName = addTripCompanion(trip, friendName, friendId).name;
                 }
             }
+            // One companion per friend account — collapse any duplicate rows
+            // that already resolved to this friend (mirrors the self case).
+            dedupeLinkedCompanions(trip, friendId, survivorName, companionNameHasHistory);
             emit('state:changed');
             void upsertTrip(trip);
             friendSheet.hidden = true;

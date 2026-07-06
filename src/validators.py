@@ -432,6 +432,13 @@ def clean_companions(comps, verified_linked_ids=None):
         return []
     out: list[dict] = []
     seen_names: set[str] = set()
+    # One companion per linked account. A second row carrying a
+    # linkedUserId we've already emitted is coerced to unlinked (its name
+    # survives as a plain companion; the duplicate link is dropped). This
+    # is the durable safety net behind the client-side merge
+    # (dedupeLinkedCompanions) — a stale client or a curl bypass can never
+    # persist two rows for the same profile (the "duplicate Me" bug).
+    seen_linked: set[str] = set()
     for c in comps:
         if not isinstance(c, dict):
             continue
@@ -464,6 +471,13 @@ def clean_companions(comps, verified_linked_ids=None):
         if linked and verified_linked_ids is not None:
             if linked not in verified_linked_ids:
                 linked = None
+        # Enforce one-companion-per-account: keep the first row for a given
+        # linkedUserId; de-link any later duplicate (name is preserved).
+        if linked:
+            if linked in seen_linked:
+                linked = None
+            else:
+                seen_linked.add(linked)
         link_status = c.get("linkStatus") if isinstance(c.get("linkStatus"), str) else None
         out.append(
             {

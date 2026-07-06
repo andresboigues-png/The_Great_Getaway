@@ -160,3 +160,44 @@ export function removeTripCompanion(trip: TripWithCompanions, name: string): boo
     trip.companions = trip.companions.filter(c => (c.name || '').toLocaleLowerCase() !== lower);
     return trip.companions.length < before;
 }
+
+/** Collapse duplicate companions that all link to the SAME account down
+ *  to one, after a link action. Fixes the "duplicate Me" bug: linking self
+ *  (or a friend) to an existing companion used to leave the auto-created
+ *  self row AND the freshly-linked row both carrying `linkedUserId`.
+ *
+ *  `survivorName` is the row the user explicitly linked — it always wins.
+ *  Every OTHER companion on the same `linkedUserId`:
+ *    - is DELETED when nothing references its name (`isReferenced` false —
+ *      the auto-stamped self row is the common, history-less case), or
+ *    - is DE-LINKED (kept as a plain unlinked companion) when its name
+ *      still carries expense / budget history, so balances never orphan
+ *      onto a phantom key (settlements are user_id-keyed, so they follow
+ *      the surviving link automatically and need no repointing).
+ *
+ *  `isReferenced(name)` is supplied by the caller (it owns the expense /
+ *  budget state) so this stays pure + unit-testable and avoids importing
+ *  STATE back into a module that state.ts itself imports.
+ *
+ *  Mutates `trip.companions` in place; the caller persists via upsertTrip. */
+export function dedupeLinkedCompanions(
+    trip: TripWithCompanions,
+    linkedUserId: string,
+    survivorName: string,
+    isReferenced: (name: string) => boolean,
+): void {
+    if (!trip.companions || !linkedUserId) return;
+    const survivorLower = survivorName.toLocaleLowerCase();
+    const toDelete: string[] = [];
+    for (const c of trip.companions) {
+        if (c.linkedUserId !== linkedUserId) continue;
+        if ((c.name || '').toLocaleLowerCase() === survivorLower) continue;
+        // Another companion resolves to the same account → collapse it.
+        if (isReferenced(c.name)) {
+            delete c.linkedUserId; // keep the name + its history, drop the link
+        } else {
+            toDelete.push(c.name);
+        }
+    }
+    for (const name of toDelete) removeTripCompanion(trip, name);
+}
