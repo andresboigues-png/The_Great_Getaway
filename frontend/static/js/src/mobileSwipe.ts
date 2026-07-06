@@ -114,6 +114,8 @@ const SWIPE_HORIZONTAL_RATIO = 1.5;
 //   own scroll — the same case as a slider — so it must NOT also slide the
 //   page / open the rail. Without this, scrubbing the graph fought the
 //   nav gesture.
+// - .pf-statstrip: the profile stats reel scrolls/loops horizontally — a
+//   swipe there spins the reel, so it must NOT also open the rail island.
 // NOTE: Google Maps containers are intentionally NOT opted out (they used
 //   to be). On mobile every map runs `cooperative` gestureHandling
 //   (mobileSafeGestureHandling), so ONE finger never pans the map — it
@@ -134,6 +136,7 @@ const SWIPE_OPT_OUT_SELECTORS = [
     '[contenteditable]',
     '[contenteditable="true"]',
     '.timeline-scroll',
+    '.pf-statstrip',
 ].join(',');
 
 let _wired = false;
