@@ -7268,3 +7268,24 @@ main#app-container.nav-anim-backward {
     background: rgba(88,86,214,0.1); color: #5856d6;
 }
 .templates-card__use { margin: 14px 16px 16px; }
+
+/* ── Rotated-phone (short landscape) tidy-up ─────────────────────────
+   A phone in landscape is wide enough (> 720px) to trigger the desktop
+   navbar + left rail, but only ~360-430px tall. Two fixes so the chrome
+   doesn't dominate the short viewport:
+   1. Keep the brand wordmark on ONE line — boxed to ~134px it wrapped to
+      three lines ("The Great / Get / away"), filling the 60px bar.
+   2. Tighten navbar side padding so the logo + links + trip switcher fit
+      without squeezing the wordmark column that caused the wrap.
+   Scoped to `max-height: 520px` so desktop (tall) + portrait phones are
+   untouched — only a rotated phone matches. */
+@media (orientation: landscape) and (max-height: 520px) {
+    .nav-brand {
+        white-space: nowrap;
+        font-size: 0.98rem;
+        line-height: 1.15;
+    }
+    .navbar {
+        padding: 0 18px;
+    }
+}
