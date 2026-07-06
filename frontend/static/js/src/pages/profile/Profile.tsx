@@ -33,11 +33,11 @@ import { useStore } from '../../react/store.js';
 import { STATE, emit } from '../../state.js';
 import { apiFetch, uploadMedia, blockUser } from '../../api.js';
 import { showLiquidAlert, getHomeCurrency, showConfirmModal } from '../../utils.js';
-import { CONVERSION_RATES, CURRENCY_SYMBOLS, COUNTRIES } from '../../constants.js';
+import { CONVERSION_RATES, CURRENCY_SYMBOLS } from '../../constants.js';
 import { navigate } from '../../router.js';
 import { clearAllManualFx } from '../../utils/manualRates.js';
 import { clearAllFxOverrides } from '../../utils/fxOverrides.js';
-import { countryCodeToContinent, countryNameToContinent } from '../../utils/place-names.js';
+import { countryCodeToContinent, countryNameToContinent, getCountryOptions } from '../../utils/place-names.js';
 import { t, tn } from '../../i18n.js';
 import {
     logout,
@@ -1145,6 +1145,30 @@ function StatStrip({ stats }: { stats: Stat[] }) {
 
 
 // ── Bio block: email + status + bio + (own only) save controls ───
+// English country name → ISO 3166-1 alpha-2 code, built once from the
+// same Intl-backed list the picker uses, so a stored home country always
+// resolves back to its flag.
+const _homeCountryToCode: Record<string, string> = (() => {
+    const m: Record<string, string> = {};
+    for (const { code, name } of getCountryOptions()) m[name.trim().toLowerCase()] = code;
+    return m;
+})();
+
+/** ISO alpha-2 code for a stored country name, '' if unknown. */
+function countryCodeFromName(name: string | null | undefined): string {
+    if (!name) return '';
+    return _homeCountryToCode[name.trim().toLowerCase()] || '';
+}
+
+/** ISO alpha-2 code → regional-indicator flag emoji ('' if not 2 letters).
+ *  Renders as a flag on the mobile targets; degrades to nothing elsewhere. */
+function codeToFlag(code: string): string {
+    if (!code || code.length !== 2 || !/^[a-zA-Z]{2}$/.test(code)) return '';
+    const A = 0x1f1e6;
+    const cc = code.toUpperCase();
+    return String.fromCodePoint(A + cc.charCodeAt(0) - 65, A + cc.charCodeAt(1) - 65);
+}
+
 function BioBlock({
     isOwnProfile,
     user,
@@ -1159,8 +1183,11 @@ function BioBlock({
     // boolean that flips on the first change of any field.
     const statusRef = useRef<HTMLInputElement | null>(null);
     const bioRef = useRef<HTMLTextAreaElement | null>(null);
-    const homeCurrencyRef = useRef<HTMLSelectElement | null>(null);
-    const homeCountryRef = useRef<HTMLSelectElement | null>(null);
+    // Home country + currency are now tappable tiles backed by searchable
+    // picker modals (openStatListModal), so they're controlled React state
+    // rather than <select> refs. Currency still auto-saves on pick.
+    const [homeCountry, setHomeCountry] = useState<string>(user.homeCountry || '');
+    const [homeCurrency, setHomeCurrency] = useState<string>(getHomeCurrency());
     const [dirty, setDirty] = useState(false);
     const [saving, setSaving] = useState(false);
 
@@ -1168,16 +1195,11 @@ function BioBlock({
         if (!STATE.user) return;
         const newStatus = statusRef.current?.value || '';
         const newBio = bioRef.current?.value || '';
-        const newHomeCurrency = homeCurrencyRef.current
-            ? homeCurrencyRef.current.value
-            : STATE.user.homeCurrency || null;
-        // Empty string = "Not set" sentinel from the dropdown — store
-        // as null so downstream readers (AI page default destination,
-        // country-stats) can distinguish "user actively cleared" from
-        // "never picked" without two states.
-        const newHomeCountry = homeCountryRef.current
-            ? homeCountryRef.current.value || null
-            : STATE.user.homeCountry || null;
+        const newHomeCurrency = homeCurrency || STATE.user.homeCurrency || null;
+        // Empty string = "Not set" sentinel from the picker — store as null
+        // so downstream readers (AI page default destination, country-stats)
+        // can distinguish "user actively cleared" from "never picked".
+        const newHomeCountry = homeCountry || null;
         setSaving(true);
         try {
             const res = await apiFetch('/api/profile/update', {
@@ -1224,20 +1246,20 @@ function BioBlock({
         }
     };
 
-    // Home currency applies IMMEDIATELY on change — it's a setting, not a form
+    // Home currency applies IMMEDIATELY on pick — it's a setting, not a form
     // field. Previously it only persisted via the "Save profile" button (hidden
     // until a field went dirty), so a user who just picked a currency saw it
     // silently not stick and Insights stayed on the EUR default. Auto-save fixes
     // that: POST → update STATE.user → emit so every surface re-reads the new
-    // home currency. On failure we revert the dropdown so it never lies.
-    const onHomeCurrencyChange = async () => {
+    // home currency. On failure we revert the tile so it never lies.
+    const applyHomeCurrency = async (code: string) => {
         if (!STATE.user) return;
-        const code = homeCurrencyRef.current?.value || null;
         const old = STATE.user.homeCurrency || null;
-        if (code === old) return;
-        const revert = () => {
-            if (homeCurrencyRef.current) homeCurrencyRef.current.value = old || getHomeCurrency();
-        };
+        if (code === old) {
+            setHomeCurrency(code);
+            return;
+        }
+        setHomeCurrency(code); // optimistic — revert below if the POST fails
         try {
             const res = await apiFetch('/api/profile/update', {
                 method: 'POST',
@@ -1246,7 +1268,7 @@ function BioBlock({
             });
             if (!res.ok) {
                 showLiquidAlert(t('profile.saveFailed', { status: res.status }));
-                revert();
+                setHomeCurrency(old || getHomeCurrency());
                 return;
             }
             STATE.user.homeCurrency = code;
@@ -1260,13 +1282,44 @@ function BioBlock({
         } catch (e) {
             console.error('Home currency update failed:', e);
             showLiquidAlert(t('profile.saveNetwork'));
-            revert();
+            setHomeCurrency(old || getHomeCurrency());
         }
     };
 
-    // Chevron for a settings-row <select> (the brand-select is styled
-    // appearance:none, so it needs an explicit glyph).
-    const chevron = <div className="brand-select-chevron pf-right-10">▼</div>;
+    // Country tile → searchable picker (flag + name rows). Picking marks the
+    // form dirty; the value persists via "Save profile" like the bio/status.
+    const openCountryPicker = () => {
+        const items: StatListItem[] = [
+            {
+                primary: t('profile.homeCountryNotSet'),
+                avatarInitial: '—',
+                onClick: () => {
+                    setHomeCountry('');
+                    setDirty(true);
+                },
+            },
+            ...getCountryOptions().map(({ code, name }) => ({
+                primary: name,
+                avatarInitial: codeToFlag(code) || '🏳',
+                onClick: () => {
+                    setHomeCountry(name);
+                    setDirty(true);
+                },
+            })),
+        ];
+        openStatListModal({ title: t('profile.homeCountryAria'), items });
+    };
+
+    // Currency tile → searchable picker (symbol + code rows). Picking
+    // auto-saves immediately (see applyHomeCurrency).
+    const openCurrencyPicker = () => {
+        const items: StatListItem[] = Object.keys(CONVERSION_RATES).map((code) => ({
+            primary: code,
+            avatarInitial: CURRENCY_SYMBOLS[code] || code.slice(0, 1),
+            onClick: () => void applyHomeCurrency(code),
+        }));
+        openStatListModal({ title: t('profile.homeCurrencyAria'), items });
+    };
 
     if (!isOwnProfile) {
         // Foreign profile — status pill + read-only bio.
@@ -1347,51 +1400,42 @@ function BioBlock({
                 </div>
             </div>
 
-            {/* Home country */}
-            <div className="pf-setting-row">
-                <div className="pf-setting-row__text">
-                    <div className="pf-setting-row__label">{t('profile.homeCountryAria')}</div>
-                </div>
-                <div className="pf-setting-row__control relative inline-block">
-                    <select
-                        ref={homeCountryRef}
-                        className="brand-select pf-pill-sm"
+            {/* Home country + currency — tappable tiles that open a searchable
+                picker. Country = flag field + name; currency = coin + code. */}
+            <div className="pf-tiles">
+                <div className="pf-tile-wrap">
+                    <button
+                        type="button"
+                        className={`pf-tile pf-tile--country${homeCountry && countryCodeFromName(homeCountry) ? '' : ' pf-tile--empty'}`}
+                        onClick={openCountryPicker}
                         aria-label={t('profile.homeCountryAria')}
-                        defaultValue={user.homeCountry || ''}
-                        onChange={() => setDirty(true)}
                     >
-                        {/* Empty = "not set" sentinel → cleared server-side (null). */}
-                        <option value="">{t('profile.homeCountryNotSet')}</option>
-                        {COUNTRIES.map((c) => (
-                            <option key={c} value={c}>
-                                {c}
-                            </option>
-                        ))}
-                    </select>
-                    {chevron}
+                        {homeCountry && countryCodeFromName(homeCountry) ? (
+                            <span className="pf-tile__flag" aria-hidden="true">
+                                {codeToFlag(countryCodeFromName(homeCountry))}
+                            </span>
+                        ) : null}
+                        <span className="pf-tile__scrim" aria-hidden="true" />
+                        <span className="pf-tile__label">
+                            {homeCountry || t('profile.homeCountryNotSet')}
+                        </span>
+                    </button>
+                    <span className="pf-tile__caption">{t('profile.homeCountryAria')}</span>
                 </div>
-            </div>
 
-            {/* Home currency */}
-            <div className="pf-setting-row">
-                <div className="pf-setting-row__text">
-                    <div className="pf-setting-row__label">{t('profile.homeCurrencyAria')}</div>
-                </div>
-                <div className="pf-setting-row__control relative inline-block">
-                    <select
-                        ref={homeCurrencyRef}
-                        className="brand-select pf-pill-sm"
+                <div className="pf-tile-wrap">
+                    <button
+                        type="button"
+                        className="pf-tile pf-tile--currency"
+                        onClick={openCurrencyPicker}
                         aria-label={t('profile.homeCurrencyAria')}
-                        defaultValue={getHomeCurrency()}
-                        onChange={() => void onHomeCurrencyChange()}
                     >
-                        {Object.keys(CONVERSION_RATES).map((code) => (
-                            <option key={code} value={code}>
-                                {CURRENCY_SYMBOLS[code] || code}&nbsp;&nbsp;{code}
-                            </option>
-                        ))}
-                    </select>
-                    {chevron}
+                        <span className="pf-tile__coin" aria-hidden="true">
+                            {CURRENCY_SYMBOLS[homeCurrency] || homeCurrency}
+                        </span>
+                        <span className="pf-tile__label">{homeCurrency}</span>
+                    </button>
+                    <span className="pf-tile__caption">{t('profile.homeCurrencyAria')}</span>
                 </div>
             </div>
 

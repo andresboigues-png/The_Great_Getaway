@@ -451,6 +451,117 @@
     cursor: default;
 }
 
+/* ── Home country + currency tiles ────────────────────────────────
+   Two tappable squares that open a searchable picker. Country = the
+   flag filling the square with the name over it; currency = a coin
+   motif with the code. GG-blue border, white caps label. */
+.pf-tiles {
+    display: flex;
+    gap: 14px;
+    padding: 16px 0 6px;
+    border-top: 1px solid var(--glass-border, rgba(0, 45, 91, 0.07));
+    /* Cap the pair so on a wide desktop card the two tiles stay snug
+       together (left-aligned) instead of drifting to opposite sides. */
+    max-width: 360px;
+}
+.pf-tile-wrap {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+.pf-tile {
+    position: relative;
+    width: 100%;
+    max-width: 168px;
+    aspect-ratio: 1 / 1;
+    border-radius: 20px;
+    border: 2px solid var(--gg-blue, #0071e3);
+    overflow: hidden;
+    padding: 0;
+    background: #0a2540;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.pf-tile:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 22px rgba(0, 113, 227, 0.22);
+}
+.pf-tile:active {
+    transform: scale(0.98);
+}
+/* Flag scaled to COVER the square (edges crop) so it reads as a field,
+   not a centred glyph. Renders on the mobile target; elsewhere the tile
+   just falls back to the deep-navy base + name. */
+.pf-tile__flag {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13rem;
+    line-height: 1;
+}
+.pf-tile__scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0, 20, 45, 0.12) 0%, rgba(0, 20, 45, 0.5) 100%);
+}
+.pf-tile__label {
+    position: relative;
+    z-index: 1;
+    color: #fff;
+    font-weight: 800;
+    font-size: 0.92rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 0 10px;
+    line-height: 1.16;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+}
+.pf-tile--empty .pf-tile__label {
+    opacity: 0.9;
+    font-weight: 700;
+}
+/* Currency coin: a faint symbol as the coin face, ringed like a minted
+   edge, with the code in white caps on top. */
+.pf-tile--currency {
+    background: radial-gradient(circle at 50% 40%, #123a63 0%, #0a2540 74%);
+}
+.pf-tile__coin {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 5.5rem;
+    line-height: 1;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.16);
+}
+.pf-tile__coin::before {
+    content: '';
+    position: absolute;
+    width: 76%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.16);
+}
+.pf-tile__caption {
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-align: center;
+    letter-spacing: 0.01em;
+}
+
 /* ── Stat list modal (Trips / Countries / Followers / … ) ─────────
    Opened by the profile stat captions. A titled, searchable list of
    avatar-+-name rows; people rows tap through to their profile. */
