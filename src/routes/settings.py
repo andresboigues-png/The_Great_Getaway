@@ -315,30 +315,24 @@ def update_profile():
                 return jsonify({"error": "bio must be 500 characters or less"}), 400
             payload["bio"] = cleaned
 
-    # Validate `status` — the frontend offers a fixed dropdown
-    # (profile.ts has 5 options). Anything outside that allowlist
-    # is rejected so a crafted client can't smuggle in arbitrary
-    # status copy (which renders on other users' profiles).
-    # Empty string is allowed and acts as "clear status."
-    _ALLOWED_STATUS = {
-        "",
-        "Deliberating next trip",
-        "Preparing a trip right now",
-        "Exploring the world",
-        "Resting at home base",
-        "Hunting for flight deals",
-    }
+    # Validate `status` — users now author free-text statuses (the five
+    # presets are just tap-to-fill suggestions), so we sanitize rather
+    # than allowlist: it renders on other profiles, but only ever through
+    # React text interpolation (auto-escaped), so the risk is copy size /
+    # control chars, not markup. Strip C0 controls (status is single-line,
+    # so newline/tab go too), trim, and cap at 70 chars (matches the input
+    # maxLength). Empty string clears the status.
     if "status" in payload:
         raw_status = payload.get("status")
         if raw_status is None:
             payload["status"] = ""
         else:
-            if not isinstance(raw_status, str) or raw_status not in _ALLOWED_STATUS:
-                return jsonify(
-                    {
-                        "error": "status must be one of the allowed values or empty",
-                    }
-                ), 400
+            if not isinstance(raw_status, str):
+                return jsonify({"error": "status must be a string"}), 400
+            cleaned = "".join(c for c in raw_status if ord(c) >= 0x20).strip()
+            if len(cleaned) > 70:
+                return jsonify({"error": "status must be 70 characters or less"}), 400
+            payload["status"] = cleaned
 
     # Validate the picture value before letting it touch the DB.
     if "picture" in payload:

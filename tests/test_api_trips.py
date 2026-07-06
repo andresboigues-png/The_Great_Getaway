@@ -289,8 +289,8 @@ def test_update_profile_single_field(client, seed_user, auth_headers):
 
 def test_update_profile_multiple_fields(client, seed_user, auth_headers):
     """Patching multiple fields in one call works — each field gets
-    spliced into the SET clause separately. Status must be one of the
-    server-side allowlisted values (FIXING_ROADMAP §0.1)."""
+    spliced into the SET clause separately. Status is now user-authored
+    free text (one of the presets is still a valid value)."""
     res = client.post(
         "/api/profile/update",
         headers=auth_headers,
@@ -304,17 +304,26 @@ def test_update_profile_multiple_fields(client, seed_user, auth_headers):
     assert res.get_json() == {"status": "updated"}
 
 
-def test_update_profile_status_rejects_off_allowlist(client, seed_user, auth_headers):
-    """FIXING_ROADMAP §0.1: arbitrary status copy is rejected so a
-    crafted client can't smuggle in a status string that renders on
-    other users' profiles. The frontend dropdown only offers 5 fixed
-    values; anything else is a 400."""
+def test_update_profile_status_accepts_custom_text(client, seed_user, auth_headers):
+    """Statuses are user-authored free text (the presets are just
+    tap-to-fill suggestions), so a custom string is accepted and stored.
+    XSS is handled at render (React auto-escapes), not by input allowlist."""
     res = client.post(
         "/api/profile/update",
         headers=auth_headers,
-        json={
-            "status": "I am evil <img onerror=alert(1)>",
-        },
+        json={"status": "Chasing sunsets in Lisbon"},
+    )
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "updated"}
+
+
+def test_update_profile_status_capped_at_70_chars(client, seed_user, auth_headers):
+    """Status copy over 70 chars (the input's maxLength) is rejected so
+    the column can't be used as an unbounded payload store."""
+    res = client.post(
+        "/api/profile/update",
+        headers=auth_headers,
+        json={"status": "x" * 71},
     )
     assert res.status_code == 400
     assert "status" in (res.get_json() or {}).get("error", "")
