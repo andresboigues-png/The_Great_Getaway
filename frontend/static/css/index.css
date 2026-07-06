@@ -7311,4 +7311,13 @@ main#app-container.nav-anim-backward {
     .home-hero__title {
         font-size: 2rem !important;
     }
+
+    /* Landscape: drop the standalone active-trip <select> from the navbar
+       and fold trip switching entirely into the "+" (#newTripBtn), whose
+       #tripControlsPopover already carries a trip selector + New Trip +
+       archive/delete. Keeps the short bar uncluttered; the "+" is the
+       single trip-control entry point. */
+    #tripSelector {
+        display: none !important;
+    }
 }
