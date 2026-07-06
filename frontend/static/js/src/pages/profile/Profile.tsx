@@ -27,7 +27,7 @@
 // lifetime regardless of how many times the Profile component
 // remounts.
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../react/store.js';
 import { STATE, emit } from '../../state.js';
 import { apiFetch, uploadMedia, blockUser } from '../../api.js';
@@ -342,10 +342,11 @@ interface ProfileContentProps {
     targetUserId: string | undefined;
 }
 
-// ── Segmented toggle to switch between the Info and Footprint sections.
-// Reuses the app-wide .seg-control pill + sliding lens (as in Insights).
+// ── Bookmark-style side switch for the Info ⇆ Footprint sections.
+// Two vertical "bookmark" tabs pinned to the right edge of the section
+// card (see .pf-bookmark in profile.css); the active one is accent-filled.
 type ProfileSection = 'info' | 'footprint';
-function ProfileSectionToggle({
+function ProfileBookmarkSwitch({
     value,
     onChange,
     infoLabel,
@@ -356,27 +357,12 @@ function ProfileSectionToggle({
     infoLabel: string;
     footprintLabel: string;
 }) {
-    const ref = useRef<HTMLDivElement | null>(null);
-    const [lens, setLens] = useState<{ left: number; width: number } | null>(null);
-    useLayoutEffect(() => {
-        const measure = () => {
-            const el = ref.current?.querySelector<HTMLElement>('[data-active="true"]');
-            if (el) setLens({ left: el.offsetLeft, width: el.offsetWidth });
-        };
-        measure();
-        const node = ref.current;
-        if (!node || typeof ResizeObserver === 'undefined') return;
-        const ro = new ResizeObserver(measure);
-        ro.observe(node);
-        return () => ro.disconnect();
-    }, [value, infoLabel, footprintLabel]);
     const opts: Array<{ v: ProfileSection; label: string }> = [
         { v: 'info', label: infoLabel },
         { v: 'footprint', label: footprintLabel },
     ];
     return (
-        <div ref={ref} role="tablist" aria-label="Profile section" className="seg-control">
-            {lens ? <div aria-hidden="true" className="seg-lens" style={{ left: lens.left, width: lens.width }} /> : null}
+        <div className="pf-bookmark" role="tablist" aria-label="Profile section">
             {opts.map((o) => {
                 const active = o.v === value;
                 return (
@@ -386,17 +372,51 @@ function ProfileSectionToggle({
                         role="tab"
                         aria-selected={active}
                         data-active={active}
+                        className="pf-bookmark__tab"
                         onClick={() => onChange(o.v)}
-                        className="seg-btn"
-                        style={{
-                            fontWeight: active ? 700 : 500,
-                            color: active ? 'var(--text-brand-navy)' : 'var(--text-secondary)',
-                        }}
                     >
                         {o.label}
                     </button>
                 );
             })}
+        </div>
+    );
+}
+
+
+// ── Stats tiles (top of the profile) — shaded squares, one per metric.
+function ProfileStatsTiles({
+    isOwnProfile,
+    tripCount,
+    countryCount,
+    followers,
+    following,
+}: {
+    isOwnProfile: boolean;
+    tripCount: number;
+    countryCount: number;
+    followers: number;
+    following: number;
+}) {
+    return (
+        <div className="pf-tiles">
+            <div className="pf-tile" data-tone="0">
+                <span className="pf-tile__count">{tripCount}</span>
+                <span className="pf-tile__label">{tn('profile.publicTripsLabel', tripCount)}</span>
+            </div>
+            <div className="pf-tile" data-tone="1">
+                <span className="pf-tile__count">{countryCount}</span>
+                <span className="pf-tile__label">{tn('profile.countriesLabel', countryCount)}</span>
+            </div>
+            <div className="pf-tile" data-tone="2">
+                <span className="pf-tile__count">{followers}</span>
+                <span className="pf-tile__label">{tn('profile.followersLabel', followers)}</span>
+            </div>
+            <div className="pf-tile" data-tone="3">
+                <span className="pf-tile__count">{following}</span>
+                <span className="pf-tile__label">{tn('profile.followingLabel', following)}</span>
+            </div>
+            {isOwnProfile ? <FriendsStat /> : null}
         </div>
     );
 }
@@ -411,6 +431,11 @@ function ProfileContent({
     targetUserId,
 }: ProfileContentProps) {
     const [section, setSection] = useState<ProfileSection>('info');
+    // Follower count lifted here so BOTH the top stats tiles and the
+    // FollowButton inside the Info card share one source of truth (the
+    // button updates it optimistically on a friend's profile).
+    const [followers, setFollowers] = useState(followSnap.followers);
+    useEffect(() => setFollowers(followSnap.followers), [followSnap.followers]);
     const firstName = user.name.split(' ')[0];
     const uniqueCountries = deriveUniqueCountries(trips);
     // §4.3: separate ISO-code list so the footprint map's fast-path
@@ -446,34 +471,41 @@ function ProfileContent({
                 </button>
             ) : null}
 
-            {/* Section switcher — Info ⇆ Footprint (one shows at a time). */}
-            <div className="flex justify-center mb-6">
-                <ProfileSectionToggle
+            {/* Stats — moved to the top as shaded tiles (were a row inside the
+                Info card). Always visible, above the section switcher. */}
+            <ProfileStatsTiles
+                isOwnProfile={isOwnProfile}
+                tripCount={trips.length}
+                countryCount={countryCountForChip}
+                followers={followers}
+                following={followSnap.following}
+            />
+
+            {/* Bookmark switch on the side + the selected section card. */}
+            <div className="pf-section-wrap">
+                <ProfileBookmarkSwitch
                     value={section}
                     onChange={setSection}
                     infoLabel={isOwnProfile ? 'Info' : `${firstName}'s info`}
                     footprintLabel="Footprint"
                 />
-            </div>
 
-            {section === 'info' ? (
-                <div className="pf-card">
-                    <ProfileInfoSection
-                        isOwnProfile={isOwnProfile}
-                        user={user}
-                        trips={trips}
-                        uniqueCountries={uniqueCountries}
-                        countryCount={countryCountForChip}
-                        followSnap={followSnap}
-                        targetUserId={targetUserId}
-                    />
-                </div>
-            ) : (
-                <div className="pf-card">
-                    {/* Achievements — shown on own profile even when empty so the
-                        surface is discoverable; hidden on a friend's profile when
-                        nothing's earned. */}
-                    {(achievements.length > 0 || isOwnProfile) ? (
+                {section === 'info' ? (
+                    <div className="pf-card">
+                        <ProfileInfoSection
+                            isOwnProfile={isOwnProfile}
+                            user={user}
+                            followSnap={followSnap}
+                            targetUserId={targetUserId}
+                            onFollowersChange={setFollowers}
+                        />
+                    </div>
+                ) : (
+                    <div className="pf-card">
+                        {/* Achievements — shown on own profile even when empty so the
+                            surface is discoverable; hidden on a friend's profile when
+                            nothing's earned. */}
+                        {(achievements.length > 0 || isOwnProfile) ? (
                         <>
                             <div className="flex items-baseline justify-between mb-[14px]">
                                 <h3 className="m-0 text-base font-extrabold tracking-[-0.02em] text-primary">
@@ -504,8 +536,9 @@ function ProfileContent({
                         uniqueCountries={uniqueCountries}
                         uniqueCountryCodes={uniqueCountryCodes}
                     />
-                </div>
-            )}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
@@ -710,30 +743,20 @@ function ProfilePicSection({
 interface ProfileInfoSectionProps {
     isOwnProfile: boolean;
     user: User & { bio?: string; status?: string };
-    trips: Trip[];
-    uniqueCountries: string[];
-    /** §4.3 follow-up: total unique-country count to show in the
-     *  stats chip. Counts each country a trip touches once (so a
-     *  Portugal+Spain trip lights up as 2). Caller derives via
-     *  `deriveUniqueCountryCodes(trips).length` and clamps against
-     *  the name-based count to avoid zeroing legacy users out. */
-    countryCount: number;
     followSnap: FollowSnapshot;
     targetUserId: string | undefined;
+    /** Lifted to ProfileContent so the top stats tile + the FollowButton
+     *  here share one follower count. */
+    onFollowersChange: (n: number) => void;
 }
 
 function ProfileInfoSection({
     isOwnProfile,
     user,
-    trips,
-    uniqueCountries,
-    countryCount,
     followSnap,
     targetUserId,
+    onFollowersChange,
 }: ProfileInfoSectionProps) {
-    const [followers, setFollowers] = useState(followSnap.followers);
-    useEffect(() => setFollowers(followSnap.followers), [followSnap.followers]);
-
     return (
         <>
             {/* Identity — avatar + name + email + status/follow, centred. */}
@@ -746,7 +769,7 @@ function ProfileInfoSection({
                         <FollowButton
                             targetUserId={targetUserId}
                             initialIsFollowing={followSnap.isFollowing}
-                            onFollowersChange={setFollowers}
+                            onFollowersChange={onFollowersChange}
                         />
                         {/* Audit MK5 P1: Block was server-enforced but had NO UI
                             entry — overflow next to Follow → confirm → blockUser.
@@ -781,15 +804,6 @@ function ProfileInfoSection({
                 ) : null}
             </div>
 
-            {/* Stats — trips / countries / followers / following / friends. */}
-            <div className="pf-stats">
-                <ProfileStat count={trips.length} label={tn('profile.publicTripsLabel', trips.length)} />
-                <ProfileStat count={countryCount} label={tn('profile.countriesLabel', countryCount)} />
-                <ProfileStat count={followers} label={tn('profile.followersLabel', followers)} />
-                <ProfileStat count={followSnap.following} label={tn('profile.followingLabel', followSnap.following)} />
-                {isOwnProfile ? <FriendsStat /> : null}
-            </div>
-
             <div className="pf-divider" />
 
             <BioBlock isOwnProfile={isOwnProfile} user={user} onLogout={() => void logout()} />
@@ -798,22 +812,9 @@ function ProfileInfoSection({
 }
 
 
-// ── Shared stat row component — `{number} {accent-blue label}`. ───
-// Used by trips / countries / followers / following. Friends stat
-// is a separate component because it's a clickable button (opens
-// the friends modal) — but it adopts the same visual rhythm via
-// the same inner span styles.
-function ProfileStat({ count, label }: { count: number; label: string }) {
-    return (
-        <div className="pf-stat">
-            <span className="pf-stat__count">{count}</span>
-            <span className="pf-stat__label">{label}</span>
-        </div>
-    );
-}
-
-
 // ── Friends stat (own profile only) — async list + modal ──────────
+// Renders as a tappable stat tile in the top grid (opens the friends
+// modal), alongside the static trips/countries/followers/following tiles.
 function FriendsStat() {
     const [friendsCache, setFriendsCache] = useState<ProfileFriend[]>([]);
     const [loaded, setLoaded] = useState(false);
@@ -852,10 +853,11 @@ function FriendsStat() {
         <button
             type="button"
             onClick={onClick}
-            className="pf-stat pf-stat--tappable bg-none border-0 p-0 cursor-pointer font-[inherit]"
+            className="pf-tile pf-tile--tappable font-[inherit]"
+            data-tone="4"
         >
-            <span className="pf-stat__count">{count === null ? '—' : String(count)}</span>
-            <span className="pf-stat__label underline decoration-[rgba(0,113,227,0.32)] underline-offset-2">
+            <span className="pf-tile__count">{count === null ? '—' : String(count)}</span>
+            <span className="pf-tile__label underline decoration-[rgba(216,27,72,0.32)] underline-offset-2">
                 {tn('profile.friendsLabel', count ?? 0)}
             </span>
         </button>

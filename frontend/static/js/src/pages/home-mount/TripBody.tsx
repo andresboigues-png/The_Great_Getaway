@@ -485,8 +485,8 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                         aria-selected={activeTab === 'hub'}
                         onClick={() => switchTab('hub')}
                     >
-                        {/* Home-base (house) icon — the gold star was retired
-                            per design feedback. Hub is the left-most tab. */}
+                        {/* Trip Hub mark — a clean ring (replaced the house
+                            icon per design feedback). Hub is the left-most tab. */}
                         <svg
                             width="14"
                             height="14"
@@ -498,8 +498,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                             strokeLinejoin="round"
                             aria-hidden="true"
                         >
-                            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                            <polyline points="9 22 9 12 15 12 15 22" />
+                            <circle cx="12" cy="12" r="9" />
                         </svg>
                         <span className="trip-tabnav__label">{t('home.tabHub')}</span>
                     </button>

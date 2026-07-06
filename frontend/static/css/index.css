@@ -1401,6 +1401,14 @@ body.is-signed-out .rail-peek {
    toggles display:none→block; the animation replays on each open (the
    display change re-triggers it) and never on page load (a display:none
    element doesn't animate). */
+/* The idle "Search anything…" prompt reads smaller + lighter than the
+   value the user types (the input keeps its 0.95rem for real text). */
+#homeMapSearchInput::placeholder {
+    font-size: 0.8rem;
+    font-weight: 500;
+    opacity: 1;
+}
+
 #homeMapSearchResults {
     animation: ggMapResultsIn 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }

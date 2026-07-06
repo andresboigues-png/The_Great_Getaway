@@ -208,37 +208,129 @@
     overflow-wrap: anywhere;
 }
 
-/* Stats row — evenly split, hairline separators, tap-legible. */
-.pf-stats {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 10px 22px;
-    margin: 22px 0 4px;
+/* ── Stats tiles (top of the profile) ─────────────────────────────
+   Shaded squares, one metric each, in a responsive grid. Each tile
+   carries its own tint via data-tone so the row reads as a set of
+   distinct, colourful cards rather than a flat number row. */
+.pf-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
+    gap: 10px;
+    margin-bottom: 22px;
 }
-.pf-stat {
+.pf-tile {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1px;
-    min-width: 62px;
+    justify-content: center;
+    gap: 3px;
+    padding: 15px 8px;
+    border-radius: 18px;
+    background: var(--pf-tile-bg, rgba(0, 45, 91, 0.05));
+    border: 1px solid var(--pf-tile-border, rgba(0, 45, 91, 0.08));
+    text-align: center;
+    min-height: 76px;
 }
-.pf-stat__count {
-    font-size: 1.35rem;
+.pf-tile--tappable {
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.15s ease;
+}
+.pf-tile--tappable:hover,
+.pf-tile--tappable:focus-visible {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 45, 91, 0.1);
+}
+.pf-tile__count {
+    font-size: 1.5rem;
     font-weight: 800;
     letter-spacing: -0.02em;
-    color: var(--text-primary);
-    line-height: 1.1;
+    line-height: 1;
+    color: var(--pf-tile-fg, var(--text-primary));
 }
-.pf-stat__label {
-    font-size: 0.72rem;
+.pf-tile__label {
+    font-size: 0.66rem;
     font-weight: 600;
     letter-spacing: 0.02em;
     color: var(--text-secondary);
     text-transform: lowercase;
 }
-.pf-stat--tappable .pf-stat__label {
-    color: var(--accent-blue-deep, #005bb8);
+.pf-tile[data-tone="0"] {
+    --pf-tile-bg: rgba(0, 113, 227, 0.08);
+    --pf-tile-border: rgba(0, 113, 227, 0.14);
+    --pf-tile-fg: #0071e3;
+}
+.pf-tile[data-tone="1"] {
+    --pf-tile-bg: rgba(88, 86, 214, 0.08);
+    --pf-tile-border: rgba(88, 86, 214, 0.14);
+    --pf-tile-fg: #5856d6;
+}
+.pf-tile[data-tone="2"] {
+    --pf-tile-bg: rgba(52, 199, 89, 0.09);
+    --pf-tile-border: rgba(52, 199, 89, 0.16);
+    --pf-tile-fg: #248a3d;
+}
+.pf-tile[data-tone="3"] {
+    --pf-tile-bg: rgba(255, 149, 0, 0.1);
+    --pf-tile-border: rgba(255, 149, 0, 0.18);
+    --pf-tile-fg: #c86a00;
+}
+.pf-tile[data-tone="4"] {
+    --pf-tile-bg: rgba(216, 27, 72, 0.08);
+    --pf-tile-border: rgba(216, 27, 72, 0.15);
+    --pf-tile-fg: #d81b48;
+}
+
+/* ── Section card + side bookmark switch ──────────────────────────
+   The switch is a pair of vertical "bookmark" tabs pinned to the right
+   gutter beside the section card; the active tab is accent-filled. */
+.pf-section-wrap {
+    position: relative;
+    padding-right: 46px;
+}
+.pf-bookmark {
+    position: absolute;
+    top: 22px;
+    right: 0;
+    width: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 3;
+}
+.pf-bookmark__tab {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    padding: 14px 9px;
+    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.08));
+    border-right: 0;
+    border-radius: 12px 0 0 12px;
+    background: var(--card-bg, #fff);
+    color: var(--text-secondary);
+    font-weight: 700;
+    font-size: 0.78rem;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    box-shadow: -4px 4px 14px rgba(0, 45, 91, 0.06);
+    transition: color 0.15s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+.pf-bookmark__tab[data-active="true"] {
+    background: linear-gradient(180deg, var(--accent-blue, #0071e3), #5856d6);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: -4px 6px 16px rgba(0, 113, 227, 0.3);
+}
+/* Very narrow phones: trim the reserved gutter a touch. */
+@media (max-width: 380px) {
+    .pf-section-wrap {
+        padding-right: 40px;
+    }
+    .pf-bookmark {
+        width: 34px;
+    }
+    .pf-bookmark__tab {
+        font-size: 0.72rem;
+        padding: 12px 7px;
+    }
 }
 
 .pf-divider {
