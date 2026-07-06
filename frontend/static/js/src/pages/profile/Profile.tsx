@@ -397,19 +397,24 @@ function ProfileSectionToggle({
             {opts.map((o) => {
                 const active = o.v === value;
                 return (
-                    <button
-                        key={o.v}
-                        type="button"
-                        role="tab"
-                        aria-selected={active}
-                        aria-label={o.label}
-                        title={o.label}
-                        data-active={active}
-                        onClick={() => onChange(o.v)}
-                        className="pf-bookmark-btn"
-                    >
-                        {SECTION_ICONS[o.v]}
-                    </button>
+                    <div className="pf-bookmark-slot" key={o.v}>
+                        <button
+                            type="button"
+                            role="tab"
+                            aria-selected={active}
+                            aria-label={o.label}
+                            data-active={active}
+                            onClick={() => onChange(o.v)}
+                            className="pf-bookmark-btn"
+                        >
+                            {SECTION_ICONS[o.v]}
+                        </button>
+                        {/* Web-only hover label — the notch clip-path would clip a
+                            child, so the tip lives in the (unclipped) slot. */}
+                        <span className="pf-bookmark-tip" aria-hidden="true">
+                            {o.label}
+                        </span>
+                    </div>
                 );
             })}
         </div>
@@ -474,7 +479,7 @@ function ProfileContent({
                     onChange={setSection}
                     infoLabel={isOwnProfile ? 'Info' : `${firstName}'s info`}
                     footprintLabel="Footprint"
-                    quotesLabel={t('profile.quotesTab')}
+                    quotesLabel={t('profile.quotesTab', { name: firstName })}
                 />
             </div>
 
