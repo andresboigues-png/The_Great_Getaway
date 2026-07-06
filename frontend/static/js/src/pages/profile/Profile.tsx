@@ -28,7 +28,7 @@
 // remounts.
 
 import { useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { ReactNode, PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useStore } from '../../react/store.js';
 import { STATE, emit } from '../../state.js';
 import { apiFetch, uploadMedia, blockUser } from '../../api.js';
@@ -455,8 +455,9 @@ function ProfileContent({
                 </button>
             ) : null}
 
-            {/* Icon toggle on top — Info ⇆ Footprint (one shows at a time). */}
-            <div className="flex justify-center mb-6">
+            {/* Bookmark tabs on top — Info ⇆ Footprint (one shows at a time).
+                Flat edge sits toward the card just below. */}
+            <div className="flex justify-center mb-2">
                 <ProfileSectionToggle
                     value={section}
                     onChange={setSection}
@@ -743,6 +744,20 @@ function ProfileInfoSection({
     targetUserId,
     onFollowersChange,
 }: ProfileInfoSectionProps) {
+    const friends = useFriendsCount(isOwnProfile);
+    const stats: Stat[] = [
+        { num: String(tripCount), label: tn('profile.publicTripsLabel', tripCount) },
+        { num: String(countryCount), label: tn('profile.countriesLabel', countryCount) },
+        { num: String(followers), label: tn('profile.followersLabel', followers) },
+        { num: String(following), label: tn('profile.followingLabel', following) },
+    ];
+    if (isOwnProfile) {
+        stats.push({
+            num: friends.count === null ? '—' : String(friends.count),
+            label: tn('profile.friendsLabel', friends.count ?? 0),
+            onClick: friends.onClick,
+        });
+    }
     return (
         <>
             {/* Identity — avatar + name + email + status/follow, centred. */}
@@ -790,27 +805,9 @@ function ProfileInfoSection({
                 ) : null}
             </div>
 
-            {/* Stats — inside the Info card, an understated bar with hairline
-                dividers (numbers in navy, tiny uppercase labels). */}
-            <div className="pf-statbar">
-                <div className="pf-statcell">
-                    <span className="pf-statcell__num">{tripCount}</span>
-                    <span className="pf-statcell__label">{tn('profile.publicTripsLabel', tripCount)}</span>
-                </div>
-                <div className="pf-statcell">
-                    <span className="pf-statcell__num">{countryCount}</span>
-                    <span className="pf-statcell__label">{tn('profile.countriesLabel', countryCount)}</span>
-                </div>
-                <div className="pf-statcell">
-                    <span className="pf-statcell__num">{followers}</span>
-                    <span className="pf-statcell__label">{tn('profile.followersLabel', followers)}</span>
-                </div>
-                <div className="pf-statcell">
-                    <span className="pf-statcell__num">{following}</span>
-                    <span className="pf-statcell__label">{tn('profile.followingLabel', following)}</span>
-                </div>
-                {isOwnProfile ? <FriendsStat /> : null}
-            </div>
+            {/* Stats — tiny numbers on a slab, with a draggable liquid-glass
+                loupe you slide across to zoom in on them. */}
+            <StatMagnifier stats={stats} />
 
             <div className="pf-divider" />
 
@@ -820,20 +817,27 @@ function ProfileInfoSection({
 }
 
 
-// ── Friends stat (own profile only) — async list + modal ──────────
-// A tappable stat cell in the info-card stat bar (opens the friends
-// modal), alongside the static trips/countries/followers/following cells.
-function FriendsStat() {
-    const [friendsCache, setFriendsCache] = useState<ProfileFriend[]>([]);
-    const [loaded, setLoaded] = useState(false);
+// ── Stats + draggable magnifier ───────────────────────────────────
+interface Stat {
+    num: string;
+    label: string;
+    /** Present → the cell is a button (Friends opens the list modal). */
+    onClick?: () => void;
+}
 
+// Own-profile friends count + click-through, gated so a friend's profile
+// doesn't fetch the VIEWER's friend list.
+function useFriendsCount(enabled: boolean) {
+    const [cache, setCache] = useState<ProfileFriend[]>([]);
+    const [loaded, setLoaded] = useState(false);
     useEffect(() => {
+        if (!enabled) return;
         let alive = true;
         apiFetch('/api/friends/list')
             .then((r) => (r.ok ? r.json() : []))
             .then((list) => {
                 if (!alive || !Array.isArray(list)) return;
-                setFriendsCache(list);
+                setCache(list);
                 setLoaded(true);
             })
             .catch(() => {
@@ -842,32 +846,140 @@ function FriendsStat() {
         return () => {
             alive = false;
         };
-    }, []);
-
-    const count = loaded ? friendsCache.length : null;
-
+    }, [enabled]);
     const onClick = () => {
-        if (friendsCache.length === 0) {
-            // Either no friends yet, or the fetch is still in flight.
-            // Either way, push the user to /friends where they can
-            // either add friends or see their list once it loads.
+        if (cache.length === 0) {
             navigate('friends');
             return;
         }
-        openFriendsListModal(friendsCache);
+        openFriendsListModal(cache);
+    };
+    return { count: loaded ? cache.length : null, onClick };
+}
+
+function StatCell({ num, label, onClick }: Stat) {
+    const inner = (
+        <>
+            <span className="pf-statcell__num">{num}</span>
+            <span className="pf-statcell__label">{label}</span>
+        </>
+    );
+    if (onClick) {
+        return (
+            <button type="button" className="pf-statcell pf-statcell--tappable font-[inherit]" onClick={onClick}>
+                {inner}
+            </button>
+        );
+    }
+    return <div className="pf-statcell">{inner}</div>;
+}
+
+// A slab of tiny stat numbers with a draggable circular liquid-glass loupe
+// that magnifies whatever it sits over. The loupe renders a second, scaled
+// copy of the same slab, offset so the point under the lens centre lands at
+// the lens centre (classic magnifier maths), clipped to a circle.
+function StatMagnifier({ stats }: { stats: Stat[] }) {
+    const barRef = useRef<HTMLDivElement | null>(null);
+    // numY = vertical centre of the NUMBERS row (measured), so the loupe
+    // zooms the numbers rather than the labels below them.
+    const [dims, setDims] = useState<{ w: number; h: number; numY: number }>({ w: 0, h: 0, numY: 0 });
+    const [lensX, setLensX] = useState<number | null>(null);
+    const draggingRef = useRef(false);
+
+    const R = 27; // lens radius (54px loupe)
+    const Z = 2.4; // zoom factor
+
+    useEffect(() => {
+        const el = barRef.current;
+        if (!el) return;
+        const measure = () => {
+            const r = el.getBoundingClientRect();
+            const numEl = el.querySelector<HTMLElement>('.pf-statcell__num');
+            const numRect = numEl?.getBoundingClientRect();
+            const numY = numRect ? numRect.top - r.top + numRect.height / 2 : r.height * 0.34;
+            setDims({ w: r.width, h: r.height, numY });
+        };
+        measure();
+        if (typeof ResizeObserver === 'undefined') return;
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
+
+    const clamp = (x: number) => Math.max(R, Math.min(Math.max(dims.w - R, R), x));
+    const cx = clamp(lensX ?? dims.w / 2);
+
+    const moveTo = (clientX: number) => {
+        const el = barRef.current;
+        if (!el) return;
+        setLensX(clamp(clientX - el.getBoundingClientRect().left));
+    };
+    const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+        draggingRef.current = true;
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+        moveTo(e.clientX);
+    };
+    const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+        if (draggingRef.current) moveTo(e.clientX);
+    };
+    const endDrag = () => {
+        draggingRef.current = false;
+    };
+    const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+        if (e.key === 'ArrowLeft') {
+            setLensX(clamp(cx - 14));
+            e.preventDefault();
+        } else if (e.key === 'ArrowRight') {
+            setLensX(clamp(cx + 14));
+            e.preventDefault();
+        }
     };
 
+    // Offset the scaled copy so bar point (cx, numY) lands at the lens
+    // centre — i.e. the numbers row is what gets magnified.
+    const contentLeft = R - cx * Z;
+    const contentTop = R - dims.numY * Z;
+
     return (
-        <button
-            type="button"
-            onClick={onClick}
-            className="pf-statcell pf-statcell--tappable font-[inherit]"
-        >
-            <span className="pf-statcell__num">{count === null ? '—' : String(count)}</span>
-            <span className="pf-statcell__label underline decoration-[rgba(0,113,227,0.3)] underline-offset-2">
-                {tn('profile.friendsLabel', count ?? 0)}
-            </span>
-        </button>
+        <div className="pf-statmag">
+            <div className="pf-statbar" ref={barRef}>
+                {stats.map((s, i) => (
+                    <StatCell key={i} {...s} />
+                ))}
+            </div>
+            {dims.w > R * 2 ? (
+                <div
+                    className="pf-lens"
+                    style={{ left: cx - R, width: R * 2, height: R * 2 }}
+                    onPointerDown={onPointerDown}
+                    onPointerMove={onPointerMove}
+                    onPointerUp={endDrag}
+                    onPointerCancel={endDrag}
+                    onKeyDown={onKeyDown}
+                    tabIndex={0}
+                    role="slider"
+                    aria-label="Drag to zoom the stats"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={dims.w ? Math.round((cx / dims.w) * 100) : 50}
+                >
+                    <div
+                        className="pf-statbar pf-statbar--mag"
+                        style={{
+                            left: contentLeft,
+                            top: contentTop,
+                            width: dims.w,
+                            transform: `scale(${Z})`,
+                            transformOrigin: 'top left',
+                        }}
+                    >
+                        {stats.map((s, i) => (
+                            <StatCell key={i} {...s} />
+                        ))}
+                    </div>
+                </div>
+            ) : null}
+        </div>
     );
 }
 

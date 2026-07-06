@@ -223,12 +223,14 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding-bottom: 12px; /* lift the icon above the notch */
+    padding-top: 11px; /* drop the icon below the top notch */
     border: 0;
     cursor: pointer;
     background: rgba(0, 45, 91, 0.07);
     color: var(--text-secondary);
-    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+    /* Upside-down bookmark: notch at the TOP, flat edge at the BOTTOM so it
+       reads as tabs emerging from the card just below. */
+    clip-path: polygon(0 0, 50% 22%, 100% 0, 100% 100%, 0 100%);
     transition: background 0.2s ease, color 0.2s ease, transform 0.12s ease, filter 0.2s ease;
 }
 .pf-bookmark-btn:hover {
@@ -245,10 +247,17 @@
    hairline vertical dividers. Labels WRAP at spaces (so "Viagens
    públicas" stacks to two lines) and numbers top-align across cells, so
    nothing overlaps. Monochrome + minimal — no coloured tiles. */
+/* Wrapper is the positioning context for the absolutely-placed loupe. */
+.pf-statmag {
+    position: relative;
+    margin: 20px 0 2px;
+    /* Room above/below so the loupe (taller than the slab) isn't clipped. */
+    padding: 14px 0;
+}
 .pf-statbar {
     display: flex;
     align-items: stretch;
-    margin: 20px 0 2px;
+    box-sizing: border-box;
     padding: 12px 0;
     border-radius: 16px;
     background: rgba(0, 45, 91, 0.025);
@@ -276,14 +285,14 @@
     background: var(--glass-border, rgba(0, 45, 91, 0.1));
 }
 .pf-statcell__num {
-    font-size: 1.3rem;
+    font-size: 0.8rem;
     font-weight: 800;
     letter-spacing: -0.02em;
     line-height: 1;
     color: var(--text-primary);
 }
 .pf-statcell__label {
-    font-size: 0.5rem;
+    font-size: 0.46rem;
     font-weight: 700;
     letter-spacing: 0.02em;
     line-height: 1.2;
@@ -299,13 +308,50 @@
 .pf-statcell--tappable:focus-visible .pf-statcell__num {
     color: var(--accent-blue-deep, #005bb8);
 }
-/* Very narrow phones: nudge type down a touch more. */
+
+/* ── Liquid-glass loupe over the stat slab ────────────────────────
+   A draggable frosted circle that magnifies the tiny numbers beneath it.
+   It holds a second, scaled copy of the slab (positioned by JS so the
+   point under the lens centre lands at the centre) clipped to the circle. */
+.pf-lens {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    border-radius: 50%;
+    overflow: hidden;
+    cursor: grab;
+    touch-action: none;
+    background: rgba(255, 255, 255, 0.28);
+    -webkit-backdrop-filter: blur(2px) saturate(150%) brightness(1.04);
+    backdrop-filter: blur(2px) saturate(150%) brightness(1.04);
+    border: 1.5px solid rgba(255, 255, 255, 0.7);
+    box-shadow:
+        0 7px 20px rgba(0, 45, 91, 0.24),
+        inset 0 1px 3px rgba(255, 255, 255, 0.85),
+        inset 0 -9px 16px rgba(0, 45, 91, 0.09);
+    z-index: 4;
+}
+.pf-lens:active {
+    cursor: grabbing;
+}
+.pf-lens:focus-visible {
+    outline: 2px solid var(--accent-blue, #0071e3);
+    outline-offset: 2px;
+}
+/* The magnified copy: transparent (only the numbers show) + non-interactive
+   so the lens itself owns the pointer for dragging. */
+.pf-statbar--mag {
+    position: absolute;
+    background: none;
+    border-color: transparent;
+    pointer-events: none;
+}
 @media (max-width: 360px) {
     .pf-statcell__num {
-        font-size: 1.15rem;
+        font-size: 0.72rem;
     }
     .pf-statcell__label {
-        font-size: 0.45rem;
+        font-size: 0.42rem;
     }
 }
 
