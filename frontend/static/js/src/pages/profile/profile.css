@@ -208,62 +208,87 @@
     overflow-wrap: anywhere;
 }
 
-/* ── Icon toggle (Info ⇆ Footprint) on top ────────────────────────
-   Reuses the app-wide .seg-control; these overrides just centre the icon
-   in each segment and give the two-option pill comfortable tap targets. */
-.pf-seg-icons .seg-btn {
+/* ── Bookmark switch (Info ⇆ Footprint) on top ────────────────────
+   Two bookmark-ribbon tabs (clip-path notch at the bottom) carrying just
+   an icon — circled "i" for Info, globe for Footprint. Active tab is
+   accent-filled + lifted with a drop-shadow that follows the ribbon. */
+.pf-bookmarks {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+}
+.pf-bookmark-btn {
+    width: 54px;
+    height: 56px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 68px;
-    padding: 8px 0;
+    padding-bottom: 12px; /* lift the icon above the notch */
+    border: 0;
+    cursor: pointer;
+    background: rgba(0, 45, 91, 0.07);
+    color: var(--text-secondary);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+    transition: background 0.2s ease, color 0.2s ease, transform 0.12s ease, filter 0.2s ease;
+}
+.pf-bookmark-btn:hover {
+    transform: translateY(-1px);
+}
+.pf-bookmark-btn[data-active="true"] {
+    background: linear-gradient(180deg, var(--accent-blue, #0071e3), #5856d6);
+    color: #fff;
+    filter: drop-shadow(0 5px 11px rgba(0, 113, 227, 0.3));
 }
 
 /* ── Stats bar (inside the Info card) ─────────────────────────────
-   An understated row: navy numbers over tiny uppercase labels, split by
-   hairline vertical dividers. Monochrome + minimal — no coloured tiles. */
+   Understated row: navy numbers over tiny uppercase labels, split by
+   hairline vertical dividers. Labels WRAP at spaces (so "Viagens
+   públicas" stacks to two lines) and numbers top-align across cells, so
+   nothing overlaps. Monochrome + minimal — no coloured tiles. */
 .pf-statbar {
     display: flex;
+    align-items: stretch;
     margin: 20px 0 2px;
-    padding: 12px 2px;
+    padding: 12px 0;
     border-radius: 16px;
     background: rgba(0, 45, 91, 0.025);
     border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.06));
 }
 .pf-statcell {
     position: relative;
-    flex: 1;
+    flex: 1 1 0;
     min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 3px;
-    padding: 2px 4px;
+    justify-content: flex-start;
+    gap: 5px;
+    padding: 0 3px;
+    text-align: center;
 }
 .pf-statcell + .pf-statcell::before {
     content: '';
     position: absolute;
     left: 0;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 6px;
+    bottom: 6px;
     width: 1px;
-    height: 58%;
     background: var(--glass-border, rgba(0, 45, 91, 0.1));
 }
 .pf-statcell__num {
-    font-size: 1.35rem;
+    font-size: 1.3rem;
     font-weight: 800;
     letter-spacing: -0.02em;
     line-height: 1;
     color: var(--text-primary);
 }
 .pf-statcell__label {
-    font-size: 0.56rem;
+    font-size: 0.5rem;
     font-weight: 700;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
     text-transform: uppercase;
     color: var(--text-secondary);
-    white-space: nowrap;
 }
 .pf-statcell--tappable {
     cursor: pointer;
@@ -274,20 +299,13 @@
 .pf-statcell--tappable:focus-visible .pf-statcell__num {
     color: var(--accent-blue-deep, #005bb8);
 }
-/* Narrow phones: shrink so all five cells + their labels stay on one row. */
-@media (max-width: 390px) {
-    .pf-statbar {
-        padding: 11px 0;
-    }
-    .pf-statcell {
-        padding: 2px 2px;
-    }
+/* Very narrow phones: nudge type down a touch more. */
+@media (max-width: 360px) {
     .pf-statcell__num {
         font-size: 1.15rem;
     }
     .pf-statcell__label {
-        font-size: 0.5rem;
-        letter-spacing: 0.02em;
+        font-size: 0.45rem;
     }
 }
 

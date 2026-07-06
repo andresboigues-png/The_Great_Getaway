@@ -27,7 +27,7 @@
 // lifetime regardless of how many times the Profile component
 // remounts.
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useStore } from '../../react/store.js';
 import { STATE, emit } from '../../state.js';
@@ -377,27 +377,12 @@ function ProfileSectionToggle({
     infoLabel: string;
     footprintLabel: string;
 }) {
-    const ref = useRef<HTMLDivElement | null>(null);
-    const [lens, setLens] = useState<{ left: number; width: number } | null>(null);
-    useLayoutEffect(() => {
-        const measure = () => {
-            const el = ref.current?.querySelector<HTMLElement>('[data-active="true"]');
-            if (el) setLens({ left: el.offsetLeft, width: el.offsetWidth });
-        };
-        measure();
-        const node = ref.current;
-        if (!node || typeof ResizeObserver === 'undefined') return;
-        const ro = new ResizeObserver(measure);
-        ro.observe(node);
-        return () => ro.disconnect();
-    }, [value]);
     const opts: Array<{ v: ProfileSection; label: string }> = [
         { v: 'info', label: infoLabel },
         { v: 'footprint', label: footprintLabel },
     ];
     return (
-        <div ref={ref} role="tablist" aria-label="Profile section" className="seg-control pf-seg-icons">
-            {lens ? <div aria-hidden="true" className="seg-lens" style={{ left: lens.left, width: lens.width }} /> : null}
+        <div className="pf-bookmarks" role="tablist" aria-label="Profile section">
             {opts.map((o) => {
                 const active = o.v === value;
                 return (
@@ -410,8 +395,7 @@ function ProfileSectionToggle({
                         title={o.label}
                         data-active={active}
                         onClick={() => onChange(o.v)}
-                        className="seg-btn"
-                        style={{ color: active ? 'var(--text-brand-navy)' : 'var(--text-secondary)' }}
+                        className="pf-bookmark-btn"
                     >
                         {SECTION_ICONS[o.v]}
                     </button>
