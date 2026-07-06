@@ -263,6 +263,19 @@
 .pf-statstrip:not(.pf-statstrip--loop) {
     justify-content: center;
 }
+/* Loop mode — the chips fade at both edges (a subtle roulette-reel look
+   that signals "swipe me"), it's mouse-draggable, and text stays
+   unselectable during a drag. */
+.pf-statstrip--loop {
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 26px, #000 calc(100% - 26px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 26px, #000 calc(100% - 26px), transparent);
+}
+.pf-statstrip--loop:active {
+    cursor: grabbing;
+}
 /* Each copy of the stat set — a flex row of chips, same gap as between
    sets so the loop has no visible seam. */
 .pf-statstrip__set {

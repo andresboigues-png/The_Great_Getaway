@@ -28,7 +28,7 @@
 // remounts.
 
 import { useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { ReactNode, PointerEvent as ReactPointerEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { useStore } from '../../react/store.js';
 import { STATE, emit } from '../../state.js';
 import { apiFetch, uploadMedia, blockUser } from '../../api.js';
@@ -1053,6 +1053,37 @@ function StatStrip({ stats }: { stats: Stat[] }) {
         return () => ro.disconnect();
     }, [stats.length]);
 
+    // Mouse drag-to-scroll (so it's "swipeable" with a mouse on the web —
+    // touch/pen already scroll natively). Incremental deltas so the loop's
+    // scrollLeft wraps don't jolt the drag. A drag past a few px suppresses
+    // the chip click so dragging never opens a modal.
+    const dragRef = useRef({ active: false, lastX: 0, moved: 0 });
+    const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+        if (e.pointerType !== 'mouse') return;
+        if (!scrollerRef.current) return;
+        // No setPointerCapture — it would redirect the follow-up click away
+        // from the chip and swallow taps. onPointerLeave ends a stray drag.
+        dragRef.current = { active: true, lastX: e.clientX, moved: 0 };
+    };
+    const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+        const d = dragRef.current;
+        const el = scrollerRef.current;
+        if (!d.active || !el) return;
+        const dx = e.clientX - d.lastX;
+        d.lastX = e.clientX;
+        d.moved += Math.abs(dx);
+        el.scrollLeft -= dx;
+    };
+    const endDrag = () => {
+        dragRef.current.active = false;
+    };
+    const onClickCapture = (e: ReactMouseEvent<HTMLDivElement>) => {
+        if (dragRef.current.moved > 6) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    };
+
     // Park the scroll on the middle (real) set and wrap it back whenever it
     // drifts into a clone, so a swipe carries on around forever.
     useEffect(() => {
@@ -1095,7 +1126,16 @@ function StatStrip({ stats }: { stats: Stat[] }) {
     );
 
     return (
-        <div className={`pf-statstrip${loop ? ' pf-statstrip--loop' : ''}`} ref={scrollerRef}>
+        <div
+            className={`pf-statstrip${loop ? ' pf-statstrip--loop' : ''}`}
+            ref={scrollerRef}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            onPointerLeave={endDrag}
+            onClickCapture={onClickCapture}
+        >
             {loop ? renderSet('clone-a', false) : null}
             {renderSet('real', true)}
             {loop ? renderSet('clone-b', false) : null}
