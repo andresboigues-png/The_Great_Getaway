@@ -754,55 +754,37 @@ function ProfileInfoSection({
 }: ProfileInfoSectionProps) {
     const follow = useFollowLists(targetUserId ?? user.id);
     // Each stat's caption opens its own searchable list modal of that data.
+    // The caption is ALWAYS a live link (opens the modal even when the list
+    // is empty → "Nothing here yet"), so it never greys out.
     const searchPh = t('common.search');
+    const openList = (title: string, items: StatListItem[]) => () =>
+        openStatListModal({ title, searchPlaceholder: searchPh, items });
     const stats: Stat[] = [
         {
             num: String(tripCount),
             label: tn('profile.publicTripsLabel', tripCount),
-            onClick: trips.length
-                ? () =>
-                      openStatListModal({
-                          title: tn('profile.publicTripsLabel', tripCount),
-                          searchPlaceholder: searchPh,
-                          items: trips.map((tp) => ({ primary: tp.name || 'Trip', secondary: tp.country || undefined })),
-                      })
-                : undefined,
+            onClick: openList(
+                tn('profile.publicTripsLabel', tripCount),
+                trips.map((tp) => ({ primary: tp.name || 'Trip', secondary: tp.country || undefined })),
+            ),
         },
         {
             num: String(countryCount),
             label: tn('profile.countriesLabel', countryCount),
-            onClick: uniqueCountries.length
-                ? () =>
-                      openStatListModal({
-                          title: tn('profile.countriesLabel', countryCount),
-                          searchPlaceholder: searchPh,
-                          items: uniqueCountries.map((c) => ({ primary: c })),
-                      })
-                : undefined,
+            onClick: openList(
+                tn('profile.countriesLabel', countryCount),
+                uniqueCountries.map((c) => ({ primary: c })),
+            ),
         },
         {
             num: String(followers),
             label: tn('profile.followersLabel', followers),
-            onClick: follow.followers.length
-                ? () =>
-                      openStatListModal({
-                          title: tn('profile.followersLabel', follow.followers.length),
-                          searchPlaceholder: searchPh,
-                          items: peopleItems(follow.followers),
-                      })
-                : undefined,
+            onClick: openList(tn('profile.followersLabel', followers), peopleItems(follow.followers)),
         },
         {
             num: String(following),
             label: tn('profile.followingLabel', following),
-            onClick: follow.following.length
-                ? () =>
-                      openStatListModal({
-                          title: tn('profile.followingLabel', follow.following.length),
-                          searchPlaceholder: searchPh,
-                          items: peopleItems(follow.following),
-                      })
-                : undefined,
+            onClick: openList(tn('profile.followingLabel', following), peopleItems(follow.following)),
         },
     ];
     if (isOwnProfile) {
@@ -810,14 +792,7 @@ function ProfileInfoSection({
         stats.push({
             num: friendsCount === null ? '—' : String(friendsCount),
             label: tn('profile.friendsLabel', friendsCount ?? 0),
-            onClick: follow.friends.length
-                ? () =>
-                      openStatListModal({
-                          title: tn('profile.friendsLabel', follow.friends.length),
-                          searchPlaceholder: searchPh,
-                          items: peopleItems(follow.friends),
-                      })
-                : undefined,
+            onClick: openList(tn('profile.friendsLabel', friendsCount ?? 0), peopleItems(follow.friends)),
         });
     }
     return (
@@ -1027,28 +1002,31 @@ function StatMagnifier({ stats }: { stats: Stat[] }) {
 
     return (
         <div className="pf-statmag">
-            <div className="pf-statbar" ref={barRef}>
+            {/* The whole slab is the slider surface: tap anywhere to jump the
+                loupe there, or drag it. The loupe itself is visual-only
+                (pointer-events:none) so it never eats these events. */}
+            <div
+                className="pf-statbar pf-statbar--interactive"
+                ref={barRef}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+                onKeyDown={onKeyDown}
+                tabIndex={0}
+                role="slider"
+                aria-label="Drag or tap to zoom the stats"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={dims.w ? Math.round((cx / dims.w) * 100) : 50}
+            >
                 {stats.map((s, i) => (
                     <StatCell key={i} num={s.num} label={s.label} />
                 ))}
             </div>
             {dims.w > R * 2 ? (
                 <>
-                    <div
-                        className="pf-lens"
-                        style={{ left: cx - R, top: lensTop, width: R * 2, height: R * 2 }}
-                        onPointerDown={onPointerDown}
-                        onPointerMove={onPointerMove}
-                        onPointerUp={endDrag}
-                        onPointerCancel={endDrag}
-                        onKeyDown={onKeyDown}
-                        tabIndex={0}
-                        role="slider"
-                        aria-label="Drag to zoom the stats"
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-valuenow={dims.w ? Math.round((cx / dims.w) * 100) : 50}
-                    >
+                    <div className="pf-lens" style={{ left: cx - R, top: lensTop, width: R * 2, height: R * 2 }}>
                         <div
                             className="pf-statbar pf-statbar--mag"
                             style={{
@@ -1065,14 +1043,13 @@ function StatMagnifier({ stats }: { stats: Stat[] }) {
                         </div>
                     </div>
                     {/* GG-blue caption naming the number under the loupe; taps
-                        through to the related surface. */}
+                        through to that stat's list modal. Always a live link. */}
                     {active ? (
                         <button
                             type="button"
                             className="pf-statcaption"
                             style={{ left: captionLeft, top: captionTop }}
-                            onClick={active.onClick}
-                            disabled={!active.onClick}
+                            onClick={() => active.onClick?.()}
                         >
                             {active.label}
                         </button>

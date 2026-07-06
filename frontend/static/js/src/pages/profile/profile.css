@@ -264,6 +264,18 @@
     background: rgba(0, 45, 91, 0.025);
     border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.06));
 }
+/* The real (interactive) slab — tap/drag to move the loupe. */
+.pf-statbar--interactive {
+    cursor: ew-resize;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    outline: none;
+}
+.pf-statbar--interactive:focus-visible {
+    outline: 2px solid var(--accent-blue, #0071e3);
+    outline-offset: 3px;
+}
 .pf-statcell {
     position: relative;
     flex: 1 1 0;
@@ -311,8 +323,8 @@
     /* top is set inline (centred on the slab, above the caption). */
     border-radius: 50%;
     overflow: hidden;
-    cursor: grab;
-    touch-action: none;
+    /* Visual only — the slab beneath owns all pointer/tap/drag handling. */
+    pointer-events: none;
     /* Near-opaque frost: a real loupe covers what's beneath it, so the tiny
        un-magnified numbers behind must NOT bleed through. The glass look
        comes from the rim highlights + shadows, not from being see-through. */
