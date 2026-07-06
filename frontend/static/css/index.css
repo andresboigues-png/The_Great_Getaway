@@ -1119,6 +1119,77 @@ body.menu-handle-off .rail-peek {
     color: var(--text-primary);
     text-decoration: none;
     transition: background 0.18s ease, transform 0.05s ease;
+    /* position/z-index so the rail scrubber's glass selector (z-index:0,
+       inserted as the rail's first child) sits BEHIND the icons. */
+    position: relative;
+    z-index: 1;
+}
+
+/* ── Rail scrubber: right-edge thumb-reach nav aid ──────────────────
+   A translucent vertical line on the right edge that mirrors the left
+   rail (see bootstrap/railScrubber.ts). Dragging it moves the glass
+   `.rail-selector` along the rail + fires a haptic per icon; release
+   navigates. Mobile-only + only while the rail island is open. */
+.rail-scrubber {
+    position: fixed;
+    right: 8px;
+    width: 26px;
+    display: none;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.42);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(0, 45, 91, 0.14);
+    box-shadow: 0 8px 24px rgba(0, 45, 91, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    z-index: 1000;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.rail-scrubber.is-shown {
+    display: block;
+}
+.rail-scrubber.is-active {
+    background: rgba(0, 113, 227, 0.2);
+    border-color: rgba(0, 113, 227, 0.42);
+}
+.rail-scrubber__knob {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 22px;
+    height: 22px;
+    margin: -11px 0 0 -11px;
+    border-radius: 50%;
+    background: #0071e3;
+    box-shadow: 0 2px 10px rgba(0, 113, 227, 0.55);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+}
+.rail-scrubber.is-active .rail-scrubber__knob {
+    opacity: 1;
+}
+
+.rail-selector {
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    top: 0;
+    height: 0;
+    border-radius: 14px;
+    background: rgba(0, 113, 227, 0.16);
+    border: 1px solid rgba(0, 113, 227, 0.34);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 0;
+    transition: top 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+        height 0.16s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.16s ease;
+}
+.rail-selector.is-visible {
+    opacity: 1;
 }
 /* Match the burger drawer's icon styling: SVG stroke is the brand
    accent-blue regardless of hover/focus, since the rail items have
