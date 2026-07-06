@@ -664,6 +664,8 @@ export const en = {
         avatarAlt: 'Profile picture',
         homeCountryAria: 'Home country',
         homeCurrencyAria: 'Home currency',
+        statusRowLabel: 'Status',
+        homeCountryNotSet: '— Not set —',
     },
     settlement: {
         // Page header.

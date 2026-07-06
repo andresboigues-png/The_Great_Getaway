@@ -547,6 +547,8 @@ export const fr: Translations = {
         avatarAlt: 'Photo de profil',
         homeCountryAria: 'Pays d\'origine',
         homeCurrencyAria: 'Devise d\'origine',
+        statusRowLabel: 'Statut',
+        homeCountryNotSet: '— Non défini —',
     },
     settlement: {
         title: 'Règlements',

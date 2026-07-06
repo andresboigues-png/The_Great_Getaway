@@ -1028,7 +1028,7 @@ function BioBlock({
             {/* Status */}
             <div className="pf-setting-row">
                 <div className="pf-setting-row__text">
-                    <div className="pf-setting-row__label">Status</div>
+                    <div className="pf-setting-row__label">{t('profile.statusRowLabel')}</div>
                 </div>
                 <div className="pf-setting-row__control relative inline-block">
                     <select
@@ -1056,7 +1056,7 @@ function BioBlock({
             {/* Home country */}
             <div className="pf-setting-row">
                 <div className="pf-setting-row__text">
-                    <div className="pf-setting-row__label">Home country</div>
+                    <div className="pf-setting-row__label">{t('profile.homeCountryAria')}</div>
                 </div>
                 <div className="pf-setting-row__control relative inline-block">
                     <select
@@ -1067,7 +1067,7 @@ function BioBlock({
                         onChange={() => setDirty(true)}
                     >
                         {/* Empty = "not set" sentinel → cleared server-side (null). */}
-                        <option value="">— Not set —</option>
+                        <option value="">{t('profile.homeCountryNotSet')}</option>
                         {COUNTRIES.map((c) => (
                             <option key={c} value={c}>
                                 {c}
@@ -1081,7 +1081,7 @@ function BioBlock({
             {/* Home currency */}
             <div className="pf-setting-row">
                 <div className="pf-setting-row__text">
-                    <div className="pf-setting-row__label">Home currency</div>
+                    <div className="pf-setting-row__label">{t('profile.homeCurrencyAria')}</div>
                 </div>
                 <div className="pf-setting-row__control relative inline-block">
                     <select

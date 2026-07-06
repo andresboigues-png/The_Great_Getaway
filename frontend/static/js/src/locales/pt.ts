@@ -546,6 +546,8 @@ export const pt: Translations = {
         avatarAlt: 'Foto de perfil',
         homeCountryAria: 'País de origem',
         homeCurrencyAria: 'Moeda de origem',
+        statusRowLabel: 'Estado',
+        homeCountryNotSet: '— Por definir —',
     },
     settlement: {
         title: 'Acertos de contas',

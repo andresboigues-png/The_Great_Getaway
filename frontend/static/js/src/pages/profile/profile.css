@@ -247,12 +247,15 @@
     margin: 22px -24px;
 }
 
-/* iOS-style setting row: label (with hint) left, control right. */
+/* Setting row: label on top, full-width control below. Stacked (not
+   label|control side-by-side) so a wide select value — "Definir
+   estado…", a long country name — can never overlap or crowd the
+   label on a narrow phone. Reads as a clean iOS form field. */
 .pf-setting-row {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
     padding: 15px 0;
 }
 .pf-setting-row + .pf-setting-row {
@@ -266,7 +269,15 @@
     font-weight: 700;
     color: var(--text-primary);
     letter-spacing: -0.01em;
-    white-space: nowrap;
+}
+/* Full-width control + its <select> so the pill spans the row and the
+   chevron sits at the far right. */
+.pf-setting-row__control {
+    position: relative;
+    display: block;
+}
+.pf-setting-row__control select {
+    width: 100%;
 }
 .pf-setting-row__hint {
     display: block;
