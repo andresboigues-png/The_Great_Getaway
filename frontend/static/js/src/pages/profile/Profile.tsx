@@ -28,7 +28,7 @@
 // remounts.
 
 import { useEffect, useRef, useState } from 'react';
-import type { ReactNode, PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardEvent } from 'react';
+import type { ReactNode } from 'react';
 import { useStore } from '../../react/store.js';
 import { STATE, emit } from '../../state.js';
 import { apiFetch, uploadMedia, blockUser } from '../../api.js';
@@ -906,9 +906,10 @@ function ProfileInfoSection({
                 ) : null}
             </div>
 
-            {/* Stats — tiny numbers on a slab, with a draggable liquid-glass
-                loupe you slide across to zoom in on them. */}
-            <StatMagnifier stats={stats} />
+            {/* Stats — a swipeable row of tappable chips (each opens its
+                list modal). Scrolls horizontally on a phone; fits inline on
+                desktop. */}
+            <StatStrip stats={stats} />
 
             <div className="pf-divider" />
 
@@ -978,148 +979,19 @@ function peopleItems(people: ProfileFriend[]): StatListItem[] {
     }));
 }
 
-// Plain (non-interactive) cell — the numbers are read through the loupe;
-// the clickable navigation lives in the blue caption below it.
-function StatCell({ num, label }: { num: string; label: string }) {
+// Swipeable stat strip — a horizontally-scrollable row of tappable stat
+// chips, each opening its list modal. Replaced the loupe magnifier: with up
+// to 8 stats a fixed magnifier row was too cramped on phones. A scroll strip
+// gives every stat full, readable width and still fits inline on desktop.
+function StatStrip({ stats }: { stats: Stat[] }) {
     return (
-        <div className="pf-statcell">
-            <span className="pf-statcell__num">{num}</span>
-            <span className="pf-statcell__label">{label}</span>
-        </div>
-    );
-}
-
-// A slab of tiny stat numbers with a draggable circular liquid-glass loupe
-// that magnifies whatever it sits over. The loupe renders a second, scaled
-// copy of the same slab, offset so the point under the lens centre lands at
-// the lens centre (classic magnifier maths), clipped to a circle.
-function StatMagnifier({ stats }: { stats: Stat[] }) {
-    const barRef = useRef<HTMLDivElement | null>(null);
-    // numY = vertical centre of the NUMBERS row (measured), so the loupe
-    // zooms the numbers rather than the labels below them.
-    const [dims, setDims] = useState<{ w: number; h: number; numY: number }>({ w: 0, h: 0, numY: 0 });
-    const [lensX, setLensX] = useState<number | null>(null);
-    const draggingRef = useRef(false);
-
-    const R = 27; // lens radius (54px loupe)
-    const Z = 2.4; // zoom factor
-    const PAD_TOP = 16; // space above the slab for the loupe overflow
-
-    useEffect(() => {
-        const el = barRef.current;
-        if (!el) return;
-        const measure = () => {
-            const r = el.getBoundingClientRect();
-            const numEl = el.querySelector<HTMLElement>('.pf-statcell__num');
-            const numRect = numEl?.getBoundingClientRect();
-            const numY = numRect ? numRect.top - r.top + numRect.height / 2 : r.height * 0.34;
-            setDims({ w: r.width, h: r.height, numY });
-        };
-        measure();
-        if (typeof ResizeObserver === 'undefined') return;
-        const ro = new ResizeObserver(measure);
-        ro.observe(el);
-        return () => ro.disconnect();
-    }, []);
-
-    const clamp = (x: number) => Math.max(R, Math.min(Math.max(dims.w - R, R), x));
-    const cx = clamp(lensX ?? dims.w / 2);
-
-    const moveTo = (clientX: number) => {
-        const el = barRef.current;
-        if (!el) return;
-        setLensX(clamp(clientX - el.getBoundingClientRect().left));
-    };
-    const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-        draggingRef.current = true;
-        e.currentTarget.setPointerCapture?.(e.pointerId);
-        moveTo(e.clientX);
-    };
-    const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-        if (draggingRef.current) moveTo(e.clientX);
-    };
-    const endDrag = () => {
-        draggingRef.current = false;
-    };
-    const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
-        if (e.key === 'ArrowLeft') {
-            setLensX(clamp(cx - 14));
-            e.preventDefault();
-        } else if (e.key === 'ArrowRight') {
-            setLensX(clamp(cx + 14));
-            e.preventDefault();
-        }
-    };
-
-    // Offset the scaled copy so bar point (cx, numY) lands at the lens
-    // centre — i.e. the numbers row is what gets magnified.
-    const contentLeft = R - cx * Z;
-    const contentTop = R - dims.numY * Z;
-    // Loupe centred on the slab (which sits PAD_TOP below the wrapper top).
-    const lensTop = PAD_TOP + dims.h / 2 - R;
-    // Which stat is under the loupe → drives the caption below it.
-    const n = stats.length;
-    const activeIdx = n > 0 && dims.w > 0 ? Math.min(n - 1, Math.max(0, Math.floor(cx / (dims.w / n)))) : 0;
-    const active = stats[activeIdx];
-    const captionTop = PAD_TOP + dims.h + 5;
-    const captionLeft = Math.max(46, Math.min(Math.max(dims.w - 46, 46), cx));
-
-    return (
-        <div className="pf-statmag">
-            {/* The whole slab is the slider surface: tap anywhere to jump the
-                loupe there, or drag it. The loupe itself is visual-only
-                (pointer-events:none) so it never eats these events. */}
-            <div
-                className="pf-statbar pf-statbar--interactive"
-                ref={barRef}
-                onPointerDown={onPointerDown}
-                onPointerMove={onPointerMove}
-                onPointerUp={endDrag}
-                onPointerCancel={endDrag}
-                onKeyDown={onKeyDown}
-                tabIndex={0}
-                role="slider"
-                aria-label="Drag or tap to zoom the stats"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={dims.w ? Math.round((cx / dims.w) * 100) : 50}
-            >
-                {stats.map((s, i) => (
-                    <StatCell key={i} num={s.num} label={s.label} />
-                ))}
-            </div>
-            {dims.w > R * 2 ? (
-                <>
-                    <div className="pf-lens" style={{ left: cx - R, top: lensTop, width: R * 2, height: R * 2 }}>
-                        <div
-                            className="pf-statbar pf-statbar--mag"
-                            style={{
-                                left: contentLeft,
-                                top: contentTop,
-                                width: dims.w,
-                                transform: `scale(${Z})`,
-                                transformOrigin: 'top left',
-                            }}
-                        >
-                            {stats.map((s, i) => (
-                                <StatCell key={i} num={s.num} label={s.label} />
-                            ))}
-                        </div>
-                    </div>
-                    {/* GG-blue caption naming the number under the loupe; taps
-                        through to that stat's list modal. Always a live link. */}
-                    {active ? (
-                        <button
-                            type="button"
-                            className="pf-statcaption"
-                            style={{ left: captionLeft, top: captionTop }}
-                            onClick={() => active.onClick?.()}
-                        >
-                            {active.label}
-                        </button>
-                    ) : null}
-                </>
-            ) : null}
+        <div className="pf-statstrip">
+            {stats.map((s, i) => (
+                <button key={i} type="button" className="pf-statchip" onClick={() => s.onClick?.()}>
+                    <span className="pf-statchip__num">{s.num}</span>
+                    <span className="pf-statchip__label">{s.label}</span>
+                </button>
+            ))}
         </div>
     );
 }
