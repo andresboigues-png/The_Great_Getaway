@@ -307,11 +307,21 @@ export function DayDetailModal({
         const start = ta.selectionStart ?? ta.value.length;
         const end = ta.selectionEnd ?? ta.value.length;
         const selected = ta.value.slice(start, end);
-        ta.value = ta.value.slice(0, start) + marker + selected + marker + ta.value.slice(end);
+        // PlanText parses **bold** WITHIN a single line, so a marker pair that
+        // straddled a newline would never render. When the selection spans
+        // lines, wrap each non-blank line on its own instead of the block.
+        const multiLine = selected.includes('\n');
+        const wrapped = multiLine
+            ? selected
+                  .split('\n')
+                  .map((l) => (l.trim() ? marker + l + marker : l))
+                  .join('\n')
+            : marker + selected + marker;
+        ta.value = ta.value.slice(0, start) + wrapped + ta.value.slice(end);
         ta.focus();
-        // Caret lands after the opening marker + selection so typing
-        // continues inside the emphasis when nothing was selected.
-        const caret = start + marker.length + selected.length;
+        // Single-line/empty: caret sits before the closing marker so typing
+        // continues inside the emphasis. Multi-line: caret at the end.
+        const caret = multiLine ? start + wrapped.length : start + marker.length + selected.length;
         ta.setSelectionRange(caret, caret);
         autoGrowPlan(ta);
         queueSave();

@@ -60,12 +60,19 @@ function restoreScrollTo(targetY: number): void {
         return;
     }
     let tries = 0;
+    let lastSet = -1;
     const step = () => {
+        // Bail the instant the user takes over: if scrollY diverged from the
+        // value we set last frame, they scrolled — don't fight them. (Passive
+        // document growth leaves scrollY == lastSet, so this only trips on a
+        // real user gesture, not on the map/images loading in.)
+        if (lastSet >= 0 && Math.abs(window.scrollY - lastSet) > 2) return;
         const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-        window.scrollTo(0, Math.min(targetY, Math.max(0, maxScroll)));
+        const y = Math.min(targetY, Math.max(0, maxScroll));
+        window.scrollTo(0, y);
+        lastSet = y;
         // Keep re-applying only while the document still can't reach
-        // targetY (content loading in). Once it can — or after ~0.5s —
-        // stop, so a user who scrolls immediately isn't yanked back.
+        // targetY (content loading in). Once it can — or after ~0.5s — stop.
         if (maxScroll < targetY - 2 && tries < 30) {
             tries += 1;
             requestAnimationFrame(step);
@@ -125,6 +132,13 @@ export interface NavigateParams {
      *  same-page navigate() WITHOUT this flag is a mutation re-render and
      *  keeps the user's scroll position. Only genuine chrome clicks set it. */
     fromNavClick?: boolean;
+    /** 2026-07-06: set by the onhashchange handler (browser back/forward or
+     *  an external deep link). Together with fromNavClick it marks a nav as
+     *  USER-INITIATED, which is the only case where returning to Home
+     *  restores its remembered scroll — a programmatic navigate(PAGES.HOME)
+     *  (trip switch, notification action, post-clone, auth redirect) starts
+     *  at the top of the freshly-changed content instead. */
+    fromHashChange?: boolean;
 }
 
 /** Direction hint for the post-mount slide-in animation on the
@@ -376,6 +390,10 @@ export function navigate(
     // "go to the top"; a same-page navigate() without it is a mutation
     // re-render that should keep the user's scroll.
     const fromNavClick = params?.fromNavClick === true;
+    // A user-initiated return (nav tap OR browser back/forward) is the only
+    // case that restores Home's remembered scroll; a programmatic
+    // navigate(HOME) after a context change starts at the top instead.
+    const userInitiated = fromNavClick || params?.fromHashChange === true;
     // Remember where we were on the page we're LEAVING so returning to it
     // (Home in particular) can restore the position. currentPage is still
     // the OLD page here — it's only reassigned at the end of navigate().
@@ -440,7 +458,11 @@ export function navigate(
             targetY = 0;
         } else if (preserveScroll || willBeSamePage) {
             targetY = savedScrollY;
-        } else if (page === PAGES.HOME) {
+        } else if (page === PAGES.HOME && userInitiated) {
+            // Genuine return to Home (tapped the tab / back-forward) → restore
+            // where they left it. A programmatic navigate(HOME) after a trip
+            // switch / notification / clone falls through to top so the user
+            // isn't dropped mid-page in freshly-changed content.
             targetY = scrollByPage.get(PAGES.HOME) ?? 0;
         } else {
             targetY = 0;
@@ -499,5 +521,7 @@ window.onhashchange = () => {
     // tripping the default branch with an unknown name.
     const known: readonly string[] = Object.values(PAGES);
     const page: PageName = (known.includes(hash) ? hash : PAGES.HOME) as PageName;
-    navigate(page);
+    // Back/forward or an external deep link is a user-initiated return, so
+    // Home restores its remembered scroll (see NavigateParams.fromHashChange).
+    navigate(page, { fromHashChange: true });
 };
