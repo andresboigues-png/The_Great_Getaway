@@ -18,18 +18,36 @@ import{$t as e,An as t,Dn as n,En as r,G as i,In as a,M as o,Nn as s,P as c,Q as
                 ${P()}
             </div>
 
-            <!-- Add affordances: friend picker + inline plain-name input.
-                 Both write to trip.companions immediately and re-render the
-                 list, so what the user sees IS the saved state. -->
+            <!-- Add someone — two clearly-labeled paths so it reads as a
+                 choice, not two mystery controls: (1) a friend with an
+                 account (gets a trip invite), (2) just a name for a
+                 non-app traveller. Same element ids as before so every
+                 handler is unchanged. Both write to trip.companions
+                 immediately, so what the user sees IS the saved state. -->
             <div class="companion-picker-add-section">
-                <button type="button" id="companionPickerAddFriendBtn" class="companion-picker-add-section__friend-btn">
-                    <span style="display:inline-flex; align-items:center;">${x(`user`,{size:16})}</span>
-                    <span>${d(u(`companions.addFriendBtn`))}</span>
-                </button>
-                <form id="companionPickerAddForm" class="companion-picker-add-form" style="margin-bottom: 0;">
-                    <input type="text" id="companionPickerAddInput" class="companion-picker-add-form__input" placeholder="${d(u(`companions.addInputPlaceholder`))}" autocomplete="off">
-                    <button type="submit" class="companion-picker-add-form__btn">${d(u(`companions.addBtn`))}</button>
-                </form>
+                <div class="companion-picker-add-title">${d(u(`companions.addSectionTitle`))}</div>
+
+                <div class="companion-picker-add-path">
+                    <div class="companion-picker-add-path__text">
+                        <div class="companion-picker-add-path__name">${d(u(`companions.addPathFriendTitle`))}</div>
+                        <div class="companion-picker-add-path__hint">${d(u(`companions.addPathFriendHint`))}</div>
+                    </div>
+                    <button type="button" id="companionPickerAddFriendBtn" class="companion-picker-add-section__friend-btn">
+                        <span style="display:inline-flex; align-items:center;">${x(`user`,{size:16})}</span>
+                        <span>${d(u(`companions.addFriendBtn`))}</span>
+                    </button>
+                </div>
+
+                <div class="companion-picker-add-path">
+                    <div class="companion-picker-add-path__text">
+                        <div class="companion-picker-add-path__name">${d(u(`companions.addPathNameTitle`))}</div>
+                        <div class="companion-picker-add-path__hint">${d(u(`companions.addPathNameHint`))}</div>
+                    </div>
+                    <form id="companionPickerAddForm" class="companion-picker-add-form" style="margin-bottom: 0;">
+                        <input type="text" id="companionPickerAddInput" class="companion-picker-add-form__input" placeholder="${d(u(`companions.addInputPlaceholder`))}" autocomplete="off">
+                        <button type="submit" class="companion-picker-add-form__btn">${d(u(`companions.addBtn`))}</button>
+                    </form>
+                </div>
             </div>
 
             <!-- Friend picker (hidden by default) — appears when "Add a
@@ -110,4 +128,4 @@ import{$t as e,An as t,Dn as n,En as r,G as i,In as a,M as o,Nn as s,P as c,Q as
                 </div>
             </form>
         `}),l=r.activeTripId;C(s,`#cancelDayBtn`).onclick=()=>c(),C(s,`#addDayForm`).onsubmit=async e=>{e.preventDefault();let t={id:m(),tripId:l,name:C(s,`#dayName`).value,date:C(s,`#dayDate`).value,dayNumber:i,photos:[],notes:``,plan:{morning:``,afternoon:``,evening:``}};r.tripDays.push(t),n(`state:changed`);let a=await o(t);if(a&&!a.ok){let e=a.status||`no-response`,n=a.body?.error||``;h(u(`modals.addDayErrorServerSave`,{status:n?`${e} · ${n}`:String(e)})),console.error(`[upsertDay] failed`,{dayId:t.id,status:e,body:a.body})}c(),w(`home`)}};export{D as n,O as r,k as t};
-//# sourceMappingURL=modals-BEayiy5G.js.map
+//# sourceMappingURL=modals-CblPitg6.js.map

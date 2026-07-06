@@ -180,18 +180,36 @@ export const openCompanionPickerModal = (tripId: string) => {
                 ${renderRows()}
             </div>
 
-            <!-- Add affordances: friend picker + inline plain-name input.
-                 Both write to trip.companions immediately and re-render the
-                 list, so what the user sees IS the saved state. -->
+            <!-- Add someone — two clearly-labeled paths so it reads as a
+                 choice, not two mystery controls: (1) a friend with an
+                 account (gets a trip invite), (2) just a name for a
+                 non-app traveller. Same element ids as before so every
+                 handler is unchanged. Both write to trip.companions
+                 immediately, so what the user sees IS the saved state. -->
             <div class="companion-picker-add-section">
-                <button type="button" id="companionPickerAddFriendBtn" class="companion-picker-add-section__friend-btn">
-                    <span style="display:inline-flex; align-items:center;">${iconSvg('user', { size: 16 })}</span>
-                    <span>${esc(t('companions.addFriendBtn'))}</span>
-                </button>
-                <form id="companionPickerAddForm" class="companion-picker-add-form" style="margin-bottom: 0;">
-                    <input type="text" id="companionPickerAddInput" class="companion-picker-add-form__input" placeholder="${esc(t('companions.addInputPlaceholder'))}" autocomplete="off">
-                    <button type="submit" class="companion-picker-add-form__btn">${esc(t('companions.addBtn'))}</button>
-                </form>
+                <div class="companion-picker-add-title">${esc(t('companions.addSectionTitle'))}</div>
+
+                <div class="companion-picker-add-path">
+                    <div class="companion-picker-add-path__text">
+                        <div class="companion-picker-add-path__name">${esc(t('companions.addPathFriendTitle'))}</div>
+                        <div class="companion-picker-add-path__hint">${esc(t('companions.addPathFriendHint'))}</div>
+                    </div>
+                    <button type="button" id="companionPickerAddFriendBtn" class="companion-picker-add-section__friend-btn">
+                        <span style="display:inline-flex; align-items:center;">${iconSvg('user', { size: 16 })}</span>
+                        <span>${esc(t('companions.addFriendBtn'))}</span>
+                    </button>
+                </div>
+
+                <div class="companion-picker-add-path">
+                    <div class="companion-picker-add-path__text">
+                        <div class="companion-picker-add-path__name">${esc(t('companions.addPathNameTitle'))}</div>
+                        <div class="companion-picker-add-path__hint">${esc(t('companions.addPathNameHint'))}</div>
+                    </div>
+                    <form id="companionPickerAddForm" class="companion-picker-add-form" style="margin-bottom: 0;">
+                        <input type="text" id="companionPickerAddInput" class="companion-picker-add-form__input" placeholder="${esc(t('companions.addInputPlaceholder'))}" autocomplete="off">
+                        <button type="submit" class="companion-picker-add-form__btn">${esc(t('companions.addBtn'))}</button>
+                    </form>
+                </div>
             </div>
 
             <!-- Friend picker (hidden by default) — appears when "Add a

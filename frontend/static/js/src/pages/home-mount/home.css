@@ -1806,13 +1806,47 @@
 }
 .companion-picker-add-form__btn:active { transform: scale(0.97); }
 
-/* The add-section in the trip-companion picker holds two affordances
-   side-by-side: the friend picker trigger + the inline plain-name form. */
+/* The add-section in the trip-companion picker: a small "Add someone"
+   heading over two clearly-labeled paths (a friend on the app, or just a
+   name). Each path is a titled row with its control on the right, so it
+   reads as a choice instead of two unexplained controls. */
 .companion-picker-add-section {
     display: flex;
+    flex-direction: column;
     gap: var(--space-3);
     margin-bottom: var(--space-5);
     flex-shrink: 0;
+}
+.companion-picker-add-title {
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(0, 45, 91, 0.55);
+}
+.companion-picker-add-path {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background: rgba(0, 45, 91, 0.03);
+    border: 1px solid rgba(0, 45, 91, 0.06);
+}
+.companion-picker-add-path__text {
+    flex: 1;
+    min-width: 0;
+}
+.companion-picker-add-path__name {
+    font-weight: 700;
+    font-size: var(--font-sm);
+    color: #002d5b;
+}
+.companion-picker-add-path__hint {
+    font-size: 0.72rem;
+    line-height: 1.35;
+    color: rgba(0, 45, 91, 0.6);
+    margin-top: 2px;
 }
 .companion-picker-add-section__friend-btn {
     display: inline-flex;
@@ -1836,14 +1870,18 @@
     border-color: rgba(0, 113, 227, 0.48);
 }
 .companion-picker-add-section__friend-btn:active { transform: scale(0.97); }
-.companion-picker-add-section .companion-picker-add-form { flex: 1; }
-/* Narrow phones (~380px): the friend button + inline name-form can't sit
-   side-by-side without overflowing, so stack them — friend button full-width
-   on its own row, the "add companion" form full-width below it. */
+/* Within a path row the control sits at a stable width beside its label.
+   The name form gets a fixed basis so its input has room to type. */
+.companion-picker-add-path .companion-picker-add-form {
+    flex: 0 0 210px;
+    margin-bottom: 0;
+}
+/* Narrow phones (~380px): the label + control can't sit side-by-side, so
+   stack each path — title/hint on top, the control full-width below it. */
 @media (max-width: 480px) {
-    .companion-picker-add-section { flex-wrap: wrap; }
+    .companion-picker-add-path { flex-direction: column; align-items: stretch; }
+    .companion-picker-add-path .companion-picker-add-form { flex: 1 1 auto; }
     .companion-picker-add-section__friend-btn { width: 100%; justify-content: center; }
-    .companion-picker-add-section .companion-picker-add-form { flex: 1 1 100%; }
 }
 
 /* Friend-picker sheet — slides in below the add-section when the user
