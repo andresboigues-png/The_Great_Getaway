@@ -313,14 +313,16 @@
     overflow: hidden;
     cursor: grab;
     touch-action: none;
-    background: rgba(255, 255, 255, 0.28);
-    -webkit-backdrop-filter: blur(2px) saturate(150%) brightness(1.04);
-    backdrop-filter: blur(2px) saturate(150%) brightness(1.04);
-    border: 1.5px solid rgba(255, 255, 255, 0.7);
+    /* Near-opaque frost: a real loupe covers what's beneath it, so the tiny
+       un-magnified numbers behind must NOT bleed through. The glass look
+       comes from the rim highlights + shadows, not from being see-through. */
+    background: linear-gradient(160deg, #ffffff 0%, #f3f7fc 100%);
+    border: 1.5px solid rgba(255, 255, 255, 0.9);
     box-shadow:
         0 7px 20px rgba(0, 45, 91, 0.24),
-        inset 0 1px 3px rgba(255, 255, 255, 0.85),
-        inset 0 -9px 16px rgba(0, 45, 91, 0.09);
+        0 0 0 1px rgba(0, 45, 91, 0.06),
+        inset 0 1px 3px rgba(255, 255, 255, 0.95),
+        inset 0 -9px 16px rgba(0, 45, 91, 0.08);
     z-index: 4;
 }
 .pf-lens:active {
