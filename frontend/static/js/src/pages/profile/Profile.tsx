@@ -478,6 +478,7 @@ function ProfileContent({
                         followSnap={followSnap}
                         targetUserId={targetUserId}
                         onFollowersChange={setFollowers}
+                        onShowFootprint={() => setSection('footprint')}
                     />
                 </div>
             ) : (
@@ -731,6 +732,8 @@ interface ProfileInfoSectionProps {
     /** Lifted to ProfileContent so the stat bar + the FollowButton here
      *  share one follower count. */
     onFollowersChange: (n: number) => void;
+    /** Switch the profile to the Footprint section (trips/countries taps). */
+    onShowFootprint: () => void;
 }
 
 function ProfileInfoSection({
@@ -743,13 +746,19 @@ function ProfileInfoSection({
     followSnap,
     targetUserId,
     onFollowersChange,
+    onShowFootprint,
 }: ProfileInfoSectionProps) {
     const friends = useFriendsCount(isOwnProfile);
+    // Each stat's caption taps through to the surface it relates to: trips +
+    // countries → the Footprint map; followers/following → the network page;
+    // friends → the friends list. (Follower/following links are own-profile
+    // only — they'd point at the viewer's network, not a friend's.)
+    const toFriends = () => navigate('friends');
     const stats: Stat[] = [
-        { num: String(tripCount), label: tn('profile.publicTripsLabel', tripCount) },
-        { num: String(countryCount), label: tn('profile.countriesLabel', countryCount) },
-        { num: String(followers), label: tn('profile.followersLabel', followers) },
-        { num: String(following), label: tn('profile.followingLabel', following) },
+        { num: String(tripCount), label: tn('profile.publicTripsLabel', tripCount), onClick: onShowFootprint },
+        { num: String(countryCount), label: tn('profile.countriesLabel', countryCount), onClick: onShowFootprint },
+        { num: String(followers), label: tn('profile.followersLabel', followers), onClick: isOwnProfile ? toFriends : undefined },
+        { num: String(following), label: tn('profile.followingLabel', following), onClick: isOwnProfile ? toFriends : undefined },
     ];
     if (isOwnProfile) {
         stats.push({
@@ -821,8 +830,10 @@ function ProfileInfoSection({
 interface Stat {
     num: string;
     label: string;
-    /** Present → the cell is a button (Friends opens the list modal). */
-    onClick?: () => void;
+    /** Present → the blue caption taps through to the related surface.
+     *  Explicit `| undefined` so a stat can opt out under
+     *  exactOptionalPropertyTypes (e.g. followers on a friend's profile). */
+    onClick?: (() => void) | undefined;
 }
 
 // Own-profile friends count + click-through, gated so a friend's profile
@@ -857,21 +868,15 @@ function useFriendsCount(enabled: boolean) {
     return { count: loaded ? cache.length : null, onClick };
 }
 
-function StatCell({ num, label, onClick }: Stat) {
-    const inner = (
-        <>
+// Plain (non-interactive) cell — the numbers are read through the loupe;
+// the clickable navigation lives in the blue caption below it.
+function StatCell({ num, label }: { num: string; label: string }) {
+    return (
+        <div className="pf-statcell">
             <span className="pf-statcell__num">{num}</span>
             <span className="pf-statcell__label">{label}</span>
-        </>
+        </div>
     );
-    if (onClick) {
-        return (
-            <button type="button" className="pf-statcell pf-statcell--tappable font-[inherit]" onClick={onClick}>
-                {inner}
-            </button>
-        );
-    }
-    return <div className="pf-statcell">{inner}</div>;
 }
 
 // A slab of tiny stat numbers with a draggable circular liquid-glass loupe
@@ -888,6 +893,7 @@ function StatMagnifier({ stats }: { stats: Stat[] }) {
 
     const R = 27; // lens radius (54px loupe)
     const Z = 2.4; // zoom factor
+    const PAD_TOP = 16; // space above the slab for the loupe overflow
 
     useEffect(() => {
         const el = barRef.current;
@@ -939,45 +945,68 @@ function StatMagnifier({ stats }: { stats: Stat[] }) {
     // centre — i.e. the numbers row is what gets magnified.
     const contentLeft = R - cx * Z;
     const contentTop = R - dims.numY * Z;
+    // Loupe centred on the slab (which sits PAD_TOP below the wrapper top).
+    const lensTop = PAD_TOP + dims.h / 2 - R;
+    // Which stat is under the loupe → drives the caption below it.
+    const n = stats.length;
+    const activeIdx = n > 0 && dims.w > 0 ? Math.min(n - 1, Math.max(0, Math.floor(cx / (dims.w / n)))) : 0;
+    const active = stats[activeIdx];
+    const captionTop = PAD_TOP + dims.h + 5;
+    const captionLeft = Math.max(46, Math.min(Math.max(dims.w - 46, 46), cx));
 
     return (
         <div className="pf-statmag">
             <div className="pf-statbar" ref={barRef}>
                 {stats.map((s, i) => (
-                    <StatCell key={i} {...s} />
+                    <StatCell key={i} num={s.num} label={s.label} />
                 ))}
             </div>
             {dims.w > R * 2 ? (
-                <div
-                    className="pf-lens"
-                    style={{ left: cx - R, width: R * 2, height: R * 2 }}
-                    onPointerDown={onPointerDown}
-                    onPointerMove={onPointerMove}
-                    onPointerUp={endDrag}
-                    onPointerCancel={endDrag}
-                    onKeyDown={onKeyDown}
-                    tabIndex={0}
-                    role="slider"
-                    aria-label="Drag to zoom the stats"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={dims.w ? Math.round((cx / dims.w) * 100) : 50}
-                >
+                <>
                     <div
-                        className="pf-statbar pf-statbar--mag"
-                        style={{
-                            left: contentLeft,
-                            top: contentTop,
-                            width: dims.w,
-                            transform: `scale(${Z})`,
-                            transformOrigin: 'top left',
-                        }}
+                        className="pf-lens"
+                        style={{ left: cx - R, top: lensTop, width: R * 2, height: R * 2 }}
+                        onPointerDown={onPointerDown}
+                        onPointerMove={onPointerMove}
+                        onPointerUp={endDrag}
+                        onPointerCancel={endDrag}
+                        onKeyDown={onKeyDown}
+                        tabIndex={0}
+                        role="slider"
+                        aria-label="Drag to zoom the stats"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={dims.w ? Math.round((cx / dims.w) * 100) : 50}
                     >
-                        {stats.map((s, i) => (
-                            <StatCell key={i} {...s} />
-                        ))}
+                        <div
+                            className="pf-statbar pf-statbar--mag"
+                            style={{
+                                left: contentLeft,
+                                top: contentTop,
+                                width: dims.w,
+                                transform: `scale(${Z})`,
+                                transformOrigin: 'top left',
+                            }}
+                        >
+                            {stats.map((s, i) => (
+                                <StatCell key={i} num={s.num} label={s.label} />
+                            ))}
+                        </div>
                     </div>
-                </div>
+                    {/* GG-blue caption naming the number under the loupe; taps
+                        through to the related surface. */}
+                    {active ? (
+                        <button
+                            type="button"
+                            className="pf-statcaption"
+                            style={{ left: captionLeft, top: captionTop }}
+                            onClick={active.onClick}
+                            disabled={!active.onClick}
+                        >
+                            {active.label}
+                        </button>
+                    ) : null}
+                </>
             ) : null}
         </div>
     );

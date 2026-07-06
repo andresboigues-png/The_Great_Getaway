@@ -251,8 +251,9 @@
 .pf-statmag {
     position: relative;
     margin: 20px 0 2px;
-    /* Room above/below so the loupe (taller than the slab) isn't clipped. */
-    padding: 14px 0;
+    /* Room above for the loupe overflow (16 = PAD_TOP in the component) and
+       below for the blue caption under it. */
+    padding: 16px 0 34px;
 }
 .pf-statbar {
     display: flex;
@@ -284,29 +285,21 @@
     width: 1px;
     background: var(--glass-border, rgba(0, 45, 91, 0.1));
 }
+/* Deliberately tiny — the loupe is how you read them. */
 .pf-statcell__num {
-    font-size: 0.8rem;
+    font-size: 0.6rem;
     font-weight: 800;
     letter-spacing: -0.02em;
     line-height: 1;
     color: var(--text-primary);
 }
 .pf-statcell__label {
-    font-size: 0.46rem;
+    font-size: 0.4rem;
     font-weight: 700;
     letter-spacing: 0.02em;
     line-height: 1.2;
     text-transform: uppercase;
     color: var(--text-secondary);
-}
-.pf-statcell--tappable {
-    cursor: pointer;
-    background: none;
-    border: 0;
-}
-.pf-statcell--tappable:hover .pf-statcell__num,
-.pf-statcell--tappable:focus-visible .pf-statcell__num {
-    color: var(--accent-blue-deep, #005bb8);
 }
 
 /* ── Liquid-glass loupe over the stat slab ────────────────────────
@@ -315,8 +308,7 @@
    point under the lens centre lands at the centre) clipped to the circle. */
 .pf-lens {
     position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
+    /* top is set inline (centred on the slab, above the caption). */
     border-radius: 50%;
     overflow: hidden;
     cursor: grab;
@@ -346,12 +338,54 @@
     border-color: transparent;
     pointer-events: none;
 }
+/* GG-blue caption under the loupe naming the number it's on; taps through
+   to the related surface. Follows the loupe's x (clamped inside the slab). */
+.pf-statcaption {
+    position: absolute;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    border: 0;
+    background: none;
+    padding: 2px 4px;
+    cursor: pointer;
+    color: var(--accent-blue, #0071e3);
+    font-weight: 800;
+    font-size: 0.82rem;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    transition: color 0.15s ease;
+}
+.pf-statcaption::after {
+    content: '›';
+    font-weight: 700;
+    font-size: 1.05em;
+    opacity: 0.75;
+}
+.pf-statcaption:hover:not(:disabled),
+.pf-statcaption:focus-visible:not(:disabled) {
+    color: var(--accent-blue-deep, #005bb8);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.pf-statcaption:disabled {
+    cursor: default;
+    color: var(--text-secondary);
+}
+.pf-statcaption:disabled::after {
+    display: none;
+}
 @media (max-width: 360px) {
     .pf-statcell__num {
-        font-size: 0.72rem;
+        font-size: 0.54rem;
     }
     .pf-statcell__label {
-        font-size: 0.42rem;
+        font-size: 0.38rem;
+    }
+    .pf-statcaption {
+        font-size: 0.76rem;
     }
 }
 
