@@ -7288,4 +7288,27 @@ main#app-container.nav-anim-backward {
     .navbar {
         padding: 0 18px;
     }
+
+    /* Density: the desktop layout's generous vertical rhythm wastes a
+       short landscape viewport. The page-title wordmark (.gradient-text,
+       one per page) rendered at 56px / 84px tall — ~25% of the ~340px
+       content area — so cap it, and trim the app-container's top/bottom
+       padding so content starts higher. gradient-text is ONLY the page
+       titles (DSGN-1), so this doesn't touch body copy. */
+    .gradient-text {
+        font-size: 1.9rem !important;
+        line-height: 1.1;
+        margin-bottom: 4px !important;
+    }
+    #app-container {
+        padding-top: 12px;
+        padding-bottom: 12px;
+    }
+    /* The home hero ("Let's travel." / slideshow) is the tallest single
+       block — trim its headline so the trip content below is reachable
+       without a long scroll on a short screen. */
+    .hero-title,
+    .home-hero__title {
+        font-size: 2rem !important;
+    }
 }
