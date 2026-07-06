@@ -191,6 +191,10 @@ export async function fetchNotifications() {
         }
         emit(EVENTS.NOTIFICATIONS_CHANGED);
     } catch (e) {
+        // AbortError is expected: the router aborts the in-flight
+        // notifications request when the user navigates away mid-fetch.
+        // It's a cancellation, not a failure — don't spam the console.
+        if (e instanceof DOMException && e.name === 'AbortError') return;
         console.error("Failed to fetch notifications:", e);
     }
 }

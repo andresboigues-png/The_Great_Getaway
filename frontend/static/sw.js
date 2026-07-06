@@ -67,7 +67,13 @@
 // fetches force HTTP-cache revalidation (cache:'no-cache'), closing the
 // stale-bundle-after-deploy hole for good. Per the rules above, a
 // strategy edit bumps the version so old shells re-cache fresh.
-const SW_VERSION = 'v7';
+// 2026-07-06: bumped to v8 — _networkFirst now resolves failed fetches
+// with Response.error() instead of re-throwing, so a rejected
+// respondWith() promise no longer floods the console with "Uncaught (in
+// promise) TypeError: Failed to fetch" on flaky LAN / dev-server
+// restarts. Strategy edit → bump so the fixed worker supersedes v7 on
+// clients that cached it.
+const SW_VERSION = 'v8';
 const SHELL_CACHE = `gg-shell-${SW_VERSION}`;
 const API_CACHE = `gg-api-${SW_VERSION}`;
 const UPLOADS_CACHE = `gg-uploads-${SW_VERSION}`;
@@ -284,7 +290,7 @@ async function _networkFirst(request, cacheName, keyer, opts) {
             }
         }
         return fresh;
-    } catch (networkErr) {
+    } catch {
         const cached = keyer ? await _cachedApiResponse(request) : await (await caches.open(cacheName)).match(request);
         if (cached) return cached;
         // Last-resort fallback for app-shell navigations: serve the
@@ -295,7 +301,15 @@ async function _networkFirst(request, cacheName, keyer, opts) {
             const shellFallback = await (await caches.open(SHELL_CACHE)).match('/');
             if (shellFallback) return shellFallback;
         }
-        throw networkErr;
+        // Network failed and nothing cached. Return a network-error
+        // Response instead of re-throwing: a rejected promise handed to
+        // `event.respondWith()` makes Chrome log a spurious "Uncaught (in
+        // promise) TypeError: Failed to fetch" for EVERY failed
+        // revalidation (flaky LAN, a restarted dev server, offline).
+        // Resolving with Response.error() makes the page-side fetch()
+        // reject identically ("Failed to fetch", same app behaviour) while
+        // keeping the SW's own promise settled, so the console stays clean.
+        return Response.error();
     }
 }
 
