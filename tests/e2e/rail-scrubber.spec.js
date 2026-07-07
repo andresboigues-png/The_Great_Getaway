@@ -1,10 +1,10 @@
 // @ts-check
-// Rail scrubber — the right-edge thumb-reach nav aid (bootstrap/
-// railScrubber.ts). The haptics + drag FEEL can only be judged on a real
-// device, but the structural contract is testable: the line shows only on
-// a phone-width viewport with the rail open, and dragging it to an icon's
-// vertical position navigates to that page. This guards the mapping +
-// navigation so a refactor can't silently break the feature.
+// Mobile "roulette" nav rail (bootstrap/railScrubber.ts). On a phone the
+// rail is a SHORT 3-icon window; the icons form a reel spun by swiping the
+// rail or dragging the right-edge line, and it navigates to whatever icon
+// it settles on. The spin FEEL needs a real device; the structural
+// contract (line shows on mobile, reel scrolls, spin→settle→navigate) is
+// what's guarded here.
 
 import { test, expect } from '@playwright/test';
 import { openFreshApp } from './helpers.js';
@@ -12,61 +12,63 @@ import { openFreshApp } from './helpers.js';
 let _n = 0;
 const uniqueId = (p) => `test-${p}-${Date.now()}-${(_n += 1)}`;
 
-test.describe('Rail scrubber', () => {
+test.describe('Rail reel', () => {
     test.beforeEach(async ({ page }, testInfo) => {
-        // The scrubber line is mobile-only (≤720px + rail open). On the
-        // desktop project the rail is permanent and the line never shows,
-        // so this journey is meaningful on the mobile project.
+        // Mobile-only (≤720px + rail open); on desktop the rail is the full
+        // static list and the line never shows.
         if (testInfo.project.name !== 'chromium-mobile') test.skip();
     });
 
-    test('line appears when the rail opens on mobile, and a drag navigates', async ({ page }) => {
+    test('the open rail is a short spinnable reel with a focused centre icon', async ({ page }) => {
         await openFreshApp(page, uniqueId('user'));
 
         const line = page.locator('.rail-scrubber');
-        // Hidden while the rail island is closed.
         await expect(line).toBeAttached();
         await expect(line).not.toHaveClass(/is-shown/);
 
-        // Open the rail via its left-edge peek handle.
         await page.locator('#railPeek').click();
         await expect(page.locator('#sidebarRail')).toHaveClass(/is-open/);
         await expect(line).toHaveClass(/is-shown/, { timeout: 3000 });
-        await expect(line).toBeVisible();
 
-        // Drag from the top of the line down to the Insights icon's vertical
-        // centre and release → should navigate to Insights. Uses real mouse
-        // events (Chromium synthesises pointer events from them).
-        const lineBox = await line.boundingBox();
-        const insightsItem = page.locator('#sidebarRail .sidebar-rail__item[data-page="insights"]');
-        const itemBox = await insightsItem.boundingBox();
-        expect(lineBox && itemBox).toBeTruthy();
-        const startX = lineBox.x + lineBox.width / 2;
-        const startY = lineBox.y + 6;
-        const targetY = itemBox.y + itemBox.height / 2;
+        // Short window: content taller than the box (so it's a reel).
+        const scrollable = await page.locator('#sidebarRail').evaluate((el) => el.scrollHeight > el.clientHeight + 10);
+        expect(scrollable).toBeTruthy();
 
-        await page.mouse.move(startX, startY);
-        await page.mouse.down();
-        // Step the move so pointermove fires and the selector tracks.
-        await page.mouse.move(startX, (startY + targetY) / 2);
-        await page.mouse.move(startX, targetY);
-        // The glass selector should be visible on the rail mid-drag.
-        await expect(page.locator('.rail-selector')).toHaveClass(/is-visible/);
-        await page.mouse.up();
-
-        // Landed on Insights (hash-routed) and the rail closed.
-        await expect.poll(() => page.evaluate(() => location.hash)).toContain('insights');
-        await expect(page.locator('#sidebarRail')).not.toHaveClass(/is-open/);
+        // Exactly one icon sits in the focused centre slot.
+        await expect(page.locator('#sidebarRail .sidebar-rail__item.is-focus')).toHaveCount(1, {
+            timeout: 2000,
+        });
     });
 
-    test('a normal rail tap flashes the selector', async ({ page }) => {
+    test('dragging the line to an icon spins the reel + navigates on settle', async ({ page }) => {
         await openFreshApp(page, uniqueId('user'));
         await page.locator('#railPeek').click();
         await expect(page.locator('#sidebarRail')).toHaveClass(/is-open/);
+        const line = page.locator('.rail-scrubber');
+        await expect(line).toHaveClass(/is-shown/, { timeout: 3000 });
 
-        // Tapping an item shows the glass selector (then it fades). Assert it
-        // becomes visible right after the tap.
-        await page.locator('#sidebarRail .sidebar-rail__item[data-page="budgets"]').click();
-        await expect(page.locator('.rail-selector')).toHaveClass(/is-visible/);
+        // The line maps linearly to the reel: fraction i/(N-1) centres item i.
+        // Items: templates, collections, friends, budgets, insights(4), … so
+        // dragging to 4/(N-1) settles on Insights.
+        const N = await page.locator('#sidebarRail .sidebar-rail__item').count();
+        const idx = await page
+            .locator('#sidebarRail .sidebar-rail__item')
+            .evaluateAll((els) => els.findIndex((e) => e.getAttribute('data-page') === 'insights'));
+        expect(idx).toBeGreaterThan(0);
+
+        const box = await line.boundingBox();
+        expect(box).toBeTruthy();
+        const x = box.x + box.width / 2;
+        const startY = box.y + 4;
+        const targetY = box.y + (idx / (N - 1)) * box.height;
+
+        await page.mouse.move(x, startY);
+        await page.mouse.down();
+        await page.mouse.move(x, (startY + targetY) / 2);
+        await page.mouse.move(x, targetY);
+        await page.mouse.up();
+
+        await expect.poll(() => page.evaluate(() => location.hash)).toContain('insights');
+        await expect(page.locator('#sidebarRail')).not.toHaveClass(/is-open/);
     });
 });
