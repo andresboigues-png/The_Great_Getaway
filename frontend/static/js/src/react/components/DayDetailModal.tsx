@@ -351,6 +351,10 @@ export function DayDetailModal({
     const blockRteRefs = useRef<Map<string, HTMLElement>>(new Map());
     const blockRowRefs = useRef<Map<string, HTMLElement>>(new Map());
     const focusedBlockEl = useRef<HTMLElement | null>(null);
+    // The last text selection made inside a block editable. On touch, tapping
+    // a toolbar button collapses the live selection before the format command
+    // runs, so we snapshot it on the button's pointerdown and restore it here.
+    const savedRangeRef = useRef<Range | null>(null);
     const dragRef = useRef<{ slot: Slot | null; k: string }>({ slot: null, k: '' });
 
     useEffect(() => {
@@ -495,6 +499,20 @@ export function DayDetailModal({
         sel.removeAllRanges();
         sel.addRange(range);
     };
+    // Snapshot the current selection if it sits inside a block editable —
+    // called on the toolbar button's pointerdown, BEFORE the tap can collapse
+    // it (the mobile bug: a tap outside the editable clears the selection, so
+    // by the time execFmt runs the selected text is gone).
+    const captureSelection = (): void => {
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return;
+        const r = sel.getRangeAt(0);
+        const anchor = r.commonAncestorContainer;
+        const host = (anchor.nodeType === 1 ? (anchor as HTMLElement) : anchor.parentElement)?.closest(
+            '.plan-block__rte',
+        );
+        if (host) savedRangeRef.current = r.cloneRange();
+    };
     // Toolbar action = native execCommand on the slot's editable. execCommand
     // (with styleWithCSS off → semantic <strong>/<em>/<u>/<ul> tags) handles
     // the selection + caret natively; we then serialise the DOM back to
@@ -502,7 +520,17 @@ export function DayDetailModal({
     const execFmt = (slot: Slot, cmd: string): void => {
         const el = resolveSlotEl(slot);
         if (!el) return;
-        ensureSelectionIn(el);
+        // Restore the snapshotted selection so the command hits the SELECTED
+        // text (mobile) rather than a collapsed caret; fall back to caret-at-end.
+        const saved = savedRangeRef.current;
+        const sel = window.getSelection();
+        if (saved && el.contains(saved.commonAncestorContainer)) {
+            el.focus();
+            sel?.removeAllRanges();
+            sel?.addRange(saved);
+        } else {
+            ensureSelectionIn(el);
+        }
         try {
             document.execCommand('styleWithCSS', false, 'false');
         } catch {
@@ -513,6 +541,7 @@ export function DayDetailModal({
         } catch {
             /* ignore — command unsupported */
         }
+        savedRangeRef.current = null;
         commitRte(el);
     };
 
@@ -964,7 +993,8 @@ export function DayDetailModal({
 
     const fmtBtn = (label: string, glyph: ReactNode, onClick: () => void) => (
         <button type="button" className="plan-md-toolbar__btn" aria-label={label} title={label}
-            onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()}
+            onPointerDown={(e) => { e.preventDefault(); captureSelection(); }}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={onClick}>
             {glyph}
         </button>
@@ -1200,7 +1230,7 @@ export function DayDetailModal({
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.address}</div>
                     ) : null}
                 </div>
-                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                <div className="day-shortlist-row__slots" style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                     {SLOTS.map((time) => renderShortlistSlotBtn(p, time))}
                 </div>
             </div>

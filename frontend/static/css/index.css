@@ -6976,6 +6976,21 @@ main#app-container.nav-anim-backward {
     cursor: pointer;
 }
 
+/* On a phone the to-do row's AM/PM/Eve buttons were pushed off the right edge
+   by a long place name (all on one line). Let the button group wrap to its own
+   full-width line so it's always visible without a horizontal scroll. */
+@media (max-width: 720px) {
+    .day-shortlist-row {
+        flex-wrap: wrap;
+        min-width: 0;
+    }
+    .day-shortlist-row__slots {
+        width: 100%;
+        justify-content: flex-start;
+        margin-top: 6px;
+    }
+}
+
 /* Italic muted helper text. */
 .dvm-italic-muted {
     margin: 0;

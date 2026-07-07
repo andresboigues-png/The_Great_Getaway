@@ -30,6 +30,9 @@ async function seedAndOpen(page) {
                 name: 'WYS day',
                 date: '2026-08-10',
                 plan: { morning: '', afternoon: '', evening: '' },
+                // Reset blocks too (tests share DAY_ID) so a prior test's saved
+                // planBlocks can't bleed into the next one via the no-clobber rule.
+                planBlocks: null,
             },
         },
     });
@@ -125,5 +128,28 @@ test.describe('Day-plan WYSIWYG editor', () => {
             (await (await page.request.get('/api/data', { headers: auth.headers })).json()).tripDays || []
         ).find((d) => d.id === DAY_ID);
         expect(day.plan.afternoon).toBe('- pack bags');
+    });
+
+    test('bolds only the SELECTED word (selection survives the toolbar tap)', async ({ page }) => {
+        const { dialog, auth } = await seedAndOpen(page);
+        await dialog.locator('.day-plan-pane[data-plan-pane="morning"] .plan-readonly__edit').click();
+        const rte = dialog.locator('.day-plan-pane[data-plan-pane="morning"] .plan-block__rte').first();
+        await rte.click();
+        await page.keyboard.type('hello world');
+
+        // Select just the trailing "world" (5 chars back from the caret), then
+        // Bold. The snapshot-on-pointerdown must preserve the selection so only
+        // "world" is bolded — this is the mobile bug: a tap collapses it.
+        for (let i = 0; i < 5; i++) await page.keyboard.press('Shift+ArrowLeft');
+        const posted = armDaysPost(page);
+        await dialog.locator('.day-plan-pane[data-plan-pane="morning"] .plan-md-toolbar__btn').first().click();
+
+        // Exactly one bold run, and it's the word — not the whole line.
+        await expect(rte.locator('b, strong')).toHaveText('world');
+        expect((await posted).ok()).toBe(true);
+        const day = (
+            (await (await page.request.get('/api/data', { headers: auth.headers })).json()).tripDays || []
+        ).find((d) => d.id === DAY_ID);
+        expect(day.plan.morning).toBe('hello **world**');
     });
 });
