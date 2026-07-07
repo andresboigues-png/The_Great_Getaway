@@ -239,6 +239,12 @@ export interface TripChecklistItem {
     created_at?: string;
 }
 
+/** One block of a day time-part's content. Text blocks hold light-markdown
+ *  copy; place blocks REFERENCE a MarkedPlace by id (the place data itself
+ *  stays on trip.markedPlaces — the media write-path). Lets places be
+ *  interleaved anywhere among the notes rather than pinned at the top. */
+export type PlanBlock = { type: 'text'; text: string } | { type: 'place'; placeId: string };
+
 export interface TripDay {
     id: string;
     tripId: string;
@@ -248,6 +254,14 @@ export interface TripDay {
     photos: string[];
     notes: string;
     plan: { morning: string; afternoon: string; evening: string };
+    /** Ordered block content per time-part. When present it supersedes the
+     *  flat `plan` strings (which stay in sync as flattened text). Null/absent
+     *  on days that predate the block editor. */
+    planBlocks?: {
+        morning?: PlanBlock[];
+        afternoon?: PlanBlock[];
+        evening?: PlanBlock[];
+    } | null;
     /** GPS latitude, set when the day has been pinned on the map. When
      *  accommodation is set via Places, this is the hotel's latitude
      *  (the hotel IS the day pin). */

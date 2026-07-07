@@ -27,12 +27,53 @@ that predate accommodation, so binding their absent keys would NULL
 accommodation set via the per-row path on every legacy resync.
 """
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 
 from helpers import is_trip_archived_for
 from services._shared import UpsertResult
 from services._shared import fail as _fail
+
+# ── Day-plan block content (text + place-reference blocks per time-part) ──
+_PLAN_SLOTS = ("morning", "afternoon", "evening")
+_MAX_PLAN_BLOCKS = 200
+_MAX_PLAN_BLOCK_TEXT = 4000
+
+
+def _clean_plan_blocks(raw):
+    """Validate incoming `planBlocks` → {slot: [block, ...]} or None. A block
+    is {"type":"text","text":str} or {"type":"place","placeId":str}. Place
+    DATA is NOT stored here — only the id reference + ordering. Returns None
+    when there's nothing usable (the day falls back to its flat strings)."""
+    if not isinstance(raw, dict):
+        return None
+    out = {}
+    for slot in _PLAN_SLOTS:
+        arr = raw.get(slot)
+        if not isinstance(arr, list):
+            continue
+        clean = []
+        for b in arr[:_MAX_PLAN_BLOCKS]:
+            if not isinstance(b, dict):
+                continue
+            if b.get("type") == "text" and isinstance(b.get("text"), str):
+                clean.append({"type": "text", "text": b["text"][:_MAX_PLAN_BLOCK_TEXT]})
+            elif b.get("type") == "place" and isinstance(b.get("placeId"), str) and b["placeId"]:
+                clean.append({"type": "place", "placeId": b["placeId"][:200]})
+        if clean:
+            out[slot] = clean
+    return out or None
+
+
+def _flatten_block_text(blocks_for_slot):
+    """Join a slot's text blocks into a plain string for the flat legacy
+    column (PDF export + any pre-blocks reader). Place blocks drop out."""
+    if not blocks_for_slot:
+        return ""
+    return "\n\n".join(
+        b["text"] for b in blocks_for_slot if b.get("type") == "text" and b.get("text")
+    )
 
 
 @dataclass(frozen=True)
@@ -140,6 +181,18 @@ def apply_day_upsert(
 
     client_updated_at = d.get("clientUpdatedAt")
 
+    # Block content (text + place-reference blocks). When present it's the
+    # source of truth and the flat strings are kept in sync (flattened text).
+    # Only written when the client actually sends `planBlocks`, so no write
+    # path that omits it can clobber the column.
+    _has_blocks = "planBlocks" in d
+    _blocks = _clean_plan_blocks(d.get("planBlocks")) if _has_blocks else None
+
+    def _slot_text(slot):
+        if _blocks is not None and slot in _blocks:
+            return _flatten_block_text(_blocks[slot])
+        return d.get(slot, d.get("plan", {}).get(slot, "")) or ""
+
     # ── column layout per policy ──
     cols = "id, trip_id, day_number, date, name, morning, afternoon, evening, tip, notes, lat, lng"
     set_clause = """
@@ -161,9 +214,9 @@ def apply_day_upsert(
         d.get("name"),
         # Plain text — NOT json.dumps (legacy wrapping round-tripped
         # '"foo"' garbage into the day-plan textareas).
-        d.get("morning", d.get("plan", {}).get("morning", "")) or "",
-        d.get("afternoon", d.get("plan", {}).get("afternoon", "")) or "",
-        d.get("evening", d.get("plan", {}).get("evening", "")) or "",
+        _slot_text("morning"),
+        _slot_text("afternoon"),
+        _slot_text("evening"),
         # BUG-1: `tip` and `notes` are SEPARATE columns (notes used to be
         # overloaded into tip, silently losing journaling).
         d.get("tip", ""),
@@ -186,6 +239,14 @@ def apply_day_upsert(
             d.get("accommodationPlaceId"),
             d.get("accommodationAddress"),
         ]
+
+    # Block content — conditional so any write that OMITS planBlocks leaves
+    # the column untouched (never clobbers it to NULL). Appended last so cols
+    # + params stay aligned regardless of the accommodation branch above.
+    if _has_blocks:
+        cols += ", plan_blocks_json"
+        set_clause += "\n            plan_blocks_json=excluded.plan_blocks_json,"
+        params.append(json.dumps(_blocks) if _blocks else None)
 
     if policy.stamp_insert_updated_at:
         cols += ", updated_at"

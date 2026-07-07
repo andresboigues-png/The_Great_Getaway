@@ -694,6 +694,13 @@ def init_db():
                 morning TEXT,
                 afternoon TEXT,
                 evening TEXT,
+                -- Ordered block content per time-part (text + place-reference
+                -- blocks) as JSON: {"morning":[{type,...}],...}. When set it
+                -- supersedes the flat morning/afternoon/evening strings, which
+                -- are kept in sync (flattened text) for PDF / legacy readers.
+                -- Place DATA still lives in trips.marked_places (media path); a
+                -- place block only stores its placeId. Migration d4b9f1e7a2c8.
+                plan_blocks_json TEXT,
                 notes TEXT,
                 photos TEXT,
                 documents TEXT,

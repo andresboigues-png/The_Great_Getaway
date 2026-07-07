@@ -960,6 +960,14 @@ def get_data():
                 'afternoon': unwrap_legacy_plan_text(day.pop('afternoon', '')),
                 'evening': unwrap_legacy_plan_text(day.pop('evening', '')),
             }
+            # Ordered block content per time-part (text + place refs); null
+            # for days that predate / haven't used the block editor, in which
+            # case the client renders from day.plan strings.
+            _blocks_raw = day.pop('plan_blocks_json', None)
+            try:
+                day['planBlocks'] = json.loads(_blocks_raw) if _blocks_raw else None
+            except (json.JSONDecodeError, TypeError):
+                day['planBlocks'] = None
 
             # §2.15: narrow exception types so unrelated bugs (e.g. a
             # missing key on a future-shaped row) aren't silently

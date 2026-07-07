@@ -36,6 +36,69 @@ def test_upsert_day_happy_path(client, seed_user, auth_headers):
     assert res.status_code == 200
 
 
+def test_upsert_day_stores_plan_blocks(client, seed_user, auth_headers):
+    """A day time-part can carry ordered blocks (text + place refs); they
+    round-trip, and the flat `morning` column is kept as the flattened text
+    (place blocks drop out) for PDF / legacy readers."""
+    import json as _json
+
+    from database import get_db
+
+    client.post("/api/trips", headers=auth_headers, json={"trip": {"id": "trip-b", "name": "T"}})
+    blocks = {
+        "morning": [
+            {"type": "text", "text": "**Louvre** at 10am"},
+            {"type": "place", "placeId": "pl-1"},
+            {"type": "text", "text": "Lunch after."},
+        ]
+    }
+    res = client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={"day": {"id": "day-b", "tripId": "trip-b", "dayNumber": 1, "planBlocks": blocks}},
+    )
+    assert res.status_code == 200
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT morning, plan_blocks_json FROM trip_days WHERE id = ?", ("day-b",)
+        ).fetchone()
+    stored = _json.loads(row["plan_blocks_json"])
+    assert stored["morning"][1] == {"type": "place", "placeId": "pl-1"}
+    assert row["morning"] == "**Louvre** at 10am\n\nLunch after."
+
+
+def test_upsert_day_without_plan_blocks_preserves_column(client, seed_user, auth_headers):
+    """A later write that OMITS planBlocks (e.g. an accommodation-only edit)
+    must NOT clobber the stored block content to NULL."""
+    from database import get_db
+
+    client.post("/api/trips", headers=auth_headers, json={"trip": {"id": "trip-c", "name": "T"}})
+    client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={
+            "day": {
+                "id": "day-c",
+                "tripId": "trip-c",
+                "dayNumber": 1,
+                "planBlocks": {"morning": [{"type": "text", "text": "Hi"}]},
+            }
+        },
+    )
+    # Second write with NO planBlocks key.
+    client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={"day": {"id": "day-c", "tripId": "trip-c", "dayNumber": 1, "name": "Renamed"}},
+    )
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT name, plan_blocks_json FROM trip_days WHERE id = ?", ("day-c",)
+        ).fetchone()
+    assert row["name"] == "Renamed"
+    assert row["plan_blocks_json"] is not None  # preserved, not clobbered
+
+
 def test_upsert_day_missing_payload(client, auth_headers):
     res = client.post("/api/days", headers=auth_headers, json={})
     assert res.status_code == 400
