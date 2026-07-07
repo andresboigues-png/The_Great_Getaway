@@ -1343,10 +1343,10 @@ body.is-signed-out .rail-peek {
         overscroll-behavior: contain;
         scrollbar-width: none;
         -ms-overflow-style: none;
-        /* Fade the top/bottom so it reads as a wheel — tuned so the edge
-           icons dim a touch without hiding the reel. */
-        -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 28%, #000 72%, transparent 100%);
-        mask-image: linear-gradient(to bottom, transparent 0, #000 28%, #000 72%, transparent 100%);
+        /* Solid centre, only the very top/bottom edges fade to see-through
+           (a thin band) so the focused icons stay fully opaque. */
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
+        mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
     }
     .sidebar-rail::-webkit-scrollbar {
         display: none;
