@@ -330,7 +330,7 @@ export function Collections() {
                         aria-label={t('collections.groupByLabel')}
                         value={groupBy}
                         onChange={(e) => onGroupByChange(e.target.value as GroupBy)}
-                        style={chipSelectStyle}
+                        className="collections-chip"
                     >
                         <option value="continent">{t('collections.groupByContinent')}</option>
                         <option value="year">{t('collections.groupByYear')}</option>
@@ -345,7 +345,7 @@ export function Collections() {
                         title={t('collections.sortTitle')}
                         value={sort}
                         onChange={(e) => onSortChange(e.target.value as CollectionsSort)}
-                        style={chipSelectStyle}
+                        className="collections-chip"
                     >
                         <option value="recent">{t('collections.sortRecent')}</option>
                         <option value="oldest">{t('collections.sortOldest')}</option>
@@ -362,7 +362,7 @@ export function Collections() {
                             title={t('collections.filterYearTitle')}
                             value={filterYear}
                             onChange={(e) => onYearChange(e.target.value)}
-                            style={chipSelectStyle}
+                            className="collections-chip"
                         >
                             <option value="">{t('collections.filterAllYears')}</option>
                             {availableYears.map((y) => (
@@ -378,7 +378,7 @@ export function Collections() {
                             title={t('collections.filterDestTitle')}
                             value={filterDestination}
                             onChange={(e) => onDestinationChange(e.target.value)}
-                            style={{ ...chipSelectStyle, maxWidth: '180px' }}
+                            className="collections-chip"
                         >
                             <option value="">{t('collections.filterAllDestinations')}</option>
                             {availableDestinations.map((d) => (
@@ -907,24 +907,3 @@ function AlbumStack(
 // a module-level const so multiple selects share it without copy-paste.
 // localStorage flag so the per-user-archive explainer stays dismissed.
 const HINT_DISMISS_KEY = 'gg_collections_hint_dismissed';
-
-const chipSelectStyle: React.CSSProperties = {
-    flex: '1 1 150px',
-    minWidth: '140px',
-    maxWidth: '230px',
-    padding: '9px 30px 9px 15px',
-    border: '1px solid rgba(0,45,91,0.1)',
-    borderRadius: '12px',
-    fontSize: '0.82rem',
-    background: 'rgba(0,45,91,0.03)',
-    fontWeight: 700,
-    color: '#002d5b',
-    cursor: 'pointer',
-    appearance: 'none',
-    WebkitAppearance: 'none',
-    backgroundImage:
-        "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"%23002d5b\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"6 9 12 15 18 9\"/></svg>')",
-    backgroundRepeat: 'no-repeat',
-    backgroundPosition: 'right 12px center',
-    backgroundSize: '10px',
-};

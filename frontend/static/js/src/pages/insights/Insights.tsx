@@ -223,6 +223,7 @@ export function Insights() {
     // "Budget vs spent" card — hidden by default behind a gold pill (mirrors the
     // budgets page's collapsible summary).
     const [showBudgetVs, setShowBudgetVs] = useState(false);
+    const [showSettle, setShowSettle] = useState(false);
     // Avg-per-day dashboard: narrow the average to one payer / category.
     const [avgWho, setAvgWho] = useState<string>('all');
     const [avgCat, setAvgCat] = useState<string>('all');
@@ -1520,28 +1521,43 @@ export function Insights() {
                 </div>
             ) : null}
 
-            {/* Net balances — who owes whom (after splits + settlements). */}
+            {/* Who owes whom — hidden by default behind a pill (mirrors the
+                budgets opener above). Only when there are non-zero balances. */}
             {netBalances.length > 0 ? (
-                <div className="card glass in-card-pad-28 mb-8">
-                    <h2 className="card-title">{t('insights.netBalanceTitle')}</h2>
-                    <p className="text-secondary text-[0.85rem] mt-1 mb-5">{t('insights.netBalanceSub')}</p>
-                    <div className="flex flex-col gap-2">
-                        {netBalances.map((b) => (
-                            <div className="flex items-center gap-2" key={b.name}>
-                                <span className="font-extrabold">{b.name}</span>
-                                <span className="ml-auto font-bold text-[0.9rem]" style={{ color: b.home >= 0 ? '#34c759' : '#ff3b30' }}>
-                                    {b.home >= 0 ? t('insights.balanceGetsBack') : t('insights.balanceOwes')} {targetSym}{formatNumberForCurrency(Math.abs(b.home), targetCurr)}
-                                </span>
-                            </div>
-                        ))}
+                <div className="mb-8">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                        <button
+                            type="button"
+                            onClick={() => setShowSettle((v) => !v)}
+                            aria-expanded={showSettle}
+                            className="inline-flex items-center gap-1.5 bg-[linear-gradient(135deg,_#34c759,_#00a86b)] text-white border-0 py-2 px-4 rounded-full font-extrabold text-[0.82rem] cursor-pointer shadow-[0_6px_18px_rgba(52,199,89,0.3)]"
+                        >
+                            {t('insights.netBalanceTitle')}
+                            <span aria-hidden="true">{showSettle ? '▴' : '▾'}</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => navigate('settlement')}
+                            className="inline-flex items-center gap-1 bg-transparent border-0 p-0 text-accent-blue-deep font-bold text-[0.82rem] cursor-pointer"
+                        >
+                            {t('insights.viewSettlements')} <span aria-hidden="true">→</span>
+                        </button>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => navigate('settlement')}
-                        className="mt-5 inline-flex items-center gap-1 bg-transparent border-0 p-0 text-accent-blue-deep font-bold text-[0.85rem] cursor-pointer"
-                    >
-                        {t('insights.viewSettlements')} <span aria-hidden="true">→</span>
-                    </button>
+                    {showSettle ? (
+                        <div className="card glass in-card-pad-28 mt-3">
+                            <p className="text-secondary text-[0.85rem] mb-5">{t('insights.netBalanceSub')}</p>
+                            <div className="flex flex-col gap-2">
+                                {netBalances.map((b) => (
+                                    <div className="flex items-center gap-2" key={b.name}>
+                                        <span className="font-extrabold">{b.name}</span>
+                                        <span className="ml-auto font-bold text-[0.9rem]" style={{ color: b.home >= 0 ? '#34c759' : '#ff3b30' }}>
+                                            {b.home >= 0 ? t('insights.balanceGetsBack') : t('insights.balanceOwes')} {targetSym}{formatNumberForCurrency(Math.abs(b.home), targetCurr)}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
                 </div>
             ) : null}
 
