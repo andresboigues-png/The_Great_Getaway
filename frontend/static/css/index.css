@@ -6810,6 +6810,46 @@ main#app-container.nav-anim-backward {
     margin-bottom: 5px;
 }
 
+/* Read-only formatted notes ⇆ editor, toggled per time-part. The editor's
+   textareas stay mounted (drafts + autosave); we only flip visibility. */
+.day-plan-pane[data-editing='false'] .plan-editor {
+    display: none;
+}
+.day-plan-pane[data-editing='true'] .plan-readonly {
+    display: none;
+}
+.plan-readonly__empty {
+    margin: 4px 0 8px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-style: italic;
+}
+.plan-readonly__edit,
+.plan-editor__done {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.14));
+    background: transparent;
+    color: var(--accent-blue, #0071e3);
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.plan-readonly__edit:hover {
+    background: rgba(0, 113, 227, 0.08);
+    border-color: var(--accent-blue, #0071e3);
+}
+.plan-editor__done {
+    color: #fff;
+    background: var(--accent-blue, #0071e3);
+    border-color: transparent;
+}
+
 /* Italic muted helper text. */
 .dvm-italic-muted {
     margin: 0;

@@ -189,6 +189,18 @@ export function DayDetailModal({
     // recomputes. Deliberately NOT useStore: see module header.
     const [, forceRender] = useReducer((x: number) => x + 1, 0);
     const [activeSlot, setActiveSlot] = useState<Slot>('morning');
+    // Per-time-part edit gate: each pane shows its formatted notes read-only
+    // until the user taps Edit, which reveals the editor (toolbar + textarea
+    // + preview). The textareas stay MOUNTED (just hidden) so the uncontrolled
+    // draft + syncDayFromInputs keep working — we only toggle visibility.
+    const [editing, setEditing] = useState<Record<Slot, boolean>>({
+        morning: false,
+        afternoon: false,
+        evening: false,
+    });
+    useEffect(() => {
+        setEditing({ morning: false, afternoon: false, evening: false });
+    }, [day.id]);
     // Bookmark drawer — pure view state, no persistence: the panels
     // start collapsed so the plan owns the full width until the user
     // asks for notes/checklist/photos/documents.
@@ -811,15 +823,36 @@ export function DayDetailModal({
         // All three panes stay mounted (only .is-active is visible) so
         // the uncontrolled textareas keep their drafts and cold-boot
         // asserts can read the hidden slots' values.
+        const liveText = planTaRef(slot).current?.value ?? ((day.plan as Record<string, string> | undefined)?.[slot] || '');
         return (
             <div key={slot} className={`day-plan-pane${slot === activeSlot ? ' is-active' : ''}`}
-                data-plan-pane={slot} style={{ '--accent': SLOT_ACCENT[slot] } as CSSProperties}>
+                data-plan-pane={slot} data-editing={String(!!editing[slot])}
+                style={{ '--accent': SLOT_ACCENT[slot] } as CSSProperties}>
                 {places.length > 0 && (
                     <div className="day-plan-places" style={{ '--accent': SLOT_ACCENT[slot] } as CSSProperties}>
                         <div className="day-plan-places__label">{countLabel}</div>
                         {places.map(renderPlaceCard)}
                     </div>
                 )}
+                {/* Read-only formatted view — the default. Tap Edit to reveal
+                    the editor below (which stays mounted throughout). */}
+                <div className="plan-readonly">
+                    {liveText.trim() ? (
+                        <PlanText text={liveText} />
+                    ) : (
+                        <p className="plan-readonly__empty">{t('dayDetail.notesEmptyHint')}</p>
+                    )}
+                    <button type="button" className="plan-readonly__edit"
+                        onClick={() => setEditing((e) => ({ ...e, [slot]: true }))}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" />
+                        </svg>
+                        {t('dayDetail.editNote')}
+                    </button>
+                </div>
+                <div className="plan-editor">
                 {/* Markdown-lite toolbar — inserts ** ** / "- " markers.
                     Kept a sibling of the (uncontrolled) textarea so it never
                     interferes with the draft. */}
@@ -871,6 +904,15 @@ export function DayDetailModal({
                         </div>
                     );
                 })()}
+                    <button type="button" className="plan-editor__done"
+                        onClick={() => {
+                            queueSave();
+                            setEditing((e) => ({ ...e, [slot]: false }));
+                            forceRender();
+                        }}>
+                        {t('dayDetail.doneEditing')}
+                    </button>
+                </div>
             </div>
         );
     };

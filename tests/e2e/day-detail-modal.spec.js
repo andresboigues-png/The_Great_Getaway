@@ -173,6 +173,8 @@ test.describe('Day-detail modal (editable)', () => {
         // (queueSave) fires it whenever it pleases after the keystroke.
         let posted = armDaysPost(page);
         const morningTa = dialog.locator('textarea.plan-input[data-time="morning"]');
+        // Notes are read-only by default now — tap Edit to reveal the editor.
+        await dialog.locator('.day-plan-pane[data-plan-pane="morning"] .plan-readonly__edit').click();
         await morningTa.fill(MORNING_TEXT);
         // Status leaves idle immediately ('Editing…'), then walks
         // Editing… → Saving… → Saved ✓. The intermediate states are
@@ -191,6 +193,7 @@ test.describe('Day-detail modal (editable)', () => {
         await eveningTab.click();
         await expect(eveningTab).toHaveAttribute('aria-selected', 'true');
         posted = armDaysPost(page);
+        await dialog.locator('.day-plan-pane[data-plan-pane="evening"] .plan-readonly__edit').click();
         await dialog.locator('textarea.plan-input[data-time="evening"]').fill(EVENING_TEXT);
         expect((await posted).ok()).toBe(true);
 
