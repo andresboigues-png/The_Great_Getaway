@@ -1538,6 +1538,10 @@ function MemoryCanvas({
     const [view, setView] = useState({ x: 40, y: 40, scale: 1 });
     const [interacting, setInteracting] = useState(false);
     const viewportRef = useRef<HTMLDivElement | null>(null);
+    // Live mirror of `view` so gesture handlers (which re-baseline mid-pinch)
+    // always read the current scale, not a render-closure snapshot.
+    const viewRef = useRef(view);
+    viewRef.current = view;
 
     const g = useRef({
         mode: 'none' as 'none' | 'pan' | 'card' | 'pinch',
@@ -1556,6 +1560,7 @@ function MemoryCanvas({
         if (!vp) return;
         const vw = vp.clientWidth;
         const vh = vp.clientHeight;
+        if (!vw || !vh) return; // hidden / pre-layout — keep the default view
         const pad = 44;
         const w = layout.width || MEM_CARD_W;
         const h = layout.height || MEM_CARD_H;
@@ -1584,6 +1589,12 @@ function MemoryCanvas({
         const targetEl = e.target as HTMLElement;
         // Let the card controls + zoom buttons handle their own clicks.
         if (targetEl.closest('.pf-mem-ctrl') || targetEl.closest('.pf-canvas-zoom')) return;
+        // Recover from any leaked pointer (a missed up/cancel or lost capture):
+        // a brand-new interaction must never think fingers are already down,
+        // or the next tap would be misread as a 2-finger pinch.
+        if (g.current.mode === 'none' && g.current.pointers.size > 0) {
+            g.current.pointers.clear();
+        }
         const pt = localXY(e);
         g.current.pointers.set(e.pointerId, pt);
         vp.setPointerCapture(e.pointerId);
@@ -1595,7 +1606,7 @@ function MemoryCanvas({
             if (a && b) {
                 g.current.mode = 'pinch';
                 g.current.pinchDist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
-                g.current.pinchScale = view.scale;
+                g.current.pinchScale = viewRef.current.scale;
             }
             return;
         }
@@ -1606,7 +1617,7 @@ function MemoryCanvas({
             g.current.cardId = id;
             g.current.cardStart = posOf(id);
             g.current.pointerStart = pt;
-            g.current.scaleAtDown = view.scale;
+            g.current.scaleAtDown = viewRef.current.scale;
         } else {
             g.current.mode = 'pan';
             g.current.last = pt;
@@ -1660,6 +1671,18 @@ function MemoryCanvas({
             if (only) {
                 g.current.mode = 'pan';
                 g.current.last = only;
+            }
+        } else {
+            // Still ≥2 fingers (e.g. 3→2) → re-baseline the pinch on the
+            // surviving pair so the next move isn't measured against a stale
+            // distance/scale and teleport the view.
+            const pts = [...g.current.pointers.values()];
+            const a = pts[0];
+            const b = pts[1];
+            if (a && b) {
+                g.current.mode = 'pinch';
+                g.current.pinchDist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+                g.current.pinchScale = viewRef.current.scale;
             }
         }
     };
@@ -1722,6 +1745,7 @@ function MemoryCanvas({
                 onPointerMove={onPointerMove}
                 onPointerUp={endPointer}
                 onPointerCancel={endPointer}
+                onLostPointerCapture={endPointer}
                 onWheel={onWheel}
             >
                 <div
