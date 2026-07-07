@@ -58,7 +58,6 @@ import type {
     MouseEvent as ReactMouseEvent,
     PointerEvent as ReactPointerEvent,
     ReactNode,
-    RefObject,
 } from 'react';
 import { emit } from '../../state.js';
 import { upsertDay, upsertTrip, uploadMedia } from '../../api.js';
@@ -109,22 +108,6 @@ const countLines = (s: string | null | undefined) =>
 // evening pane even though the user no longer picks the slot directly.
 const hourToSlot = (hour: number): Slot =>
     hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
-
-/** Auto-grow a plan textarea to fit its content so the FULL plan is
- *  visible with no inner scrollbar (the bottom-sheet modal scrolls
- *  instead). Mobile CSS drops the textarea's flex:1 + sets
- *  overflow-y:hidden so this inline height takes effect; on desktop
- *  flex:1 still wins, so the inline height is benign there. Guard
- *  against hidden panes: an inactive .day-plan-pane is display:none, so
- *  its textarea reports scrollHeight 0 — sizing it then would collapse
- *  it to 0px. Re-run when the pane becomes visible (see switchPlanTab).
- *  React never sets an inline height on these textareas, so its style
- *  diffing leaves the imperative mutation alone. */
-const autoGrowPlan = (ta: HTMLTextAreaElement | null | undefined): void => {
-    if (!ta || ta.offsetParent === null) return; // not laid out yet
-    ta.style.height = 'auto';
-    if (ta.scrollHeight > 0) ta.style.height = `${ta.scrollHeight}px`;
-};
 
 const CHECK_SVG = (
     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
@@ -197,9 +180,10 @@ export function DayDetailModal({
     const [, forceRender] = useReducer((x: number) => x + 1, 0);
     const [activeSlot, setActiveSlot] = useState<Slot>('morning');
     // Per-time-part edit gate: each pane shows its formatted notes read-only
-    // until the user taps Edit, which reveals the editor (toolbar + textarea
-    // + preview). The textareas stay MOUNTED (just hidden) so the uncontrolled
-    // draft + syncDayFromInputs keep working — we only toggle visibility.
+    // until the user taps Edit, which reveals the editor (toolbar + the
+    // interleaved WYSIWYG block list). The editables stay MOUNTED (just
+    // hidden) so their uncontrolled content survives — we only toggle
+    // visibility.
     const [editing, setEditing] = useState<Record<Slot, boolean>>({
         morning: false,
         afternoon: false,
@@ -224,16 +208,10 @@ export function DayDetailModal({
     const [allShortlist] = useState<MarkedPlace[]>(() =>
         (trip?.markedPlaces || []).filter((p) => p.forManual));
 
-    const morningTaRef = useRef<HTMLTextAreaElement>(null);
-    const afternoonTaRef = useRef<HTMLTextAreaElement>(null);
-    const eveningTaRef = useRef<HTMLTextAreaElement>(null);
     const notesTaRef = useRef<HTMLTextAreaElement>(null);
     const statusRef = useRef<HTMLDivElement>(null);
     const photoInputRef = useRef<HTMLInputElement>(null);
     const docInputRef = useRef<HTMLInputElement>(null);
-
-    const planTaRef = (slot: Slot): RefObject<HTMLTextAreaElement | null> =>
-        slot === 'morning' ? morningTaRef : slot === 'afternoon' ? afternoonTaRef : eveningTaRef;
 
     // ── Auto-save plumbing ────────────────────────────────────
     // Why: the user used to lose plan edits if they closed the modal
@@ -258,22 +236,8 @@ export function DayDetailModal({
         el.style.color = color;
     };
 
-    // Pull the current textarea values into `day`. Pure DOM→state read —
-    // the DOM is the draft's source of truth (uncontrolled textareas).
-    const syncDayFromInputs = () => {
-        const morningEl = morningTaRef.current;
-        const afternoonEl = afternoonTaRef.current;
-        const eveningEl = eveningTaRef.current;
-        if (morningEl && afternoonEl && eveningEl) {
-            day.plan = { morning: morningEl.value, afternoon: afternoonEl.value, evening: eveningEl.value };
-        }
-        // Notes are trip-wide (shared with the Trip Hub) — persisted on
-        // their own debounce via upsertTrip, NOT here. See queueNotesSave.
-    };
-
     const persistNow = async () => {
         if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
-        syncDayFromInputs();
         emit('state:changed');
         pendingSaveRef.current = true;
         flashStatus(t('dayDetail.statusSaving'));
@@ -306,7 +270,9 @@ export function DayDetailModal({
     };
 
     const queueSave = () => {
-        syncDayFromInputs();
+        // The block editor already wrote day.plan/day.planBlocks synchronously
+        // (persistSlot → writeSlotToDay) before calling us, so there's nothing
+        // to pull from the DOM here — just schedule the debounced upsert.
         emit('state:changed'); // local persistence + UI subscribers
         flashStatus(t('dayDetail.statusEditing'));
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -430,9 +396,7 @@ export function DayDetailModal({
         (day.plan as Record<string, string>)[slot] = flattenSlot(arr);
     };
     // Persist a slot: mirror its blocks into day.planBlocks + the flat plan
-    // string, then run the SAME debounced upsertDay the textarea path used
-    // (syncDayFromInputs no-ops now — there's no single textarea — so it
-    // never clobbers the plan we just wrote).
+    // string, then schedule the debounced upsertDay via queueSave.
     const persistSlot = (slot: Slot) => {
         syncBlockTexts(slot);
         writeSlotToDay(slot);
@@ -637,17 +601,13 @@ export function DayDetailModal({
 
     // Modal-close flush: Esc / backdrop / hardware back → the bridge's
     // onClose calls flushRef.current (wired by the wrapper) → we flush.
-    // We also capture textarea values into `day` synchronously (before
-    // the network round-trip resolves) so a navigate-away mid-save still
-    // leaves `day` correct in memory and localStorage. Reassigned after
-    // every render so the closure always sees the latest callbacks.
+    // `day` is already current — every block-editor keystroke wrote it
+    // synchronously (persistSlot → writeSlotToDay) — so the flush just
+    // fires the pending save. Reassigned after every render so the closure
+    // always sees the latest callbacks.
     useEffect(() => {
         flushRef.current = () => {
             if (saveTimerRef.current || pendingSaveRef.current) {
-                // Eager DOM read while the textareas still exist (the
-                // overlay is detached at this point but the nodes live
-                // until React unmounts a tick later).
-                syncDayFromInputs();
                 emit('state:changed');
                 // Fire-and-forget — overlay is being torn down. Server
                 // round-trip continues; if it fails we log but UI is gone.
@@ -661,29 +621,13 @@ export function DayDetailModal({
         };
     });
 
-    // Initial paint: only the active pane's textarea is visible — grow it.
-    useEffect(() => {
-        autoGrowPlan(morningTaRef.current);
-    }, []);
-
-    /** Switch the active plan tab — React state drives the .is-active
-     *  class + aria-selected on tab and pane in tandem; then focus the
-     *  now-active textarea so the user can start typing immediately.
-     *  Also called from the shortlist Add-to-AM/PM/Eve click handler so
-     *  toggling a to-do entry surfaces the slot it was added to. The
-     *  focus is deferred one tick so the class swap has committed before
-     *  the focus call (some browsers refuse to focus a still-hidden
-     *  element) — and it runs even when the slot is already active,
-     *  matching the imperative switchPlanTab. */
+    /** Switch the active plan tab — React state drives the .is-active class
+     *  + aria-selected on tab and pane in tandem. Also called from the
+     *  shortlist Add-to-AM/PM/Eve click handler so toggling a to-do entry
+     *  surfaces the slot it was added to. (No auto-focus: the pane opens
+     *  read-only — the user taps Edit to reveal the editor.) */
     const switchPlanTab = (slot: Slot) => {
         setActiveSlot(slot);
-        setTimeout(() => {
-            const ta = planTaRef(slot).current;
-            // Grow now that the pane is visible — scrollHeight was 0 while
-            // it was display:none, so it could not be measured at click time.
-            autoGrowPlan(ta);
-            ta?.focus();
-        }, 0);
     };
 
     // ── Shortlist helpers ─────────────────────────────────────
