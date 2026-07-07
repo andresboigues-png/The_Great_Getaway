@@ -6,6 +6,8 @@ rules so a regression can't leak hidden quotes or let a visitor force
 copy onto someone's profile.
 """
 
+from tests.conftest import _seed_member
+
 
 def _leave(client, headers, owner_id, text="A lovely travel companion.", **extra):
     return client.post(f"/api/quotes/{owner_id}", headers=headers, json={"text": text, **extra})
@@ -13,6 +15,27 @@ def _leave(client, headers, owner_id, text="A lovely travel companion.", **extra
 
 def _list(client, headers, owner_id):
     return client.get(f"/api/quotes/{owner_id}", headers=headers)
+
+
+def _seed_trip(trip_id, owner_id, name="Lisbon 2023", country_code="PT"):
+    """Drop a trip row directly so a memory can link to it."""
+    from database import get_db
+
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO trips (id, user_id, name, country_code) VALUES (?, ?, ?, ?)",
+            (trip_id, owner_id, name, country_code),
+        )
+        conn.commit()
+    return trip_id
+
+
+def _shared_trip(trip_id, user_a, user_b, name="Lisbon 2023", country_code="PT"):
+    """A trip both user_a and user_b are ACCEPTED members of."""
+    _seed_trip(trip_id, user_a, name=name, country_code=country_code)
+    _seed_member(trip_id, user_a)
+    _seed_member(trip_id, user_b)
+    return trip_id
 
 
 def test_leave_quote_happy_path(client, seed_user, seed_other_user, other_auth_headers):
@@ -115,16 +138,13 @@ def test_owner_can_delete_any_quote(
     assert res.status_code == 200
 
 
-def test_memory_stores_year_and_country(
-    client, seed_user, seed_other_user, auth_headers, other_auth_headers
-):
-    """A memory can carry an optional year + country, echoed back on list."""
-    res = _leave(client, other_auth_headers, seed_user, year=2023, country="Portugal")
+def test_memory_stores_year(client, seed_user, seed_other_user, auth_headers, other_auth_headers):
+    """A memory can carry an optional year, echoed back on list."""
+    res = _leave(client, other_auth_headers, seed_user, year=2023)
     assert res.status_code == 201
 
     memory = _list(client, auth_headers, seed_user).get_json()["quotes"][0]
     assert memory["year"] == 2023
-    assert memory["country"] == "Portugal"
 
 
 def test_memory_year_out_of_range_rejected(client, seed_user, seed_other_user, other_auth_headers):
@@ -132,12 +152,51 @@ def test_memory_year_out_of_range_rejected(client, seed_user, seed_other_user, o
     assert res.status_code == 400
 
 
-def test_memory_country_too_long_rejected(client, seed_user, seed_other_user, other_auth_headers):
-    res = _leave(client, other_auth_headers, seed_user, country="x" * 61)
+def test_memory_links_common_trip(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers
+):
+    """A memory can link to a trip BOTH users were on; the link echoes back."""
+    trip_id = _shared_trip("trip-shared", seed_user, seed_other_user)
+    res = _leave(client, other_auth_headers, seed_user, tripId=trip_id)
+    assert res.status_code == 201
+
+    memory = _list(client, auth_headers, seed_user).get_json()["quotes"][0]
+    assert memory["trip"]["id"] == trip_id
+    assert memory["trip"]["name"] == "Lisbon 2023"
+    assert memory["trip"]["countryCode"] == "PT"
+
+
+def test_memory_rejects_non_common_trip(client, seed_user, seed_other_user, other_auth_headers):
+    """A trip only ONE of them is on (or a stranger id) can't be linked."""
+    # Trip only the owner is on — the author (leaving the memory) isn't a member.
+    _seed_trip("trip-owner-only", seed_user)
+    _seed_member("trip-owner-only", seed_user)
+
+    res = _leave(client, other_auth_headers, seed_user, tripId="trip-owner-only")
+    assert res.status_code == 400
+
+    # A wholly unknown trip id is likewise rejected.
+    res = _leave(client, other_auth_headers, seed_user, tripId="no-such-trip")
     assert res.status_code == 400
 
 
-def test_memory_without_year_country_defaults_null(
+def test_common_trips_endpoint_lists_shared(client, seed_user, seed_other_user, other_auth_headers):
+    """GET /common-trips (as the author) returns trips BOTH share, and
+    excludes a trip only the owner is on."""
+    shared = _shared_trip("trip-both", seed_user, seed_other_user)
+    # Owner-only trip must NOT surface.
+    _seed_trip("trip-owner-solo", seed_user, name="Solo", country_code="ES")
+    _seed_member("trip-owner-solo", seed_user)
+
+    res = client.get(f"/api/quotes/{seed_user}/common-trips", headers=other_auth_headers)
+    assert res.status_code == 200
+    trips = res.get_json()["trips"]
+    ids = {t["id"] for t in trips}
+    assert shared in ids
+    assert "trip-owner-solo" not in ids
+
+
+def test_memory_without_year_trip_defaults_null(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers
 ):
     res = _leave(client, other_auth_headers, seed_user)
@@ -145,7 +204,7 @@ def test_memory_without_year_country_defaults_null(
 
     memory = _list(client, auth_headers, seed_user).get_json()["quotes"][0]
     assert memory["year"] is None
-    assert memory["country"] is None
+    assert memory["trip"] is None
 
 
 def test_blocked_author_quote_hidden_from_owner(

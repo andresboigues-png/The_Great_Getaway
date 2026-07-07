@@ -800,10 +800,12 @@ def init_db():
                 content TEXT NOT NULL,
                 memory_year INTEGER,
                 memory_country TEXT,
+                memory_trip_id TEXT,
                 is_visible INTEGER NOT NULL DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (profile_owner_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (memory_trip_id) REFERENCES trips(id) ON DELETE SET NULL,
                 CHECK (profile_owner_id != author_id)
             )
         ''')

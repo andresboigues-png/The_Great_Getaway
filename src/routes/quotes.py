@@ -22,7 +22,6 @@ from helpers import ensure_user_exists, user_daily_count, user_daily_increment
 bp = Blueprint("quotes", __name__)
 
 _MAX_LEN = 280
-_MAX_COUNTRY_LEN = 60
 # Per-account daily cap on NEW quotes. The shared per-IP limiter throttles
 # bursts but doesn't bound one account's fan-out onto other people's
 # profiles (mirrors follows.py BUG-079). Each quote is unsolicited content
@@ -36,11 +35,18 @@ def _clean(raw: str) -> str:
 
 
 def _serialize(row) -> dict:
+    trip = None
+    if row["memory_trip_id"] is not None:
+        trip = {
+            "id": row["memory_trip_id"],
+            "name": row["trip_name"],
+            "countryCode": row["trip_country_code"],
+        }
     return {
         "id": row["id"],
         "text": row["content"],
         "year": row["memory_year"],
-        "country": row["memory_country"],
+        "trip": trip,
         "isVisible": bool(row["is_visible"]),
         "createdAt": row["created_at"],
         "author": {
@@ -52,12 +58,41 @@ def _serialize(row) -> dict:
 
 
 _SELECT = (
-    "SELECT pq.id, pq.content, pq.memory_year, pq.memory_country, "
+    "SELECT pq.id, pq.content, pq.memory_year, "
+    "pq.memory_trip_id, tr.name AS trip_name, tr.country_code AS trip_country_code, "
     "pq.is_visible, pq.created_at, "
     "u.id AS author_id, u.name AS author_name, u.picture AS author_picture "
     "FROM profile_quotes pq JOIN users u ON u.id = pq.author_id "
+    "LEFT JOIN trips tr ON tr.id = pq.memory_trip_id "
     "WHERE pq.profile_owner_id = ? "
 )
+
+
+def _common_trip_rows(cursor, owner_id, author_id, trip_id=None):
+    """Trips BOTH owner_id and author_id are accepted members of.
+
+    A user is "on" a trip when they have a trip_members row with
+    invitation_status = 'accepted'. Two accepted joins (one per user)
+    intersect to the shared set. Newest first, capped. Pass trip_id to
+    narrow to a single candidate (used to validate a memory's link).
+    """
+    sql = (
+        "SELECT t.id, t.name, t.country_code "
+        "FROM trips t "
+        "JOIN trip_members m_owner "
+        "  ON m_owner.trip_id = t.id AND m_owner.user_id = ? "
+        "  AND m_owner.invitation_status = 'accepted' "
+        "JOIN trip_members m_author "
+        "  ON m_author.trip_id = t.id AND m_author.user_id = ? "
+        "  AND m_author.invitation_status = 'accepted' "
+    )
+    params: list = [owner_id, author_id]
+    if trip_id is not None:
+        sql += "WHERE t.id = ? "
+        params.append(trip_id)
+    sql += "ORDER BY t.created_at DESC LIMIT 100"
+    cursor.execute(sql, params)
+    return cursor.fetchall()
 
 
 @bp.route("/api/quotes/<owner_id>", methods=["POST"])
@@ -84,16 +119,14 @@ def leave_quote(owner_id):
             return jsonify({"error": "year must be an integer"}), 400
         if not 1900 <= year <= 2100:
             return jsonify({"error": "year must be between 1900 and 2100"}), 400
-    # Optional country: absent/None stores NULL; empty-after-clean → NULL.
-    country = data.get("country")
-    if country is not None:
-        if not isinstance(country, str):
-            return jsonify({"error": "country must be a string"}), 400
-        country = _clean(country)
-        if len(country) > _MAX_COUNTRY_LEN:
-            return jsonify({"error": f"country must be {_MAX_COUNTRY_LEN} characters or less"}), 400
-        if not country:
-            country = None
+    # Optional tripId: absent/None/empty stores NULL; a non-empty string must
+    # name a trip BOTH the author and the owner are accepted members of
+    # (validated below, once we have a cursor).
+    trip_id = data.get("tripId")
+    if trip_id is not None and not isinstance(trip_id, str):
+        return jsonify({"error": "tripId must be a trip you both share"}), 400
+    if isinstance(trip_id, str) and not trip_id:
+        trip_id = None
     with get_db() as conn:
         cursor = conn.cursor()
         if not ensure_user_exists(cursor, owner_id):
@@ -113,11 +146,16 @@ def leave_quote(owner_id):
                     "quoteCapHit": True,
                 }
             ), 429
+        # A linked trip must be one BOTH users are accepted members of, so a
+        # memory can't point at a trip the author (or owner) isn't on.
+        if trip_id is not None:
+            if len(_common_trip_rows(cursor, owner_id, author_id, trip_id=trip_id)) != 1:
+                return jsonify({"error": "tripId must be a trip you both share"}), 400
         cursor.execute(
             "INSERT INTO profile_quotes "
-            "(profile_owner_id, author_id, content, memory_year, memory_country, is_visible) "
+            "(profile_owner_id, author_id, content, memory_year, memory_trip_id, is_visible) "
             "VALUES (?, ?, ?, ?, ?, 0)",
-            (owner_id, author_id, text, year, country),
+            (owner_id, author_id, text, year, trip_id),
         )
         # Meter AFTER a successful insert so a failed write can't burn quota.
         user_daily_increment("quote", author_id)
@@ -158,6 +196,31 @@ def list_quotes(owner_id):
         cursor.execute(sql, params)
         quotes = [_serialize(r) for r in cursor.fetchall()]
     return jsonify({"quotes": quotes, "isOwner": is_owner})
+
+
+@bp.route("/api/quotes/<owner_id>/common-trips", methods=["GET"])
+@require_auth
+@limiter.limit("120/minute")
+def list_common_trips(owner_id):
+    """Trips the caller shares with the profile owner — the pick-list the
+    UI offers when the caller links a memory to a trip they were both on.
+    You don't leave memories on your own profile, so self → empty."""
+    caller_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if not ensure_user_exists(cursor, owner_id):
+            return jsonify({"error": "Not found"}), 404
+        # Block-gate in BOTH directions, mirroring list_quotes: a block
+        # hides the profile, so it hides the shared-trip pick-list too.
+        from routes.blocks import is_blocked
+
+        if is_blocked(cursor, owner_id, caller_id) or is_blocked(cursor, caller_id, owner_id):
+            return jsonify({"error": "Not found"}), 404
+        if caller_id == owner_id:
+            return jsonify({"trips": []})
+        rows = _common_trip_rows(cursor, owner_id, caller_id)
+        trips = [{"id": r["id"], "name": r["name"], "countryCode": r["country_code"]} for r in rows]
+    return jsonify({"trips": trips})
 
 
 @bp.route("/api/quotes/item/<int:quote_id>/visibility", methods=["POST"])

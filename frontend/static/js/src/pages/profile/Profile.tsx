@@ -1202,7 +1202,7 @@ interface QuoteItem {
     isVisible: boolean;
     createdAt: string;
     year: number | null;
-    country: string | null;
+    trip: { id: string; name: string; countryCode: string | null } | null;
     author: { id: string; name: string; picture?: string };
 }
 
@@ -1222,21 +1222,51 @@ function QuotesSection({
     const [failed, setFailed] = useState(false);
     const [draft, setDraft] = useState('');
     const [draftYear, setDraftYear] = useState('');
-    const [draftCountry, setDraftCountry] = useState('');
+    const [draftTripId, setDraftTripId] = useState('');
+    const [draftTripName, setDraftTripName] = useState('');
     const [posting, setPosting] = useState(false);
+    // Common trips (shared between the viewer and this profile's owner),
+    // fetched lazily the first time the trip picker opens.
+    const commonTripsRef = useRef<Array<{ id: string; name: string; countryCode: string | null }> | null>(null);
 
-    // Country tag picker for the composer — same searchable modal as the
-    // home-country tile; picking sets the draft country name.
-    const openDraftCountry = () => {
+    // Trip picker — link the memory to a trip you BOTH took. Opens a
+    // searchable modal of only your shared trips.
+    const openTripPicker = async () => {
+        if (!profileUserId) return;
+        if (!commonTripsRef.current) {
+            try {
+                const res = await apiFetch(`/api/quotes/${encodeURIComponent(profileUserId)}/common-trips`);
+                const data = res.ok ? await res.json() : { trips: [] };
+                commonTripsRef.current = Array.isArray(data.trips) ? data.trips : [];
+            } catch {
+                commonTripsRef.current = [];
+            }
+        }
+        const trips = commonTripsRef.current ?? [];
+        if (trips.length === 0) {
+            showLiquidAlert(t('profile.memNoCommonTrips'));
+            return;
+        }
         const items: StatListItem[] = [
-            { primary: t('profile.homeCountryNotSet'), avatarInitial: '—', onClick: () => setDraftCountry('') },
-            ...getCountryOptions().map(({ code, name }) => ({
-                primary: name,
-                avatarUrl: flagUrl(code),
-                onClick: () => setDraftCountry(name),
+            {
+                primary: t('profile.memNoTrip'),
+                avatarInitial: '—',
+                onClick: () => {
+                    setDraftTripId('');
+                    setDraftTripName('');
+                },
+            },
+            ...trips.map((tp) => ({
+                primary: tp.name,
+                avatarUrl: tp.countryCode ? flagUrl(tp.countryCode) : undefined,
+                avatarInitial: (tp.name || '?').charAt(0).toUpperCase(),
+                onClick: () => {
+                    setDraftTripId(tp.id);
+                    setDraftTripName(tp.name);
+                },
             })),
         ];
-        openStatListModal({ title: t('profile.memGroupCountry'), items });
+        openStatListModal({ title: t('profile.memCommonTripsTitle'), items });
     };
 
     const load = useCallback(async () => {
@@ -1267,10 +1297,10 @@ function QuotesSection({
     const post = async () => {
         const text = draft.trim();
         if (!text || posting || !profileUserId) return;
-        const body: { text: string; year?: number; country?: string } = { text };
+        const body: { text: string; year?: number; tripId?: string } = { text };
         const yr = parseInt(draftYear, 10);
         if (draftYear.trim() && !Number.isNaN(yr)) body.year = yr;
-        if (draftCountry.trim()) body.country = draftCountry.trim();
+        if (draftTripId) body.tripId = draftTripId;
         setPosting(true);
         try {
             const res = await apiFetch(`/api/quotes/${encodeURIComponent(profileUserId)}`, {
@@ -1281,7 +1311,8 @@ function QuotesSection({
             if (res.ok) {
                 setDraft('');
                 setDraftYear('');
-                setDraftCountry('');
+                setDraftTripId('');
+                setDraftTripName('');
                 showLiquidAlert(t('profile.quotesPosted', { name: firstName }), 'success');
                 void load();
             } else {
@@ -1360,16 +1391,8 @@ function QuotesSection({
                             value={draftYear}
                             onChange={(e) => setDraftYear(e.target.value)}
                         />
-                        <button type="button" className="pf-quote-place" onClick={openDraftCountry}>
-                            {draftCountry && countryCodeFromName(draftCountry) ? (
-                                <img
-                                    className="pf-quote-place__flag"
-                                    src={flagUrl(countryCodeFromName(draftCountry))}
-                                    alt=""
-                                    loading="lazy"
-                                />
-                            ) : null}
-                            {draftCountry || t('profile.memPlaceField')}
+                        <button type="button" className="pf-quote-place" onClick={() => void openTripPicker()}>
+                            {draftTripName || t('profile.memLinkTrip')}
                         </button>
                     </div>
                     <button
@@ -1408,7 +1431,7 @@ function QuotesSection({
 // them (by year / place / who) into labelled groups; cards can also be
 // dragged freely. Positions are EPHEMERAL — never persisted. Pan =
 // 1-finger drag on the background; zoom = pinch / wheel / buttons.
-type MemGroup = 'none' | 'year' | 'country' | 'author';
+type MemGroup = 'none' | 'year' | 'trip' | 'author';
 
 const MEM_CARD_W = 210;
 const MEM_CARD_H = 140;
@@ -1465,10 +1488,10 @@ function memClusterOf(m: QuoteItem, group: MemGroup): { key: string; label: stri
             ? { key: `y${m.year}`, label: String(m.year), sort: `0_${9999 - m.year}` }
             : { key: 'y_none', label: t('profile.memNoYear'), sort: '9' };
     }
-    if (group === 'country') {
-        return m.country
-            ? { key: `c${m.country.toLowerCase()}`, label: m.country, sort: `0_${m.country.toLowerCase()}` }
-            : { key: 'c_none', label: t('profile.memNoCountry'), sort: '9' };
+    if (group === 'trip') {
+        return m.trip
+            ? { key: `t${m.trip.id}`, label: m.trip.name, sort: `0_${m.trip.name.toLowerCase()}` }
+            : { key: 't_none', label: t('profile.memNoTrip'), sort: '9' };
     }
     if (group === 'author') {
         return { key: `a${m.author.id}`, label: m.author.name, sort: `0_${(m.author.name || '').toLowerCase()}` };
@@ -1720,7 +1743,7 @@ function MemoryCanvas({
     const groupOpts: { k: MemGroup; label: string }[] = [
         { k: 'none', label: t('profile.memGroupNone') },
         { k: 'year', label: t('profile.memGroupYear') },
-        { k: 'country', label: t('profile.memGroupCountry') },
+        { k: 'trip', label: t('profile.memGroupTrip') },
         { k: 'author', label: t('profile.memGroupAuthor') },
     ];
 
@@ -1770,7 +1793,6 @@ function MemoryCanvas({
                     {memories.map((m) => {
                         const p = posOf(m.id);
                         const hidden = isOwnProfile && !m.isVisible;
-                        const code = countryCodeFromName(m.country);
                         return (
                             <div
                                 key={m.id}
@@ -1795,19 +1817,19 @@ function MemoryCanvas({
                                         </div>
                                     )}
                                     <span className="pf-mem-card__author">{m.author.name}</span>
-                                    {m.country || m.year ? (
+                                    {m.trip || m.year ? (
                                         <span className="pf-mem-card__tags">
-                                            {m.country ? (
+                                            {m.trip ? (
                                                 <span className="pf-mem-chip">
-                                                    {code ? (
+                                                    {m.trip.countryCode ? (
                                                         <img
                                                             className="pf-mem-chip__flag"
-                                                            src={flagUrl(code)}
+                                                            src={flagUrl(m.trip.countryCode)}
                                                             alt=""
                                                             loading="lazy"
                                                         />
                                                     ) : null}
-                                                    {m.country}
+                                                    {m.trip.name}
                                                 </span>
                                             ) : null}
                                             {m.year ? <span className="pf-mem-chip">{m.year}</span> : null}
