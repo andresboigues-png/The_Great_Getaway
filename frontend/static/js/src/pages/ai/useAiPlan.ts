@@ -534,6 +534,13 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                     afternoon: planAfternoon || prior.plan?.afternoon || '',
                     evening: planEvening || prior.plan?.evening || '',
                 };
+                // Clear any block-editor structure so the NEW plan text renders.
+                // The day-detail editor prefers day.planBlocks over the flat
+                // text; leaving a prior edit's blocks would silently shadow the
+                // AI's fresh plan (upsertDay's no-clobber rule keeps the column
+                // otherwise). Sending null explicitly wipes plan_blocks_json;
+                // the editor rebuilds blocks from this text on next open.
+                prior.planBlocks = null;
                 if (tip) prior.tip = tip;
                 if (typeof dayInfo.lat === 'number') prior.lat = dayInfo.lat;
                 if (typeof dayInfo.lon === 'number') prior.lng = dayInfo.lon;

@@ -99,6 +99,50 @@ def test_upsert_day_without_plan_blocks_preserves_column(client, seed_user, auth
     assert row["plan_blocks_json"] is not None  # preserved, not clobbered
 
 
+def test_upsert_day_null_plan_blocks_clears_column(client, seed_user, auth_headers):
+    """The AI planner re-run path sends planBlocks=null WITH new flat text so
+    a prior block-editor edit can't shadow the fresh AI plan. Explicit null
+    (present key) must WIPE plan_blocks_json to NULL — distinct from OMITTING
+    the key (no-clobber, tested above) — and write the new flat text."""
+    from database import get_db
+
+    client.post("/api/trips", headers=auth_headers, json={"trip": {"id": "trip-d", "name": "T"}})
+    # User edits the day with the block editor → plan_blocks_json is set.
+    client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={
+            "day": {
+                "id": "day-d",
+                "tripId": "trip-d",
+                "dayNumber": 1,
+                "planBlocks": {"morning": [{"type": "text", "text": "old edit"}]},
+            }
+        },
+    )
+    # AI re-run overwrites with new flat text AND clears the blocks (null).
+    res = client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={
+            "day": {
+                "id": "day-d",
+                "tripId": "trip-d",
+                "dayNumber": 1,
+                "plan": {"morning": "🥐 Louvre Café", "afternoon": "", "evening": ""},
+                "planBlocks": None,
+            }
+        },
+    )
+    assert res.status_code == 200
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT morning, plan_blocks_json FROM trip_days WHERE id = ?", ("day-d",)
+        ).fetchone()
+    assert row["plan_blocks_json"] is None, "explicit null must clear the stale blocks"
+    assert row["morning"] == "🥐 Louvre Café", "the new AI plan text must be stored"
+
+
 def test_upsert_day_missing_payload(client, auth_headers):
     res = client.post("/api/days", headers=auth_headers, json={})
     assert res.status_code == 400

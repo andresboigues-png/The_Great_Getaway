@@ -297,25 +297,25 @@ export function DayDetailModal({
     const placeById = (pid?: string): MarkedPlace | undefined =>
         pid ? (trip?.markedPlaces || []).find((p) => p.placeId === pid) : undefined;
 
-    /** For each pane, the places pinned to this slot pull from
-     *  `trip.markedPlaces` filtered by `dayId === day.id`:
-     *    - Items WITH a matching timeOfDay → that slot only (AI plan items
-     *      have these; the AI assigns morning/PM/eve).
-     *    - Items WITHOUT a timeOfDay (manual adds via the home InfoWindow)
-     *      → surface in EVERY slot so the user sees them no matter which
-     *      time-of-day tab they're on (not yet committed to a slot).
+    /** Places pinned to THIS slot: `trip.markedPlaces` filtered by
+     *  `dayId === day.id` AND an effective slot (fine preferredHour → coarse
+     *  slot, else the AI's coarse timeOfDay) that matches `slot`.
+     *
+     *  A place with NO slot (dayId set but timeOfDay/preferredHour null) does
+     *  NOT auto-appear here — it stays in the "to-do list" panel for the user
+     *  to drop into a specific AM/PM/Eve. This matches the AI planner's own
+     *  intent (sights are day-tagged but slot-less, meant to be assigned by
+     *  the user) and stops a to-do place from filling all three panes at once.
      *  Defined ahead of the block editor because buildSlotBlocks seeds a
      *  slot's default blocks from it during the initial render (TDZ). */
     const placesForSlot = (slot: Slot): MarkedPlace[] => {
         if (!trip) return [];
         return (trip.markedPlaces || []).filter((p) => {
             if (!p || !p.forManual || p.dayId !== day.id) return false;
-            // The user's specific hour wins for slotting; fall back to the
-            // AI-assigned coarse slot; null = "anytime" → show in every pane.
             const placeSlot = p.preferredHour != null
                 ? hourToSlot(p.preferredHour)
                 : p.timeOfDay;
-            return placeSlot === slot || !placeSlot;
+            return placeSlot === slot;
         });
     };
 
