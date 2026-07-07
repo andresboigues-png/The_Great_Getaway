@@ -265,11 +265,16 @@ export function Friends() {
             message: t('friends.toastRemoveConfirmMessage', { name: displayName }),
             confirmText: t('friends.toastRemoveConfirmBtn'),
             onConfirm: () => { void (async () => {
-                // Optimistic: remove from both following + mutuals.
-                // The server response will reconcile via updateNetwork()
-                // below.
+                // Optimistic: drop my follow. If they were a friend (mutual)
+                // they still follow ME, so demote them into followers rather
+                // than making them vanish; updateNetwork() reconciles below.
+                const wasFriend = mutuals.find((u) => u.id === targetId);
                 setFollowing((curr) => curr.filter((u) => u.id !== targetId));
                 setMutuals((curr) => curr.filter((u) => u.id !== targetId));
+                if (wasFriend) {
+                    setFollowers((curr) =>
+                        curr.some((u) => u.id === targetId) ? curr : [...curr, wasFriend]);
+                }
                 try {
                     const res = await apiFetch('/api/friends/remove', {
                         method: 'POST',
@@ -289,6 +294,15 @@ export function Friends() {
             })(); },
         });
     };
+
+    // Friends (mutuals) are BOTH a follower and a followee, so they belong in
+    // the Followers AND Following tabs, not only the Friends bucket. Compose
+    // the full lists for display; the Friends tab stays the mutual subset.
+    const byName = (a: FriendRow, b: FriendRow) =>
+        (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase());
+    const mutualIds = new Set(mutuals.map((m) => m.id));
+    const allFollowers = [...followers, ...mutuals].sort(byName);
+    const allFollowing = [...following, ...mutuals].sort(byName);
 
     return (
         <div>
@@ -438,8 +452,8 @@ export function Friends() {
             <div className="trip-tabnav-wrap">
                 <nav className="trip-tabnav network-tabnav" role="tablist" aria-label={t('friends.networkFilterAria')}>
                     {([
-                        { id: 'followers', label: t('friends.followersOnlyTitle'), short: t('friends.tabFollowers'), count: followers.length },
-                        { id: 'following', label: t('friends.followingOnlyTitle'), short: t('friends.tabFollowing'), count: following.length },
+                        { id: 'followers', label: t('friends.followersOnlyTitle'), short: t('friends.tabFollowers'), count: allFollowers.length },
+                        { id: 'following', label: t('friends.followingOnlyTitle'), short: t('friends.tabFollowing'), count: allFollowing.length },
                         { id: 'friends',   label: t('friends.friendsTitle'),       short: t('friends.tabFriends'),   count: mutuals.length },
                     ] as Array<{ id: NetworkTab; label: string; short: string; count: number }>).map((tab) => (
                         <button
@@ -473,23 +487,31 @@ export function Friends() {
                 <NetworkSection
                     title={t('friends.followersOnlyTitle')}
                     hint={t('friends.followersOnlyHint')}
-                    rows={followers}
+                    rows={allFollowers}
                     emptyTitle={t('friends.followersOnlyEmptyTitle')}
                     emptyBody={t('friends.followersOnlyEmptyBody')}
                     iconName="users"
                     onRowClick={(u) => navigate('profile', { userId: u.id })}
-                    renderRowAction={(u) => (
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                void followUser(u.id);
-                            }}
-                            className="bg-accent-blue text-white border-0 py-[7px] px-3.5 rounded-full font-extrabold text-[0.76rem] cursor-pointer shrink-0 shadow-[0_4px_12px_rgba(0,113,227,0.22)]"
-                        >
-                            {t('friends.followBackBtn')}
-                        </button>
-                    )}
+                    renderRowAction={(u) =>
+                        // A follower I ALSO follow (a friend) is already followed
+                        // → Unfollow; one I don't follow back → Follow back.
+                        mutualIds.has(u.id) ? (
+                            <UnfollowButton
+                                onClick={() => unfollowUser(u.id, u.name || u.email || 'this user')}
+                            />
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    void followUser(u.id);
+                                }}
+                                className="bg-accent-blue text-white border-0 py-[7px] px-3.5 rounded-full font-extrabold text-[0.76rem] cursor-pointer shrink-0 shadow-[0_4px_12px_rgba(0,113,227,0.22)]"
+                            >
+                                {t('friends.followBackBtn')}
+                            </button>
+                        )
+                    }
                 />
             )}
 
@@ -497,7 +519,7 @@ export function Friends() {
                 <NetworkSection
                     title={t('friends.followingOnlyTitle')}
                     hint={t('friends.followingOnlyHint')}
-                    rows={following}
+                    rows={allFollowing}
                     emptyTitle={t('friends.followingOnlyEmptyTitle')}
                     emptyBody={t('friends.followingOnlyEmptyBody')}
                     iconName="compass"
