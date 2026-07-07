@@ -984,6 +984,8 @@ export const en = {
         netBalanceSub: 'Net balance per person after splits and settlements.',
         balanceGetsBack: 'gets back',
         balanceOwes: 'owes',
+        viewBudgets: 'View full budgets',
+        viewSettlements: 'Settle up',
         // Hero stat card.
         heroTitle: 'Total Spent on your trip',
         // IA-4: placeholder shown in place of the hero figure while the

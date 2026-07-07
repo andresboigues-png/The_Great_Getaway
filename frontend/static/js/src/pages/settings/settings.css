@@ -692,44 +692,58 @@
    No components.html preview refs for any of these. FIXING_ROADMAP
    §3.1 slice 14. */
 
+/* Compact horizontal layout. The cards were tall vertical stacks (icon on
+   top, then title / desc / CTA) that ate a lot of space. Now the icon is
+   pinned to the left and the text (title / desc / CTA) flows in the padded
+   area beside it (iOS-Settings row style) — roughly half the height —
+   WITHOUT touching the per-card JSX. Plain block flow (not grid) so nothing
+   can mis-place. */
 .management-card {
     position: relative;
-    padding: 22px 22px 20px;
-    border-radius: 22px;
+    display: block;
+    text-align: left;
+    padding: 15px 18px 15px 70px;
+    border-radius: 18px;
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     overflow: hidden;
 }
 
 .management-card:hover , .management-card:active , .management-card:focus-visible {
-    transform: translateY(-5px);
+    transform: translateY(-4px);
 }
 
-/* 2026-06-25: icon-led settings landing. Each management card now leads
-   with a colour-tinted rounded icon tile (iOS-Settings style) so the
-   sections are recognisable at a glance instead of reading as a stack of
-   text-only blocks. `--mc-accent: R,G,B` is set per card in Settings.tsx;
-   the SVG strokes in currentColor, so the tint + icon share the accent. */
+/* Icon tile — pinned to the left, vertically centred. `--mc-accent: R,G,B`
+   is set per card in Settings.tsx; the SVG strokes in currentColor, so the
+   tint + icon share the accent. */
 .management-card__icon {
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    transform: translateY(-50%);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 42px;
-    height: 42px;
-    margin-bottom: 14px;
+    width: 40px;
+    height: 40px;
+    margin: 0;
     border-radius: 12px;
     background: rgba(var(--mc-accent), 0.14);
     color: rgb(var(--mc-accent));
     border: 1px solid rgba(var(--mc-accent), 0.22);
 }
-/* The global .card-title runs large (page-heading scale); inside a
-   management card it's a section label, so size it down + tighten the
-   description so more cards read at a glance. */
+/* Title / description / CTA stack tight beside the icon. */
 .management-card .card-title {
-    font-size: 1.18rem;
+    font-size: 1.02rem;
+    margin: 0;
 }
 .management-card .st-help-text {
-    font-size: 0.88rem;
-    line-height: 1.45;
+    font-size: 0.82rem;
+    line-height: 1.35;
+    margin: 2px 0 0;
+}
+/* The "Configure →" CTA is the card's last child (inline mt-5 → tighten). */
+.management-card > div:last-child {
+    margin-top: 6px;
 }
 
 .danger-card {

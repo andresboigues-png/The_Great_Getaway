@@ -1465,15 +1465,24 @@ export function Insights() {
                 the budgets page's collapsible summary). Only when there are budgets. */}
             {tripBudgets.length > 0 ? (
                 <div className="mb-8">
-                    <button
-                        type="button"
-                        onClick={() => setShowBudgetVs((v) => !v)}
-                        aria-expanded={showBudgetVs}
-                        className="inline-flex items-center gap-1.5 bg-[linear-gradient(135deg,_#ffd60a,_#ff9f0a)] text-[#5e3c00] border-0 py-2 px-4 rounded-full font-extrabold text-[0.82rem] cursor-pointer shadow-[0_6px_18px_rgba(255,159,10,0.3)]"
-                    >
-                        {t('insights.budgetVsActualTitle')}
-                        <span aria-hidden="true">{showBudgetVs ? '▴' : '▾'}</span>
-                    </button>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                        <button
+                            type="button"
+                            onClick={() => setShowBudgetVs((v) => !v)}
+                            aria-expanded={showBudgetVs}
+                            className="inline-flex items-center gap-1.5 bg-[linear-gradient(135deg,_#ffd60a,_#ff9f0a)] text-[#5e3c00] border-0 py-2 px-4 rounded-full font-extrabold text-[0.82rem] cursor-pointer shadow-[0_6px_18px_rgba(255,159,10,0.3)]"
+                        >
+                            {t('insights.budgetVsActualTitle')}
+                            <span aria-hidden="true">{showBudgetVs ? '▴' : '▾'}</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => navigate('budgets')}
+                            className="inline-flex items-center gap-1 bg-transparent border-0 p-0 text-accent-blue-deep font-bold text-[0.82rem] cursor-pointer"
+                        >
+                            {t('insights.viewBudgets')} <span aria-hidden="true">→</span>
+                        </button>
+                    </div>
                     {showBudgetVs ? (
                     <div className="card glass in-card-pad-28 mt-3">
                     <p className="text-secondary text-[0.85rem] mb-5">{t('insights.budgetVsActualSub')}</p>
@@ -1526,6 +1535,13 @@ export function Insights() {
                             </div>
                         ))}
                     </div>
+                    <button
+                        type="button"
+                        onClick={() => navigate('settlement')}
+                        className="mt-5 inline-flex items-center gap-1 bg-transparent border-0 p-0 text-accent-blue-deep font-bold text-[0.85rem] cursor-pointer"
+                    >
+                        {t('insights.viewSettlements')} <span aria-hidden="true">→</span>
+                    </button>
                 </div>
             ) : null}
 

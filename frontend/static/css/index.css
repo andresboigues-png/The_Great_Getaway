@@ -6153,10 +6153,9 @@ main#app-container.nav-anim-backward {
         font-weight: 700;
     }
 
-    /* Management cards (menu view) — desktop has 32px padding +
-       28px radius; tighter on phones. */
+    /* Management cards (menu view) — keep the left room for the pinned icon
+       (the desktop rule sets it); just soften the radius on phones. */
     .management-card {
-        padding: var(--space-5);
         border-radius: var(--radius-xl);
     }
 

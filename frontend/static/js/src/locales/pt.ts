@@ -814,6 +814,8 @@ export const pt: Translations = {
         netBalanceSub: 'Saldo líquido por pessoa após as divisões e os acertos.',
         balanceGetsBack: 'recebe',
         balanceOwes: 'deve',
+        viewBudgets: 'Ver orçamentos completos',
+        viewSettlements: 'Acertar contas',
         heroTitle: 'Total gasto na tua viagem',
         calculating: 'A calcular…',
         heroSubText: 'Gasto em <strong>{count}</strong> transações durante a tua viagem.',

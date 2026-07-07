@@ -102,6 +102,23 @@ export function Collections() {
     // album overview. Ephemeral — not persisted; resets when the grouping
     // dimension or search changes (the album context no longer applies).
     const [openAlbumKey, setOpenAlbumKey] = useState<string | null>(null);
+    // The per-user-archive hint is a one-time explainer — once dismissed it
+    // stays gone (persisted), so it doesn't nag on every visit.
+    const [hintDismissed, setHintDismissed] = useState<boolean>(() => {
+        try {
+            return localStorage.getItem(HINT_DISMISS_KEY) === '1';
+        } catch {
+            return false;
+        }
+    });
+    const dismissHint = () => {
+        setHintDismissed(true);
+        try {
+            localStorage.setItem(HINT_DISMISS_KEY, '1');
+        } catch {
+            /* private mode — dismiss for this session only */
+        }
+    };
 
     // Debounced search → filter.
     useEffect(() => {
@@ -210,7 +227,7 @@ export function Collections() {
                 is_archived), so the friend's copy doesn't move when
                 the owner archives theirs. Hint banner explains how to
                 move one over, lists the user's active trips. */}
-            {activeTrips.length > 0 && (
+            {activeTrips.length > 0 && !hintDismissed && (
                 <div
                     className="mt-4 bg-[rgba(0,113,227,0.06)] border border-[rgba(0,113,227,0.18)] rounded-[16px] py-3.5 px-[18px] flex gap-3 items-start"
                 >
@@ -247,6 +264,27 @@ export function Collections() {
                             <span dangerouslySetInnerHTML={{ __html: t('collections.hintBodyOpen') }} />
                         </div>
                     </div>
+                    <button
+                        type="button"
+                        aria-label={t('common.close')}
+                        title={t('common.close')}
+                        onClick={dismissHint}
+                        className="shrink-0 -mt-1 -mr-1 ml-1 p-1.5 rounded-full text-secondary hover:bg-[rgba(0,45,91,0.06)] cursor-pointer border-0 bg-transparent leading-none"
+                    >
+                        <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                        >
+                            <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
             )}
 
@@ -867,12 +905,18 @@ function AlbumStack(
 
 // Inline-style preset for the filter / sort `<select>` chips. Kept as
 // a module-level const so multiple selects share it without copy-paste.
+// localStorage flag so the per-user-archive explainer stays dismissed.
+const HINT_DISMISS_KEY = 'gg_collections_hint_dismissed';
+
 const chipSelectStyle: React.CSSProperties = {
-    padding: '8px 28px 8px 14px',
-    border: '1px solid rgba(0,0,0,0.08)',
-    borderRadius: '999px',
-    fontSize: '0.8rem',
-    background: 'white',
+    flex: '1 1 150px',
+    minWidth: '140px',
+    maxWidth: '230px',
+    padding: '9px 30px 9px 15px',
+    border: '1px solid rgba(0,45,91,0.1)',
+    borderRadius: '12px',
+    fontSize: '0.82rem',
+    background: 'rgba(0,45,91,0.03)',
     fontWeight: 700,
     color: '#002d5b',
     cursor: 'pointer',
@@ -881,6 +925,6 @@ const chipSelectStyle: React.CSSProperties = {
     backgroundImage:
         "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"%23002d5b\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"6 9 12 15 18 9\"/></svg>')",
     backgroundRepeat: 'no-repeat',
-    backgroundPosition: 'right 10px center',
+    backgroundPosition: 'right 12px center',
     backgroundSize: '10px',
 };
