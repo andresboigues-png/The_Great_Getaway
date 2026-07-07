@@ -77,7 +77,8 @@ import { openAccommodationModal } from '../../pages/home/accommodationModal.js';
 import { repaintPathTab } from '../../pages/home/pathSelection.js';
 import { iconSvg } from '../../icons.js';
 import { sizedUploadUrl } from '../../utils/mediaUrl';
-import { PlanText, planTextHasFormatting } from './PlanText.js';
+import { PlanText } from './PlanText.js';
+import { mdToHtml, htmlToMd } from './planRichText.js';
 import type { MarkedPlace, Trip, TripChecklistItem, TripDay } from '../../types';
 
 type Slot = 'morning' | 'afternoon' | 'evening';
@@ -382,9 +383,11 @@ export function DayDetailModal({
         afternoon: buildSlotBlocks('afternoon'),
         evening: buildSlotBlocks('evening'),
     });
-    const blockTextRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map());
+    // Each text block is a live WYSIWYG contentEditable (not a textarea) —
+    // these map block key → its editable element / row element.
+    const blockRteRefs = useRef<Map<string, HTMLElement>>(new Map());
     const blockRowRefs = useRef<Map<string, HTMLElement>>(new Map());
-    const focusedBlockTa = useRef<HTMLTextAreaElement | null>(null);
+    const focusedBlockEl = useRef<HTMLElement | null>(null);
     const dragRef = useRef<{ slot: Slot | null; k: string }>({ slot: null, k: '' });
 
     useEffect(() => {
@@ -397,11 +400,14 @@ export function DayDetailModal({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [day.id]);
 
+    // Read every text block's LIVE contentEditable back into b.text (as
+    // markdown) before any mutation/persist — the editable is uncontrolled,
+    // so its DOM is the source of truth for unsaved keystrokes.
     const syncBlockTexts = (slot: Slot) => {
         for (const b of blocksRef.current[slot]) {
             if (b.type === 'text') {
-                const el = blockTextRefs.current.get(b.k);
-                if (el) b.text = el.value;
+                const el = blockRteRefs.current.get(b.k);
+                if (el) b.text = htmlToMd(el);
             }
         }
     };
@@ -432,12 +438,11 @@ export function DayDetailModal({
         writeSlotToDay(slot);
         queueSave();
     };
-    const commitBlockTa = (ta: HTMLTextAreaElement) => {
-        const slot = ta.dataset.slot as Slot | undefined;
-        const k = ta.dataset.k;
-        if (!slot || !k) return;
-        const b = blocksRef.current[slot].find((x) => x.k === k);
-        if (b) b.text = ta.value;
+    const commitRte = (el: HTMLElement) => {
+        const slot = el.dataset.slot as Slot | undefined;
+        if (!slot) return;
+        // persistSlot re-reads every editable in the slot (syncBlockTexts),
+        // so we don't need to write b.text for this one block here.
         persistSlot(slot);
     };
 
@@ -495,68 +500,59 @@ export function DayDetailModal({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [placesSig]);
 
-    // ── Focused-block formatting toolbar ──────────────────────────────
+    // ── Focused-block formatting toolbar (WYSIWYG) ────────────────────
     // Each pane owns its own toolbar; the buttons pass their pane's `slot`
     // so a format action can only ever touch a text block IN THAT SLOT.
-    // We resolve to the last-focused textarea when it belongs to `slot` and
+    // We resolve to the last-focused editable when it belongs to `slot` and
     // is still mounted; otherwise fall back to the slot's focused-or-last
-    // text block. WITHOUT this slot guard the shared `focusedBlockTa` (never
+    // text block. WITHOUT this slot guard the shared `focusedBlockEl` (never
     // cleared on blur/tab-switch) would let the visible pane's toolbar mutate
     // a hidden OTHER slot's note and silently persist the wrong slot.
-    const resolveSlotTa = (slot: Slot): HTMLTextAreaElement | null => {
-        const cur = focusedBlockTa.current;
+    const resolveSlotEl = (slot: Slot): HTMLElement | null => {
+        const cur = focusedBlockEl.current;
         if (cur && cur.dataset.slot === slot && cur.isConnected) return cur;
-        let last: HTMLTextAreaElement | null = null;
+        let last: HTMLElement | null = null;
         for (const b of blocksRef.current[slot]) {
             if (b.type !== 'text') continue;
-            const el = blockTextRefs.current.get(b.k);
+            const el = blockRteRefs.current.get(b.k);
             if (!el) continue;
             if (el === document.activeElement) return el;
             last = el;
         }
         return last;
     };
-    const wrapFocused = (slot: Slot, marker: string) => {
-        const ta = resolveSlotTa(slot);
-        if (!ta) return;
-        const start = ta.selectionStart ?? ta.value.length;
-        const end = ta.selectionEnd ?? ta.value.length;
-        const selected = ta.value.slice(start, end);
-        const multiLine = selected.includes('\n');
-        const wrapped = multiLine
-            ? selected
-                  .split('\n')
-                  .map((l) => (l.trim() ? marker + l + marker : l))
-                  .join('\n')
-            : marker + selected + marker;
-        ta.value = ta.value.slice(0, start) + wrapped + ta.value.slice(end);
-        ta.focus();
-        const caret = multiLine ? start + wrapped.length : start + marker.length + selected.length;
-        ta.setSelectionRange(caret, caret);
-        autoGrowPlan(ta);
-        commitBlockTa(ta);
+    // Make sure there's a live selection INSIDE `el` before execCommand runs
+    // (a toolbar tap with no prior caret in the block → caret to the end).
+    const ensureSelectionIn = (el: HTMLElement): void => {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount && el.contains(sel.anchorNode)) return;
+        el.focus();
+        if (!sel) return;
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
     };
-    const bulletFocused = (slot: Slot) => {
-        const ta = resolveSlotTa(slot);
-        if (!ta) return;
-        const val = ta.value;
-        const selStart = ta.selectionStart ?? 0;
-        const selEnd = ta.selectionEnd ?? 0;
-        const lineStart = val.lastIndexOf('\n', selStart - 1) + 1;
-        let lineEnd = val.indexOf('\n', selEnd);
-        if (lineEnd === -1) lineEnd = val.length;
-        const block = val.slice(lineStart, lineEnd);
-        const lines = block.split('\n');
-        const nonEmpty = lines.filter((l) => l.trim());
-        const allBulleted = nonEmpty.length > 0 && nonEmpty.every((l) => /^\s*[-*]\s+/.test(l));
-        const next = lines
-            .map((l) => (!l.trim() ? l : allBulleted ? l.replace(/^(\s*)[-*]\s+/, '$1') : `- ${l}`))
-            .join('\n');
-        ta.value = val.slice(0, lineStart) + next + val.slice(lineEnd);
-        ta.focus();
-        ta.setSelectionRange(lineStart, lineStart + next.length);
-        autoGrowPlan(ta);
-        commitBlockTa(ta);
+    // Toolbar action = native execCommand on the slot's editable. execCommand
+    // (with styleWithCSS off → semantic <strong>/<em>/<u>/<ul> tags) handles
+    // the selection + caret natively; we then serialise the DOM back to
+    // markdown and persist. `cmd`: bold | italic | underline | insertUnorderedList.
+    const execFmt = (slot: Slot, cmd: string): void => {
+        const el = resolveSlotEl(slot);
+        if (!el) return;
+        ensureSelectionIn(el);
+        try {
+            document.execCommand('styleWithCSS', false, 'false');
+        } catch {
+            /* ignore — some engines don't expose it */
+        }
+        try {
+            document.execCommand(cmd);
+        } catch {
+            /* ignore — command unsupported */
+        }
+        commitRte(el);
     };
 
     // ── Pointer drag-to-reorder (grip handle) ─────────────────────────
@@ -1050,29 +1046,52 @@ export function DayDetailModal({
             </button>
             <div className="plan-block__body">
                 {b.type === 'text' ? (
-                    <>
-                        <textarea className="plain-textarea plan-block__text" data-slot={slot} data-k={b.k}
-                            ref={(el) => {
-                                if (el) blockTextRefs.current.set(b.k, el);
-                                else blockTextRefs.current.delete(b.k);
-                            }}
-                            // Match the server's per-block cap (day_writes.py
-                            // _MAX_PLAN_BLOCK_TEXT) so overflow is blocked at the
-                            // keyboard, never silently truncated on save.
-                            maxLength={4000}
-                            defaultValue={b.text || ''} placeholder={slotPlaceholder[slot]}
-                            onFocus={(e) => { focusedBlockTa.current = e.currentTarget; }}
-                            onInput={(e) => { autoGrowPlan(e.currentTarget); commitBlockTa(e.currentTarget); forceRender(); }} />
-                        {(() => {
-                            const live = blockTextRefs.current.get(b.k)?.value ?? b.text ?? '';
-                            return planTextHasFormatting(live) ? (
-                                <div className="plan-md-preview" aria-hidden="true">
-                                    <div className="plan-md-preview__label">{t('dayDetail.notesPreviewLabel')}</div>
-                                    <PlanText text={live} />
-                                </div>
-                            ) : null;
-                        })()}
-                    </>
+                    // Live WYSIWYG editable: renders the block's markdown AS
+                    // formatting (no visible ** / _ / ~). Uncontrolled — we set
+                    // its HTML imperatively ONCE per element (data-rte-init) so
+                    // React re-renders never fight the caret; on input we read
+                    // the DOM back to markdown. suppressContentEditableWarning
+                    // because React owns none of the inner nodes.
+                    <div className="plan-block__rte" contentEditable role="textbox" aria-multiline="true"
+                        suppressContentEditableWarning data-slot={slot} data-k={b.k}
+                        data-placeholder={slotPlaceholder[slot]}
+                        ref={(el) => {
+                            if (el) {
+                                blockRteRefs.current.set(b.k, el);
+                                if (el.dataset.rteInit !== '1') {
+                                    el.innerHTML = mdToHtml(b.text);
+                                    el.dataset.rteInit = '1';
+                                }
+                            } else {
+                                blockRteRefs.current.delete(b.k);
+                            }
+                        }}
+                        onFocus={(e) => { focusedBlockEl.current = e.currentTarget; }}
+                        onBeforeInput={(e) => {
+                            // Server caps each block at 4000 chars of the SERIALISED
+                            // markdown (day_writes.py _MAX_PLAN_BLOCK_TEXT), which is
+                            // longer than the visible text once markers are added —
+                            // so gate on the markdown length, not textContent, to
+                            // block growth that would be silently truncated on save.
+                            const el = e.currentTarget;
+                            const ev = e.nativeEvent as InputEvent;
+                            if (htmlToMd(el).length >= 4000 && ev.inputType?.startsWith('insert')) {
+                                e.preventDefault();
+                            }
+                        }}
+                        onPaste={(e) => {
+                            // Force plain text (no arbitrary pasted HTML → XSS-safe
+                            // + tidy), truncated to the block's remaining markdown room.
+                            e.preventDefault();
+                            const el = e.currentTarget;
+                            const room = Math.max(0, 4000 - htmlToMd(el).length);
+                            const text = (e.clipboardData?.getData('text/plain') ?? '')
+                                .replace(/\r\n?/g, '\n')
+                                .slice(0, room);
+                            if (text) document.execCommand('insertText', false, text);
+                            commitRte(el);
+                        }}
+                        onInput={(e) => { commitRte(e.currentTarget); forceRender(); }} />
                 ) : (
                     (() => {
                         const p = placeById(b.placeId);
@@ -1131,9 +1150,9 @@ export function DayDetailModal({
                 <div className="plan-editor" onPointerMove={onGripMove} onPointerUp={onGripUp}
                     onPointerCancel={onGripUp}>
                     <div className="plan-md-toolbar" role="toolbar" aria-label={t('dayDetail.fmtToolbarAria')}>
-                        {fmtBtn(t('dayDetail.fmtBoldAria'), <strong>B</strong>, () => wrapFocused(slot, '**'))}
-                        {fmtBtn(t('dayDetail.fmtItalicAria'), <em>I</em>, () => wrapFocused(slot, '_'))}
-                        {fmtBtn(t('dayDetail.fmtUnderlineAria'), <u>U</u>, () => wrapFocused(slot, '~'))}
+                        {fmtBtn(t('dayDetail.fmtBoldAria'), <strong>B</strong>, () => execFmt(slot, 'bold'))}
+                        {fmtBtn(t('dayDetail.fmtItalicAria'), <em>I</em>, () => execFmt(slot, 'italic'))}
+                        {fmtBtn(t('dayDetail.fmtUnderlineAria'), <u>U</u>, () => execFmt(slot, 'underline'))}
                         {fmtBtn(
                             t('dayDetail.fmtBulletAria'),
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -1142,7 +1161,7 @@ export function DayDetailModal({
                                 <rect x="8.5" y="11" width="11.5" height="2" rx="1" />
                                 <rect x="8.5" y="17" width="11.5" height="2" rx="1" />
                             </svg>,
-                            () => bulletFocused(slot),
+                            () => execFmt(slot, 'insertUnorderedList'),
                         )}
                     </div>
                     <div className="plan-blocks">

@@ -6888,6 +6888,46 @@ main#app-container.nav-anim-backward {
 .plan-block__text {
     width: 100%;
 }
+/* Live WYSIWYG editable — looks like the note textarea did, but renders its
+   markdown as formatting (bold/italic/underline/bullets) inline. */
+.plan-block__rte {
+    width: 100%;
+    min-height: 44px;
+    padding: 6px 8px;
+    border-radius: 10px;
+    background: rgba(0, 45, 91, 0.03);
+    border: 1px solid transparent;
+    font-size: var(--font-lg);
+    line-height: 1.5;
+    color: #002d5b;
+    font-family: inherit;
+    outline: none;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    cursor: text;
+}
+.plan-block__rte:focus {
+    background: rgba(0, 45, 91, 0.05);
+    border-color: rgba(0, 113, 227, 0.35);
+}
+/* Placeholder: only when the editable is genuinely empty. */
+.plan-block__rte:empty::before {
+    content: attr(data-placeholder);
+    color: var(--text-secondary, #64748b);
+    opacity: 0.6;
+    pointer-events: none;
+}
+.plan-block__rte ul {
+    margin: 2px 0;
+    padding-left: 1.25em;
+    list-style: disc;
+}
+.plan-block__rte li {
+    margin: 1px 0;
+}
+.plan-block__rte div {
+    min-height: 1.5em;
+}
 .plan-block--place .plan-block__body {
     /* the place card already carries its own frame */
     padding-top: 2px;

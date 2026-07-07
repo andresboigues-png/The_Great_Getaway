@@ -175,7 +175,7 @@ test.describe('Day-detail modal (editable)', () => {
         // Notes are read-only by default now — tap Edit to reveal the block
         // editor, then type into its first (default, empty) text block.
         await dialog.locator('.day-plan-pane[data-plan-pane="morning"] .plan-readonly__edit').click();
-        const morningTa = dialog.locator('.day-plan-pane[data-plan-pane="morning"] textarea.plan-block__text').first();
+        const morningTa = dialog.locator('.day-plan-pane[data-plan-pane="morning"] .plan-block__rte').first();
         await morningTa.fill(MORNING_TEXT);
         // Status leaves idle immediately ('Editing…'), then walks
         // Editing… → Saving… → Saved ✓. The intermediate states are
@@ -195,10 +195,7 @@ test.describe('Day-detail modal (editable)', () => {
         await expect(eveningTab).toHaveAttribute('aria-selected', 'true');
         posted = armDaysPost(page);
         await dialog.locator('.day-plan-pane[data-plan-pane="evening"] .plan-readonly__edit').click();
-        await dialog
-            .locator('.day-plan-pane[data-plan-pane="evening"] textarea.plan-block__text')
-            .first()
-            .fill(EVENING_TEXT);
+        await dialog.locator('.day-plan-pane[data-plan-pane="evening"] .plan-block__rte').first().fill(EVENING_TEXT);
         expect((await posted).ok()).toBe(true);
 
         // 'Saved ✓' decays back to the idle promise after 1400ms so the
