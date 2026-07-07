@@ -1191,6 +1191,15 @@ function countryCodeFromName(name: string | null | undefined): string {
 /** Served path to a country's flag image (vendored flag-icons, 4:3 SVG).
  *  Local + same-origin, so it works offline and leaks nothing to a flag
  *  CDN. '' when there's no ISO code, so callers can fall back cleanly. */
+/** Stable colour per author id — used for the zoomed-out memory dots so
+ *  the same person's memories read as one colour across the canvas. */
+function authorColor(id: string | null | undefined): string {
+    let h = 0;
+    const s = id || '';
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+    return `hsl(${h}, 68%, 55%)`;
+}
+
 function flagUrl(code: string | null | undefined): string {
     if (!code || !/^[a-zA-Z]{2}$/.test(code)) return '';
     return `/static/flags/${code.toLowerCase()}.svg`;
@@ -1777,6 +1786,7 @@ function MemoryCanvas({
             >
                 <div
                     className="pf-canvas-plane"
+                    data-lod={view.scale >= 0.66 ? 'full' : view.scale >= 0.38 ? 'avatar' : 'dot'}
                     style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
                 >
                     {group !== 'none'
@@ -1800,6 +1810,26 @@ function MemoryCanvas({
                                 className={`pf-mem-card${hidden ? ' pf-mem-card--hidden' : ''}`}
                                 style={{ transform: `translate(${p.x}px, ${p.y}px)` }}
                             >
+                                {/* Zoom level-of-detail: as you zoom out, the plane's
+                                    data-lod flips full → avatar → dot (CSS picks one). */}
+                                <div className="pf-mem-card__lod-ava" aria-hidden="true">
+                                    {m.author.picture ? (
+                                        <img
+                                            src={m.author.picture}
+                                            alt=""
+                                            referrerPolicy="no-referrer"
+                                            loading="lazy"
+                                            decoding="async"
+                                        />
+                                    ) : (
+                                        <span>{(m.author.name || '?').charAt(0).toUpperCase()}</span>
+                                    )}
+                                </div>
+                                <span
+                                    className="pf-mem-card__lod-dot"
+                                    aria-hidden="true"
+                                    style={{ background: authorColor(m.author.id) }}
+                                />
                                 <div className="pf-mem-card__text">{m.text}</div>
                                 <div className="pf-mem-card__foot">
                                     {m.author.picture ? (

@@ -953,6 +953,62 @@
     background: var(--surface-2, rgba(0, 45, 91, 0.06));
 }
 
+/* ── Zoom level-of-detail ─────────────────────────────────────────
+   As the canvas zooms out, each memory collapses: full card → the
+   author's avatar → a coloured dot — so a dense wall of memories stays
+   beautiful when you pull way back. Driven by the plane's data-lod. */
+.pf-mem-card__lod-ava,
+.pf-mem-card__lod-dot {
+    display: none;
+}
+/* Avatar + dot tiers: strip the card chrome and centre a medallion. */
+.pf-canvas-plane[data-lod='avatar'] .pf-mem-card,
+.pf-canvas-plane[data-lod='dot'] .pf-mem-card {
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    align-items: center;
+    justify-content: center;
+}
+.pf-canvas-plane[data-lod='avatar'] .pf-mem-card > :not(.pf-mem-card__lod-ava),
+.pf-canvas-plane[data-lod='dot'] .pf-mem-card > :not(.pf-mem-card__lod-dot) {
+    display: none;
+}
+.pf-canvas-plane[data-lod='avatar'] .pf-mem-card__lod-ava {
+    display: flex;
+}
+.pf-canvas-plane[data-lod='dot'] .pf-mem-card__lod-dot {
+    display: block;
+}
+.pf-mem-card__lod-ava {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    overflow: hidden;
+    align-items: center;
+    justify-content: center;
+    background: var(--gg-blue, #0071e3);
+    color: #fff;
+    font-weight: 800;
+    font-size: 2rem;
+    border: 3px solid #fff;
+    box-shadow: 0 6px 20px rgba(0, 45, 91, 0.25);
+}
+.pf-mem-card__lod-ava img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.pf-mem-card__lod-dot {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    box-shadow:
+        0 3px 12px rgba(0, 45, 91, 0.28),
+        0 0 0 5px rgba(255, 255, 255, 0.65);
+}
+
 /* ── Stat list modal (Trips / Countries / Followers / … ) ─────────
    Opened by the profile stat captions. A titled, searchable list of
    avatar-+-name rows; people rows tap through to their profile. */
