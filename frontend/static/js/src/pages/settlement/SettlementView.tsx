@@ -84,7 +84,7 @@ function OriginalCurrencyHint({ primaryAmount, primaryCurrency }: { primaryAmoun
 function PageHeader() {
     return (
         <div className="ai-page-header">
-            <h1 className="gradient-text" style={{ ['--g-from' as string]: '#ffd60a', ['--g-to' as string]: '#ff9f0a' }}>
+            <h1 className="gradient-text" style={{ ['--g-from' as string]: '#34c759', ['--g-to' as string]: '#00a86b' }}>
                 {t('settlement.title')}
             </h1>
             <p>{t('settlement.subtitle')}</p>
@@ -114,7 +114,7 @@ function TripsStrip({ currentTripId, onPickTrip }: { currentTripId: string | nul
                 aria-label={t('settlement.tripPickerAriaLabel')}
                 value={currentTripId ?? ''}
                 onChange={(e) => { if (e.target.value) onPickTrip(e.target.value); }}
-                style={{ flex: 1, minWidth: '200px', maxWidth: '380px', padding: '10px 14px', borderRadius: '12px', border: '1.5px solid rgba(255,159,10,0.4)', background: 'linear-gradient(135deg, rgba(255,214,10,0.08), rgba(255,159,10,0.04))', fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-brand-navy)', cursor: 'pointer', outline: 'none', fontFamily: 'inherit', transition: 'border-color 0.18s ease, box-shadow 0.18s ease' }}
+                style={{ flex: 1, minWidth: '200px', maxWidth: '380px', padding: '10px 14px', borderRadius: '12px', border: '1.5px solid rgba(52,199,89,0.4)', background: 'linear-gradient(135deg, rgba(52,199,89,0.08), rgba(52,199,89,0.04))', fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-brand-navy)', cursor: 'pointer', outline: 'none', fontFamily: 'inherit', transition: 'border-color 0.18s ease, box-shadow 0.18s ease' }}
             >
                 {STATE.trips.map((tr) => {
                     const total = settledStatsForTrip(tr.id).eurTotal;
@@ -123,7 +123,7 @@ function TripsStrip({ currentTripId, onPickTrip }: { currentTripId: string | nul
                 })}
             </select>
             {activeTrip && settledTotal > 0 ? (
-                <span style={{ display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: '999px', background: 'rgba(0,113,227,0.08)', color: 'var(--accent-blue-deep)', fontSize: '0.78rem', fontWeight: 800, flexShrink: 0 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: '999px', background: 'rgba(52,199,89,0.08)', color: '#0a7d3f', fontSize: '0.78rem', fontWeight: 800, flexShrink: 0 }}>
                     {formatHome(settledTotal, 'EUR')} {t('settlement.settledSuffix')}
                 </span>
             ) : null}
@@ -135,7 +135,7 @@ function TripsStrip({ currentTripId, onPickTrip }: { currentTripId: string | nul
 
 function TabsNav({ trip, activeTab, onSetTab }: { trip: Trip; activeTab: SettlementTab; onSetTab: (tab: SettlementTab) => void }) {
     const settlementsCount = settledStatsForTrip(trip.id).count;
-    // D3 contrast: active tab text uses var(--accent-blue-deep) (darker
+    // D3 contrast: active tab text uses #0a7d3f (darker
     // brand blue, 5.3:1) so the active state passes WCAG AA.
     const tabBtn = (key: SettlementTab, label: string, badge?: number) => (
         <button
@@ -143,19 +143,19 @@ function TabsNav({ trip, activeTab, onSetTab }: { trip: Trip; activeTab: Settlem
             className={`settle-tab${activeTab === key ? ' is-active' : ''}`}
             type="button"
             onClick={() => onSetTab(key)}
-            style={{ background: 'none', border: 0, padding: '12px 4px', fontSize: '0.95rem', fontWeight: activeTab === key ? 800 : 600, color: activeTab === key ? 'var(--accent-blue-deep)' : 'var(--text-secondary)', cursor: 'pointer', borderBottom: `2px solid ${activeTab === key ? 'var(--accent-blue)' : 'transparent'}`, marginBottom: '-1px', letterSpacing: '-0.01em', transition: 'color 0.2s, border-color 0.2s' }}
+            style={{ background: 'none', border: 0, padding: '12px 4px', fontSize: '0.95rem', fontWeight: activeTab === key ? 800 : 600, color: activeTab === key ? '#0a7d3f' : 'var(--text-secondary)', cursor: 'pointer', borderBottom: `2px solid ${activeTab === key ? '#34c759' : 'transparent'}`, marginBottom: '-1px', letterSpacing: '-0.01em', transition: 'color 0.2s, border-color 0.2s' }}
         >
             {label}
             {badge !== undefined && badge > 0 ? (
                 <>
                     {' '}
-                    <span style={{ background: 'rgba(0,113,227,0.12)', color: 'var(--accent-blue-deep)', padding: '1px 6px', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 800, marginLeft: '2px' }}>{badge}</span>
+                    <span style={{ background: 'rgba(52,199,89,0.12)', color: '#0a7d3f', padding: '1px 6px', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 800, marginLeft: '2px' }}>{badge}</span>
                 </>
             ) : null}
         </button>
     );
     return (
-        <nav style={{ display: 'flex', gap: '36px', borderBottom: '1px solid rgba(0,113,227,0.25)', margin: '22px 0 22px', padding: '0 4px' }}>
+        <nav style={{ display: 'flex', gap: '36px', borderBottom: '1px solid rgba(52,199,89,0.25)', margin: '22px 0 22px', padding: '0 4px' }}>
             {tabBtn('trip', t('settlement.tabThisTrip'))}
             {tabBtn('history', t('settlement.tabHistory'), settlementsCount)}
             {tabBtn('global', t('settlement.tabCrossTrip'))}
@@ -203,7 +203,7 @@ function TripTab({ trip, tripIsEditable, settlingKeys, onSettle, onManualSettle 
     return (
         <>
             {totalPaid > 0 ? (
-                <div className="card glass" style={{ marginBottom: '18px', padding: '22px 26px', borderRadius: '28px', background: 'linear-gradient(135deg, rgba(255,214,10,0.05), rgba(255,159,10,0.03))', border: '1px solid rgba(255,159,10,0.18)' }}>
+                <div className="card glass" style={{ marginBottom: '18px', padding: '22px 26px', borderRadius: '28px', background: 'linear-gradient(135deg, rgba(52,199,89,0.05), rgba(52,199,89,0.03))', border: '1px solid rgba(52,199,89,0.18)' }}>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ minWidth: 0 }}>
                             <div style={{ fontSize: '0.66rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-secondary)', marginBottom: '6px' }}>
@@ -353,7 +353,7 @@ function HistoryTab({ trip, tripIsEditable, onEditSettlement, onUnsettle }: {
 
     if (past.length === 0) {
         return (
-            <div className="card glass" style={{ padding: '48px 32px', textAlign: 'center', borderRadius: '28px', border: '1.5px dashed rgba(0,113,227,0.3)', background: 'rgba(0,113,227,0.04)' }}>
+            <div className="card glass" style={{ padding: '48px 32px', textAlign: 'center', borderRadius: '28px', border: '1.5px dashed rgba(52,199,89,0.3)', background: 'rgba(52,199,89,0.04)' }}>
                 <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>📜</div>
                 <h2 style={{ margin: '0 0 6px', color: 'var(--text-brand-navy)' }}>{t('settlement.historyEmptyTitle')}</h2>
                 <p className="text-muted" style={{ margin: 0 }}>{t('settlement.historyEmptyBody')}</p>
@@ -421,7 +421,7 @@ function HistoryTab({ trip, tripIsEditable, onEditSettlement, onUnsettle }: {
                                                     <span className="stl-heading-3">{s.to}</span>
                                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(52,199,89,0.12)', color: '#1a6b3c', padding: '1px 8px', borderRadius: '999px', fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('settlement.historyChipSettled')}</span>
                                                     {showMethod ? (
-                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(0,113,227,0.08)', color: 'var(--accent-blue-deep)', padding: '1px 8px', borderRadius: '999px', fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.method!.replace(/_/g, ' ')}</span>
+                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(52,199,89,0.08)', color: '#0a7d3f', padding: '1px 8px', borderRadius: '999px', fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.method!.replace(/_/g, ' ')}</span>
                                                     ) : null}
                                                 </div>
                                                 {showNote ? (
@@ -435,7 +435,7 @@ function HistoryTab({ trip, tripIsEditable, onEditSettlement, onUnsettle }: {
                                             {tripIsEditable ? (
                                                 <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                                                     {showEdit ? (
-                                                        <button className="edit-settlement-btn" type="button" onClick={() => onEditSettlement(s.id)} style={{ background: 'rgba(0,113,227,0.08)', border: '1px solid rgba(0,113,227,0.22)', color: 'var(--accent-blue-deep)', padding: '5px 12px', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer' }}>{t('settlement.historyEditBtn')}</button>
+                                                        <button className="edit-settlement-btn" type="button" onClick={() => onEditSettlement(s.id)} style={{ background: 'rgba(52,199,89,0.08)', border: '1px solid rgba(52,199,89,0.22)', color: '#0a7d3f', padding: '5px 12px', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer' }}>{t('settlement.historyEditBtn')}</button>
                                                     ) : null}
                                                     <button className="unsettle-settlement-btn" type="button" onClick={() => onUnsettle(s.id, s.source)} style={{ background: 'rgba(255,59,48,0.08)', border: '1px solid rgba(255,59,48,0.22)', color: '#ff3b30', padding: '5px 12px', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer' }}>{t('settlement.historyUnsettleBtn')}</button>
                                                 </div>
@@ -462,7 +462,7 @@ function GlobalTab() {
 
     if (sorted.length === 0) {
         return (
-            <div className="card glass" style={{ padding: '48px 32px', textAlign: 'center', borderRadius: '28px', border: '1.5px dashed rgba(0,113,227,0.3)', background: 'rgba(0,113,227,0.04)' }}>
+            <div className="card glass" style={{ padding: '48px 32px', textAlign: 'center', borderRadius: '28px', border: '1.5px dashed rgba(52,199,89,0.3)', background: 'rgba(52,199,89,0.04)' }}>
                 <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>🌍</div>
                 <h2 style={{ margin: '0 0 6px', color: 'var(--text-brand-navy)' }}>{t('settlement.crossTripEmptyTitle')}</h2>
                 <p className="text-muted" style={{ margin: 0 }}>{t('settlement.crossTripEmptyBody')}</p>

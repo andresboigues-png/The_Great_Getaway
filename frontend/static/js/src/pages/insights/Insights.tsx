@@ -1493,7 +1493,8 @@ export function Insights() {
                     </div>
 
                     {showBudgetVs && tripBudgets.length > 0 ? (
-                        <div className="card glass in-card-pad-28 mt-3">
+                        // Gold edge ties this card to its gold "Budgets" pill.
+                        <div className="card glass in-card-pad-28 mt-3" style={{ border: '1.5px solid rgba(255,159,10,0.5)' }}>
                             <p className="text-secondary text-[0.85rem] mb-5">{t('insights.budgetVsActualSub')}</p>
                             <div className="flex flex-col gap-4">
                                 {tripBudgets.map((b, i) => (
@@ -1529,7 +1530,8 @@ export function Insights() {
                     ) : null}
 
                     {showSettle ? (
-                        <div className="card glass in-card-pad-28 mt-3">
+                        // Green edge ties this card to its green "Who owes?" pill.
+                        <div className="card glass in-card-pad-28 mt-3" style={{ border: '1.5px solid rgba(52,199,89,0.55)' }}>
                             <p className="text-secondary text-[0.85rem] mb-5">{t('insights.netBalanceSub')}</p>
                             {netBalances.length > 0 ? (
                                 <div className="flex flex-col gap-2">

@@ -130,3 +130,16 @@
     text-align: center;
     min-width: 120px;
 }
+
+/* Green theme (2026-07-08): the settle button reuses the global primary
+   button shape but the settlements page's green accent instead of brand
+   blue — scoped to .settle-debt-btn so it doesn't touch buttons elsewhere. */
+.settle-debt-btn.btn-primary {
+    background: #34c759;
+    box-shadow: 0 4px 12px rgba(52, 199, 89, 0.3);
+}
+.settle-debt-btn.btn-primary:hover,
+.settle-debt-btn.btn-primary:active,
+.settle-debt-btn.btn-primary:focus-visible {
+    background: #2aa14a;
+}
