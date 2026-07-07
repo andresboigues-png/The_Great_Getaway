@@ -1462,100 +1462,96 @@ export function Insights() {
                 the per-currency FX + inflation detail, and the per-currency
                 timeline moved directly beneath the dashboard. */}
 
-            {/* Budget vs. spent — hidden by default behind a gold pill (mirrors
-                the budgets page's collapsible summary). Only when there are budgets. */}
-            {tripBudgets.length > 0 ? (
+            {/* Budgets + Who-owes-whom quick openers, side by side. Budgets
+                only shows when there ARE budgets; Who-owes shows for any active
+                trip (its card reads "all settled" when everyone's even), so the
+                settlements entry point is always reachable from Insights. Each
+                card links out to its full page. */}
+            {activeTrip ? (
                 <div className="mb-8">
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                        <button
-                            type="button"
-                            onClick={() => setShowBudgetVs((v) => !v)}
-                            aria-expanded={showBudgetVs}
-                            className="inline-flex items-center gap-1.5 bg-[linear-gradient(135deg,_#ffd60a,_#ff9f0a)] text-[#5e3c00] border-0 py-2 px-4 rounded-full font-extrabold text-[0.82rem] cursor-pointer shadow-[0_6px_18px_rgba(255,159,10,0.3)]"
-                        >
-                            {t('insights.budgetVsActualTitle')}
-                            <span aria-hidden="true">{showBudgetVs ? '▴' : '▾'}</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => navigate('budgets')}
-                            className="inline-flex items-center gap-1 bg-transparent border-0 p-0 text-accent-blue-deep font-bold text-[0.82rem] cursor-pointer"
-                        >
-                            {t('insights.viewBudgets')} <span aria-hidden="true">→</span>
-                        </button>
-                    </div>
-                    {showBudgetVs ? (
-                    <div className="card glass in-card-pad-28 mt-3">
-                    <p className="text-secondary text-[0.85rem] mb-5">{t('insights.budgetVsActualSub')}</p>
-                    <div className="flex flex-col gap-4">
-                        {tripBudgets.map((b, i) => (
-                            <div key={i}>
-                                <div className="flex justify-between items-baseline mb-1.5 gap-3">
-                                    <span className="font-bold text-[0.9rem]">{b.title}</span>
-                                    <span className="text-[0.85rem] whitespace-nowrap" style={{ fontWeight: 700 }}>
-                                        <span style={{ color: b.color }}>{targetSym}{formatNumberForCurrency(b.spentHome, targetCurr)}</span>
-                                        <span className="text-secondary font-normal"> / {targetSym}{formatNumberForCurrency(b.targetHome, targetCurr)}</span>
-                                    </span>
-                                </div>
-                                <div style={{ height: 8, borderRadius: 999, background: 'rgba(0,0,0,0.08)', overflow: 'hidden' }}>
-                                    <div style={{ height: '100%', width: `${Math.min(b.pct, 100)}%`, background: b.color, borderRadius: 999, transition: 'width 0.3s ease' }} />
-                                </div>
-                                {/* D-4: the bar caps at 100%, so an overspend is
-                                    otherwise invisible beyond the colour flip — spell
-                                    out how far over the target the spend went. */}
-                                {b.overHome > 0 ? (
-                                    <div className="text-[0.75rem] font-bold mt-1" style={{ color: '#ff3b30' }}>
-                                        {t('insights.budgetOverBy', { amount: targetSym + formatNumberForCurrency(b.overHome, targetCurr) })}
-                                    </div>
-                                ) : null}
-                            </div>
-                        ))}
-                    </div>
-                    {/* D-3: budgets are NOMINAL — original amounts vs amount spent,
-                        never inflation-/FX-re-adjusted (unlike the figures above).
-                        On a non-EUR home this stops the same "food spend" reading
-                        two different numbers on one page with no explanation. */}
-                    <p className="text-secondary text-[0.72rem] mt-4 italic">{t('insights.budgetBasisNote')}</p>
-                    </div>
-                    ) : null}
-                </div>
-            ) : null}
-
-            {/* Who owes whom — hidden by default behind a pill (mirrors the
-                budgets opener above). Only when there are non-zero balances. */}
-            {netBalances.length > 0 ? (
-                <div className="mb-8">
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                        {tripBudgets.length > 0 ? (
+                            <button
+                                type="button"
+                                onClick={() => setShowBudgetVs((v) => !v)}
+                                aria-expanded={showBudgetVs}
+                                className="inline-flex items-center gap-1.5 bg-[linear-gradient(135deg,_#ffd60a,_#ff9f0a)] text-[#5e3c00] border-0 py-2 px-3.5 rounded-full font-extrabold text-[0.78rem] cursor-pointer shadow-[0_6px_18px_rgba(255,159,10,0.3)]"
+                            >
+                                {t('insights.budgetPill')}
+                                <span aria-hidden="true">{showBudgetVs ? '▴' : '▾'}</span>
+                            </button>
+                        ) : null}
                         <button
                             type="button"
                             onClick={() => setShowSettle((v) => !v)}
                             aria-expanded={showSettle}
-                            className="inline-flex items-center gap-1.5 bg-[linear-gradient(135deg,_#34c759,_#00a86b)] text-white border-0 py-2 px-4 rounded-full font-extrabold text-[0.82rem] cursor-pointer shadow-[0_6px_18px_rgba(52,199,89,0.3)]"
+                            className="inline-flex items-center gap-1.5 bg-[linear-gradient(135deg,_#34c759,_#00a86b)] text-white border-0 py-2 px-3.5 rounded-full font-extrabold text-[0.78rem] cursor-pointer shadow-[0_6px_18px_rgba(52,199,89,0.3)]"
                         >
-                            {t('insights.netBalanceTitle')}
+                            {t('insights.settlePill')}
                             <span aria-hidden="true">{showSettle ? '▴' : '▾'}</span>
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => navigate('settlement')}
-                            className="inline-flex items-center gap-1 bg-transparent border-0 p-0 text-accent-blue-deep font-bold text-[0.82rem] cursor-pointer"
-                        >
-                            {t('insights.viewSettlements')} <span aria-hidden="true">→</span>
-                        </button>
                     </div>
-                    {showSettle ? (
+
+                    {showBudgetVs && tripBudgets.length > 0 ? (
                         <div className="card glass in-card-pad-28 mt-3">
-                            <p className="text-secondary text-[0.85rem] mb-5">{t('insights.netBalanceSub')}</p>
-                            <div className="flex flex-col gap-2">
-                                {netBalances.map((b) => (
-                                    <div className="flex items-center gap-2" key={b.name}>
-                                        <span className="font-extrabold">{b.name}</span>
-                                        <span className="ml-auto font-bold text-[0.9rem]" style={{ color: b.home >= 0 ? '#34c759' : '#ff3b30' }}>
-                                            {b.home >= 0 ? t('insights.balanceGetsBack') : t('insights.balanceOwes')} {targetSym}{formatNumberForCurrency(Math.abs(b.home), targetCurr)}
-                                        </span>
+                            <p className="text-secondary text-[0.85rem] mb-5">{t('insights.budgetVsActualSub')}</p>
+                            <div className="flex flex-col gap-4">
+                                {tripBudgets.map((b, i) => (
+                                    <div key={i}>
+                                        <div className="flex justify-between items-baseline mb-1.5 gap-3">
+                                            <span className="font-bold text-[0.9rem]">{b.title}</span>
+                                            <span className="text-[0.85rem] whitespace-nowrap" style={{ fontWeight: 700 }}>
+                                                <span style={{ color: b.color }}>{targetSym}{formatNumberForCurrency(b.spentHome, targetCurr)}</span>
+                                                <span className="text-secondary font-normal"> / {targetSym}{formatNumberForCurrency(b.targetHome, targetCurr)}</span>
+                                            </span>
+                                        </div>
+                                        <div style={{ height: 8, borderRadius: 999, background: 'rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+                                            <div style={{ height: '100%', width: `${Math.min(b.pct, 100)}%`, background: b.color, borderRadius: 999, transition: 'width 0.3s ease' }} />
+                                        </div>
+                                        {b.overHome > 0 ? (
+                                            <div className="text-[0.75rem] font-bold mt-1" style={{ color: '#ff3b30' }}>
+                                                {t('insights.budgetOverBy', { amount: targetSym + formatNumberForCurrency(b.overHome, targetCurr) })}
+                                            </div>
+                                        ) : null}
                                     </div>
                                 ))}
                             </div>
+                            {/* Budgets are NOMINAL — original amounts vs amount spent. */}
+                            <p className="text-secondary text-[0.72rem] mt-4 italic">{t('insights.budgetBasisNote')}</p>
+                            <button
+                                type="button"
+                                onClick={() => navigate('budgets')}
+                                className="mt-5 inline-flex items-center gap-1 bg-transparent border-0 p-0 text-accent-blue-deep font-bold text-[0.85rem] cursor-pointer"
+                            >
+                                {t('insights.viewBudgets')} <span aria-hidden="true">→</span>
+                            </button>
+                        </div>
+                    ) : null}
+
+                    {showSettle ? (
+                        <div className="card glass in-card-pad-28 mt-3">
+                            <p className="text-secondary text-[0.85rem] mb-5">{t('insights.netBalanceSub')}</p>
+                            {netBalances.length > 0 ? (
+                                <div className="flex flex-col gap-2">
+                                    {netBalances.map((b) => (
+                                        <div className="flex items-center gap-2" key={b.name}>
+                                            <span className="font-extrabold">{b.name}</span>
+                                            <span className="ml-auto font-bold text-[0.9rem]" style={{ color: b.home >= 0 ? '#34c759' : '#ff3b30' }}>
+                                                {b.home >= 0 ? t('insights.balanceGetsBack') : t('insights.balanceOwes')} {targetSym}{formatNumberForCurrency(Math.abs(b.home), targetCurr)}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-[0.9rem] font-semibold" style={{ color: '#34c759' }}>{t('insights.allSettled')}</p>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => navigate('settlement')}
+                                className="mt-5 inline-flex items-center gap-1 bg-transparent border-0 p-0 text-accent-blue-deep font-bold text-[0.85rem] cursor-pointer"
+                            >
+                                {t('insights.viewSettlements')} <span aria-hidden="true">→</span>
+                            </button>
                         </div>
                     ) : null}
                 </div>

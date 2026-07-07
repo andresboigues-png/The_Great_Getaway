@@ -56,6 +56,7 @@ _INTENTIONAL_ENGLISH = {
     'budgets.title': 'fr: identical loanword',
     'budgets.countLabel.one': 'fr: "budget" same in french',
     'budgets.countLabel.other': 'fr: "budgets" same in french',
+    'insights.budgetPill': 'fr: "Budgets" same word in french',
     'profile.continentsLabel.one': 'fr: "continent" identical (same word)',
     'profile.continentsLabel.other': 'fr: "continents" identical (same word)',
     'budgets.scopeTotal': 'es/fr/pt: "Total" identical across all four',

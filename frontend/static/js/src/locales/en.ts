@@ -986,6 +986,9 @@ export const en = {
         balanceOwes: 'owes',
         viewBudgets: 'View full budgets',
         viewSettlements: 'Settle up',
+        allSettled: 'Everyone’s settled up — no one owes anything.',
+        budgetPill: 'Budgets',
+        settlePill: 'Who owes?',
         // Hero stat card.
         heroTitle: 'Total Spent on your trip',
         // IA-4: placeholder shown in place of the hero figure while the
