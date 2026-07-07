@@ -613,7 +613,7 @@ export const en = {
         statusExploring: 'Exploring the world',
         statusResting: 'Resting at home base',
         statusHunting: 'Hunting for flight deals',
-        quotesTab: 'Best of… {name}',
+        quotesTab: 'Best of {name}',
         quotesPlaceholder: 'Share a memory of {name}…',
         quotesPost: 'Add memory',
         quotesPosted: 'Memory shared — {name} can choose to feature it.',

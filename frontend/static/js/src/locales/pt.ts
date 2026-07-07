@@ -505,7 +505,7 @@ export const pt: Translations = {
         statusExploring: 'A explorar o mundo',
         statusResting: 'A descansar em casa',
         statusHunting: 'À caça de ofertas de voos',
-        quotesTab: 'Melhor de… {name}',
+        quotesTab: 'Melhor de {name}',
         quotesPlaceholder: 'Partilha uma memória de {name}…',
         quotesPost: 'Adicionar memória',
         quotesPosted: 'Memória partilhada — {name} pode escolher destacá-la.',

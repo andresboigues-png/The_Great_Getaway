@@ -501,7 +501,7 @@ export const es: Translations = {
         statusExploring: 'Explorando el mundo',
         statusResting: 'Descansando en casa',
         statusHunting: 'Cazando ofertas de vuelos',
-        quotesTab: 'Lo mejor de… {name}',
+        quotesTab: 'Lo mejor de {name}',
         quotesPlaceholder: 'Comparte un recuerdo de {name}…',
         quotesPost: 'Añadir recuerdo',
         quotesPosted: 'Recuerdo compartido: {name} puede elegir destacarlo.',
