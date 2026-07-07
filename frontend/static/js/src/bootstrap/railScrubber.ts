@@ -36,6 +36,13 @@ export function initRailScrubber(): void {
     line.appendChild(knob);
     document.body.appendChild(line);
 
+    // Fixed "selection window" ring over the reel's centre slot — the picker
+    // frame that makes it read as a spinnable wheel.
+    const hub = document.createElement('div');
+    hub.className = 'rail-hub';
+    hub.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(hub);
+
     const mq = window.matchMedia('(max-width: 720px)');
     const items = (): HTMLElement[] =>
         Array.from(rail.querySelectorAll<HTMLElement>('.sidebar-rail__item'));
@@ -165,17 +172,24 @@ export function initRailScrubber(): void {
     line.addEventListener('pointercancel', endDrag);
 
     // ── Visibility + open-centering ─────────────────────────────────────
-    const positionLine = (): void => {
+    const HUB_W = 48;
+    const HUB_H = 46;
+    const positionOverlay = (): void => {
         const rr = rail.getBoundingClientRect();
         line.style.top = `${rr.top}px`;
         line.style.height = `${rr.height}px`;
+        hub.style.width = `${HUB_W}px`;
+        hub.style.height = `${HUB_H}px`;
+        hub.style.left = `${rr.left + rr.width / 2 - HUB_W / 2}px`;
+        hub.style.top = `${rr.top + rr.height / 2 - HUB_H / 2}px`;
     };
     let wasShown = false;
     const sync = (): void => {
         const show = isReel();
         line.classList.toggle('is-shown', show);
+        hub.classList.toggle('is-shown', show);
         if (show) {
-            positionLine();
+            positionOverlay();
             if (!wasShown) {
                 // Just opened — centre the reel on the current page, no nav.
                 const active = rail.querySelector<HTMLElement>('.sidebar-rail__item.active');

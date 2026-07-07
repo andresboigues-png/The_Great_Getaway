@@ -1334,17 +1334,18 @@ body.is-signed-out .rail-peek {
            (railScrubber.ts). The mask fades top/bottom so it reads as a
            wheel; the centred icon (JS .is-focus) is the one that navigates
            when the spin settles. */
-        height: 168px;
-        max-height: 168px;
-        padding: 64px 0;
-        gap: 8px;
+        height: 200px;
+        max-height: 200px;
+        padding: 80px 0;
+        gap: 10px;
         overflow-y: scroll;
         scroll-snap-type: y mandatory;
         overscroll-behavior: contain;
         scrollbar-width: none;
         -ms-overflow-style: none;
-        -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 32%, #000 68%, transparent 100%);
-        mask-image: linear-gradient(to bottom, transparent 0, #000 32%, #000 68%, transparent 100%);
+        /* Gentler fade so ~3 icons read clearly as a wheel (was too hidden). */
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22%, #000 78%, transparent 100%);
+        mask-image: linear-gradient(to bottom, transparent 0, #000 22%, #000 78%, transparent 100%);
     }
     .sidebar-rail::-webkit-scrollbar {
         display: none;
@@ -1358,19 +1359,44 @@ body.is-signed-out .rail-peek {
     .sidebar-rail__profile {
         margin-top: 0;
     }
-    /* Separator dots don't belong in a spinning reel. */
+    /* Coloured section dots stay as small dividers between icon groups, but
+       the reel never SETTLES on them (align: none). */
     .sidebar-rail__dot {
-        display: none;
+        scroll-snap-align: none;
+        width: 6px;
+        height: 6px;
+        margin: 1px auto;
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
     }
     .sidebar-rail__item {
         scroll-snap-align: center;
         transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
     }
     .sidebar-rail__item.is-focus {
-        transform: scale(1.16);
+        transform: scale(1.18);
     }
     .sidebar-rail__item:not(.is-focus) {
-        opacity: 0.72;
+        opacity: 0.55;
+        transform: scale(0.86);
+    }
+    /* Fixed "selection window" ring at the reel's centre — the picker frame
+       that makes it obvious you're spinning a wheel. Sits over the centre
+       slot; the focused icon shows through it. */
+    .rail-hub {
+        position: fixed;
+        z-index: 1101;
+        border: 2px solid rgba(0, 113, 227, 0.6);
+        border-radius: 13px;
+        background: rgba(0, 113, 227, 0.1);
+        box-shadow:
+            0 3px 12px rgba(0, 45, 91, 0.16),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+    .rail-hub.is-shown {
+        opacity: 1;
     }
 }
 

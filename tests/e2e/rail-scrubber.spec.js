@@ -47,20 +47,23 @@ test.describe('Rail reel', () => {
         const line = page.locator('.rail-scrubber');
         await expect(line).toHaveClass(/is-shown/, { timeout: 3000 });
 
-        // The line maps linearly to the reel: fraction i/(N-1) centres item i.
-        // Items: templates, collections, friends, budgets, insights(4), … so
-        // dragging to 4/(N-1) settles on Insights.
-        const N = await page.locator('#sidebarRail .sidebar-rail__item').count();
-        const idx = await page
-            .locator('#sidebarRail .sidebar-rail__item')
-            .evaluateAll((els) => els.findIndex((e) => e.getAttribute('data-page') === 'insights'));
-        expect(idx).toBeGreaterThan(0);
+        // The line maps to the reel's scroll: compute the exact fraction that
+        // centres Insights (robust to the coloured-dot spacing between icons).
+        const frac = await page.locator('#sidebarRail').evaluate((rail) => {
+            const items = [...rail.querySelectorAll('.sidebar-rail__item')];
+            const ins = items.find((e) => e.getAttribute('data-page') === 'insights');
+            if (!ins) return -1;
+            const max = rail.scrollHeight - rail.clientHeight;
+            const target = ins.offsetTop - (rail.clientHeight - ins.offsetHeight) / 2;
+            return Math.max(0, Math.min(1, target / max));
+        });
+        expect(frac).toBeGreaterThan(0);
 
         const box = await line.boundingBox();
         expect(box).toBeTruthy();
         const x = box.x + box.width / 2;
         const startY = box.y + 4;
-        const targetY = box.y + (idx / (N - 1)) * box.height;
+        const targetY = box.y + frac * box.height;
 
         await page.mouse.move(x, startY);
         await page.mouse.down();
