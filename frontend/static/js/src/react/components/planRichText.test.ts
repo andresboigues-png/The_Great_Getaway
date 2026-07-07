@@ -96,6 +96,34 @@ describe('htmlToMd', () => {
     });
 });
 
+describe('AI planner output renders + round-trips through the editor', () => {
+    // The exact shape flattenMealForTextarea (pages/ai/slots.ts) writes into
+    // day.plan.{morning,afternoon,evening} — header line + bullet + indented
+    // why/fact lines. After the AI-run clears planBlocks, buildSlotBlocks
+    // seeds ONE text block from this string, so it flows through mdToHtml.
+    const MEAL = '🥐 Breakfast:\n- Manteigaria Café\n  Why: best pastéis in Lisbon\n  Fun fact: opened in 1990';
+    // The legacy items[] schema (flattenSlotForTextarea): "activity:" + bullets.
+    const LEGACY_SLOT = 'Explore Alfama:\n- São Jorge Castle\n- Fado museum';
+
+    it('renders the meal string as a header + real bullet, no broken markup', () => {
+        const html = mdToHtml(MEAL);
+        expect(html).toContain('<div>🥐 Breakfast:</div>');
+        expect(html).toContain('<li>Manteigaria Café</li>');
+        // The indented why/fact lines survive as their own lines (not bullets).
+        expect(html).toContain('Why: best pastéis in Lisbon');
+        expect(html).not.toContain('<script');
+    });
+
+    it('round-trips the meal string unchanged (editing an AI note is lossless)', () => {
+        expect(roundTrip(MEAL)).toBe(MEAL);
+    });
+
+    it('round-trips the legacy activity+bullets slot unchanged', () => {
+        expect(roundTrip(LEGACY_SLOT)).toBe(LEGACY_SLOT);
+        expect(mdToHtml(LEGACY_SLOT)).toContain('<li>São Jorge Castle</li>');
+    });
+});
+
 describe('round-trip (md → html → md is a fixed point)', () => {
     const cases = [
         'plain text',
