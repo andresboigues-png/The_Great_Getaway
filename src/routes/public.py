@@ -391,8 +391,10 @@ def get_public_profile(user_id):
             if cursor.fetchone():
                 return jsonify({"error": "User not found"}), 404
 
-        # Get user info — no email exposed publicly.
-        cursor.execute("SELECT name, picture, bio, status FROM users WHERE id = ?", (user_id,))
+        # Get user info — no email exposed publicly. `id` IS included (the
+        # caller already knows it — it's the URL they requested) so the
+        # frontend has the profile-owner id for follow / quote / etc. calls.
+        cursor.execute("SELECT id, name, picture, bio, status FROM users WHERE id = ?", (user_id,))
         user_row = cursor.fetchone()
         if not user_row:
             return jsonify({"error": "User not found"}), 404

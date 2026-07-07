@@ -544,7 +544,7 @@ function ProfileContent({
             ) : (
                 <div className="pf-card">
                     <QuotesSection
-                        profileUserId={user.id}
+                        profileUserId={targetUserId ?? user.id}
                         isOwnProfile={isOwnProfile}
                         firstName={firstName}
                     />
@@ -1240,6 +1240,10 @@ function QuotesSection({
     };
 
     const load = useCallback(async () => {
+        if (!profileUserId) {
+            setQuotes([]);
+            return;
+        }
         setFailed(false);
         try {
             const res = await apiFetch(`/api/quotes/${encodeURIComponent(profileUserId)}`);
@@ -1262,7 +1266,7 @@ function QuotesSection({
 
     const post = async () => {
         const text = draft.trim();
-        if (!text || posting) return;
+        if (!text || posting || !profileUserId) return;
         const body: { text: string; year?: number; country?: string } = { text };
         const yr = parseInt(draftYear, 10);
         if (draftYear.trim() && !Number.isNaN(yr)) body.year = yr;

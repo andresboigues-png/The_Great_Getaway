@@ -859,12 +859,13 @@ def test_public_profile_404_for_nonexistent(client):
 
 def test_public_profile_returns_user_for_known_id(client, seed_user):
     res = client.get(f"/api/public-profile/{seed_user}")
-    # Endpoint returns { user: { name, email, picture, bio, status }, trips }.
-    # `id` isn't echoed back (the caller already knew it from the URL); pin
-    # what IS returned so a regression that drops `name` fails.
+    # Endpoint returns { user: { id, name, picture, bio, status }, trips }.
+    # `id` IS echoed back so the frontend has the profile-owner id for
+    # follow / quote calls (the caller already knew it from the URL).
     assert res.status_code == 200
     body = res.get_json()
     assert body.get("user", {}).get("name") == "Test User"
+    assert body.get("user", {}).get("id") == seed_user
     assert "trips" in body
 
 
