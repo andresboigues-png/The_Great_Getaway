@@ -626,6 +626,16 @@ export const en = {
         quotesDelete: 'Delete',
         quotesDeleteTitle: 'Delete memory?',
         quotesDeleteBody: 'This removes the memory for good.',
+        memArrangeBy: 'Arrange',
+        memGroupNone: 'Free',
+        memGroupYear: 'Year',
+        memGroupCountry: 'Place',
+        memGroupAuthor: 'Who',
+        memNoYear: 'No year',
+        memNoCountry: 'No place',
+        memYearField: 'Year',
+        memPlaceField: 'Add place',
+        memResetView: 'Reset view',
         bioPlaceholder: 'Add a bio...',
         // R3-Round 3: shown on a public profile when the user hasn't
         // written one. Pre-fix the fallback "No bio yet." was

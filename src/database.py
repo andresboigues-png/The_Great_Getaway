@@ -798,6 +798,8 @@ def init_db():
                 profile_owner_id TEXT NOT NULL,
                 author_id TEXT NOT NULL,
                 content TEXT NOT NULL,
+                memory_year INTEGER,
+                memory_country TEXT,
                 is_visible INTEGER NOT NULL DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (profile_owner_id) REFERENCES users(id) ON DELETE CASCADE,

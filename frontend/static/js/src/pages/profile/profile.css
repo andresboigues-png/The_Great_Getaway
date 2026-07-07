@@ -645,104 +645,312 @@
     font-size: 0.9rem;
     line-height: 1.5;
 }
-.pf-quote-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
+/* Composer meta row: year + place tag. */
+.pf-quote-meta {
     display: flex;
-    flex-direction: column;
-    gap: 12px;
+    gap: 8px;
 }
-.pf-quote {
-    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.1));
-    border-radius: 16px;
-    padding: 14px 16px;
-    background: var(--surface-2, rgba(0, 45, 91, 0.02));
+.pf-quote-year {
+    width: 92px;
+    flex-shrink: 0;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.12));
+    background: var(--surface-2, rgba(0, 45, 91, 0.03));
+    color: var(--text-primary);
+    font-size: var(--font-sm);
+    font-family: inherit;
+    outline: none;
 }
-.pf-quote--hidden {
-    opacity: 0.72;
-    border-style: dashed;
-}
-.pf-quote-head {
+.pf-quote-place {
+    flex: 1 1 auto;
+    min-width: 0;
     display: flex;
     align-items: center;
-    gap: 9px;
-    margin-bottom: 8px;
+    justify-content: center;
+    gap: 7px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.12));
+    background: var(--surface-2, rgba(0, 45, 91, 0.03));
+    color: var(--text-primary);
+    font-size: var(--font-sm);
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
-.pf-quote-avatar {
-    width: 30px;
-    height: 30px;
+.pf-quote-year:focus,
+.pf-quote-place:hover {
+    border-color: var(--gg-blue, #0071e3);
+}
+.pf-quote-place__flag {
+    width: 18px;
+    height: 13px;
+    object-fit: cover;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+/* ── Memory canvas ────────────────────────────────────────────────
+   A pannable / zoomable plane of memory cards; "Arrange" clusters them. */
+.pf-canvas {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.pf-canvas-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.pf-canvas-bar__label {
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+}
+.pf-canvas-seg {
+    display: inline-flex;
+    background: var(--surface-2, rgba(0, 45, 91, 0.05));
+    border-radius: 999px;
+    padding: 3px;
+    gap: 2px;
+}
+.pf-canvas-seg__btn {
+    border: 0;
+    background: transparent;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.pf-canvas-seg__btn[data-active='true'] {
+    background: var(--bg-color, #fff);
+    color: var(--gg-blue, #0071e3);
+    box-shadow: 0 1px 4px rgba(0, 45, 91, 0.12);
+}
+.pf-canvas-viewport {
+    position: relative;
+    width: 100%;
+    height: min(62vh, 540px);
+    overflow: hidden;
+    border-radius: 18px;
+    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.1));
+    background:
+        radial-gradient(circle at 1px 1px, rgba(0, 45, 91, 0.09) 1px, transparent 0) 0 0 / 26px 26px,
+        var(--surface-2, rgba(0, 45, 91, 0.02));
+    touch-action: none;
+    cursor: grab;
+    user-select: none;
+}
+.pf-canvas-viewport.is-interacting {
+    cursor: grabbing;
+}
+.pf-canvas-plane {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+    transition: transform 0.28s ease;
+}
+.pf-canvas-viewport.is-interacting .pf-canvas-plane {
+    transition: none;
+}
+.pf-cluster-label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.92rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    color: var(--text-primary);
+    text-align: center;
+    pointer-events: none;
+}
+.pf-mem-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 210px;
+    height: 140px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    padding: 12px 13px;
+    border-radius: 15px;
+    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.12));
+    background: var(--bg-color, #fff);
+    box-shadow: 0 4px 14px rgba(0, 45, 91, 0.09);
+    cursor: grab;
+    transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pf-canvas-viewport.is-interacting .pf-mem-card {
+    transition: none;
+}
+.pf-mem-card--hidden {
+    border-style: dashed;
+    opacity: 0.62;
+    box-shadow: none;
+}
+/* Drop the text below the HIDDEN badge (owner view only). */
+.pf-mem-card--hidden .pf-mem-card__text {
+    margin-top: 15px;
+    -webkit-line-clamp: 2;
+}
+.pf-mem-card__text {
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.38;
+    color: var(--text-primary);
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow-wrap: anywhere;
+}
+.pf-mem-card__foot {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: auto;
+    min-width: 0;
+}
+.pf-mem-card__ava {
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
 }
-.pf-quote-avatar--fallback {
+.pf-mem-card__ava--fb {
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--gg-blue, #0071e3);
     color: #fff;
     font-weight: 700;
-    font-size: 0.85rem;
+    font-size: 0.66rem;
 }
-.pf-quote-author {
+.pf-mem-card__author {
+    font-size: 0.74rem;
     font-weight: 700;
-    font-size: 0.9rem;
-    color: var(--text-primary);
-    min-width: 0;
+    color: var(--text-secondary);
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    flex-shrink: 1;
 }
-.pf-quote-badge {
+.pf-mem-card__tags {
+    display: flex;
+    gap: 4px;
     margin-left: auto;
     flex-shrink: 0;
-    font-size: 0.66rem;
+}
+.pf-mem-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 92px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--surface-2, rgba(0, 45, 91, 0.06));
+    font-size: 0.64rem;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
     color: var(--text-secondary);
-    background: var(--glass-border, rgba(0, 45, 91, 0.1));
-    padding: 3px 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.pf-mem-chip__flag {
+    width: 14px;
+    height: 10px;
+    object-fit: cover;
+    border-radius: 1px;
+    flex-shrink: 0;
+}
+.pf-mem-card__badge {
+    position: absolute;
+    top: 9px;
+    left: 11px;
+    font-size: 0.58rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    background: var(--surface-2, rgba(0, 45, 91, 0.1));
+    padding: 2px 6px;
     border-radius: 999px;
 }
-.pf-quote-text {
-    margin: 0;
-    font-size: 0.96rem;
-    line-height: 1.5;
-    color: var(--text-primary);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-}
-.pf-quote-actions {
+.pf-mem-card__ctrl {
+    position: absolute;
+    top: 7px;
+    right: 7px;
     display: flex;
-    gap: 8px;
-    margin-top: 12px;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
 }
-.pf-quote-toggle,
-.pf-quote-del {
-    padding: 6px 14px;
-    border-radius: 999px;
-    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.14));
-    background: transparent;
-    font-size: 0.78rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+.pf-mem-card:hover .pf-mem-card__ctrl {
+    opacity: 1;
 }
-.pf-quote-toggle {
+@media (hover: none) {
+    .pf-mem-card__ctrl {
+        opacity: 1;
+    }
+}
+.pf-mem-ctrl {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 0;
+    background: var(--bg-color, #fff);
     color: var(--gg-blue, #0071e3);
+    box-shadow: 0 1px 5px rgba(0, 45, 91, 0.2);
+    cursor: pointer;
 }
-.pf-quote-toggle:hover {
-    background: rgba(0, 113, 227, 0.08);
-    border-color: var(--gg-blue, #0071e3);
-}
-.pf-quote-del {
+.pf-mem-ctrl--del {
     color: #ff3b30;
 }
-.pf-quote-del:hover {
-    background: rgba(255, 59, 48, 0.08);
-    border-color: rgba(255, 59, 48, 0.4);
+.pf-canvas-zoom {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.pf-canvas-zoom button {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.12));
+    background: var(--bg-color, #fff);
+    color: var(--text-primary);
+    font-size: 1.05rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 45, 91, 0.12);
+}
+.pf-canvas-zoom button:active {
+    background: var(--surface-2, rgba(0, 45, 91, 0.06));
 }
 
 /* ── Stat list modal (Trips / Countries / Followers / … ) ─────────

@@ -27,8 +27,13 @@
 // lifetime regardless of how many times the Profile component
 // remounts.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ReactNode, PointerEvent as ReactPointerEvent, MouseEvent as ReactMouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type {
+    ReactNode,
+    PointerEvent as ReactPointerEvent,
+    MouseEvent as ReactMouseEvent,
+    WheelEvent as ReactWheelEvent,
+} from 'react';
 import { useStore } from '../../react/store.js';
 import { STATE, emit } from '../../state.js';
 import { apiFetch, uploadMedia, blockUser } from '../../api.js';
@@ -1196,6 +1201,8 @@ interface QuoteItem {
     text: string;
     isVisible: boolean;
     createdAt: string;
+    year: number | null;
+    country: string | null;
     author: { id: string; name: string; picture?: string };
 }
 
@@ -1214,7 +1221,23 @@ function QuotesSection({
     const [quotes, setQuotes] = useState<QuoteItem[] | null>(null);
     const [failed, setFailed] = useState(false);
     const [draft, setDraft] = useState('');
+    const [draftYear, setDraftYear] = useState('');
+    const [draftCountry, setDraftCountry] = useState('');
     const [posting, setPosting] = useState(false);
+
+    // Country tag picker for the composer — same searchable modal as the
+    // home-country tile; picking sets the draft country name.
+    const openDraftCountry = () => {
+        const items: StatListItem[] = [
+            { primary: t('profile.homeCountryNotSet'), avatarInitial: '—', onClick: () => setDraftCountry('') },
+            ...getCountryOptions().map(({ code, name }) => ({
+                primary: name,
+                avatarUrl: flagUrl(code),
+                onClick: () => setDraftCountry(name),
+            })),
+        ];
+        openStatListModal({ title: t('profile.memGroupCountry'), items });
+    };
 
     const load = useCallback(async () => {
         setFailed(false);
@@ -1240,15 +1263,21 @@ function QuotesSection({
     const post = async () => {
         const text = draft.trim();
         if (!text || posting) return;
+        const body: { text: string; year?: number; country?: string } = { text };
+        const yr = parseInt(draftYear, 10);
+        if (draftYear.trim() && !Number.isNaN(yr)) body.year = yr;
+        if (draftCountry.trim()) body.country = draftCountry.trim();
         setPosting(true);
         try {
             const res = await apiFetch(`/api/quotes/${encodeURIComponent(profileUserId)}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text }),
+                body: JSON.stringify(body),
             });
             if (res.ok) {
                 setDraft('');
+                setDraftYear('');
+                setDraftCountry('');
                 showLiquidAlert(t('profile.quotesPosted', { name: firstName }), 'success');
                 void load();
             } else {
@@ -1316,6 +1345,29 @@ function QuotesSection({
                         value={draft}
                         onChange={(e) => setDraft(e.target.value)}
                     />
+                    <div className="pf-quote-meta">
+                        <input
+                            className="pf-quote-year"
+                            type="number"
+                            inputMode="numeric"
+                            min={1900}
+                            max={2100}
+                            placeholder={t('profile.memYearField')}
+                            value={draftYear}
+                            onChange={(e) => setDraftYear(e.target.value)}
+                        />
+                        <button type="button" className="pf-quote-place" onClick={openDraftCountry}>
+                            {draftCountry && countryCodeFromName(draftCountry) ? (
+                                <img
+                                    className="pf-quote-place__flag"
+                                    src={flagUrl(countryCodeFromName(draftCountry))}
+                                    alt=""
+                                    loading="lazy"
+                                />
+                            ) : null}
+                            {draftCountry || t('profile.memPlaceField')}
+                        </button>
+                    </div>
                     <button
                         type="button"
                         className="pf-save-btn pf-quote-post"
@@ -1336,55 +1388,445 @@ function QuotesSection({
                     {isOwnProfile ? t('profile.quotesEmptyOwn') : t('profile.quotesEmptyVisitor', { name: firstName })}
                 </p>
             ) : (
-                <ul className="pf-quote-list">
-                    {quotes.map((q) => (
-                        <li
-                            key={q.id}
-                            className={`pf-quote${isOwnProfile && !q.isVisible ? ' pf-quote--hidden' : ''}`}
+                <MemoryCanvas
+                    memories={quotes}
+                    isOwnProfile={isOwnProfile}
+                    onToggle={(id, visible) => void setVisibility(id, visible)}
+                    onRemove={remove}
+                />
+            )}
+        </div>
+    );
+}
+
+// ── Best-of memory canvas ─────────────────────────────────────────
+// A big pannable / zoomable plane of memory cards. "Arrange" clusters
+// them (by year / place / who) into labelled groups; cards can also be
+// dragged freely. Positions are EPHEMERAL — never persisted. Pan =
+// 1-finger drag on the background; zoom = pinch / wheel / buttons.
+type MemGroup = 'none' | 'year' | 'country' | 'author';
+
+const MEM_CARD_W = 210;
+const MEM_CARD_H = 140;
+const MEM_GAP = 18;
+const MEM_LABEL_H = 40;
+const MEM_CLUSTER_GAP_X = 60;
+const MEM_CLUSTER_GAP_Y = 54;
+const MEM_MAX_COLS = 3;
+const MEM_ROW_MAX_W = 1500;
+const MEM_MIN_SCALE = 0.35;
+const MEM_MAX_SCALE = 2.2;
+
+const memClamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+const EYE_ICON = (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
+        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+        <circle cx="12" cy="12" r="3" />
+    </svg>
+);
+const EYE_OFF_ICON = (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
+        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+        <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+);
+const TRASH_ICON = (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
+        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <polyline points="3 6 5 6 21 6" />
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+);
+
+interface MemCluster {
+    key: string;
+    label: string;
+    x: number;
+    y: number;
+    w: number;
+}
+interface MemLayoutResult {
+    positions: Record<number, { x: number; y: number }>;
+    clusters: MemCluster[];
+    width: number;
+    height: number;
+}
+
+function memClusterOf(m: QuoteItem, group: MemGroup): { key: string; label: string; sort: string } {
+    if (group === 'year') {
+        return m.year
+            ? { key: `y${m.year}`, label: String(m.year), sort: `0_${9999 - m.year}` }
+            : { key: 'y_none', label: t('profile.memNoYear'), sort: '9' };
+    }
+    if (group === 'country') {
+        return m.country
+            ? { key: `c${m.country.toLowerCase()}`, label: m.country, sort: `0_${m.country.toLowerCase()}` }
+            : { key: 'c_none', label: t('profile.memNoCountry'), sort: '9' };
+    }
+    if (group === 'author') {
+        return { key: `a${m.author.id}`, label: m.author.name, sort: `0_${(m.author.name || '').toLowerCase()}` };
+    }
+    return { key: 'all', label: '', sort: '0' };
+}
+
+function memComputeLayout(memories: QuoteItem[], group: MemGroup): MemLayoutResult {
+    const groups = new Map<string, { label: string; sort: string; items: QuoteItem[] }>();
+    for (const m of memories) {
+        const c = memClusterOf(m, group);
+        const cur = groups.get(c.key);
+        if (cur) cur.items.push(m);
+        else groups.set(c.key, { label: c.label, sort: c.sort, items: [m] });
+    }
+    const entries = [...groups.values()].sort((a, b) => a.sort.localeCompare(b.sort));
+
+    const positions: Record<number, { x: number; y: number }> = {};
+    const clusters: MemCluster[] = [];
+    let cx = 0;
+    let cy = 0;
+    let rowH = 0;
+    let width = 0;
+    for (const grp of entries) {
+        const n = grp.items.length;
+        const cols = group === 'none' ? memClamp(Math.ceil(Math.sqrt(n)), 1, 5) : Math.min(MEM_MAX_COLS, n);
+        const rows = Math.ceil(n / cols);
+        const w = cols * MEM_CARD_W + (cols - 1) * MEM_GAP;
+        const labelH = group === 'none' ? 0 : MEM_LABEL_H;
+        const h = labelH + rows * MEM_CARD_H + (rows - 1) * MEM_GAP;
+        if (cx > 0 && cx + w > MEM_ROW_MAX_W) {
+            cx = 0;
+            cy += rowH + MEM_CLUSTER_GAP_Y;
+            rowH = 0;
+        }
+        clusters.push({ key: `${grp.label}@${cx},${cy}`, label: grp.label, x: cx, y: cy, w });
+        grp.items.forEach((m, i) => {
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            positions[m.id] = {
+                x: cx + col * (MEM_CARD_W + MEM_GAP),
+                y: cy + labelH + row * (MEM_CARD_H + MEM_GAP),
+            };
+        });
+        cx += w + MEM_CLUSTER_GAP_X;
+        rowH = Math.max(rowH, h);
+        width = Math.max(width, cx - MEM_CLUSTER_GAP_X);
+    }
+    return { positions, clusters, width, height: cy + rowH };
+}
+
+function MemoryCanvas({
+    memories,
+    isOwnProfile,
+    onToggle,
+    onRemove,
+}: {
+    memories: QuoteItem[];
+    isOwnProfile: boolean;
+    onToggle: (id: number, visible: boolean) => void;
+    onRemove: (id: number) => void;
+}) {
+    const [group, setGroup] = useState<MemGroup>('none');
+    const layout = useMemo(() => memComputeLayout(memories, group), [memories, group]);
+    // Manual drag overrides, keyed by memory id. Effective position =
+    // override ?? auto-layout. Kept SEPARATE from the auto-layout so a
+    // visibility toggle / delete (which changes `memories`) re-packs the
+    // base grid WITHOUT wiping the user's drags or resetting the view.
+    const [overrides, setOverrides] = useState<Record<number, { x: number; y: number }>>({});
+    const posOf = (id: number) => overrides[id] ?? layout.positions[id] ?? { x: 0, y: 0 };
+    const [view, setView] = useState({ x: 40, y: 40, scale: 1 });
+    const [interacting, setInteracting] = useState(false);
+    const viewportRef = useRef<HTMLDivElement | null>(null);
+
+    const g = useRef({
+        mode: 'none' as 'none' | 'pan' | 'card' | 'pinch',
+        pointers: new Map<number, { x: number; y: number }>(),
+        cardId: -1,
+        cardStart: { x: 0, y: 0 },
+        pointerStart: { x: 0, y: 0 },
+        scaleAtDown: 1,
+        last: { x: 0, y: 0 },
+        pinchDist: 1,
+        pinchScale: 1,
+    });
+
+    const fitView = useCallback(() => {
+        const vp = viewportRef.current;
+        if (!vp) return;
+        const vw = vp.clientWidth;
+        const vh = vp.clientHeight;
+        const pad = 44;
+        const w = layout.width || MEM_CARD_W;
+        const h = layout.height || MEM_CARD_H;
+        const scale = memClamp(Math.min((vw - pad * 2) / w, (vh - pad * 2) / h), MEM_MIN_SCALE, 1);
+        setView({ scale, x: (vw - w * scale) / 2, y: Math.max(pad, (vh - h * scale) / 2) });
+    }, [layout]);
+
+    // Changing the grouping drops manual drags + refits the view. Runs on
+    // first mount too (group starts 'none'). Intentionally keyed on `group`
+    // only — refitting on every `memories` change would yank the view back
+    // on each visibility toggle.
+    useEffect(() => {
+        setOverrides({});
+        fitView();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [group]);
+
+    const localXY = (e: ReactPointerEvent) => {
+        const r = viewportRef.current!.getBoundingClientRect();
+        return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+
+    const onPointerDown = (e: ReactPointerEvent) => {
+        const vp = viewportRef.current;
+        if (!vp) return;
+        const targetEl = e.target as HTMLElement;
+        // Let the card controls + zoom buttons handle their own clicks.
+        if (targetEl.closest('.pf-mem-ctrl') || targetEl.closest('.pf-canvas-zoom')) return;
+        const pt = localXY(e);
+        g.current.pointers.set(e.pointerId, pt);
+        vp.setPointerCapture(e.pointerId);
+        setInteracting(true);
+        if (g.current.pointers.size >= 2) {
+            const pts = [...g.current.pointers.values()];
+            const a = pts[0];
+            const b = pts[1];
+            if (a && b) {
+                g.current.mode = 'pinch';
+                g.current.pinchDist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+                g.current.pinchScale = view.scale;
+            }
+            return;
+        }
+        const cardEl = targetEl.closest('[data-card]') as HTMLElement | null;
+        if (cardEl) {
+            const id = Number(cardEl.dataset.card);
+            g.current.mode = 'card';
+            g.current.cardId = id;
+            g.current.cardStart = posOf(id);
+            g.current.pointerStart = pt;
+            g.current.scaleAtDown = view.scale;
+        } else {
+            g.current.mode = 'pan';
+            g.current.last = pt;
+        }
+    };
+
+    const onPointerMove = (e: ReactPointerEvent) => {
+        if (!g.current.pointers.has(e.pointerId)) return;
+        const pt = localXY(e);
+        g.current.pointers.set(e.pointerId, pt);
+        const mode = g.current.mode;
+        if (mode === 'pinch' && g.current.pointers.size >= 2) {
+            const pts = [...g.current.pointers.values()];
+            const a = pts[0];
+            const b = pts[1];
+            if (!a || !b) return;
+            const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+            const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+            const scale = memClamp((g.current.pinchScale * dist) / g.current.pinchDist, MEM_MIN_SCALE, MEM_MAX_SCALE);
+            setView((v) => {
+                const wx = (mid.x - v.x) / v.scale;
+                const wy = (mid.y - v.y) / v.scale;
+                return { scale, x: mid.x - wx * scale, y: mid.y - wy * scale };
+            });
+        } else if (mode === 'card') {
+            const id = g.current.cardId;
+            const nx = g.current.cardStart.x + (pt.x - g.current.pointerStart.x) / g.current.scaleAtDown;
+            const ny = g.current.cardStart.y + (pt.y - g.current.pointerStart.y) / g.current.scaleAtDown;
+            setOverrides((prev) => ({ ...prev, [id]: { x: nx, y: ny } }));
+        } else if (mode === 'pan') {
+            const dx = pt.x - g.current.last.x;
+            const dy = pt.y - g.current.last.y;
+            g.current.last = pt;
+            setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
+        }
+    };
+
+    const endPointer = (e: ReactPointerEvent) => {
+        if (!g.current.pointers.delete(e.pointerId)) return;
+        try {
+            viewportRef.current?.releasePointerCapture(e.pointerId);
+        } catch {
+            /* already released */
+        }
+        if (g.current.pointers.size === 0) {
+            g.current.mode = 'none';
+            setInteracting(false);
+        } else if (g.current.pointers.size === 1) {
+            // pinch released one finger → keep panning with the remaining one
+            const only = [...g.current.pointers.values()][0];
+            if (only) {
+                g.current.mode = 'pan';
+                g.current.last = only;
+            }
+        }
+    };
+
+    const onWheel = (e: ReactWheelEvent) => {
+        e.preventDefault();
+        const r = viewportRef.current!.getBoundingClientRect();
+        const cx = e.clientX - r.left;
+        const cy = e.clientY - r.top;
+        setView((v) => {
+            const scale = memClamp(v.scale * (1 - e.deltaY * 0.0016), MEM_MIN_SCALE, MEM_MAX_SCALE);
+            const wx = (cx - v.x) / v.scale;
+            const wy = (cy - v.y) / v.scale;
+            return { scale, x: cx - wx * scale, y: cy - wy * scale };
+        });
+    };
+
+    const zoomBy = (factor: number) => {
+        const vp = viewportRef.current;
+        if (!vp) return;
+        const cx = vp.clientWidth / 2;
+        const cy = vp.clientHeight / 2;
+        setView((v) => {
+            const scale = memClamp(v.scale * factor, MEM_MIN_SCALE, MEM_MAX_SCALE);
+            const wx = (cx - v.x) / v.scale;
+            const wy = (cy - v.y) / v.scale;
+            return { scale, x: cx - wx * scale, y: cy - wy * scale };
+        });
+    };
+
+    const groupOpts: { k: MemGroup; label: string }[] = [
+        { k: 'none', label: t('profile.memGroupNone') },
+        { k: 'year', label: t('profile.memGroupYear') },
+        { k: 'country', label: t('profile.memGroupCountry') },
+        { k: 'author', label: t('profile.memGroupAuthor') },
+    ];
+
+    return (
+        <div className="pf-canvas">
+            <div className="pf-canvas-bar">
+                <span className="pf-canvas-bar__label">{t('profile.memArrangeBy')}</span>
+                <div className="pf-canvas-seg">
+                    {groupOpts.map((o) => (
+                        <button
+                            key={o.k}
+                            type="button"
+                            className="pf-canvas-seg__btn"
+                            data-active={group === o.k}
+                            onClick={() => setGroup(o.k)}
                         >
-                            <div className="pf-quote-head">
-                                {q.author.picture ? (
-                                    <img
-                                        className="pf-quote-avatar"
-                                        src={q.author.picture}
-                                        alt=""
-                                        referrerPolicy="no-referrer"
-                                        loading="lazy"
-                                        decoding="async"
-                                    />
-                                ) : (
-                                    <div className="pf-quote-avatar pf-quote-avatar--fallback">
-                                        {(q.author.name || '?').charAt(0).toUpperCase()}
+                            {o.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+            <div
+                ref={viewportRef}
+                className={`pf-canvas-viewport${interacting ? ' is-interacting' : ''}`}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={endPointer}
+                onPointerCancel={endPointer}
+                onWheel={onWheel}
+            >
+                <div
+                    className="pf-canvas-plane"
+                    style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
+                >
+                    {group !== 'none'
+                        ? layout.clusters.map((c) => (
+                              <div
+                                  key={c.key}
+                                  className="pf-cluster-label"
+                                  style={{ transform: `translate(${c.x}px, ${c.y}px)`, width: c.w }}
+                              >
+                                  {c.label}
+                              </div>
+                          ))
+                        : null}
+                    {memories.map((m) => {
+                        const p = posOf(m.id);
+                        const hidden = isOwnProfile && !m.isVisible;
+                        const code = countryCodeFromName(m.country);
+                        return (
+                            <div
+                                key={m.id}
+                                data-card={m.id}
+                                className={`pf-mem-card${hidden ? ' pf-mem-card--hidden' : ''}`}
+                                style={{ transform: `translate(${p.x}px, ${p.y}px)` }}
+                            >
+                                <div className="pf-mem-card__text">{m.text}</div>
+                                <div className="pf-mem-card__foot">
+                                    {m.author.picture ? (
+                                        <img
+                                            className="pf-mem-card__ava"
+                                            src={m.author.picture}
+                                            alt=""
+                                            referrerPolicy="no-referrer"
+                                            loading="lazy"
+                                            decoding="async"
+                                        />
+                                    ) : (
+                                        <div className="pf-mem-card__ava pf-mem-card__ava--fb">
+                                            {(m.author.name || '?').charAt(0).toUpperCase()}
+                                        </div>
+                                    )}
+                                    <span className="pf-mem-card__author">{m.author.name}</span>
+                                    {m.country || m.year ? (
+                                        <span className="pf-mem-card__tags">
+                                            {m.country ? (
+                                                <span className="pf-mem-chip">
+                                                    {code ? (
+                                                        <img
+                                                            className="pf-mem-chip__flag"
+                                                            src={flagUrl(code)}
+                                                            alt=""
+                                                            loading="lazy"
+                                                        />
+                                                    ) : null}
+                                                    {m.country}
+                                                </span>
+                                            ) : null}
+                                            {m.year ? <span className="pf-mem-chip">{m.year}</span> : null}
+                                        </span>
+                                    ) : null}
+                                </div>
+                                {hidden ? (
+                                    <span className="pf-mem-card__badge">{t('profile.quotesHiddenBadge')}</span>
+                                ) : null}
+                                {isOwnProfile ? (
+                                    <div className="pf-mem-card__ctrl">
+                                        <button
+                                            type="button"
+                                            className="pf-mem-ctrl"
+                                            title={m.isVisible ? t('profile.quotesHide') : t('profile.quotesShow')}
+                                            aria-label={m.isVisible ? t('profile.quotesHide') : t('profile.quotesShow')}
+                                            onClick={() => onToggle(m.id, !m.isVisible)}
+                                        >
+                                            {m.isVisible ? EYE_OFF_ICON : EYE_ICON}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="pf-mem-ctrl pf-mem-ctrl--del"
+                                            title={t('profile.quotesDelete')}
+                                            aria-label={t('profile.quotesDelete')}
+                                            onClick={() => onRemove(m.id)}
+                                        >
+                                            {TRASH_ICON}
+                                        </button>
                                     </div>
-                                )}
-                                <span className="pf-quote-author">{q.author.name}</span>
-                                {isOwnProfile && !q.isVisible ? (
-                                    <span className="pf-quote-badge">{t('profile.quotesHiddenBadge')}</span>
                                 ) : null}
                             </div>
-                            <blockquote className="pf-quote-text">{q.text}</blockquote>
-                            {isOwnProfile ? (
-                                <div className="pf-quote-actions">
-                                    <button
-                                        type="button"
-                                        className="pf-quote-toggle"
-                                        onClick={() => void setVisibility(q.id, !q.isVisible)}
-                                    >
-                                        {q.isVisible ? t('profile.quotesHide') : t('profile.quotesShow')}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="pf-quote-del"
-                                        onClick={() => remove(q.id)}
-                                    >
-                                        {t('profile.quotesDelete')}
-                                    </button>
-                                </div>
-                            ) : null}
-                        </li>
-                    ))}
-                </ul>
-            )}
+                        );
+                    })}
+                </div>
+                <div className="pf-canvas-zoom">
+                    <button type="button" onClick={() => zoomBy(1.25)} aria-label="Zoom in">
+                        +
+                    </button>
+                    <button type="button" onClick={() => zoomBy(0.8)} aria-label="Zoom out">
+                        −
+                    </button>
+                    <button type="button" onClick={fitView} aria-label={t('profile.memResetView')}>
+                        ⤢
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }

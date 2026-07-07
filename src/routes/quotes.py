@@ -22,6 +22,7 @@ from helpers import ensure_user_exists, user_daily_count, user_daily_increment
 bp = Blueprint("quotes", __name__)
 
 _MAX_LEN = 280
+_MAX_COUNTRY_LEN = 60
 # Per-account daily cap on NEW quotes. The shared per-IP limiter throttles
 # bursts but doesn't bound one account's fan-out onto other people's
 # profiles (mirrors follows.py BUG-079). Each quote is unsolicited content
@@ -38,6 +39,8 @@ def _serialize(row) -> dict:
     return {
         "id": row["id"],
         "text": row["content"],
+        "year": row["memory_year"],
+        "country": row["memory_country"],
         "isVisible": bool(row["is_visible"]),
         "createdAt": row["created_at"],
         "author": {
@@ -49,7 +52,8 @@ def _serialize(row) -> dict:
 
 
 _SELECT = (
-    "SELECT pq.id, pq.content, pq.is_visible, pq.created_at, "
+    "SELECT pq.id, pq.content, pq.memory_year, pq.memory_country, "
+    "pq.is_visible, pq.created_at, "
     "u.id AS author_id, u.name AS author_name, u.picture AS author_picture "
     "FROM profile_quotes pq JOIN users u ON u.id = pq.author_id "
     "WHERE pq.profile_owner_id = ? "
@@ -73,6 +77,23 @@ def leave_quote(owner_id):
         return jsonify({"error": "text must not be empty"}), 400
     if len(text) > _MAX_LEN:
         return jsonify({"error": f"text must be {_MAX_LEN} characters or less"}), 400
+    # Optional year: absent/None stores NULL; a bool is NOT a valid year.
+    year = data.get("year")
+    if year is not None:
+        if isinstance(year, bool) or not isinstance(year, int):
+            return jsonify({"error": "year must be an integer"}), 400
+        if not 1900 <= year <= 2100:
+            return jsonify({"error": "year must be between 1900 and 2100"}), 400
+    # Optional country: absent/None stores NULL; empty-after-clean → NULL.
+    country = data.get("country")
+    if country is not None:
+        if not isinstance(country, str):
+            return jsonify({"error": "country must be a string"}), 400
+        country = _clean(country)
+        if len(country) > _MAX_COUNTRY_LEN:
+            return jsonify({"error": f"country must be {_MAX_COUNTRY_LEN} characters or less"}), 400
+        if not country:
+            country = None
     with get_db() as conn:
         cursor = conn.cursor()
         if not ensure_user_exists(cursor, owner_id):
@@ -93,9 +114,10 @@ def leave_quote(owner_id):
                 }
             ), 429
         cursor.execute(
-            "INSERT INTO profile_quotes (profile_owner_id, author_id, content, is_visible) "
-            "VALUES (?, ?, ?, 0)",
-            (owner_id, author_id, text),
+            "INSERT INTO profile_quotes "
+            "(profile_owner_id, author_id, content, memory_year, memory_country, is_visible) "
+            "VALUES (?, ?, ?, ?, ?, 0)",
+            (owner_id, author_id, text, year, country),
         )
         # Meter AFTER a successful insert so a failed write can't burn quota.
         user_daily_increment("quote", author_id)

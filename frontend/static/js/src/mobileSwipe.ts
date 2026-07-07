@@ -137,6 +137,7 @@ const SWIPE_OPT_OUT_SELECTORS = [
     '[contenteditable="true"]',
     '.timeline-scroll',
     '.pf-statstrip',
+    '.pf-canvas-viewport',
 ].join(',');
 
 let _wired = false;

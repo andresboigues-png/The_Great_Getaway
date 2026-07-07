@@ -7,8 +7,8 @@ copy onto someone's profile.
 """
 
 
-def _leave(client, headers, owner_id, text="A lovely travel companion."):
-    return client.post(f"/api/quotes/{owner_id}", headers=headers, json={"text": text})
+def _leave(client, headers, owner_id, text="A lovely travel companion.", **extra):
+    return client.post(f"/api/quotes/{owner_id}", headers=headers, json={"text": text, **extra})
 
 
 def _list(client, headers, owner_id):
@@ -113,6 +113,39 @@ def test_owner_can_delete_any_quote(
 
     res = client.delete(f"/api/quotes/item/{quote_id}", headers=auth_headers)
     assert res.status_code == 200
+
+
+def test_memory_stores_year_and_country(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers
+):
+    """A memory can carry an optional year + country, echoed back on list."""
+    res = _leave(client, other_auth_headers, seed_user, year=2023, country="Portugal")
+    assert res.status_code == 201
+
+    memory = _list(client, auth_headers, seed_user).get_json()["quotes"][0]
+    assert memory["year"] == 2023
+    assert memory["country"] == "Portugal"
+
+
+def test_memory_year_out_of_range_rejected(client, seed_user, seed_other_user, other_auth_headers):
+    res = _leave(client, other_auth_headers, seed_user, year=1000)
+    assert res.status_code == 400
+
+
+def test_memory_country_too_long_rejected(client, seed_user, seed_other_user, other_auth_headers):
+    res = _leave(client, other_auth_headers, seed_user, country="x" * 61)
+    assert res.status_code == 400
+
+
+def test_memory_without_year_country_defaults_null(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers
+):
+    res = _leave(client, other_auth_headers, seed_user)
+    assert res.status_code == 201
+
+    memory = _list(client, auth_headers, seed_user).get_json()["quotes"][0]
+    assert memory["year"] is None
+    assert memory["country"] is None
 
 
 def test_blocked_author_quote_hidden_from_owner(
