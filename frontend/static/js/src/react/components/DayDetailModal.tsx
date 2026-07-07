@@ -53,7 +53,13 @@
 // pages/home-mount/home.css pin them.
 
 import { useEffect, useReducer, useRef, useState } from 'react';
-import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from 'react';
+import type {
+    CSSProperties,
+    MouseEvent as ReactMouseEvent,
+    PointerEvent as ReactPointerEvent,
+    ReactNode,
+    RefObject,
+} from 'react';
 import { emit } from '../../state.js';
 import { upsertDay, upsertTrip, uploadMedia } from '../../api.js';
 import { setMarkedPlaceAssignment, setMarkedPlacePreferredHour } from '../../markedPlaces.js';
@@ -313,15 +319,209 @@ export function DayDetailModal({
     // does, so the draft, the autosave, and the live preview all track.
     // Bold wraps the selection in **…**; Bullet prefixes the selected
     // line(s) with "- ". forceRender repaints the preview below the field.
-    const wrapPlanSelection = (slot: Slot, marker: string) => {
-        const ta = planTaRef(slot).current;
+    // ══ Day-plan block editor (interleave text + place cards) ══════════
+    // A time-part's content is an ordered list of blocks: text runs +
+    // place-reference cards. The user reorders them (drag grip or ▲/▼) so a
+    // place can sit anywhere among the notes. Place DATA still lives on
+    // trip.markedPlaces (media path); a block only holds a placeId.
+    type KB = { k: string; type: 'text' | 'place'; text?: string; placeId?: string };
+    const kbSeq = useRef(0);
+    const freshK = () => `kb${(kbSeq.current += 1)}`;
+    const placeById = (pid?: string): MarkedPlace | undefined =>
+        pid ? (trip?.markedPlaces || []).find((p) => p.placeId === pid) : undefined;
+
+    /** For each pane, the places pinned to this slot pull from
+     *  `trip.markedPlaces` filtered by `dayId === day.id`:
+     *    - Items WITH a matching timeOfDay → that slot only (AI plan items
+     *      have these; the AI assigns morning/PM/eve).
+     *    - Items WITHOUT a timeOfDay (manual adds via the home InfoWindow)
+     *      → surface in EVERY slot so the user sees them no matter which
+     *      time-of-day tab they're on (not yet committed to a slot).
+     *  Defined ahead of the block editor because buildSlotBlocks seeds a
+     *  slot's default blocks from it during the initial render (TDZ). */
+    const placesForSlot = (slot: Slot): MarkedPlace[] => {
+        if (!trip) return [];
+        return (trip.markedPlaces || []).filter((p) => {
+            if (!p || !p.forManual || p.dayId !== day.id) return false;
+            // The user's specific hour wins for slotting; fall back to the
+            // AI-assigned coarse slot; null = "anytime" → show in every pane.
+            const placeSlot = p.preferredHour != null
+                ? hourToSlot(p.preferredHour)
+                : p.timeOfDay;
+            return placeSlot === slot || !placeSlot;
+        });
+    };
+
+    const buildSlotBlocks = (slot: Slot): KB[] => {
+        let out: KB[];
+        const stored = day.planBlocks?.[slot];
+        if (Array.isArray(stored) && stored.length) {
+            out = stored.map((b) =>
+                b.type === 'place'
+                    ? { k: freshK(), type: 'place', placeId: b.placeId }
+                    : { k: freshK(), type: 'text', text: b.text },
+            );
+        } else {
+            // Default: the places pinned to the slot (top today) then the note text.
+            out = placesForSlot(slot)
+                .filter((p) => p.placeId)
+                .map((p) => ({ k: freshK(), type: 'place', placeId: p.placeId }) as KB);
+            const txt = (day.plan as Record<string, string> | undefined)?.[slot] || '';
+            if (txt.trim()) out.push({ k: freshK(), type: 'text', text: txt });
+        }
+        // Always leave a text block so the editor has a target to type into.
+        // Empty text blocks render nothing in read-only and are dropped on save.
+        if (!out.some((b) => b.type === 'text')) {
+            out.push({ k: freshK(), type: 'text', text: '' });
+        }
+        return out;
+    };
+
+    const blocksRef = useRef<Record<Slot, KB[]>>({
+        morning: buildSlotBlocks('morning'),
+        afternoon: buildSlotBlocks('afternoon'),
+        evening: buildSlotBlocks('evening'),
+    });
+    const blockTextRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map());
+    const blockRowRefs = useRef<Map<string, HTMLElement>>(new Map());
+    const focusedBlockTa = useRef<HTMLTextAreaElement | null>(null);
+    const dragRef = useRef<{ slot: Slot | null; k: string }>({ slot: null, k: '' });
+
+    useEffect(() => {
+        blocksRef.current = {
+            morning: buildSlotBlocks('morning'),
+            afternoon: buildSlotBlocks('afternoon'),
+            evening: buildSlotBlocks('evening'),
+        };
+        forceRender();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [day.id]);
+
+    const syncBlockTexts = (slot: Slot) => {
+        for (const b of blocksRef.current[slot]) {
+            if (b.type === 'text') {
+                const el = blockTextRefs.current.get(b.k);
+                if (el) b.text = el.value;
+            }
+        }
+    };
+    const flattenSlot = (arr: KB[]) =>
+        arr
+            .filter((b) => b.type === 'text' && (b.text || '').trim())
+            .map((b) => b.text)
+            .join('\n\n');
+    const stripSlot = (arr: KB[]) =>
+        arr.map((b) =>
+            b.type === 'place'
+                ? { type: 'place' as const, placeId: b.placeId || '' }
+                : { type: 'text' as const, text: b.text || '' },
+        );
+    const writeSlotToDay = (slot: Slot) => {
+        const arr = blocksRef.current[slot];
+        const pb = { ...(day.planBlocks || {}) } as Record<string, unknown>;
+        pb[slot] = stripSlot(arr);
+        (day as { planBlocks?: unknown }).planBlocks = pb;
+        (day.plan as Record<string, string>)[slot] = flattenSlot(arr);
+    };
+    // Persist a slot: mirror its blocks into day.planBlocks + the flat plan
+    // string, then run the SAME debounced upsertDay the textarea path used
+    // (syncDayFromInputs no-ops now — there's no single textarea — so it
+    // never clobbers the plan we just wrote).
+    const persistSlot = (slot: Slot) => {
+        syncBlockTexts(slot);
+        writeSlotToDay(slot);
+        queueSave();
+    };
+    const commitBlockTa = (ta: HTMLTextAreaElement) => {
+        const slot = ta.dataset.slot as Slot | undefined;
+        const k = ta.dataset.k;
+        if (!slot || !k) return;
+        const b = blocksRef.current[slot].find((x) => x.k === k);
+        if (b) b.text = ta.value;
+        persistSlot(slot);
+    };
+
+    const moveBlock = (slot: Slot, from: number, to: number) => {
+        const arr = blocksRef.current[slot];
+        if (to < 0 || to >= arr.length || from === to) return;
+        syncBlockTexts(slot);
+        const [it] = arr.splice(from, 1);
+        arr.splice(to, 0, it!);
+        persistSlot(slot);
+        forceRender();
+    };
+    const addTextBlock = (slot: Slot) => {
+        syncBlockTexts(slot);
+        blocksRef.current[slot].push({ k: freshK(), type: 'text', text: '' });
+        persistSlot(slot);
+        forceRender();
+    };
+    const removeTextBlock = (slot: Slot, k: string) => {
+        syncBlockTexts(slot);
+        blocksRef.current[slot] = blocksRef.current[slot].filter((b) => b.k !== k);
+        persistSlot(slot);
+        forceRender();
+    };
+
+    // Reconcile place blocks with the slot's ASSIGNED places (a place added
+    // via the shortlist appears; an unassigned one drops out). Order of
+    // existing blocks is preserved.
+    const placesSig = (['morning', 'afternoon', 'evening'] as Slot[])
+        .map((s) => placesForSlot(s).map((p) => p.placeId).join(','))
+        .join('|');
+    useEffect(() => {
+        let any = false;
+        for (const s of ['morning', 'afternoon', 'evening'] as Slot[]) {
+            const assigned = placesForSlot(s)
+                .map((p) => p.placeId || '')
+                .filter(Boolean);
+            const arr = blocksRef.current[s];
+            const kept = arr.filter((b) => b.type !== 'place' || assigned.includes(b.placeId || ''));
+            const present = new Set(kept.filter((b) => b.type === 'place').map((b) => b.placeId));
+            for (const pid of assigned) {
+                if (!present.has(pid)) kept.push({ k: freshK(), type: 'place', placeId: pid });
+            }
+            if (kept.length !== arr.length || kept.some((b, i) => b !== arr[i])) {
+                blocksRef.current[s] = kept;
+                syncBlockTexts(s);
+                writeSlotToDay(s);
+                any = true;
+            }
+        }
+        if (any) {
+            queueSave();
+            forceRender();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [placesSig]);
+
+    // ── Focused-block formatting toolbar ──────────────────────────────
+    // Each pane owns its own toolbar; the buttons pass their pane's `slot`
+    // so a format action can only ever touch a text block IN THAT SLOT.
+    // We resolve to the last-focused textarea when it belongs to `slot` and
+    // is still mounted; otherwise fall back to the slot's focused-or-last
+    // text block. WITHOUT this slot guard the shared `focusedBlockTa` (never
+    // cleared on blur/tab-switch) would let the visible pane's toolbar mutate
+    // a hidden OTHER slot's note and silently persist the wrong slot.
+    const resolveSlotTa = (slot: Slot): HTMLTextAreaElement | null => {
+        const cur = focusedBlockTa.current;
+        if (cur && cur.dataset.slot === slot && cur.isConnected) return cur;
+        let last: HTMLTextAreaElement | null = null;
+        for (const b of blocksRef.current[slot]) {
+            if (b.type !== 'text') continue;
+            const el = blockTextRefs.current.get(b.k);
+            if (!el) continue;
+            if (el === document.activeElement) return el;
+            last = el;
+        }
+        return last;
+    };
+    const wrapFocused = (slot: Slot, marker: string) => {
+        const ta = resolveSlotTa(slot);
         if (!ta) return;
         const start = ta.selectionStart ?? ta.value.length;
         const end = ta.selectionEnd ?? ta.value.length;
         const selected = ta.value.slice(start, end);
-        // PlanText parses **bold** WITHIN a single line, so a marker pair that
-        // straddled a newline would never render. When the selection spans
-        // lines, wrap each non-blank line on its own instead of the block.
         const multiLine = selected.includes('\n');
         const wrapped = multiLine
             ? selected
@@ -331,16 +531,13 @@ export function DayDetailModal({
             : marker + selected + marker;
         ta.value = ta.value.slice(0, start) + wrapped + ta.value.slice(end);
         ta.focus();
-        // Single-line/empty: caret sits before the closing marker so typing
-        // continues inside the emphasis. Multi-line: caret at the end.
         const caret = multiLine ? start + wrapped.length : start + marker.length + selected.length;
         ta.setSelectionRange(caret, caret);
         autoGrowPlan(ta);
-        queueSave();
-        forceRender();
+        commitBlockTa(ta);
     };
-    const bulletPlanLines = (slot: Slot) => {
-        const ta = planTaRef(slot).current;
+    const bulletFocused = (slot: Slot) => {
+        const ta = resolveSlotTa(slot);
         if (!ta) return;
         const val = ta.value;
         const selStart = ta.selectionStart ?? 0;
@@ -349,23 +546,64 @@ export function DayDetailModal({
         let lineEnd = val.indexOf('\n', selEnd);
         if (lineEnd === -1) lineEnd = val.length;
         const block = val.slice(lineStart, lineEnd);
-        // Toggle: if every non-empty line already starts with "- ", strip
-        // it; otherwise add it. Keeps the button reversible.
         const lines = block.split('\n');
         const nonEmpty = lines.filter((l) => l.trim());
         const allBulleted = nonEmpty.length > 0 && nonEmpty.every((l) => /^\s*[-*]\s+/.test(l));
         const next = lines
-            .map((l) => {
-                if (!l.trim()) return l;
-                return allBulleted ? l.replace(/^(\s*)[-*]\s+/, '$1') : `- ${l}`;
-            })
+            .map((l) => (!l.trim() ? l : allBulleted ? l.replace(/^(\s*)[-*]\s+/, '$1') : `- ${l}`))
             .join('\n');
         ta.value = val.slice(0, lineStart) + next + val.slice(lineEnd);
         ta.focus();
         ta.setSelectionRange(lineStart, lineStart + next.length);
         autoGrowPlan(ta);
-        queueSave();
-        forceRender();
+        commitBlockTa(ta);
+    };
+
+    // ── Pointer drag-to-reorder (grip handle) ─────────────────────────
+    const onGripDown = (e: ReactPointerEvent, slot: Slot, k: string) => {
+        dragRef.current = { slot, k };
+        try {
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        } catch {
+            /* ignore */
+        }
+        e.preventDefault();
+    };
+    const onGripMove = (e: ReactPointerEvent) => {
+        const { slot, k } = dragRef.current;
+        if (!slot || !k) return;
+        const arr = blocksRef.current[slot];
+        const from = arr.findIndex((b) => b.k === k);
+        if (from < 0) return;
+        // Target index = the block whose row centre is nearest the pointer.
+        let to = from;
+        let bestD = Infinity;
+        arr.forEach((b, i) => {
+            const el = blockRowRefs.current.get(b.k);
+            if (!el) return;
+            const r = el.getBoundingClientRect();
+            const d = Math.abs(r.top + r.height / 2 - e.clientY);
+            if (d < bestD) {
+                bestD = d;
+                to = i;
+            }
+        });
+        if (to !== from) {
+            syncBlockTexts(slot);
+            const [it] = arr.splice(from, 1);
+            arr.splice(to, 0, it!);
+            forceRender(); // live shuffle; persist on release
+        }
+    };
+    const onGripUp = (e: ReactPointerEvent) => {
+        const { slot } = dragRef.current;
+        try {
+            (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        } catch {
+            /* ignore */
+        }
+        dragRef.current = { slot: null, k: '' };
+        if (slot) persistSlot(slot);
     };
 
     // Notes are trip-wide (shared with the Trip Hub). They persist on
@@ -462,31 +700,6 @@ export function DayDetailModal({
         return place.preferredHour != null
             ? hourToSlot(place.preferredHour)
             : (place.timeOfDay ?? null);
-    };
-
-    /** Phase G v3 — for each pane, the "places for this slot" strip
-     *  ABOVE the textarea pulls from `trip.markedPlaces` filtered by
-     *  `dayId === day.id`:
-     *    - Items WITH a matching timeOfDay → that slot's pane only
-     *      (AI plan items have these; the AI assigns morning/PM/eve).
-     *    - Items WITHOUT a timeOfDay (manual adds via the home
-     *      InfoWindow) → render in EVERY slot pane so the user sees
-     *      them no matter which time-of-day tab they're on. The user
-     *      hasn't committed them to a slot yet; surfacing in all three
-     *      keeps them top-of-mind without requiring them to click
-     *      through to the AI page to assign.
-     *  The textarea below remains the user's free-form notes. */
-    const placesForSlot = (slot: Slot): MarkedPlace[] => {
-        if (!trip) return [];
-        return (trip.markedPlaces || []).filter((p) => {
-            if (!p || !p.forManual || p.dayId !== day.id) return false;
-            // The user's specific hour wins for slotting; fall back to the
-            // AI-assigned coarse slot; null = "anytime" → show in every pane.
-            const placeSlot = p.preferredHour != null
-                ? hourToSlot(p.preferredHour)
-                : p.timeOfDay;
-            return placeSlot === slot || !placeSlot;
-        });
     };
 
     // Add/move a to-do place to a slot. This ASSIGNS the place to THIS
@@ -813,32 +1026,94 @@ export function DayDetailModal({
         );
     };
 
+    const fmtBtn = (label: string, glyph: ReactNode, onClick: () => void) => (
+        <button type="button" className="plan-md-toolbar__btn" aria-label={label} title={label}
+            onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()}
+            onClick={onClick}>
+            {glyph}
+        </button>
+    );
+
+    const renderBlockRow = (slot: Slot, b: KB, i: number, total: number): ReactNode => (
+        <div key={b.k} className={`plan-block plan-block--${b.type}`}
+            ref={(el) => {
+                if (el) blockRowRefs.current.set(b.k, el);
+                else blockRowRefs.current.delete(b.k);
+            }}>
+            <button type="button" className="plan-block__grip" aria-label={t('dayDetail.blockDrag')}
+                onPointerDown={(e) => onGripDown(e, slot, b.k)}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <circle cx="9" cy="5" r="1.6" /><circle cx="15" cy="5" r="1.6" />
+                    <circle cx="9" cy="12" r="1.6" /><circle cx="15" cy="12" r="1.6" />
+                    <circle cx="9" cy="19" r="1.6" /><circle cx="15" cy="19" r="1.6" />
+                </svg>
+            </button>
+            <div className="plan-block__body">
+                {b.type === 'text' ? (
+                    <>
+                        <textarea className="plain-textarea plan-block__text" data-slot={slot} data-k={b.k}
+                            ref={(el) => {
+                                if (el) blockTextRefs.current.set(b.k, el);
+                                else blockTextRefs.current.delete(b.k);
+                            }}
+                            // Match the server's per-block cap (day_writes.py
+                            // _MAX_PLAN_BLOCK_TEXT) so overflow is blocked at the
+                            // keyboard, never silently truncated on save.
+                            maxLength={4000}
+                            defaultValue={b.text || ''} placeholder={slotPlaceholder[slot]}
+                            onFocus={(e) => { focusedBlockTa.current = e.currentTarget; }}
+                            onInput={(e) => { autoGrowPlan(e.currentTarget); commitBlockTa(e.currentTarget); forceRender(); }} />
+                        {(() => {
+                            const live = blockTextRefs.current.get(b.k)?.value ?? b.text ?? '';
+                            return planTextHasFormatting(live) ? (
+                                <div className="plan-md-preview" aria-hidden="true">
+                                    <div className="plan-md-preview__label">{t('dayDetail.notesPreviewLabel')}</div>
+                                    <PlanText text={live} />
+                                </div>
+                            ) : null;
+                        })()}
+                    </>
+                ) : (
+                    (() => {
+                        const p = placeById(b.placeId);
+                        return p ? renderPlaceCard(p) : null;
+                    })()
+                )}
+            </div>
+            <div className="plan-block__move">
+                <button type="button" aria-label={t('dayDetail.blockUp')} disabled={i === 0}
+                    onClick={() => moveBlock(slot, i, i - 1)}>▲</button>
+                <button type="button" aria-label={t('dayDetail.blockDown')} disabled={i === total - 1}
+                    onClick={() => moveBlock(slot, i, i + 1)}>▼</button>
+                {b.type === 'text' && (
+                    <button type="button" className="plan-block__del" aria-label={t('common.remove')}
+                        onClick={() => removeTextBlock(slot, b.k)}>✕</button>
+                )}
+            </div>
+        </div>
+    );
+
     const renderPane = (slot: Slot): ReactNode => {
-        const places = placesForSlot(slot);
-        // Pluralised count label — the singular/plural divergence is
-        // locale-specific so the t() lookup branches on length === 1.
-        const countLabel = places.length === 1
-            ? t('dayDetail.slotPinnedCountOne', { icon: SLOT_ICON[slot], count: places.length })
-            : t('dayDetail.slotPinnedCountOther', { icon: SLOT_ICON[slot], count: places.length });
-        // All three panes stay mounted (only .is-active is visible) so
-        // the uncontrolled textareas keep their drafts and cold-boot
-        // asserts can read the hidden slots' values.
-        const liveText = planTaRef(slot).current?.value ?? ((day.plan as Record<string, string> | undefined)?.[slot] || '');
+        const blocks = blocksRef.current[slot];
+        const hasContent = blocks.some((b) =>
+            b.type === 'text' ? (b.text || '').trim() : !!placeById(b.placeId),
+        );
         return (
             <div key={slot} className={`day-plan-pane${slot === activeSlot ? ' is-active' : ''}`}
                 data-plan-pane={slot} data-editing={String(!!editing[slot])}
                 style={{ '--accent': SLOT_ACCENT[slot] } as CSSProperties}>
-                {places.length > 0 && (
-                    <div className="day-plan-places" style={{ '--accent': SLOT_ACCENT[slot] } as CSSProperties}>
-                        <div className="day-plan-places__label">{countLabel}</div>
-                        {places.map(renderPlaceCard)}
-                    </div>
-                )}
-                {/* Read-only formatted view — the default. Tap Edit to reveal
-                    the editor below (which stays mounted throughout). */}
+                {/* Read-only: blocks in order — text formatted, places as cards. */}
                 <div className="plan-readonly">
-                    {liveText.trim() ? (
-                        <PlanText text={liveText} />
+                    {hasContent ? (
+                        <div className="plan-blocks-ro">
+                            {blocks.map((b) => {
+                                if (b.type === 'text') {
+                                    return (b.text || '').trim() ? <PlanText key={b.k} text={b.text ?? ''} /> : null;
+                                }
+                                const p = placeById(b.placeId);
+                                return p ? <div key={b.k}>{renderPlaceCard(p)}</div> : null;
+                            })}
+                        </div>
                     ) : (
                         <p className="plan-readonly__empty">{t('dayDetail.notesEmptyHint')}</p>
                     )}
@@ -852,80 +1127,40 @@ export function DayDetailModal({
                         {t('dayDetail.editNote')}
                     </button>
                 </div>
-                <div className="plan-editor">
-                {/* Markdown-lite toolbar — inserts ** ** / "- " markers.
-                    Kept a sibling of the (uncontrolled) textarea so it never
-                    interferes with the draft. */}
-                <div className="plan-md-toolbar" role="toolbar" aria-label={t('dayDetail.fmtToolbarAria')}>
-                    <button type="button" className="plan-md-toolbar__btn" aria-label={t('dayDetail.fmtBoldAria')}
-                        title={t('dayDetail.fmtBoldAria')}
-                        onPointerDown={(e) => e.preventDefault()}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => wrapPlanSelection(slot, '**')}>
-                        <strong>B</strong>
-                    </button>
-                    <button type="button" className="plan-md-toolbar__btn" aria-label={t('dayDetail.fmtItalicAria')}
-                        title={t('dayDetail.fmtItalicAria')}
-                        onPointerDown={(e) => e.preventDefault()}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => wrapPlanSelection(slot, '_')}>
-                        <em>I</em>
-                    </button>
-                    <button type="button" className="plan-md-toolbar__btn" aria-label={t('dayDetail.fmtUnderlineAria')}
-                        title={t('dayDetail.fmtUnderlineAria')}
-                        onPointerDown={(e) => e.preventDefault()}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => wrapPlanSelection(slot, '~')}>
-                        <u>U</u>
-                    </button>
-                    <button type="button" className="plan-md-toolbar__btn plan-md-toolbar__btn--icon"
-                        aria-label={t('dayDetail.fmtBulletAria')} title={t('dayDetail.fmtBulletAria')}
-                        onPointerDown={(e) => e.preventDefault()}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => bulletPlanLines(slot)}>
-                        {/* Standard bullet-list glyph — three dots + lines. */}
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                            <circle cx="4" cy="6" r="1.7" />
-                            <circle cx="4" cy="12" r="1.7" />
-                            <circle cx="4" cy="18" r="1.7" />
-                            <rect x="8.5" y="5" width="11.5" height="2" rx="1" />
-                            <rect x="8.5" y="11" width="11.5" height="2" rx="1" />
-                            <rect x="8.5" y="17" width="11.5" height="2" rx="1" />
-                        </svg>
-                    </button>
-                </div>
-                <textarea ref={planTaRef(slot)} className="plain-textarea plan-input" data-time={slot}
-                    placeholder={slotPlaceholder[slot]}
-                    defaultValue={(day.plan as Record<string, string> | undefined)?.[slot] || ''}
-                    onInput={(ev) => {
-                        autoGrowPlan(ev.currentTarget);
-                        queueSave();
-                        forceRender(); // tab count chips + live preview track live
-                    }} />
-                {/* Live preview — shown ONLY when the note actually uses
-                    formatting (**bold** or a "- " bullet). For plain text it
-                    stays hidden, so it no longer reads as a confusing duplicate
-                    of what you just typed; it appears only when it's genuinely
-                    useful (to show how the markers will render). Reads the
-                    textarea's live value; forceRender on input keeps it fresh. */}
-                {(() => {
-                    const live = planTaRef(slot).current?.value ?? ((day.plan as Record<string, string> | undefined)?.[slot] || '');
-                    if (!planTextHasFormatting(live)) return null;
-                    return (
-                        <div className="plan-md-preview" aria-hidden="true">
-                            <div className="plan-md-preview__label">{t('dayDetail.notesPreviewLabel')}</div>
-                            <PlanText text={live} />
-                        </div>
-                    );
-                })()}
-                    <button type="button" className="plan-editor__done"
-                        onClick={() => {
-                            queueSave();
-                            setEditing((e) => ({ ...e, [slot]: false }));
-                            forceRender();
-                        }}>
-                        {t('dayDetail.doneEditing')}
-                    </button>
+                {/* Editor: focused-block toolbar + reorderable block list. */}
+                <div className="plan-editor" onPointerMove={onGripMove} onPointerUp={onGripUp}
+                    onPointerCancel={onGripUp}>
+                    <div className="plan-md-toolbar" role="toolbar" aria-label={t('dayDetail.fmtToolbarAria')}>
+                        {fmtBtn(t('dayDetail.fmtBoldAria'), <strong>B</strong>, () => wrapFocused(slot, '**'))}
+                        {fmtBtn(t('dayDetail.fmtItalicAria'), <em>I</em>, () => wrapFocused(slot, '_'))}
+                        {fmtBtn(t('dayDetail.fmtUnderlineAria'), <u>U</u>, () => wrapFocused(slot, '~'))}
+                        {fmtBtn(
+                            t('dayDetail.fmtBulletAria'),
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <circle cx="4" cy="6" r="1.7" /><circle cx="4" cy="12" r="1.7" /><circle cx="4" cy="18" r="1.7" />
+                                <rect x="8.5" y="5" width="11.5" height="2" rx="1" />
+                                <rect x="8.5" y="11" width="11.5" height="2" rx="1" />
+                                <rect x="8.5" y="17" width="11.5" height="2" rx="1" />
+                            </svg>,
+                            () => bulletFocused(slot),
+                        )}
+                    </div>
+                    <div className="plan-blocks">
+                        {blocks.map((b, i) => renderBlockRow(slot, b, i, blocks.length))}
+                    </div>
+                    <div className="plan-editor__actions">
+                        <button type="button" className="plan-editor__add" onClick={() => addTextBlock(slot)}>
+                            + {t('dayDetail.addNote')}
+                        </button>
+                        <button type="button" className="plan-editor__done"
+                            onClick={() => {
+                                persistSlot(slot);
+                                setEditing((e) => ({ ...e, [slot]: false }));
+                                forceRender();
+                            }}>
+                            {t('dayDetail.doneEditing')}
+                        </button>
+                    </div>
                 </div>
             </div>
         );

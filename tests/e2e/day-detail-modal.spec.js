@@ -172,9 +172,10 @@ test.describe('Day-detail modal (editable)', () => {
         // ── Morning slot. Arm the POST BEFORE typing — the 700ms debounce
         // (queueSave) fires it whenever it pleases after the keystroke.
         let posted = armDaysPost(page);
-        const morningTa = dialog.locator('textarea.plan-input[data-time="morning"]');
-        // Notes are read-only by default now — tap Edit to reveal the editor.
+        // Notes are read-only by default now — tap Edit to reveal the block
+        // editor, then type into its first (default, empty) text block.
         await dialog.locator('.day-plan-pane[data-plan-pane="morning"] .plan-readonly__edit').click();
+        const morningTa = dialog.locator('.day-plan-pane[data-plan-pane="morning"] textarea.plan-block__text').first();
         await morningTa.fill(MORNING_TEXT);
         // Status leaves idle immediately ('Editing…'), then walks
         // Editing… → Saving… → Saved ✓. The intermediate states are
@@ -194,7 +195,10 @@ test.describe('Day-detail modal (editable)', () => {
         await expect(eveningTab).toHaveAttribute('aria-selected', 'true');
         posted = armDaysPost(page);
         await dialog.locator('.day-plan-pane[data-plan-pane="evening"] .plan-readonly__edit').click();
-        await dialog.locator('textarea.plan-input[data-time="evening"]').fill(EVENING_TEXT);
+        await dialog
+            .locator('.day-plan-pane[data-plan-pane="evening"] textarea.plan-block__text')
+            .first()
+            .fill(EVENING_TEXT);
         expect((await posted).ok()).toBe(true);
 
         // 'Saved ✓' decays back to the idle promise after 1400ms so the
@@ -221,11 +225,17 @@ test.describe('Day-detail modal (editable)', () => {
         // optimistic echo lingering in the previous page's STATE.
         await openTripWithMedia(page, USER_ID, TRIP_ID);
         const dialog = await openDayModal(page);
-        // toHaveValue reads the hidden evening textarea too — all three
-        // panes stay in the DOM (the source keeps them mounted so the
-        // autosave handlers bind once), only .is-active is visible.
-        await expect(dialog.locator('textarea.plan-input[data-time="morning"]')).toHaveValue(MORNING_TEXT);
-        await expect(dialog.locator('textarea.plan-input[data-time="evening"]')).toHaveValue(EVENING_TEXT);
+        // Cold boot renders the saved plan READ-ONLY (the block editor stays
+        // collapsed until Edit). Both slots' read-only renders live in the
+        // DOM (only .is-active is visible), so textContent asserts the
+        // durable plan regardless of which tab is active — proving the
+        // saved rows re-hydrated from the server, not an optimistic echo.
+        await expect(dialog.locator('.day-plan-pane[data-plan-pane="morning"] .plan-blocks-ro')).toContainText(
+            MORNING_TEXT
+        );
+        await expect(dialog.locator('.day-plan-pane[data-plan-pane="evening"] .plan-blocks-ro')).toContainText(
+            EVENING_TEXT
+        );
 
         // ── Checklist lives in the bookmark drawer (numbered days only —
         // the panel renders inside .day-detail-drawer__view[data-view=
@@ -329,8 +339,11 @@ test.describe('Day-detail modal (editable)', () => {
         // The afternoon pane is now active and hosts the place card
         // (same representation AI-planned places get).
         await expect(dialog.locator('button[data-plan-tab="afternoon"]')).toHaveAttribute('aria-selected', 'true');
+        // Scope to the read-only render (.plan-blocks-ro): the block editor
+        // also mounts the card in the DOM, so an unscoped locator would
+        // resolve to two elements and trip Playwright's strict mode.
         const card = dialog.locator(
-            `.day-plan-pane[data-plan-pane="afternoon"] .day-plan-place-wrap[data-place-id="${PLACE_ID}"]`
+            `.day-plan-pane[data-plan-pane="afternoon"] .plan-blocks-ro .day-plan-place-wrap[data-place-id="${PLACE_ID}"]`
         );
         await expect(card).toBeVisible();
         await expect(card).toContainText(PLACE_NAME);

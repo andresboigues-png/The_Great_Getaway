@@ -6850,6 +6850,92 @@ main#app-container.nav-anim-backward {
     border-color: transparent;
 }
 
+/* ── Interleaved block editor (text + place cards, reorderable) ─────── */
+.plan-blocks-ro > * + * {
+    margin-top: 10px;
+}
+.plan-blocks {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.plan-block {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+}
+.plan-block__grip {
+    flex-shrink: 0;
+    align-self: stretch;
+    width: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: grab;
+    touch-action: none;
+}
+.plan-block__grip:active {
+    cursor: grabbing;
+}
+.plan-block__body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.plan-block__text {
+    width: 100%;
+}
+.plan-block--place .plan-block__body {
+    /* the place card already carries its own frame */
+    padding-top: 2px;
+}
+.plan-block__move {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.plan-block__move button {
+    width: 26px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.12));
+    background: var(--bg-color, #fff);
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    cursor: pointer;
+}
+.plan-block__move button:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+.plan-block__del {
+    color: #ff3b30 !important;
+}
+.plan-editor__actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 12px;
+}
+.plan-editor__add {
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px dashed var(--glass-border, rgba(0, 45, 91, 0.28));
+    background: transparent;
+    color: var(--accent-blue, #0071e3);
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
 /* Italic muted helper text. */
 .dvm-italic-muted {
     margin: 0;
