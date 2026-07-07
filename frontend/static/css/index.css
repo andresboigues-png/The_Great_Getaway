@@ -1343,9 +1343,10 @@ body.is-signed-out .rail-peek {
         overscroll-behavior: contain;
         scrollbar-width: none;
         -ms-overflow-style: none;
-        /* Gentler fade so ~3 icons read clearly as a wheel (was too hidden). */
-        -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22%, #000 78%, transparent 100%);
-        mask-image: linear-gradient(to bottom, transparent 0, #000 22%, #000 78%, transparent 100%);
+        /* Fade the top/bottom so it reads as a wheel — tuned so the edge
+           icons dim a touch without hiding the reel. */
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 28%, #000 72%, transparent 100%);
+        mask-image: linear-gradient(to bottom, transparent 0, #000 28%, #000 72%, transparent 100%);
     }
     .sidebar-rail::-webkit-scrollbar {
         display: none;
