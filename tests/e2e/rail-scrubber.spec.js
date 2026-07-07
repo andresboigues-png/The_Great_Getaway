@@ -1,10 +1,12 @@
 // @ts-check
 // Mobile "roulette" nav rail (bootstrap/railScrubber.ts). On a phone the
 // rail is a SHORT 3-icon window; the icons form a reel spun by swiping the
-// rail or dragging the right-edge line, and it navigates to whatever icon
-// it settles on. The spin FEEL needs a real device; the structural
-// contract (line shows on mobile, reel scrolls, spin→settle→navigate) is
-// what's guarded here.
+// rail or dragging the right-edge line. Spinning only MOVES the selection
+// (focus ring) — it does NOT navigate. Committing takes a deliberate TAP:
+// a simple tap on the line commits whatever's centred, or a direct tap on
+// an icon commits it; either way the reel closes. The spin FEEL needs a
+// real device; the structural contract (line shows on mobile, reel scrolls,
+// scroll≠navigate, tap→navigate+close) is what's guarded here.
 
 import { test, expect } from '@playwright/test';
 import { openFreshApp } from './helpers.js';
@@ -40,8 +42,9 @@ test.describe('Rail reel', () => {
         });
     });
 
-    test('dragging the line to an icon spins the reel + navigates on settle', async ({ page }) => {
-        await openFreshApp(page, uniqueId('user'));
+    /** Open the reel and drag the line so `insights` is the centred icon.
+     *  Returns the line's bounding box for the follow-up tap. */
+    async function openAndCentreInsights(page) {
         await page.locator('#railPeek').click();
         await expect(page.locator('#sidebarRail')).toHaveClass(/is-open/);
         const line = page.locator('.rail-scrubber');
@@ -65,11 +68,50 @@ test.describe('Rail reel', () => {
         const startY = box.y + 4;
         const targetY = box.y + frac * box.height;
 
+        // A real drag (well past TAP_SLOP) — this is a scrub, not a tap.
         await page.mouse.move(x, startY);
         await page.mouse.down();
         await page.mouse.move(x, (startY + targetY) / 2);
         await page.mouse.move(x, targetY);
         await page.mouse.up();
+
+        // Insights is now the centred/focused icon.
+        await expect(page.locator('#sidebarRail .sidebar-rail__item[data-page="insights"]')).toHaveClass(/is-focus/, {
+            timeout: 2000,
+        });
+        return box;
+    }
+
+    test('scrubbing the line MOVES the selection but does NOT navigate', async ({ page }) => {
+        await openFreshApp(page, uniqueId('user'));
+        await openAndCentreInsights(page);
+
+        // Scrolling/scrubbing alone must never navigate, and the reel stays
+        // open waiting for a deliberate commit.
+        await page.waitForTimeout(300); // past the old 150ms auto-settle window
+        expect(await page.evaluate(() => location.hash)).not.toContain('insights');
+        await expect(page.locator('#sidebarRail')).toHaveClass(/is-open/);
+    });
+
+    test('a simple tap on the line commits the centred icon + closes the reel', async ({ page }) => {
+        await openFreshApp(page, uniqueId('user'));
+        const box = await openAndCentreInsights(page);
+
+        // A tap (down+up, no travel) on the line commits whatever's centred —
+        // it must NOT reposition the reel to the tapped Y.
+        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+        await expect.poll(() => page.evaluate(() => location.hash)).toContain('insights');
+        await expect(page.locator('#sidebarRail')).not.toHaveClass(/is-open/);
+    });
+
+    test('a direct tap on an icon commits it + closes the reel', async ({ page }) => {
+        await openFreshApp(page, uniqueId('user'));
+        await openAndCentreInsights(page);
+
+        // Tap the centred icon itself — the delegated [data-page] handler
+        // navigates and the reel collapses on selection.
+        await page.locator('#sidebarRail .sidebar-rail__item[data-page="insights"]').click();
 
         await expect.poll(() => page.evaluate(() => location.hash)).toContain('insights');
         await expect(page.locator('#sidebarRail')).not.toHaveClass(/is-open/);

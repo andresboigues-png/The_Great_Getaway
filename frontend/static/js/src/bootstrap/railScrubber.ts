@@ -6,9 +6,12 @@
 //   • drag the translucent right-edge line (right-thumb reach) — its
 //     position maps to the reel's scroll, so a left-rail spin and a
 //     right-line spin do the same thing.
-// When the reel SETTLES on an icon it navigates there (auto-go on settle);
-// it clamps at the ends (no wrap). Desktop (>720px) keeps the full static
-// rail and never shows the line.
+// Spinning only MOVES the selection (focus ring + haptic tick); it does NOT
+// navigate on its own. Committing takes a deliberate TAP — either directly
+// on the centred icon, or a simple tap on the right-edge line (which commits
+// whatever's currently centred). This avoids the "scroll past and it jumps
+// pages under you" surprise. It clamps at the ends (no wrap). Desktop
+// (>720px) keeps the full static rail and never shows the line.
 //
 // The haptics + spin FEEL can only really be judged on a device; the
 // structure (short window, spin → settle → navigate) is what's built here.
@@ -78,54 +81,67 @@ export function initRailScrubber(): void {
         focusIdx = idx;
     };
 
-    // While we programmatically recentre (on open), don't auto-navigate.
-    let suppress = false;
     let dragging = false;
     const centerOn = (idx: number, smooth: boolean): void => {
         const it = items()[idx];
         if (!it) return;
-        suppress = true;
         // Scroll the RAIL only (offsetParent is the fixed rail) — never the
         // page — so opening the reel can't jump the whole view.
         const top = it.offsetTop - (rail.clientHeight - it.offsetHeight) / 2;
         rail.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
         window.setTimeout(() => {
-            suppress = false;
             focusIdx = idx;
             items().forEach((el, i) => el.classList.toggle('is-focus', i === idx));
         }, smooth ? 420 : 60);
     };
 
-    // ── Settle → navigate (auto-go on settle) ───────────────────────────
-    const settle = (): void => {
-        if (!isReel() || suppress || dragging) return;
-        const it = items()[centeredIndex()];
-        if (!it) return;
-        const active = rail.querySelector<HTMLElement>('.sidebar-rail__item.active');
-        if (active === it) return; // already on this page — nothing to do
-        it.click(); // delegated [data-page] click path in main.ts navigates
+    // Close the reel (collapse the roulette back to a short window). Called
+    // after a commit so a selection dismisses the picker.
+    const closeReel = (): void => {
         rail.classList.remove('is-open');
         document.getElementById('hamburgerBtn')?.setAttribute('aria-expanded', 'false');
     };
 
-    // `scrollend` is the crisp signal (fires once the spin + snap fully
-    // stop); a debounce covers browsers without it. Both funnel to settle().
-    let settleT = 0;
+    // ── Commit the centred item (tap-only; NEVER fired by scrolling) ─────
+    // A deliberate tap on the line, or on the centred icon itself, lands
+    // here. Scrolling just repaints the focus ring — it no longer navigates.
+    const activateCentered = (): void => {
+        if (!isReel()) return;
+        const it = items()[centeredIndex()];
+        if (!it) return;
+        const active = rail.querySelector<HTMLElement>('.sidebar-rail__item.active');
+        if (active !== it) it.click(); // delegated [data-page] path navigates
+        closeReel();
+    };
+
+    // Spinning only moves the selection: keep the focus ring live during the
+    // scroll + snap, but do NOT auto-navigate. `scrollend` is the crisp
+    // "snap fully stopped" signal; both just repaint focus.
     rail.addEventListener('scroll', () => {
         if (!isReel()) return;
         paintFocus();
-        window.clearTimeout(settleT);
-        settleT = window.setTimeout(settle, 150);
     });
     rail.addEventListener('scrollend', () => {
-        window.clearTimeout(settleT);
-        settle();
+        if (!isReel()) return;
+        paintFocus();
     });
 
-    // ── Right line drag → drive the reel's scroll ───────────────────────
-    // Snap is disabled during the drag so setting scrollTop live doesn't
-    // fight the snap engine; releasing re-enables it and the reel snaps +
-    // settles → navigates.
+    // A direct tap on an icon commits it: the delegated [data-page] handler
+    // (nav-chrome) navigates; here we just collapse the reel so the picker
+    // dismisses on selection, matching the line-tap commit.
+    rail.addEventListener('click', (e) => {
+        if (!isReel()) return;
+        if ((e.target as HTMLElement | null)?.closest('.sidebar-rail__item')) closeReel();
+    });
+
+    // ── Right line: drag to scrub, simple tap to commit ─────────────────
+    // Snap is disabled during a drag so setting scrollTop live doesn't fight
+    // the snap engine; releasing re-enables it and snaps to the centred item
+    // (WITHOUT navigating). A press that never moves past TAP_SLOP is a tap →
+    // it commits the currently centred item.
+    const TAP_SLOP = 6; // px of travel below which a press counts as a tap
+    let downY = 0;
+    let moved = false;
     const applyDrag = (clientY: number): void => {
         const lr = line.getBoundingClientRect();
         const frac = Math.max(0, Math.min(1, (clientY - lr.top) / (lr.height || 1)));
@@ -137,6 +153,8 @@ export function initRailScrubber(): void {
     line.addEventListener('pointerdown', (e) => {
         if (!isReel()) return;
         dragging = true;
+        moved = false;
+        downY = e.clientY;
         line.classList.add('is-active');
         rail.style.scrollSnapType = 'none';
         try {
@@ -144,12 +162,14 @@ export function initRailScrubber(): void {
         } catch {
             /* ignore */
         }
-        applyDrag(e.clientY);
+        // Don't scroll on the initial press — wait to see if it's a scrub or
+        // a tap. A tap must NOT reposition the reel (it commits what's centred).
         e.preventDefault();
     });
     line.addEventListener('pointermove', (e) => {
         if (!dragging) return;
-        applyDrag(e.clientY);
+        if (!moved && Math.abs(e.clientY - downY) > TAP_SLOP) moved = true;
+        if (moved) applyDrag(e.clientY);
         e.preventDefault();
     });
     const endDrag = (e: PointerEvent): void => {
@@ -163,10 +183,13 @@ export function initRailScrubber(): void {
         } catch {
             /* ignore */
         }
-        // Snap to the centred item; its scroll + scrollend fire settle→navigate.
-        centerOn(centeredIndex(), true);
-        suppress = false; // we DO want this settle to navigate
-        window.setTimeout(settle, 60);
+        if (moved) {
+            // Was a scrub — snap to the centred item, but DON'T navigate.
+            centerOn(centeredIndex(), true);
+        } else {
+            // A simple tap on the line commits whatever's currently centred.
+            activateCentered();
+        }
     };
     line.addEventListener('pointerup', endDrag);
     line.addEventListener('pointercancel', endDrag);
