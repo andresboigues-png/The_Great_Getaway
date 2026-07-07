@@ -14,17 +14,21 @@
 import type { ReactNode } from 'react';
 import { t } from '../../i18n.js';
 
-/** Split one line into plain-text + **bold** runs. Non-greedy, no nesting
- *  — a stray unmatched `**` is left as literal text. */
+/** Split one line into plain-text + **bold** / _italic_ / ~underline~ runs.
+ *  Non-greedy, no nesting — a stray unmatched marker is left as literal
+ *  text. `_`/`~` (not `*`) for italic/underline so they never collide with
+ *  the `* ` bullet syntax. */
 function inlineRuns(line: string): ReactNode[] {
     const out: ReactNode[] = [];
-    const re = /\*\*(.+?)\*\*/g;
+    const re = /\*\*(.+?)\*\*|_(.+?)_|~(.+?)~/g;
     let last = 0;
     let key = 0;
     let m: RegExpExecArray | null;
     while ((m = re.exec(line)) !== null) {
         if (m.index > last) out.push(line.slice(last, m.index));
-        out.push(<strong key={`b-${key++}`}>{m[1]}</strong>);
+        if (m[1] !== undefined) out.push(<strong key={`b-${key++}`}>{m[1]}</strong>);
+        else if (m[2] !== undefined) out.push(<em key={`i-${key++}`}>{m[2]}</em>);
+        else out.push(<u key={`u-${key++}`}>{m[3]}</u>);
         last = m.index + m[0].length;
     }
     if (last < line.length) out.push(line.slice(last));
@@ -41,7 +45,12 @@ export function planTextHasContent(text?: string | null): boolean {
  *  when it's meaningful (never for plain text). */
 export function planTextHasFormatting(text?: string | null): boolean {
     if (!text) return false;
-    return /\*\*[^*\n]+\*\*/.test(text) || /(^|\n)[ \t]*[-*][ \t]+\S/.test(text);
+    return (
+        /\*\*[^*\n]+\*\*/.test(text) ||
+        /_[^_\n]+_/.test(text) ||
+        /~[^~\n]+~/.test(text) ||
+        /(^|\n)[ \t]*[-*][ \t]+\S/.test(text)
+    );
 }
 
 export function PlanText({

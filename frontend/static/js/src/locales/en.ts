@@ -2209,6 +2209,8 @@ export const en = {
         removeFromDay: 'Remove from this day',
         fmtToolbarAria: 'Text formatting',
         fmtBoldAria: 'Bold',
+        fmtItalicAria: 'Italic',
+        fmtUnderlineAria: 'Underline',
         fmtBulletAria: 'Bullet list',
         notesPreviewLabel: 'Preview',
         editNote: 'Edit',

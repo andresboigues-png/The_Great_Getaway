@@ -1793,6 +1793,8 @@ export const pt: Translations = {
         removeFromDay: 'Remover deste dia',
         fmtToolbarAria: 'Formatação de texto',
         fmtBoldAria: 'Negrito',
+        fmtItalicAria: 'Itálico',
+        fmtUnderlineAria: 'Sublinhado',
         fmtBulletAria: 'Lista com marcadores',
         notesPreviewLabel: 'Pré-visualização',
         editNote: 'Editar',

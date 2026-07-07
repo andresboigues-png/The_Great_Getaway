@@ -864,6 +864,20 @@ export function DayDetailModal({
                         onClick={() => wrapPlanSelection(slot, '**')}>
                         <strong>B</strong>
                     </button>
+                    <button type="button" className="plan-md-toolbar__btn" aria-label={t('dayDetail.fmtItalicAria')}
+                        title={t('dayDetail.fmtItalicAria')}
+                        onPointerDown={(e) => e.preventDefault()}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => wrapPlanSelection(slot, '_')}>
+                        <em>I</em>
+                    </button>
+                    <button type="button" className="plan-md-toolbar__btn" aria-label={t('dayDetail.fmtUnderlineAria')}
+                        title={t('dayDetail.fmtUnderlineAria')}
+                        onPointerDown={(e) => e.preventDefault()}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => wrapPlanSelection(slot, '~')}>
+                        <u>U</u>
+                    </button>
                     <button type="button" className="plan-md-toolbar__btn plan-md-toolbar__btn--icon"
                         aria-label={t('dayDetail.fmtBulletAria')} title={t('dayDetail.fmtBulletAria')}
                         onPointerDown={(e) => e.preventDefault()}

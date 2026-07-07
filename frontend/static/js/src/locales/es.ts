@@ -1789,6 +1789,8 @@ export const es: Translations = {
         removeFromDay: 'Quitar de este día',
         fmtToolbarAria: 'Formato de texto',
         fmtBoldAria: 'Negrita',
+        fmtItalicAria: 'Cursiva',
+        fmtUnderlineAria: 'Subrayado',
         fmtBulletAria: 'Lista con viñetas',
         notesPreviewLabel: 'Vista previa',
         editNote: 'Editar',
