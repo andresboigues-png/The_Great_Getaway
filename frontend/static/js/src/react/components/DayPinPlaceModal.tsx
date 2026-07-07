@@ -18,7 +18,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { whenGoogleMapsReady } from '../../googleMapsServices.js';
 import { t } from '../../i18n.js';
-import { setDayPinFromPlace } from '../../pages/home-mount/handlers.js';
+import { setDayPinFromPlace, beginManualDayPin } from '../../pages/home-mount/handlers.js';
 
 export function DayPinPlaceModal({ dayId, n, close }: { dayId: string; n: number; close: () => void }) {
     const inputRef = useRef<HTMLInputElement>(null);
@@ -72,6 +72,36 @@ export function DayPinPlaceModal({ dayId, n, close }: { dayId: string; n: number
                 placeholder={mapsUnavailable ? t('dayPinPlace.mapsUnavailable') : t('dayPinPlace.placeholder')}
                 aria-label={t('dayPinPlace.placeholder')}
             />
+            <div
+                className="form-hint"
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    margin: '16px 0',
+                    fontSize: '0.78rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                }}
+            >
+                <span style={{ flex: 1, height: 1, background: 'var(--glass-border, rgba(0,45,91,0.14))' }} />
+                {t('dayPinPlace.orManual')}
+                <span style={{ flex: 1, height: 1, background: 'var(--glass-border, rgba(0,45,91,0.14))' }} />
+            </div>
+            {/* The other way in: close and drop/drag the pin on the map by hand.
+                Works whether or not Maps search is available. */}
+            <button
+                type="button"
+                id="dayPinPlaceManual"
+                className="btn-primary"
+                style={{ width: '100%' }}
+                onClick={() => {
+                    close();
+                    beginManualDayPin(dayId);
+                }}
+            >
+                {t('dayPinPlace.manualBtn')}
+            </button>
             <div className="mdl-btn-row" style={{ marginTop: 16 }}>
                 <button type="button" id="dayPinPlaceCancel" className="btn-ghost flex-1" onClick={close}>
                     {t('modals.newTripCancelBtn')}

@@ -1412,6 +1412,8 @@ export const es: Translations = {
         prompt: 'Busca un lugar: su ubicación será el pin de este día.',
         placeholder: 'Busca un lugar…',
         mapsUnavailable: 'Mapa no disponible: coloca el pin en el mapa.',
+        orManual: 'o',
+        manualBtn: '📍 Coloca el pin en el mapa',
     },
     tripHub: {
         cardTitle: 'Centro del viaje',
@@ -1490,7 +1492,6 @@ export const es: Translations = {
         btnSetAnchorPin: '📍 Establecer pin del Centro',
         btnEditPin: '📍 Editar pin',
         btnAddPin: '📍 Añadir pin',
-        btnPinManual: 'Poner un pin',
         btnPinPlace: 'Fijar un lugar',
         btnDocuments: '📎 Documentos',
         btnPhotos: '📸 Fotos',

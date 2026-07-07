@@ -1744,6 +1744,8 @@ export const en = {
         prompt: "Search a place — its location becomes this day's pin.",
         placeholder: 'Search for a place…',
         mapsUnavailable: 'Maps unavailable — drop the pin on the map instead.',
+        orManual: 'or',
+        manualBtn: '📍 Drop the pin on the map',
     },
     tripHub: {
         cardTitle: 'Trip Hub',
@@ -1844,7 +1846,6 @@ export const en = {
         btnSetAnchorPin: '📍 Set anchor pin',
         btnEditPin: '📍 Edit pin',
         btnAddPin: '📍 Add pin',
-        btnPinManual: 'Drop a pin',
         btnPinPlace: 'Pin a place',
         btnDocuments: '📎 Documents',
         btnPhotos: '📸 Photos',

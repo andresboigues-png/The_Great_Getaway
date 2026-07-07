@@ -49,10 +49,9 @@ import { paintWeatherChips, loadAndPaintWeather, type WeatherForecast } from '..
 import { canEdit, canManageRoster, getMyRole, ROLE_PLANNER, ROLE_BUDGETEER } from '../../permissions.js';
 import { findTripCompanionByLinkedUser } from '../../companions.js';
 import {
-    addDayPin,
+    beginManualDayPin,
     deleteDay,
     deleteDayPin,
-    editDayPin,
     saveDayPin,
     setActiveHomeTab,
     activeHomeTab,
@@ -318,10 +317,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
             }
             const togglePinBtn = target.closest('.day-pin-toggle-btn') as HTMLElement | null;
             if (togglePinBtn?.dataset.dayId) {
-                const dayId = togglePinBtn.dataset.dayId;
-                const day = STATE.tripDays.find((d) => d.id === dayId);
-                if (day?.lat) editDayPin(dayId);
-                else addDayPin(dayId);
+                beginManualDayPin(togglePinBtn.dataset.dayId);
                 return;
             }
             // "Search a place" — set the day pin from a Places lookup.

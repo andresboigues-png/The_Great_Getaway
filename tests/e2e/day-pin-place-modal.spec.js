@@ -43,6 +43,11 @@ test('pin-by-place modal disables its input when Maps is unavailable', async ({ 
     if (!(await placeBtn.isVisible().catch(() => false))) {
         await page.locator(`.path-card-collapse-btn[data-day-id="${DAY_ID}"]`).click({ timeout: 10000 });
     }
+    // Consolidation contract: ONE pin entry point on a numbered day — the old
+    // separate "Drop a pin" (.day-pin-toggle-btn) button is gone; manual lives
+    // inside this modal now.
+    await expect(page.locator(`.day-pin-place-btn[data-day-id="${DAY_ID}"]`)).toHaveCount(1);
+    await expect(page.locator(`.day-pin-toggle-btn[data-day-id="${DAY_ID}"]`)).toHaveCount(0);
     await placeBtn.click({ timeout: 10000 });
 
     const dialog = page.locator('.modal-overlay [role="dialog"]');
@@ -54,7 +59,34 @@ test('pin-by-place modal disables its input when Maps is unavailable', async ({ 
     // catch path disables the input.
     await expect(input).toBeDisabled({ timeout: 15000 });
     await expect(input).toHaveAttribute('placeholder', /manual|unavailable/i);
+    // The manual option is offered right here — even with search unavailable.
+    await expect(dialog.locator('#dayPinPlaceManual')).toBeVisible();
     // Cancel closes through the bridge.
     await dialog.locator('#dayPinPlaceCancel').click();
     await expect(page.locator('.modal-overlay')).toHaveCount(0);
+});
+
+test('the modal\'s "drop on map" button closes it and arms manual pin placement', async ({ page }) => {
+    const auth = await getAuthForApi(page, USER_ID);
+    await createTripViaApi(page, auth.headers, { id: TRIP_ID, name: 'PinPlace Trip 2' });
+    await page.request.post('/api/days', {
+        headers: auth.headers,
+        data: { day: { id: DAY_ID, tripId: TRIP_ID, dayNumber: 1, name: 'Pin day', date: '2026-08-02' } },
+    });
+
+    await openTripWithMedia(page, USER_ID, TRIP_ID);
+    await page.locator('.trip-tabnav__tab[data-tab="days"]').click({ timeout: 10000 });
+    const placeBtn = page.locator(`.day-pin-place-btn[data-day-id="${DAY_ID}"]`);
+    if (!(await placeBtn.isVisible().catch(() => false))) {
+        await page.locator(`.path-card-collapse-btn[data-day-id="${DAY_ID}"]`).click({ timeout: 10000 });
+    }
+    await placeBtn.click({ timeout: 10000 });
+    const dialog = page.locator('.modal-overlay [role="dialog"]');
+    await expect(dialog).toBeVisible();
+
+    // Choosing "drop on map" dismisses the modal and puts the day into manual
+    // pin-edit mode — the day card swaps its pin button for Save/Cancel.
+    await dialog.locator('#dayPinPlaceManual').click();
+    await expect(page.locator('.modal-overlay')).toHaveCount(0);
+    await expect(page.locator(`.day-pin-save-btn[data-day-id="${DAY_ID}"]`)).toBeVisible({ timeout: 10000 });
 });

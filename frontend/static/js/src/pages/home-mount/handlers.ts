@@ -127,6 +127,15 @@ export const editDayPin = (dayId: string): void => {
     navigate('home', null, true);
 };
 
+/** Enter manual pin placement for a day: drop a fresh pin by clicking the map
+ *  (no coords yet) or re-drag the existing marker (coords set). Shared by the
+ *  anchor's manual pin button and the "Pin a place" modal's on-map option. */
+export const beginManualDayPin = (dayId: string): void => {
+    const day = STATE.tripDays.find((d) => d.id === dayId);
+    if (day?.lat) editDayPin(dayId);
+    else addDayPin(dayId);
+};
+
 /** Cancel the in-flight pin edit: revert the day's coords to the
  *  pre-edit snapshot, clear all edit state, navigate to repaint.
  *

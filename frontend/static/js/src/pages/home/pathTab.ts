@@ -274,13 +274,10 @@ function buildOptionsStack(
         const pinLabel = day.lat ? t('pathTab.btnEditAnchorPin') : t('pathTab.btnSetAnchorPin');
         buttons.push(`<button class="day-action-btn day-action-btn--neutral day-pin-toggle-btn" data-day-id="${esc(day.id)}">${_btnContent('pin', pinLabel)}</button>`);
     } else {
-        // Two ways to set a numbered day's pin, side by side: drop it on the
-        // map by hand, or search a place (its location becomes the pin).
+        // One entry point for a numbered day's pin: "Pin a place" opens a modal
+        // to search a place OR drop/drag the pin on the map by hand.
         buttons.push(
-            `<div class="path-pin-row">`
-            + `<button class="day-action-btn day-action-btn--neutral day-pin-toggle-btn" data-day-id="${esc(day.id)}">${_btnContent('pin', t('pathTab.btnPinManual'))}</button>`
-            + `<button class="day-action-btn day-action-btn--neutral day-pin-place-btn" data-day-id="${esc(day.id)}">${_btnContent('pin', t('pathTab.btnPinPlace'))}</button>`
-            + `</div>`,
+            `<button class="day-action-btn day-action-btn--neutral day-pin-place-btn" data-day-id="${esc(day.id)}">${_btnContent('pin', t('pathTab.btnPinPlace'))}</button>`,
         );
     }
     if (isAnchor) {

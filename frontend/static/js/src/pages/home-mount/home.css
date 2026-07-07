@@ -2179,16 +2179,6 @@
     width: 100%;
     justify-content: center;
 }
-/* Two pin-setting buttons side by side ("Drop a pin" | "Search a place"). */
-.path-options-stack .path-pin-row {
-    display: flex;
-    gap: 6px;
-}
-.path-options-stack .path-pin-row .day-action-btn {
-    flex: 1;
-    width: auto;
-    min-width: 0;
-}
 .path-options-stack .path-primary-btn {
     width: 100%;
     padding: 10px 16px;

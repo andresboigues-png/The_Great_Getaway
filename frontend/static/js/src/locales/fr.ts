@@ -1417,6 +1417,8 @@ export const fr: Translations = {
         prompt: 'Cherchez un lieu : sa position devient le repère de ce jour.',
         placeholder: 'Rechercher un lieu…',
         mapsUnavailable: 'Carte indisponible — placez le repère sur la carte.',
+        orManual: 'ou',
+        manualBtn: '📍 Placer le repère sur la carte',
     },
     tripHub: {
         cardTitle: 'Camp de base',
@@ -1495,7 +1497,6 @@ export const fr: Translations = {
         btnSetAnchorPin: "📍 Définir l'épingle du Centre",
         btnEditPin: "📍 Modifier l'épingle",
         btnAddPin: '📍 Ajouter une épingle',
-        btnPinManual: 'Placer un repère',
         btnPinPlace: 'Épingler un lieu',
         btnDocuments: '📎 Documents',
         btnPhotos: '📸 Photos',
