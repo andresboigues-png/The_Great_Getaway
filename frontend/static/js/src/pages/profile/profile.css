@@ -25,6 +25,15 @@
     max-width: 300px;
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
 }
+/* On a phone the footprint map is narrow and its card clips overflow, so a
+   240–300px InfoWindow gets cut off on the right. Let it shrink and cap it to
+   the viewport so the whole card stays inside the map. */
+@media (max-width: 720px) {
+    .profile-iw {
+        min-width: 0;
+        max-width: min(260px, 74vw);
+    }
+}
 .profile-iw__header {
     display: flex;
     align-items: center;

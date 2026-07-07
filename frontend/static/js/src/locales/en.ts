@@ -1371,7 +1371,6 @@ export const en = {
         // request". The search surface is open: you find any user,
         // then choose to follow them (one-tap).
         findFriendsTitle: '🔍 Find users',
-        searchByEmailLabel: 'Search by email',
         sendRequestBtn: '➕ Follow',
         // R11-B4 i18n: search-card status strings. Pre-fix all 6 were
         // hardcoded English on the React component — non-EN users saw

@@ -329,22 +329,13 @@ export function Friends() {
             <div
                 className="card glass mt-[22px] py-[22px] px-6 rounded-[28px]"
             >
-                <div
-                    className="flex items-center justify-between mb-[14px]"
+                <h3
+                    className="m-0 mb-[14px] text-[1.05rem] text-brand-navy font-extrabold tracking-[-0.02em]"
                 >
-                    <h3
-                        className="m-0 text-[1.05rem] text-brand-navy font-extrabold tracking-[-0.02em]"
-                    >
-                        {t('friends.findFriendsTitle')}
-                    </h3>
-                    <span
-                        className="text-[0.7rem] font-extrabold text-secondary uppercase tracking-widest"
-                    >
-                        {t('friends.searchByEmailLabel')}
-                    </span>
-                </div>
-                <div className="flex gap-[10px] flex-wrap">
-                    <div className="relative flex-1 min-w-[240px]">
+                    {t('friends.findFriendsTitle')}
+                </h3>
+                <div className="flex flex-col sm:flex-row gap-[10px]">
+                    <div className="relative flex-1 min-w-0">
                         <svg
                             width="14"
                             height="14"
@@ -375,7 +366,7 @@ export function Friends() {
                     <button
                         type="button"
                         onClick={() => void searchForUsers()}
-                        className="bg-accent-blue text-white border-0 py-2.5 px-[22px] rounded-full font-extrabold text-[0.85rem] cursor-pointer shadow-[0_4px_12px_rgba(0,113,227,0.22)]"
+                        className="w-full sm:w-auto bg-accent-blue text-white border-0 py-2.5 px-[22px] rounded-full font-extrabold text-[0.85rem] cursor-pointer shadow-[0_4px_12px_rgba(0,113,227,0.22)]"
                     >
                         {t('friends.searchButton')}
                     </button>

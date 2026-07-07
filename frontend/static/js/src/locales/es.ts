@@ -1114,7 +1114,6 @@ export const es: Translations = {
         title: 'Tu red',
         subtitle: 'Sigue a otros viajeros para llenar tu feed. Los seguidores mutuos se vuelven amigos — comparte viajes, divide gastos y planifica juntos.',
         findFriendsTitle: '🔍 Buscar usuarios',
-        searchByEmailLabel: 'Buscar por email',
         sendRequestBtn: '➕ Seguir',
         // R11-B4 i18n: cadena de estado de la tarjeta de búsqueda.
         searchPlaceholder: 'Correo del amigo que quieres añadir…',

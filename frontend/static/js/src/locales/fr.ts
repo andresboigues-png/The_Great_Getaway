@@ -1119,7 +1119,6 @@ export const fr: Translations = {
         title: 'Ton réseau',
         subtitle: 'Suis d\'autres voyageurs pour remplir ton fil. Les abonnements mutuels deviennent des amis — partage des voyages, divise les dépenses et planifie ensemble.',
         findFriendsTitle: '🔍 Trouver des utilisateurs',
-        searchByEmailLabel: 'Rechercher par email',
         sendRequestBtn: '➕ Suivre',
         // R11-B4 i18n: chaînes de statut de la carte de recherche.
         searchPlaceholder: "E-mail de l'ami que tu veux ajouter…",
