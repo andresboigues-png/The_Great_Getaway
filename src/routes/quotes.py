@@ -17,7 +17,12 @@ from flask import Blueprint, jsonify, request
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
-from helpers import ensure_user_exists, user_daily_count, user_daily_increment
+from helpers import (
+    ensure_user_exists,
+    insert_notification,
+    user_daily_count,
+    user_daily_increment,
+)
 
 bp = Blueprint("quotes", __name__)
 
@@ -159,6 +164,25 @@ def leave_quote(owner_id):
         )
         # Meter AFTER a successful insert so a failed write can't burn quota.
         user_daily_increment("quote", author_id)
+        # Notify the owner — but at most once per author per day, so someone
+        # leaving several memories doesn't spam the bell.
+        cursor.execute(
+            "SELECT 1 FROM notifications WHERE user_id = ? AND type = 'memory_left_on_profile' "
+            "AND related_id = ? AND created_at > datetime('now', '-1 day') LIMIT 1",
+            (owner_id, author_id),
+        )
+        if not cursor.fetchone():
+            cursor.execute("SELECT name FROM users WHERE id = ?", (author_id,))
+            _row = cursor.fetchone()
+            author_name = (_row["name"] if _row else None) or "Someone"
+            insert_notification(
+                cursor,
+                user_id=owner_id,
+                kind="memory_left_on_profile",
+                title="New memory",
+                related_id=author_id,
+                message=f"{author_name} left a memory on your profile.",
+            )
         conn.commit()
     return jsonify({"status": "created"}), 201
 

@@ -102,6 +102,7 @@ export const fr: Translations = {
         titleNewLike: 'Nouveau j\'aime',
         titleNewComment: 'Nouveau commentaire',
         titleNewRepost: 'Nouveau republication',
+        titleMemoryLeft: 'Nouveau souvenir',
         titleAlert: 'Alerte',
         titleGeneric: 'Notification',
         msgFollowedYou: '{actor} a commencé à te suivre.',
@@ -113,6 +114,7 @@ export const fr: Translations = {
         msgShareLiked: '{actor} a aimé ton partage.',
         msgShareCommented: '{actor} a commenté ton partage.',
         msgShareReposted: '{actor} a repartagé ton partage.',
+        msgMemoryLeft: '{actor} a laissé un souvenir sur ton profil.',
         msgSettledUp: '{from} a réglé {amount} {currency} avec toi pour {trip}.',
     },
     errors: {

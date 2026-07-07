@@ -220,3 +220,28 @@ def test_blocked_author_quote_hidden_from_owner(
     assert client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers).status_code == 200
 
     assert _list(client, auth_headers, seed_user).get_json()["quotes"] == []
+
+
+def test_memory_notifies_owner(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers
+):
+    """Leaving a memory drops a notification on the profile owner's bell."""
+    assert _leave(client, other_auth_headers, seed_user).status_code == 201
+    res = client.get("/api/notifications/list", headers=auth_headers)
+    assert res.status_code == 200
+    notifs = res.get_json()["notifications"]
+    assert any(n["type"] == "memory_left_on_profile" for n in notifs)
+
+
+def test_memory_notification_deduped_per_day(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers
+):
+    """A second memory from the same author the same day doesn't add a
+    second bell — the owner isn't spammed."""
+    assert _leave(client, other_auth_headers, seed_user).status_code == 201
+    assert (
+        _leave(client, other_auth_headers, seed_user, text="Another lovely one.").status_code == 201
+    )
+    notifs = client.get("/api/notifications/list", headers=auth_headers).get_json()["notifications"]
+    memory_notifs = [n for n in notifs if n["type"] == "memory_left_on_profile"]
+    assert len(memory_notifs) == 1

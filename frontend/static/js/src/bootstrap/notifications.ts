@@ -78,6 +78,7 @@ function notificationAccent(type: string) {
         case 'share_liked': return '255,59,48';
         case 'share_commented': return '0,113,227';
         case 'share_reposted': return '88,86,214';
+        case 'memory_left_on_profile': return '175,82,222';
         // Model B — `followed_you` replaces the legacy friend_request /
         // accepted_request pair on the produce side. The two legacy
         // types are kept here in the switch so historical rows still
@@ -135,6 +136,11 @@ export function localizeNotificationMessage(type: string | undefined, message: s
         share_liked:         (m) => _matchActor(m, /^(.+?) liked your share\.?$/, 'notifications.msgShareLiked'),
         share_commented:     (m) => _matchActor(m, /^(.+?) commented on your share\.?$/, 'notifications.msgShareCommented'),
         share_reposted:      (m) => _matchActor(m, /^(.+?) reposted your share\.?$/, 'notifications.msgShareReposted'),
+        memory_left_on_profile: (m) => {
+            const found = /^(.+?) left a memory on your profile\.?$/.exec(m);
+            if (!found || !found[1]) return null;
+            return t('notifications.msgMemoryLeft', { actor: found[1] });
+        },
         trip_invite:         (m) => {
             // "{actor} invited you to {trip} as a {Role}."
             const re = /^(.+?) invited you to (.+?) as a (Planner|Budgeteer|Relaxer)\.?$/;
@@ -200,6 +206,7 @@ function notificationDefaultTitle(type: string) {
         case 'share_liked': return t('notifications.titleNewLike');
         case 'share_commented': return t('notifications.titleNewComment');
         case 'share_reposted': return t('notifications.titleNewRepost');
+        case 'memory_left_on_profile': return t('notifications.titleMemoryLeft');
         case 'alert': return t('notifications.titleAlert');
         default: return t('notifications.titleGeneric');
     }
@@ -354,6 +361,12 @@ export function handleNotificationClick(notification: { type?: string; related_i
             }
             break;
         }
+        case 'memory_left_on_profile':
+            // The recipient lands on their OWN profile to see + feature the
+            // new memory (related_id is the author, but the destination is
+            // the viewer's own Best-of, so no userId → own profile).
+            navigate(PAGES.PROFILE);
+            break;
         default:
             navigate(PAGES.HOME);
             break;

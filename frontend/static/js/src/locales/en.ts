@@ -119,6 +119,7 @@ export const en = {
         titleNewLike: 'New like',
         titleNewComment: 'New comment',
         titleNewRepost: 'New repost',
+        titleMemoryLeft: 'New memory',
         titleAlert: 'Alert',
         titleGeneric: 'Notification',
         // ── Notification message BODIES (localized via reverse-parse).
@@ -136,6 +137,7 @@ export const en = {
         msgShareLiked: '{actor} liked your share.',
         msgShareCommented: '{actor} commented on your share.',
         msgShareReposted: '{actor} reposted your share.',
+        msgMemoryLeft: '{actor} left a memory on your profile.',
         msgSettledUp: '{from} settled {amount} {currency} with you for {trip}.',
     },
     // R3-Round 5 fix: optimistic-concurrency 409 toast. Surfaced
