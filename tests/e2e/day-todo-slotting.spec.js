@@ -72,6 +72,12 @@ test('a day-tagged, slot-less place stays in the to-do panel — not auto-added 
     // showed it in all three via the `|| !placeSlot` fallback).
     await expect(dialog.locator(`.day-plan-pane .day-plan-place-wrap[data-place-id="${PLACE_ID}"]`)).toHaveCount(0);
 
+    // The per-slot count chips reflect PLACES pinned to each slot — with the
+    // place still slot-less, every badge is empty (not "1" in all three).
+    await expect(dialog.locator('[data-plan-tab-count="morning"]')).toHaveText('');
+    await expect(dialog.locator('[data-plan-tab-count="afternoon"]')).toHaveText('');
+    await expect(dialog.locator('[data-plan-tab-count="evening"]')).toHaveText('');
+
     // It IS offered in the to-do panel, with the AM/PM/Eve add buttons.
     const row = dialog.locator(`.day-shortlist-row[data-place-id="${PLACE_ID}"]`);
     await expect(row).toBeVisible();
@@ -95,4 +101,9 @@ test('a day-tagged, slot-less place stays in the to-do panel — not auto-added 
     await expect(
         dialog.locator(`.day-plan-pane[data-plan-pane="evening"] .day-plan-place-wrap[data-place-id="${PLACE_ID}"]`)
     ).toHaveCount(0);
+
+    // Count chip now matches: morning has one place → "1"; the rest empty.
+    await expect(dialog.locator('[data-plan-tab-count="morning"]')).toHaveText('1');
+    await expect(dialog.locator('[data-plan-tab-count="afternoon"]')).toHaveText('');
+    await expect(dialog.locator('[data-plan-tab-count="evening"]')).toHaveText('');
 });

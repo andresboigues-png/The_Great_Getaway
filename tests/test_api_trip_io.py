@@ -100,9 +100,22 @@ def _populate_trip(client, app, headers, user_id, trip_id):
         f"/api/trips/{trip_id}/media",
         headers=headers,
         json={
-            "photos": [{"id": "p1", "src": photo, "caption": "Beach"}],
-            "documents": [{"id": "doc1", "name": "Passport", "url": photo}],
-            "markedPlaces": [{"id": "mp1", "name": "Cafe", "lat": 48.85, "lng": 2.35}],
+            # dayId on the media items exercises the import's day-id remap:
+            # days get fresh ids, so these refs must be rewritten or the items
+            # point at a dead day and vanish from every pane.
+            "photos": [{"id": "p1", "src": photo, "caption": "Beach", "dayId": "day-1"}],
+            "documents": [{"id": "doc1", "name": "Passport", "url": photo, "dayId": "day-1"}],
+            "markedPlaces": [
+                {
+                    "placeId": "mp1",
+                    "name": "Cafe",
+                    "lat": 48.85,
+                    "lng": 2.35,
+                    "forManual": True,
+                    "dayId": "day-1",
+                    "timeOfDay": "morning",
+                }
+            ],
             "checklist": [{"id": "c1", "body": "Pack", "done": False}],
         },
     )
@@ -232,6 +245,14 @@ def test_roundtrip_same_account_reuses_category(
         assert st["from_user_id"] is None and st["to_user_id"] is None
         assert st["from_name"] == "Ana" and st["to_name"] == "Bruno"
 
+    # The imported day's fresh id — every day-tagged media item must now
+    # point at THIS, not the dead "day-1".
+    with get_db() as conn:
+        new_day_id = conn.execute("SELECT id FROM trip_days WHERE trip_id=?", (new_id,)).fetchone()[
+            0
+        ]
+    assert new_day_id != "day-1"  # fresh id
+
     # Media surfaces through the dedicated media endpoint, URLs rewritten.
     media = client.get(f"/api/trips/{new_id}/media", headers=auth_headers).get_json()
     assert len(media["photos"]) == 1
@@ -239,6 +260,15 @@ def test_roundtrip_same_account_reuses_category(
     assert media["photos"][0]["src"] != photo
     assert media["markedPlaces"][0]["name"] == "Cafe"
     assert media["checklist"][0]["body"] == "Pack"
+
+    # ── The regression this test now guards: day-id remap. A marked place /
+    # photo / document tagged to day-1 must come back tagged to the NEW day id
+    # (with its slot intact), NOT a dead reference that hides it everywhere.
+    mp = media["markedPlaces"][0]
+    assert mp["dayId"] == new_day_id, "marked place dayId must be remapped, not left dead"
+    assert mp["timeOfDay"] == "morning", "slot assignment must survive import"
+    assert media["photos"][0]["dayId"] == new_day_id, "photo dayId must be remapped"
+    assert media["documents"][0]["dayId"] == new_day_id, "document dayId must be remapped"
 
 
 def test_import_cross_account_creates_owned_copy(

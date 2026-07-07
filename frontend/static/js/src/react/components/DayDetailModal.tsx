@@ -100,9 +100,6 @@ const SLOTS: readonly Slot[] = ['morning', 'afternoon', 'evening'];
 const SLOT_ICON: Record<Slot, string> = { morning: '☀️', afternoon: '🌅', evening: '🌙' };
 const SLOT_ACCENT: Record<Slot, string> = { morning: '0,113,227', afternoon: '255,149,0', evening: '88,86,214' };
 
-const countLines = (s: string | null | undefined) =>
-    (s || '').split('\n').filter(l => l.trim().length > 0).length;
-
 // Map a user-picked hour (0–23) to the coarse pane it belongs in, so a
 // to-do with `preferredHour` still lands in the right morning/afternoon/
 // evening pane even though the user no longer picks the slot directly.
@@ -883,12 +880,11 @@ export function DayDetailModal({
     // ── JSX fragments ─────────────────────────────────────────
 
     const renderTab = (slot: Slot): ReactNode => {
-        // Count chip per slot: places pinned to the slot + non-empty
-        // plan lines — a glance preview of the day's fullness without
-        // switching. day.plan is synced from the textarea on every
-        // keystroke, so the render-time read is always current.
-        const count = placesForSlot(slot).length
-            + countLines((day.plan as Record<string, string> | undefined)?.[slot]);
+        // Count chip per slot = the number of PLACES pinned to that slot
+        // (what the user reads it as). Free-form notes don't inflate it — a
+        // slot with only notes shows no badge, so the number always matches
+        // the place cards actually in the pane.
+        const count = placesForSlot(slot).length;
         const isActive = slot === activeSlot;
         return (
             <button key={slot} type="button"

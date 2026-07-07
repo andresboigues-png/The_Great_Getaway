@@ -336,6 +336,36 @@ def _strip_companion_links(companions_json):
     return json.dumps(arr, ensure_ascii=False)
 
 
+# Media JSON columns on the trips row whose items reference a day by `dayId`.
+# On import the days get fresh ids, so these refs must be remapped or the
+# places/photos/documents point at a dead day id and vanish from every pane.
+_DAY_REF_MEDIA_COLS = ("marked_places_json", "documents_json", "photos_json")
+
+
+def _remap_day_ids_in_media(json_str, day_remap: dict):
+    """Rewrite each item's `dayId` (old→new) inside a JSON-array media column.
+    An item whose dayId isn't among the imported days gets it cleared to null
+    (so it resurfaces as an un-slotted to-do) rather than pinned to a dead id."""
+    if not isinstance(json_str, str) or not json_str.strip() or not day_remap:
+        return json_str
+    try:
+        arr = json.loads(json_str)
+    except (ValueError, TypeError):
+        return json_str
+    if not isinstance(arr, list):
+        return json_str
+    changed = False
+    for item in arr:
+        if not isinstance(item, dict):
+            continue
+        for k in ("dayId", "day_id"):
+            old = item.get(k)
+            if old:
+                item[k] = day_remap.get(old)  # None if unknown → cleared
+                changed = True
+    return json.dumps(arr, ensure_ascii=False) if changed else json_str
+
+
 def _insert_remapped(cursor, table, row, *, overrides, url_remap):
     """Generic INSERT of one exported row into `table`:
     - keep only keys that still exist as columns (intersection);
@@ -486,9 +516,24 @@ def import_trip():
                     existing_by_name[key] = new_cat_id
                 cat_remap[old_id] = new_cat_id
 
+            # Days get fresh ids on import. Build the old→new map FIRST so the
+            # trip row's media JSON (marked places / photos / documents, all of
+            # which reference a day by dayId) can be remapped before insert —
+            # otherwise those refs point at a dead day id and the items vanish
+            # from every day pane. Mirrors the cat_remap pattern above.
+            day_remap: dict[str, str] = {}
+            for d in sections.get("trip_days", []):
+                old_day_id = d.get("id")
+                if old_day_id:
+                    day_remap[old_day_id] = uuid.uuid4().hex
+
             # 1) The trip row — importer becomes owner; sharing/public/archive
-            #    reset via _RESET_COLUMNS; media URLs rewritten in-place.
-            trip_row = sections["trips"][0]
+            #    reset via _RESET_COLUMNS; media URLs rewritten in-place; media
+            #    dayId refs remapped to the new day ids.
+            trip_row = dict(sections["trips"][0])
+            for _col in _DAY_REF_MEDIA_COLS:
+                if _col in trip_row:
+                    trip_row[_col] = _remap_day_ids_in_media(trip_row[_col], day_remap)
             _insert_remapped(
                 cursor,
                 "trips",
@@ -498,13 +543,17 @@ def import_trip():
             )
             ensure_owner_member_row(cursor, new_trip_id, user_id)
 
-            # 2) Days — fresh id, re-homed to the new trip.
+            # 2) Days — re-homed to the new trip, using the pre-built remap so
+            #    the ids line up with the media refs rewritten above.
             for d in sections.get("trip_days", []):
                 _insert_remapped(
                     cursor,
                     "trip_days",
                     d,
-                    overrides={"id": uuid.uuid4().hex, "trip_id": new_trip_id},
+                    overrides={
+                        "id": day_remap.get(d.get("id")) or uuid.uuid4().hex,
+                        "trip_id": new_trip_id,
+                    },
                     url_remap=url_remap,
                 )
 

@@ -185,9 +185,10 @@ test.describe('Day-detail modal (editable)', () => {
         expect((await posted).ok()).toBe(true);
         await expect(status).toHaveText('Saved ✓');
 
-        // The per-tab count chip tracks non-empty plan lines live (one
-        // line typed → "1"). Conversion must keep this glance-preview.
-        await expect(dialog.locator('[data-plan-tab-count="morning"]')).toHaveText('1');
+        // The per-tab count chip counts PLACES pinned to the slot, NOT notes
+        // — typing a note (no place slotted to morning here) must leave the
+        // badge empty, so the number always matches the cards in the pane.
+        await expect(dialog.locator('[data-plan-tab-count="morning"]')).toHaveText('');
 
         // ── Evening slot persists INDEPENDENTLY through the same day row.
         const eveningTab = dialog.locator('button[data-plan-tab="evening"]');
