@@ -5,7 +5,7 @@
 // at startup and the rest is self-contained here.
 
 import { STATE, emit } from '../state.js';
-import { apiUrl, apiFetch, clearAuthToken, syncWithServer, pullFromServer, announceUserToSW } from '../api.js';
+import { apiUrl, apiFetch, clearAuthToken, syncWithServer, pullFromServer, announceUserToSW, beginLoginGrace } from '../api.js';
 import { navigate } from '../router.js';
 import { showLiquidAlert } from '../utils.js';
 import { t } from '../i18n.js';
@@ -61,6 +61,11 @@ async function handleGoogleLogin(response: { credential?: string; [key: string]:
         // in so it can key its API cache per-user (no more shared
         // 'anon' bucket leaking previous user's responses).
         announceUserToSW(data.user?.id);
+        // F1-B2: open the post-login grace window BEFORE the first
+        // authenticated calls. If the gg_session cookie hasn't attached yet,
+        // their 401 must not tear down the session we just established +
+        // bounce the user to the login wall — the poll retries once it lands.
+        beginLoginGrace();
         // No more auto-self-companion creation — companions are per-trip
         // and the trip owner is implicitly a member of every trip they
         // create (via _ensure_owner_member_row on the server).

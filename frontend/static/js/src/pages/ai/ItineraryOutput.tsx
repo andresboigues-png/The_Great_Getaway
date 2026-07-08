@@ -8,6 +8,7 @@
 
 import { useState } from 'react';
 import { t } from '../../i18n.js';
+import { showLiquidAlert } from '../../utils.js';
 import {
     renderSlotBody,
     renderRestaurantCard,
@@ -73,7 +74,7 @@ interface ItineraryOutputProps {
     country: string;
     tripIsEditable: boolean;
     dayRowsRef: React.MutableRefObject<HTMLDivElement[]>;
-    onAccept: () => void;
+    onAccept: () => { updatedDays: number; addedDays: number; clearedDays: number };
 }
 
 export function ItineraryOutput({
@@ -87,8 +88,19 @@ export function ItineraryOutput({
     const [accepted, setAccepted] = useState(false);
 
     const handleAccept = () => {
-        onAccept();
+        const s = onAccept();
         setAccepted(true);
+        // C2-I5: an honest one-line summary of what Accept did (days updated /
+        // added / cleared) — the button flip alone gave no cue that existing
+        // days were overwritten or trailing days cleared.
+        showLiquidAlert(
+            t('ai.acceptSummary', {
+                updated: s.updatedDays,
+                added: s.addedDays,
+                cleared: s.clearedDays,
+            }),
+            'success',
+        );
     };
 
     const sf =

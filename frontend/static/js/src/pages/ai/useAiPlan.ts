@@ -118,7 +118,7 @@ export interface UseAiPlanResult {
         React.SetStateAction<{ msg: string; hint: string; raw: string } | null>
     >;
     runGenerate: () => Promise<void>;
-    onAcceptPlan: () => void;
+    onAcceptPlan: () => { updatedDays: number; addedDays: number; clearedDays: number };
 }
 
 export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResult {
@@ -478,7 +478,7 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
 
     // ── Accept plan: writes tripDays + auto-pushes verified places ─
     const onAcceptPlan = () => {
-        if (!itinerary) return;
+        if (!itinerary) return { updatedDays: 0, addedDays: 0, clearedDays: 0 };
         // "Accept Plan & Add to Trip" MERGES the AI itinerary into the trip's
         // numbered days BY POSITION — it must never delete days the user has
         // already journaled. Pre-fix (Audit MK5 P0) this blanket-deleted EVERY
@@ -495,6 +495,13 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
         // Drop the PREVIOUS AI run's to-do places. dropAITaggedPlaces only
         // removes source==='ai' items, so the user's manual picks survive.
         dropAITaggedPlaces(activeTrip);
+
+        // C2-I5: tally what Accept did so the caller can show an honest
+        // summary ("Updated Days 1-3, added Days 4-5; notes/photos kept")
+        // instead of only flipping the button to "✓ Plan Accepted!".
+        let updatedDays = 0;
+        let addedDays = 0;
+        let clearedDays = 0;
 
         itinerary.forEach((dayInfo: AiDayPlan, idx: number) => {
             // `toISOString()` is RFC-guaranteed to contain a 'T', so the
@@ -557,6 +564,7 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                 if (typeof dayInfo.lat === 'number') prior.lat = dayInfo.lat;
                 if (typeof dayInfo.lon === 'number') prior.lng = dayInfo.lon;
                 void upsertDay(prior);
+                updatedDays++;
             } else {
                 dayId = 'day_' + Date.now() + '_' + idx;
                 const newDay: TripDay = {
@@ -583,6 +591,7 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                 if (tip) newDay.tip = tip;
                 STATE.tripDays.push(newDay);
                 void upsertDay(newDay);
+                addedDays++;
             }
 
             // Auto-push verified places to the to-do list.
@@ -640,9 +649,31 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                 }
             }
         });
+
+        // C2-I1: existing numbered days BEYOND the new plan's length kept the
+        // PREVIOUS run's AI plan text, while dropAITaggedPlaces already removed
+        // their places — leaving trailing days that describe places no longer
+        // pinned (a 5-day run then a 3-day re-run left stale Days 4-5). Clear
+        // the AI-authored plan text/tip/blocks on those days, PRESERVING the
+        // user's notes / photos / documents / tickets exactly as the in-range
+        // overwrite above does, so the itinerary matches the shorter re-run.
+        for (let i = itinerary.length; i < existingNumbered.length; i++) {
+            const d = existingNumbered[i]!;
+            const hadPlan = !!(
+                d.plan?.morning || d.plan?.afternoon || d.plan?.evening || d.tip || d.planBlocks
+            );
+            if (!hadPlan) continue;
+            d.plan = { morning: '', afternoon: '', evening: '' };
+            d.tip = '';
+            d.planBlocks = null;
+            clearedDays++;
+            void upsertDay(d);
+        }
+
         void upsertTrip(activeTrip);
         emit('state:changed');
         // Don't reset itinerary — keep showing the accepted plan.
+        return { updatedDays, addedDays, clearedDays };
     };
 
     return {

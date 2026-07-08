@@ -1165,10 +1165,10 @@ export const en = {
         openInMapsTitle: 'Open {place} on Google Maps',
     },
     ai: {
+        acceptSummary: "Plan applied — {updated} updated, {added} added, {cleared} cleared. Your notes & photos were kept.",
         acceptChangeCleared: "cleared old plan from Days {range}",
         acceptChangeAdded: "added Days {range}",
         acceptChangeUpdated: "updated Days {range}",
-        acceptSummary: "Plan applied — {changes}. Your notes and photos were kept.",
         // Page header.
         title: 'Plan with AI ✦',
         // Pre-trip empty-state.

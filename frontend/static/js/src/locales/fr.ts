@@ -961,10 +961,10 @@ export const fr: Translations = {
         openInMapsTitle: 'Ouvrir {place} dans Google Maps',
     },
     ai: {
+        acceptSummary: "Plan appliqué — {updated} mis à jour, {added} ajoutés, {cleared} vidés. Vos notes et photos ont été conservées.",
         acceptChangeCleared: "ancien plan effacé des jours {range}",
         acceptChangeAdded: "jours {range} ajoutés",
         acceptChangeUpdated: "jours {range} mis à jour",
-        acceptSummary: "Plan appliqué — {changes}. Vos notes et photos ont été conservées.",
         title: 'Planifier avec l\'IA ✦',
         noTripTitle: 'Prêt pour une nouvelle aventure ?',
         noTripBody: 'Pour générer un itinéraire IA personnalisé, tu dois d\'abord créer un voyage.',

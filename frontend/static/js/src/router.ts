@@ -429,8 +429,18 @@ export function navigate(
     // didn't cause. Helper hoisted so success + fallback paths share
     // the same nav-state writes.
     const _applyNavState = (forPage: PageName) => {
+        // F3-B3: some pages reuse another tab's mount but keep their own hash
+        // (#upload mounts Expenses, #personalization mounts Settings). There's
+        // no data-page="upload"/"personalization" nav element, so without an
+        // alias EVERY nav item de-activated — no active tab, no aria-current.
+        // Highlight the tab the page actually lives under.
+        const NAV_TAB_FOR_PAGE: Partial<Record<PageName, PageName>> = {
+            [PAGES.UPLOAD]: PAGES.EXPENSES,
+            [PAGES.PERSONALIZATION]: PAGES.SETTINGS,
+        };
+        const navPage = NAV_TAB_FOR_PAGE[forPage] ?? forPage;
         document.querySelectorAll('.nav-item, .sidebar-rail__item').forEach(item => {
-            const isActive = item.getAttribute('data-page') === forPage;
+            const isActive = item.getAttribute('data-page') === navPage;
             item.classList.toggle('active', isActive);
             if (isActive) {
                 item.setAttribute('aria-current', 'page');

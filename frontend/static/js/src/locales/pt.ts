@@ -960,10 +960,10 @@ export const pt: Translations = {
         openInMapsTitle: 'Abrir {place} no Google Maps',
     },
     ai: {
+        acceptSummary: "Plano aplicado — {updated} atualizados, {added} adicionados, {cleared} limpos. As tuas notas e fotos foram mantidas.",
         acceptChangeCleared: "plano antigo removido dos dias {range}",
         acceptChangeAdded: "dias {range} adicionados",
         acceptChangeUpdated: "dias {range} atualizados",
-        acceptSummary: "Plano aplicado — {changes}. As suas notas e fotos foram mantidas.",
         title: 'Planear com IA ✦',
         noTripTitle: 'Pronto para uma nova aventura?',
         noTripBody: 'Para gerar um itinerário de IA personalizado, primeiro precisas de criar uma viagem.',

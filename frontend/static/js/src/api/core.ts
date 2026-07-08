@@ -233,6 +233,19 @@ export const announceUserToSW = (userId: string | null | undefined): void => {
  *     longer-lived request (e.g. a background sync that should
  *     outlive the page).
  *  Returns the raw Response so callers can branch on .ok / .status. */
+/** F1-B2: post-login grace window. handleGoogleLogin sets STATE.user, THEN
+ *  awaits syncWithServer / pullFromServer. If those first calls 401 because
+ *  the gg_session cookie hasn't attached yet (Safari ITP, subdomain split,
+ *  clock skew), the 401 teardown below would wipe state + bounce the
+ *  just-signed-in user straight back to the login wall. During this short
+ *  window we SKIP the teardown on a 401 and let the call fail quietly — the
+ *  15s poll retries once the cookie is set; if it genuinely never attaches,
+ *  the teardown fires normally after the window expires. */
+let _loginGraceUntil = 0;
+export function beginLoginGrace(ms = 8000): void {
+    _loginGraceUntil = Date.now() + ms;
+}
+
 export async function apiFetch(path: string, options: RequestInit = {}, timeoutMs: number = 20_000): Promise<Response> {
     const url = path.startsWith('http') ? path : apiUrl(path);
     // Pick the signal: caller-supplied wins; otherwise fall back to
@@ -301,7 +314,10 @@ export async function apiFetch(path: string, options: RequestInit = {}, timeoutM
         }
         throw e;
     }
-    if (res.status === 401 && STATE.user) {
+    if (res.status === 401 && STATE.user && Date.now() >= _loginGraceUntil) {
+        // F1-B2: within the post-login grace window a 401 is treated as a
+        // not-yet-attached cookie, NOT a dead session — skip the teardown and
+        // let the poll retry (see beginLoginGrace).
         // 2026-05-20 diagnostic: log the path so we can see WHICH
         // endpoint is rejecting the session. Helps narrow down whether
         // it's a global cookie-miss (every call 401s) or one specific
