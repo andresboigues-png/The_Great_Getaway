@@ -324,7 +324,12 @@ export function addOrUpdatePlaceFromVerified(
         // itineraries) or didn't match any POI_CATEGORIES entry.
         icon: cat ? cat.icon : '📋',
         color: cat ? cat.color : '#9b59b6',
-        forAI: true,
+        // forAI FALSE by default (user request 2026-07-08): a to-do added by
+        // accepting an AI plan must NOT be auto-ticked to feed the NEXT AI run.
+        // It still shows in the to-do list (forManual) and is still source:'ai'
+        // (replaced on the next Accept); the user opts specific places back
+        // into the AI context by ticking forAI themselves.
+        forAI: false,
         forManual: true,
         dayId: dayId || null,
         timeOfDay: timeOfDay || null,

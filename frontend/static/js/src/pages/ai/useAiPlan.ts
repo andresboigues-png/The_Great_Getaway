@@ -610,13 +610,18 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                 const sights: VerifiedAIItem[] = Array.isArray(dayInfo.sights)
                     ? (dayInfo.sights as VerifiedAIItem[])
                     : [];
-                for (const sight of sights) {
-                    // Sights don't have a fixed time-of-day in the
-                    // new schema — they're a separate cluster. Pass
-                    // null so the to-do entry stays day-tagged but
-                    // not slot-tagged; the user can later assign one.
-                    addOrUpdatePlaceFromVerified(activeTrip, sight, dayId, null);
-                }
+                // User report 2026-07-08: accepting a plan only put FOOD in the
+                // day (the meals are slotted) — the sightseeing sat slot-less
+                // in the to-do panel, so the plan never showed it. Distribute
+                // the day's sights round-robin across morning/afternoon/evening
+                // so they render IN the plan alongside the meals. This is an
+                // EXPLICIT slot assignment, distinct from the slot-LESS `null`
+                // the planblocks invariant deliberately keeps out of slots —
+                // placesForSlot renders slotted places, which is what we want.
+                const sightSlots = ['morning', 'afternoon', 'evening'] as const;
+                sights.forEach((sight, i) => {
+                    addOrUpdatePlaceFromVerified(activeTrip, sight, dayId, sightSlots[i % 3]!);
+                });
             } else {
                 // Legacy schema — items[] under each time-of-day.
                 const slots: Array<['morning' | 'afternoon' | 'evening', AiSlot | undefined]> = [
