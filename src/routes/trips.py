@@ -430,6 +430,17 @@ def _cascade_delete_trip(cursor, trip_id, user_id):
             f"DELETE FROM notifications WHERE post_id IN ({placeholders})",
             doomed_post_ids,
         )
+    # Audit MK1 F4-B1: null out any profile_quotes that pin this trip as a
+    # memory. The fresh schema declares memory_trip_id ... ON DELETE SET NULL,
+    # but that only fires when PRAGMA foreign_keys=ON AND the FK actually
+    # exists — DBs migrated by an ALTER TABLE that ADDED the column carry NO
+    # FK (SQLite can't add one via ALTER), so a trip delete would leave a
+    # dangling memory_trip_id there ("Trip" chip pointing at a dead id). Do it
+    # explicitly so it's correct on every DB regardless of FK/pragma state.
+    cursor.execute(
+        "UPDATE profile_quotes SET memory_trip_id = NULL WHERE memory_trip_id = ?",
+        (trip_id,),
+    )
     # Delete the trip row, then re-evaluate achievements: once the trip
     # is gone the country / spend / day-count checks drop below threshold
     # and check_user_achievements' revoke path cleans up stale badges.

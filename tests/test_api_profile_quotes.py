@@ -245,3 +245,35 @@ def test_memory_notification_deduped_per_day(
     notifs = client.get("/api/notifications/list", headers=auth_headers).get_json()["notifications"]
     memory_notifs = [n for n in notifs if n["type"] == "memory_left_on_profile"]
     assert len(memory_notifs) == 1
+
+
+def test_deleting_trip_nulls_pinned_quote_memory(client, seed_user, seed_other_user, auth_headers):
+    """F4-B1: deleting a trip must null memory_trip_id on any profile_quote that
+    pinned it as a memory. The schema declares ON DELETE SET NULL, but that only
+    fires with PRAGMA foreign_keys=ON AND an actual FK — DBs migrated by an
+    ALTER TABLE that added the column have no FK, so the delete would leave a
+    dangling memory_trip_id (a 'Trip' chip pointing at a dead id)."""
+    from database import get_db
+
+    _seed_trip("t-quote-mem", seed_user)
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO profile_quotes "
+            "(profile_owner_id, author_id, content, memory_trip_id, is_visible) "
+            "VALUES (?, ?, 'Great trip!', 't-quote-mem', 1)",
+            (seed_user, seed_other_user),
+        )
+        conn.commit()
+
+    assert client.delete("/api/trips/t-quote-mem", headers=auth_headers).status_code == 200
+
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT memory_trip_id FROM profile_quotes "
+            "WHERE profile_owner_id = ? AND content = 'Great trip!'",
+            (seed_user,),
+        ).fetchone()
+    assert row is not None
+    assert row["memory_trip_id"] is None, (
+        "trip delete left a dangling memory_trip_id on the quote (F4-B1)"
+    )
