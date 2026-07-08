@@ -153,13 +153,16 @@ function confirmResetTrips(): void {
             emit('state:changed');
             if (STATE.user) {
                 try {
-                    await apiFetch('/api/user-data', {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({}),
-                    });
+                    // Trips-only reset: DELETE /api/trips loops the vetted
+                    // per-trip cascade over the caller's OWNED trips and leaves
+                    // the account fully intact. It must NOT hit
+                    // DELETE /api/user-data — that endpoint nukes the entire
+                    // account (users row + social graph + uploads), which is
+                    // the Factory Reset path (confirmResetApp), not this one.
+                    // (Audit MK1 P0 / F2: the two were wired to the same call.)
+                    await apiFetch('/api/trips', { method: 'DELETE' });
                 } catch (e) {
-                    console.error('Server wipe failed', e);
+                    console.error('Trips reset failed', e);
                 }
             }
         })(); },

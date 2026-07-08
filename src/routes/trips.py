@@ -366,6 +366,116 @@ def upsert_trip():
     return jsonify({"status": "ok", "updatedAt": new_updated_at})
 
 
+def _cascade_delete_trip(cursor, trip_id, user_id):
+    """DB-side cascade for deleting ONE owned trip. The caller must have
+    already verified ownership, and is responsible for `conn.commit()`
+    and file cleanup (pass the returned upload paths to
+    `delete_upload_files`). Extracted so the single-trip DELETE and the
+    bulk 'delete all my trips' reset share ONE vetted cascade and can't
+    drift apart. Deliberately touches ONLY trip-scoped rows — never the
+    users row, social graph, auth sessions, categories or profile."""
+    # R3-Fix #12: snapshot every /static/uploads/... path the trip
+    # and its children reference BEFORE we delete the rows. We can't
+    # collect them after — the JSON columns are gone. The os.remove
+    # loop runs outside the transaction so a disk hiccup can't roll
+    # back the DB delete.
+    upload_paths = collect_trip_upload_paths(cursor, trip_id)
+    # Cascade in dependency order — child rows first, parent last,
+    # so any FK that's missing ON DELETE CASCADE doesn't block.
+    cursor.execute("DELETE FROM expenses WHERE trip_id = ?", (trip_id,))
+    cursor.execute("DELETE FROM settlements WHERE trip_id = ?", (trip_id,))
+    cursor.execute("DELETE FROM trip_days WHERE trip_id = ?", (trip_id,))
+    cursor.execute("DELETE FROM budgets WHERE trip_id = ?", (trip_id,))
+    cursor.execute("DELETE FROM trip_members WHERE trip_id = ?", (trip_id,))
+    # Feed posts associated with this trip + the engagement rows keyed on
+    # their event_ids. Also clean feed_likes / feed_comments /
+    # feed_bookmarks rows keyed on the synthesized trip-event ids
+    # (trip_created_<id>, trip_archived_<id>, trip_joined_<id>_<joiner>)
+    # and on the share_<post_id> / repost_<post_id> event ids for every
+    # feed_posts row we're about to delete — no FK on event_id, so these
+    # would otherwise linger until the 90-day age sweep.
+    cursor.execute("SELECT id FROM feed_posts WHERE trip_id = ?", (trip_id,))
+    doomed_post_ids = [r["id"] for r in cursor.fetchall()]
+    cursor.execute("DELETE FROM feed_posts WHERE trip_id = ?", (trip_id,))
+    for table in ("feed_likes", "feed_comments", "feed_bookmarks"):
+        cursor.execute(
+            f"DELETE FROM {table} WHERE event_id = ? OR event_id = ? OR event_id LIKE ?",
+            (
+                f"trip_created_{trip_id}",
+                f"trip_archived_{trip_id}",
+                f"trip_joined_{trip_id}_%",
+            ),
+        )
+        for pid in doomed_post_ids:
+            cursor.execute(
+                f"DELETE FROM {table} WHERE event_id IN (?, ?)",
+                (f"share_{pid}", f"repost_{pid}"),
+            )
+    # Notifications keyed on the trip id (trip_public broadcast,
+    # trip_invite, etc.). related_id is polymorphic; constrain by type so
+    # we don't wipe unrelated rows that coincidentally share the trip_id
+    # string in their own related_id column.
+    cursor.execute(
+        "DELETE FROM notifications WHERE related_id = ? AND type IN "
+        "('trip_invite', 'trip_invite_accepted', 'trip_invite_declined', "
+        " 'trip_member_removed', 'trip_public', 'settled_up', "
+        " 'settled_up_reverted')",
+        (trip_id,),
+    )
+    # Engagement notifications (share_liked / commented / reposted) are
+    # keyed by `post_id`, NOT related_id — sweep them by post_id.
+    if doomed_post_ids:
+        placeholders = ",".join(["?"] * len(doomed_post_ids))
+        cursor.execute(
+            f"DELETE FROM notifications WHERE post_id IN ({placeholders})",
+            doomed_post_ids,
+        )
+    # Delete the trip row, then re-evaluate achievements: once the trip
+    # is gone the country / spend / day-count checks drop below threshold
+    # and check_user_achievements' revoke path cleans up stale badges.
+    cursor.execute("DELETE FROM trips WHERE id = ? AND user_id = ?", (trip_id, user_id))
+    # Sync Phase 1: tombstone so a member's offline outbox can't resurrect
+    # this trip as a childless zombie, and so the ?since= delta propagates
+    # the deletion to every former member's other tabs.
+    cursor.execute(
+        "INSERT INTO trip_deletes (trip_id, deleted_at) "
+        "VALUES (?, strftime('%Y-%m-%d %H:%M:%f', 'now')) "
+        "ON CONFLICT(trip_id) DO UPDATE SET deleted_at = excluded.deleted_at",
+        (trip_id,),
+    )
+    check_user_achievements(cursor, user_id)
+    return upload_paths
+
+
+@bp.route("/api/trips", methods=["DELETE"])
+@limiter.limit("3 per hour")
+@require_auth
+@retry_on_lock()
+def delete_all_trips():
+    """Delete ALL of the caller's OWNED trips — the Settings "Delete all
+    trips" reset. Loops the SAME vetted per-trip cascade as
+    DELETE /api/trips/<id>, so trips, days, expenses, settlements,
+    budgets, feed posts, notifications, achievements and upload files are
+    all cleaned — but the user's ACCOUNT stays fully intact (users row,
+    friends/follows/blocks, auth sessions, categories, profile, uploads
+    outside owned trips). This is deliberately NOT the account-nuking
+    DELETE /api/user-data: the pre-fix reset card mis-fired that endpoint
+    and silently destroyed the whole account (audit MK1 P0 / F2)."""
+    user_id = current_user_id()
+    all_upload_paths = []
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM trips WHERE user_id = ?", (user_id,))
+        owned_trip_ids = [row["id"] for row in cursor.fetchall()]
+        for tid in owned_trip_ids:
+            all_upload_paths.extend(_cascade_delete_trip(cursor, tid, user_id))
+        conn.commit()
+    # Outside the transaction so a missing file / FS hiccup can't roll
+    # back the DB delete (mirrors delete_trip).
+    delete_upload_files(all_upload_paths, user_id)
+    return jsonify({"status": "trips_deleted", "count": len(owned_trip_ids)})
+
+
 @bp.route("/api/trips/<trip_id>", methods=["DELETE"])
 @limiter.limit("10 per minute")
 @require_auth
@@ -381,128 +491,18 @@ def delete_trip(trip_id):
     keyed on event_id), share_token cookies, budgets, notifications
     keyed on `trip_<id>` event ids, and user_achievements. Some of
     those re-surfaced on /api/feed/explore + skewed achievements
-    counts. Now we cascade the same set as `delete_user_data` does
-    for an owner's trips, inside a single transaction so a mid-delete
-    failure rolls back cleanly. Audit: 2026-05-18."""
+    counts. The cascade now lives in `_cascade_delete_trip` (shared with
+    the bulk delete-all-trips reset), inside a single transaction so a
+    mid-delete failure rolls back cleanly. Audit: 2026-05-18."""
     bind_trip_context(trip_id)
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         if not is_trip_owner(cursor, trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
-        # R3-Fix #12: snapshot every /static/uploads/... path the trip
-        # and its children reference BEFORE we delete the rows. We can't
-        # collect them after — the JSON columns are gone. The os.remove
-        # loop runs outside the transaction so a disk hiccup can't roll
-        # back the DB delete.
-        upload_paths = collect_trip_upload_paths(cursor, trip_id)
-        # Cascade in dependency order — child rows first, parent last,
-        # so any FK that's missing ON DELETE CASCADE doesn't block.
-        cursor.execute("DELETE FROM expenses WHERE trip_id = ?", (trip_id,))
-        cursor.execute("DELETE FROM settlements WHERE trip_id = ?", (trip_id,))
-        cursor.execute("DELETE FROM trip_days WHERE trip_id = ?", (trip_id,))
-        cursor.execute("DELETE FROM budgets WHERE trip_id = ?", (trip_id,))
-        cursor.execute("DELETE FROM trip_members WHERE trip_id = ?", (trip_id,))
-        # Feed posts associated with this trip + the engagement rows
-        # keyed on their event_ids. Audit fix (2026-05-26): also
-        # clean feed_likes / feed_comments / feed_bookmarks rows
-        # keyed on the synthesized trip-event ids (trip_created_<id>,
-        # trip_archived_<id>, trip_joined_<id>_<joiner>) and on the
-        # share_<post_id> / repost_<post_id> event ids for every
-        # feed_posts row we're about to delete. Pre-fix these
-        # engagement rows survived trip deletion (no FK on event_id)
-        # and lingered until the 90-day age sweep — invisible to
-        # users (the events were gone) but a slow DB-bloat path.
-        #
-        # Bare except dropped: feed_posts.trip_id has been a column
-        # since the table existed in the audit window; if the DELETE
-        # raises, surface it so we know.
-        cursor.execute(
-            "SELECT id FROM feed_posts WHERE trip_id = ?",
-            (trip_id,),
-        )
-        doomed_post_ids = [r["id"] for r in cursor.fetchall()]
-        cursor.execute("DELETE FROM feed_posts WHERE trip_id = ?", (trip_id,))
-
-        # Build the set of synthesized event_ids that referenced this
-        # trip. We delete engagement rows pattern-matching these so
-        # nothing keyed on a now-dead event survives.
-        # Patterns:
-        #   trip_created_<trip_id>           (single row)
-        #   trip_archived_<trip_id>          (single row)
-        #   trip_joined_<trip_id>_<user_id>  (LIKE prefix)
-        #   share_<post_id> / repost_<post_id> (one per doomed post)
-        for table in ("feed_likes", "feed_comments", "feed_bookmarks"):
-            cursor.execute(
-                f"DELETE FROM {table} WHERE event_id = ? OR event_id = ? OR event_id LIKE ?",
-                (
-                    f"trip_created_{trip_id}",
-                    f"trip_archived_{trip_id}",
-                    f"trip_joined_{trip_id}_%",
-                ),
-            )
-            for pid in doomed_post_ids:
-                cursor.execute(
-                    f"DELETE FROM {table} WHERE event_id IN (?, ?)",
-                    (f"share_{pid}", f"repost_{pid}"),
-                )
-        # Notifications keyed on the trip id (trip_public broadcast,
-        # trip_invite, etc.). related_id is polymorphic; constrain
-        # by type so we don't accidentally wipe unrelated rows that
-        # happen to coincidentally share the trip_id string in their
-        # own polymorphic related_id column.
-        cursor.execute(
-            "DELETE FROM notifications WHERE related_id = ? AND type IN "
-            "('trip_invite', 'trip_invite_accepted', 'trip_invite_declined', "
-            " 'trip_member_removed', 'trip_public', 'settled_up', "
-            " 'settled_up_reverted')",
-            (trip_id,),
-        )
-        # R3-Round 2 fix: engagement notifications (share_liked /
-        # commented / reposted) are keyed by `post_id`, NOT
-        # `related_id` (related_id = actor user). The pre-fix sweep
-        # above missed them — so deleting a trip left bell-click-404
-        # rows referencing the now-gone feed_posts. notifications.post_id
-        # has no FK (database.py), so this is the only thing that
-        # cleans them.
-        if doomed_post_ids:
-            placeholders = ",".join(["?"] * len(doomed_post_ids))
-            cursor.execute(
-                f"DELETE FROM notifications WHERE post_id IN ({placeholders})",
-                doomed_post_ids,
-            )
-        # Delete the trip row first, THEN re-evaluate the user's
-        # achievements. Two reasons:
-        #   1. user_achievements has no trip_id column — the previous
-        #      `DELETE WHERE trip_id = ?` ALWAYS raised, the try/except
-        #      swallowed it, and stale badges with dead-trip refs in
-        #      context_json piled up. (Audit 2026-05-18.)
-        #   2. The post-2026-05-18 revoke logic in
-        #      `check_user_achievements` deletes any badge whose rule
-        #      no longer passes — once the trip row is gone, the
-        #      country / spend / day-count checks drop below threshold
-        #      and the revoke path cleans up. This single source of
-        #      truth replaces the per-endpoint cleanup that drifted
-        #      out of sync with the schema.
-        cursor.execute("DELETE FROM trips WHERE id = ? AND user_id = ?", (trip_id, user_id))
-        # Sync Phase 1: record a tombstone so a member's offline outbox
-        # can't resurrect this trip as a childless zombie (upsert_trip
-        # refuses any tombstoned id), and so the Phase-2 `?since=` delta can
-        # propagate the deletion to every former member's other tabs. Global
-        # (keyed by trip_id) — the trip is shared, so the deletion applies
-        # to everyone.
-        cursor.execute(
-            "INSERT INTO trip_deletes (trip_id, deleted_at) "
-            "VALUES (?, strftime('%Y-%m-%d %H:%M:%f', 'now')) "
-            "ON CONFLICT(trip_id) DO UPDATE SET deleted_at = excluded.deleted_at",
-            (trip_id,),
-        )
-        check_user_achievements(cursor, user_id)
+        upload_paths = _cascade_delete_trip(cursor, trip_id, user_id)
         conn.commit()
-    # R3-Fix #12: clean disk files. Outside the transaction so a
-    # missing file / FS hiccup doesn't roll back the DB delete. The
-    # owner_id is the trip's user_id (= caller, gated by is_trip_owner
-    # above) so the path-scoped guard in delete_upload_files matches.
+    # R3-Fix #12: clean disk files outside the transaction.
     delete_upload_files(upload_paths, user_id)
     return jsonify({"status": "deleted"})
 

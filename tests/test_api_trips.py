@@ -1195,6 +1195,49 @@ def test_delete_trip_rejects_non_owner(
     assert any(t["id"] == trip_id for t in body["trips"])
 
 
+def test_delete_all_trips_keeps_account(client, seed_user, auth_headers):
+    """Audit MK1 P0 tripwire (F2). The Settings "Delete all trips" reset
+    hits the bulk DELETE /api/trips, which loops the vetted per-trip
+    cascade over the caller's OWNED trips — trips + expenses go, the
+    ACCOUNT stays. Pre-fix the card mis-fired DELETE /api/user-data and
+    silently destroyed the whole user (users row + social graph +
+    uploads).
+
+    Load-bearing assertion: /api/data still returns 200 afterwards — the
+    session + user row survive. If anyone re-wires this button to the
+    account-nuke endpoint, the pull 401s and this test fails."""
+    t1 = _create_trip(client, auth_headers, trip_id="trip-bulk-1")
+    t2 = _create_trip(client, auth_headers, trip_id="trip-bulk-2")
+    client.post(
+        "/api/expenses",
+        headers=auth_headers,
+        json={
+            "expense": {
+                "id": "exp-bulk",
+                "tripId": t1,
+                "who": "Me",
+                "value": 5,
+                "currency": "EUR",
+                "euroValue": 5,
+                "label": "x",
+                "date": "2026-05-12",
+            },
+        },
+    )
+
+    res = client.delete("/api/trips", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.get_json().get("count") == 2
+
+    # Account SURVIVES — 200 (not 401): the session + user row are intact.
+    pull = client.get("/api/data", headers=auth_headers)
+    assert pull.status_code == 200
+    body = pull.get_json()
+    # ...but every owned trip + its expenses are gone.
+    assert body["trips"] == []
+    assert all(e.get("tripId") not in (t1, t2) for e in body.get("expenses", []))
+
+
 def test_archive_rejects_non_member(
     client,
     seed_user,
