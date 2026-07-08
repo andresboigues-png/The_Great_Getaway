@@ -10,7 +10,7 @@
 
 import { STATE } from '../../state.js';
 import { esc } from '../../utils.js';
-import { t, getLocale } from '../../i18n.js';
+import { t, getLocale, formatCurrency } from '../../i18n.js';
 
 export interface Actor {
     id: string;
@@ -363,7 +363,17 @@ export function eventLine(ev: FeedEvent) {
                 ? esc(t('feed.verbYou'))
                 : esc(ev.recipient?.name || t('feed.verbSomeone'));
             const other = `<strong style="color:#002d5b;">${otherName}</strong>`;
-            return t('feed.evSettledUp', { who, other, trip: tripName || t('feed.verbATrip') });
+            const trip = tripName || t('feed.verbATrip');
+            // E2-B2: the settlement amount is the most useful datum on the
+            // card — surface it when the payload carries both value +
+            // currency. `formatCurrency` output is escaped before it lands
+            // in the <strong> HTML slot. Falls back to the amount-less line
+            // when either field is missing.
+            if (typeof ev.amount === 'number' && ev.currency) {
+                const amount = `<strong style="color:#002d5b;">${esc(formatCurrency(ev.amount, ev.currency))}</strong>`;
+                return t('feed.evSettledUpAmount', { who, other, amount, trip });
+            }
+            return t('feed.evSettledUp', { who, other, trip });
         }
         default:
             return t('feed.evDefault', { who });

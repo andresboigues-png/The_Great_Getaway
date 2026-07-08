@@ -94,6 +94,18 @@ export function ItineraryOutput({
     const sf =
         "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif";
 
+    // C2-B2: the heading count must match the day cards actually
+    // rendered below, not the requested date-range span. `numDays` is
+    // derived from the trip dates (clamped to 30) at generate time, but
+    // Gemini can return fewer days — so a 7-day request with a 4-day
+    // response would otherwise render a "7-Day Itinerary" over 4 cards.
+    // Use the real card count; fall back to `numDays` only when the
+    // response isn't a usable array (avoids a "0-Day" heading).
+    const dayCount =
+        Array.isArray(itinerary) && itinerary.length > 0
+            ? itinerary.length
+            : numDays;
+
     return (
         <>
             <div
@@ -113,7 +125,7 @@ export function ItineraryOutput({
                             fontFamily: sf,
                         }}
                     >
-                        {t('ai.resultHeading', { numDays, country })}
+                        {t('ai.resultHeading', { numDays: dayCount, country })}
                     </h2>
                     <p
                         className="text-secondary mt-1.5 mx-0 mb-0 text-[0.9rem]"

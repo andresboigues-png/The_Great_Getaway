@@ -916,12 +916,16 @@ function ProfileInfoSection({
         {
             num: String(followers),
             label: tn('profile.followersLabel', followers),
-            onClick: openList(tn('profile.followersLabel', followers), peopleItems(follow.followers)),
+            // The follow lists (?include=lists) are server-gated to self, so on a
+            // foreign profile they resolve to [] while the count is real. Only wire
+            // the tap-through when we actually have the list, else it opens an
+            // empty "Nothing here yet" modal that contradicts the count.
+            onClick: isOwnProfile ? openList(tn('profile.followersLabel', followers), peopleItems(follow.followers)) : undefined,
         },
         {
             num: String(following),
             label: tn('profile.followingLabel', following),
-            onClick: openList(tn('profile.followingLabel', following), peopleItems(follow.following)),
+            onClick: isOwnProfile ? openList(tn('profile.followingLabel', following), peopleItems(follow.following)) : undefined,
         },
     ];
     if (isOwnProfile) {
@@ -1938,7 +1942,12 @@ function BioBlock({
         if (!STATE.user) return;
         const newStatus = statusRef.current?.value || '';
         const newBio = bioRef.current?.value || '';
-        const newHomeCurrency = homeCurrency || STATE.user.homeCurrency || null;
+        // Currency auto-saves on pick (applyHomeCurrency), so the source of truth
+        // is STATE.user, NOT the `homeCurrency` display state — that's seeded from
+        // getHomeCurrency() which never returns empty, so OR-ing through it would
+        // resurrect a concrete currency for a user whose home_currency is still
+        // NULL ("never picked") when they only edit their bio.
+        const newHomeCurrency = STATE.user.homeCurrency || null;
         // Empty string = "Not set" sentinel from the picker — store as null
         // so downstream readers (AI page default destination, country-stats)
         // can distinguish "user actively cleared" from "never picked".

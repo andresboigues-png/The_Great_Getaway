@@ -286,7 +286,12 @@ export function initMobileSwipe(): void {
                     openIsland();
                 } else {
                     const prev = SWIPE_ORDER[idx - 1];
-                    if (prev) navigate(prev, null, false, 'backward');
+                    // A right-swipe back to a tab is a genuine user-initiated
+                    // return — same intent as tapping that bottom-tab. Pass
+                    // fromNavClick so returning to Home restores its remembered
+                    // scroll, matching the tap path (this nav leaves the current
+                    // tab, so it never trips the same-page scroll-to-top).
+                    if (prev) navigate(prev, { fromNavClick: true }, false, 'backward');
                 }
             }
         },

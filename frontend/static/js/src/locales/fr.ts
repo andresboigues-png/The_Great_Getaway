@@ -94,6 +94,7 @@ export const fr: Translations = {
         skipToContent: 'Aller au contenu',
     },
     notifications: {
+        unread: "Non lu.",
         titleNewFollower: 'Nouvel abonné',
         titleTripCompleted: 'Voyage terminé',
         titleTripInvite: 'Invitation de voyage',
@@ -118,6 +119,8 @@ export const fr: Translations = {
         msgSettledUp: '{from} a réglé {amount} {currency} avec toi pour {trip}.',
     },
     errors: {
+        tripSaveFailed: "Impossible d'enregistrer vos modifications — veuillez réessayer.",
+        mediaTooLarge: "C'est trop volumineux pour être enregistré — essaie de retirer une photo ou de raccourcir une note, puis ajoute-le à nouveau.",
         backOnline: 'De retour en ligne — tes modifications sont enregistrées.',
         offline: "Tu es hors ligne — tes modifications se synchroniseront à ton retour.",
         serverUnreachable: "Impossible d'atteindre le serveur — on continue d'essayer.",
@@ -225,6 +228,7 @@ export const fr: Translations = {
         feature3Body: 'Invite des proches à planifier avec toi.',
     },
     settings: {
+        ratesAddCurrencyBtn: "Ajouter une devise",
         title: 'Paramètres',
         general: 'Paramètres généraux',
         generalDesc: 'Configure les filtres POI et l\'apparence.',
@@ -589,6 +593,8 @@ export const fr: Translations = {
         homeCountryNotSet: '— Non défini —',
     },
     settlement: {
+        crossTripSettledBody: "Aucun solde en attente sur aucun de vos voyages.",
+        crossTripSettledTitle: "Tout le monde est à jour",
         title: 'Règlements',
         subtitle: 'Calcule qui doit quoi et règle les comptes équitablement.',
         noTripsTitle: 'Aucun voyage encore',
@@ -1255,6 +1261,9 @@ export const fr: Translations = {
         addSplitPersonAria: "Ajouter une personne pour diviser la dépense",
     },
     feed: {
+        commentEditCancel: "Annuler",
+        commentEditSave: "Enregistrer",
+        evSettledUpAmount: "{who} a réglé {amount} avec {other} sur {trip} 🤝",
         title: 'Fil',
         subtitle: 'Ce que font tes amis ces derniers temps',
         tabPosts: 'Publications',
@@ -1693,6 +1702,8 @@ export const fr: Translations = {
         badgeUnlockedFallback: 'Nouveau badge',
     },
     validation: {
+        dateCannotBeFuture: "La date ne peut pas être dans le futur.",
+        splitCannotBeNegative: "Les pourcentages de partage ne peuvent pas être négatifs.",
         required: 'Ce champ est obligatoire.',
         invalidValue: 'Saisis une valeur valide.',
         invalidEmail: 'Saisis un email valide.',
@@ -1833,6 +1844,7 @@ export const fr: Translations = {
         toastUpdated: 'Itinéraire mis à jour !',
     },
     tripMedia: {
+        addDocStatusFailedWithMsg: "❌ Échec de l'envoi : {error}",
         addDocValidationInvalidUrl: "Ce lien n'est pas pris en charge. Utilisez une URL http(s):// ou importez le fichier.",
         photoUploadPartialReason: "{added} ajoutée(s), {failed} n'ont pas pu être importées — {reason}",
         photoUploadPartial: "{added} ajoutée(s), {failed} n'ont pas pu être importées.",

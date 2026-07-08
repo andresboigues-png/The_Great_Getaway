@@ -44,11 +44,14 @@ export async function attemptPendingClone(): Promise<void> {
     if (!token || !STATE.user) return;
     try {
         const res = await cloneTripFromShareToken(token);
-        try { sessionStorage.removeItem(CLONE_INTENT_KEY); } catch { /* ignored */ }
         if (!res?.ok || !res.body?.tripId) {
+            // Keep the intent in sessionStorage on failure so a refresh
+            // or retry can re-fire — a transient error must stay
+            // recoverable. It's only consumed once the clone succeeds.
             showLiquidAlert(t('errors.cloneFailedFromCollections'));
             return;
         }
+        try { sessionStorage.removeItem(CLONE_INTENT_KEY); } catch { /* ignored */ }
         const newTripId = res.body?.tripId as string;
         // Mirror the defensive pattern from archivedDetail.ts — stamp
         // activeTripId BEFORE the pull so the pull's re-validate sees

@@ -679,10 +679,15 @@ export function Insights() {
     // spend is the only thing that needs historical FX; an all-home-currency
     // trip in "at trip" mode is final immediately (no flicker to hide).
     // Today mode = current FX (synchronous via convertCurrency) + per-currency
-    // CPI (async) → gate purely on the CPI fetches. At-trip mode = historical
-    // FX (async) → gate on the rate fetch (only matters with foreign spend).
+    // CPI (async). At-trip mode = historical FX (async). Historical FX matters
+    // in BOTH modes: even in "today" mode the "then you paid" figure + the FX
+    // split (totalSpent / totalTodayNoInfl) are built off spentValue, which
+    // falls back to the write-time euroValue until rateCache lands — so gating
+    // today mode on CPI alone lets showPvCompare render the frozen fallback the
+    // moment CPI settles, then jump when historical FX arrives. Gate on BOTH
+    // fetches (rate fetch only matters with foreign spend, same as at-trip).
     const heroCalculating = mode === 'today'
-        ? !cpiChecked
+        ? (!cpiChecked || (hasForeignSpend && !ratesSettled))
         : (hasForeignSpend && !ratesSettled);
 
     // "Did this trip get more expensive or cheaper to do today?" — compare the

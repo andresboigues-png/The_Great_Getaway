@@ -221,8 +221,12 @@ export function Friends() {
 
     /** Follow a user. Works for both "follow someone from search"
      *  AND "follow back a one-way follower" — same primitive either
-     *  way, the endpoint is idempotent. */
-    const followUser = async (targetId: string) => {
+     *  way, the endpoint is idempotent. `fromSearch` gates the
+     *  search-box side-effects (clear the query + pop the green
+     *  "Now following" banner): those belong ONLY to the search-result
+     *  Follow button. Follow-back in the Followers tab must leave the
+     *  unrelated top search box untouched. */
+    const followUser = async (targetId: string, fromSearch = false) => {
         if (!user || !targetId) return;
         if (targetId === user.id) {
             showLiquidAlert(t('friends.toastSelfRequest'));
@@ -236,8 +240,10 @@ export function Friends() {
             });
             const data = await res.json();
             if (data.status === 'success') {
-                setSearchQuery('');
-                setSearchStatus({ kind: 'sent' });
+                if (fromSearch) {
+                    setSearchQuery('');
+                    setSearchStatus({ kind: 'sent' });
+                }
                 void updateNetwork();
             } else if (data.status === 'blocked') {
                 // DSGN-039: caller has blocked the target — server no-ops
@@ -417,7 +423,7 @@ export function Friends() {
                                     rightSide={
                                         <button
                                             type="button"
-                                            onClick={() => void followUser(u.id)}
+                                            onClick={() => void followUser(u.id, true)}
                                             className="bg-accent-blue text-white border-0 py-2 px-4 rounded-full font-extrabold text-[0.78rem] cursor-pointer shrink-0 shadow-[0_4px_12px_rgba(0,113,227,0.22)]"
                                         >
                                             {t('friends.sendRequestBtn')}

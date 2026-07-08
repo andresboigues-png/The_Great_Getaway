@@ -38,6 +38,7 @@ import {
     upsertDay,
     deleteDayOnServer,
     uploadMedia,
+    isUnretryableRejection,
 } from '../../api.js';
 import { navigate } from '../../router.js';
 import { t } from '../../i18n.js';
@@ -391,7 +392,18 @@ export function EditTripModal({ trip, close }: { trip: Trip; close: () => void }
             // handler; the router's nav-abort would otherwise cancel the
             // edit mid-flight and lose it until reload.
             try {
-                await upsertTrip(trip);
+                // D3-B2 (honest-save): the strict /api/trips path returns 400
+                // when it rejects the write (e.g. an invalid coverUrl), and
+                // _upsertWithUpdatedAt returns {ok:false} WITHOUT throwing — so
+                // the empty catch below never fired and the cover applied
+                // locally but silently reverted on the next pull. Surface the
+                // rejection. status:0 (network → outbox retries) and 401
+                // (session torn down) keep the optimistic edit; 409 (stale-edit)
+                // already toasts + pulls inside _upsertWithUpdatedAt, so exclude.
+                const tripRes = await upsertTrip(trip);
+                if (tripRes && isUnretryableRejection(tripRes) && tripRes.status !== 409) {
+                    showLiquidAlert(t('errors.tripSaveFailed'));
+                }
                 // Dedupe by id — a day can land in more than one bucket
                 // (e.g. rebased AND renumbered).
                 const toPersist = new Map<string, TripDay>();

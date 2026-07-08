@@ -89,6 +89,7 @@ export const pt: Translations = {
         skipToContent: 'Ir para o conteúdo',
     },
     notifications: {
+        unread: "Não lida.",
         titleNewFollower: 'Novo seguidor',
         titleTripCompleted: 'Viagem concluída',
         titleTripInvite: 'Convite de viagem',
@@ -113,6 +114,8 @@ export const pt: Translations = {
         msgSettledUp: '{from} acertou {amount} {currency} contigo para {trip}.',
     },
     errors: {
+        tripSaveFailed: "Não foi possível guardar as alterações — tente novamente.",
+        mediaTooLarge: "Isto é demasiado grande para guardar — tenta remover uma foto ou encurtar uma nota e adiciona novamente.",
         backOnline: 'De volta online — as tuas alterações foram guardadas.',
         offline: 'Estás offline — as alterações vão sincronizar quando voltares.',
         serverUnreachable: 'Não consigo alcançar o servidor — vamos continuar a tentar.',
@@ -220,6 +223,7 @@ export const pt: Translations = {
         feature3Body: 'Convida pessoas para planearem contigo.',
     },
     settings: {
+        ratesAddCurrencyBtn: "Adicionar moeda",
         title: 'Definições',
         general: 'Definições gerais',
         generalDesc: 'Configura filtros POI e aparência.',
@@ -588,6 +592,8 @@ export const pt: Translations = {
         homeCountryNotSet: '— Por definir —',
     },
     settlement: {
+        crossTripSettledBody: "Nenhum saldo pendente em nenhuma das suas viagens.",
+        crossTripSettledTitle: "Todos acertaram as contas",
         title: 'Acertos de contas',
         subtitle: 'Calcula quem deve o quê e acerta as contas com justiça.',
         noTripsTitle: 'Sem viagens ainda',
@@ -1254,6 +1260,9 @@ export const pt: Translations = {
         addSplitPersonAria: 'Adicionar uma pessoa para dividir a despesa',
     },
     feed: {
+        commentEditCancel: "Cancelar",
+        commentEditSave: "Salvar",
+        evSettledUpAmount: "{who} acertou {amount} com {other} em {trip} 🤝",
         title: 'Feed',
         subtitle: 'O que os teus amigos andam a fazer',
         tabPosts: 'Publicações',
@@ -1692,6 +1701,8 @@ export const pt: Translations = {
         badgeUnlockedFallback: 'Nova medalha',
     },
     validation: {
+        dateCannotBeFuture: "A data não pode estar no futuro.",
+        splitCannotBeNegative: "As percentagens de divisão não podem ser negativas.",
         required: 'Este campo é obrigatório.',
         invalidValue: 'Introduz um valor válido.',
         invalidEmail: 'Introduz um email válido.',
@@ -1832,6 +1843,7 @@ export const pt: Translations = {
         toastUpdated: 'Itinerário atualizado!',
     },
     tripMedia: {
+        addDocStatusFailedWithMsg: "❌ Falha no envio: {error}",
         addDocValidationInvalidUrl: "Esse link não é suportado. Use um URL http(s):// ou carregue o ficheiro.",
         photoUploadPartialReason: "{added} adicionada(s), {failed} não puderam ser enviadas — {reason}",
         photoUploadPartial: "{added} adicionada(s), {failed} não puderam ser enviadas.",

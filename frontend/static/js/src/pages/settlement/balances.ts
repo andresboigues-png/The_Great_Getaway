@@ -271,7 +271,15 @@ export function computeTripBalancesByCurrency(trip: Trip | null | undefined): {
         const cur = (s.currency || 'EUR').toUpperCase();
         const amt = Number(s.amount) || 0;
         if (!(amt > 0)) continue;
-        const bal = ensure(cur);
+        // B5-B4: only net a settlement against a currency bucket that already
+        // has expense-derived spend. A settlement is an ADJUSTMENT on top of a
+        // real debt (fromName += amt / toName -= amt); applying it to a fresh
+        // all-zero roster (a currency with no prior spend, e.g. an off-app debt
+        // settled in a currency the trip never expensed) would push the payer
+        // POSITIVE and surface a phantom REVERSE suggested payment. Skip when no
+        // bucket exists — there's no debt in that currency to settle against.
+        const bal = byCurrency[cur];
+        if (!bal) continue;
         const parties = resolveSettlementParties(s, trip, bal);
         if (!parties) continue;
         bal[parties.fromName]! += amt;

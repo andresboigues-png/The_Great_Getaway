@@ -60,6 +60,19 @@ import type { Expense } from '../../types';
 // alphabetical order without re-sorting per render.
 const SORTED_COUNTRIES = [...COUNTRIES].sort();
 
+// B1-B2: today's date in the user's LOCAL timezone as YYYY-MM-DD.
+// `new Date().toISOString()` is UTC, so for a user in a positive UTC
+// offset past local midnight it reports yesterday — blocking them from
+// picking "today". Build the string from the local getFullYear/Month/
+// Date parts instead so the date-input max matches the user's own day.
+const localTodayISO = (): string => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
 // R3-Round 2 fix: pre-fix this was `Object.keys(CONVERSION_RATES)` (17
 // entries), hard-locking the form to a narrow 2024-era list — THB /
 // EGP / TRY / ARS / VND / PHP all in the server's _ALLOWED_CURRENCIES
@@ -327,6 +340,16 @@ export function ManualTab() {
             for (const input of splitInputs) {
                 const val = parseFloat(input.value) || 0;
                 const person = input.getAttribute('data-person');
+                // B2-B1: a negative percentage (e.g. {A:150, B:-50}) sums to
+                // 100 and would pass the total-100 gate below, then get pushed
+                // to STATE optimistically — the reducer would CREDIT B instead
+                // of debiting. The server 400s but api.ts returns {ok:false}
+                // with no rollback, so the inverted split lingers until the
+                // next pull. Reject it here, before any optimistic mutation.
+                if (val < 0) {
+                    showLiquidAlert(t('validation.splitCannotBeNegative'));
+                    return;
+                }
                 if (person) splits[person] = val;
                 totalSplit += val;
             }
@@ -355,6 +378,16 @@ export function ManualTab() {
         }
         if (!curr) {
             showLiquidAlert(t('validation.currencyRequired'));
+            return;
+        }
+        // B1-B2: the date input's `max` is only an advisory HTML5 hint — a
+        // scripted/pasted/programmatic value can defeat it and store e.g.
+        // '2999-01-01', which poisons Insights buckets and timeline labels.
+        // Gate here (string compare is safe for zero-padded YYYY-MM-DD)
+        // BEFORE the optimistic push to STATE.expenses below.
+        const dateVal = dateRef.current?.value || '';
+        if (dateVal && dateVal > localTodayISO()) {
+            showLiquidAlert(t('validation.dateCannotBeFuture'));
             return;
         }
         // 2026-05-26 (audit SP3) + R3-Round 2 widening: pre-fix the
@@ -425,7 +458,7 @@ export function ManualTab() {
             who: payer,
             categoryId: categoryRef.current?.value || '',
             label: labelRef.current?.value || '',
-            date: dateRef.current?.value || '',
+            date: dateVal,
             country: countryVal,
             value: val,
             currency: curr,
@@ -608,7 +641,7 @@ export function ManualTab() {
                             className="glass-input-light"
                             required
                             min="2000-01-01"
-                            max={new Date().toISOString().slice(0, 10)}
+                            max={localTodayISO()}
                             defaultValue={STATE.draftExpense?.date || ''}
                             onChange={(e) => draft('date', e.target.value)}
                         />
@@ -877,15 +910,18 @@ export function ManualTab() {
                                 </p>
                             ) : (
                                 splitters.map((p, idx) => (
-                                    // Key includes splitters.length so adding/
-                                    // removing a person forces every row to
-                                    // remount with the freshly-computed equal
-                                    // split. Matches the legacy "redistribute
-                                    // equally on every change" behaviour (where
-                                    // innerHTML rewrite reset all inputs).
-                                    // Manual edits live until the next
-                                    // add/remove — same tradeoff.
-                                    <div key={`${p}_${splitters.length}`} className="splitter-row">
+                                    // B2-B2: key by the person's name ALONE (it's
+                                    // unique — onAddSplit rejects duplicates). The
+                                    // old `${p}_${splitters.length}` key changed on
+                                    // every add/remove, remounting EVERY row and
+                                    // resetting each defaultValue to the equal
+                                    // split — so a user who typed Alice 60 / Bob 25
+                                    // / Carol 15 and then removed Carol had Alice &
+                                    // Bob silently wiped to 50/50. Keying by person
+                                    // preserves each surviving row's DOM node (and
+                                    // its typed value); only the added row mounts
+                                    // fresh with its equal-split default.
+                                    <div key={p} className="splitter-row">
                                         <span className="font-medium">{p}</span>
                                         <div className="flex items-center gap-2">
                                             <input
@@ -894,6 +930,7 @@ export function ManualTab() {
                                                 data-person={p}
                                                 defaultValue={splitDefaults[idx]}
                                                 step="any"
+                                                min="0"
                                                 required
                                             />
                                             <span

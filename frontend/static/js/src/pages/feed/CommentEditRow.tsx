@@ -7,6 +7,7 @@
 // create + server-side limits.
 
 import { useEffect, useRef } from 'react';
+import { t } from '../../i18n.js';
 import type { FeedComment } from './render.js';
 
 
@@ -89,7 +90,7 @@ export function CommentEditRow({ comment, onSave, onCancel }: CommentEditRowProp
                     flexShrink: 0,
                 }}
             >
-                Save
+                {t('feed.commentEditSave')}
             </button>
             <button
                 type="button"
@@ -105,7 +106,7 @@ export function CommentEditRow({ comment, onSave, onCancel }: CommentEditRowProp
                     flexShrink: 0,
                 }}
             >
-                Cancel
+                {t('feed.commentEditCancel')}
             </button>
         </div>
     );

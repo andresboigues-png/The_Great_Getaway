@@ -25,7 +25,10 @@ const escapeHtml = (s: string): string =>
  *  text, so injecting them into tags stays safe. */
 function inlineMdToHtml(line: string): string {
     const esc = escapeHtml(line);
-    const re = /\*\*(.+?)\*\*|_(.+?)_|~(.+?)~/g;
+    // The italic `_` only opens/closes at a word boundary (CommonMark's
+    // intraword rule) so snake_case ids, IBANs and "3_00 pm" times aren't
+    // spuriously italicised.
+    const re = /\*\*(.+?)\*\*|(?<!\w)_(.+?)_(?!\w)|~(.+?)~/g;
     let out = '';
     let last = 0;
     let m: RegExpExecArray | null;

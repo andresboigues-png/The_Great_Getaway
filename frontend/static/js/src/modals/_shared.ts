@@ -75,7 +75,14 @@ export function _wireDateRangeValidation(
             endEl.setCustomValidity('');
         }
     };
+    // Listen on BOTH `input` and `change`: the flatpickr range picker
+    // (dateRangePicker.ts) writes the mirror inputs and dispatches
+    // `input` events, while a manually-typed native <input type="date">
+    // fires `change`. Wiring only `change` (the old code) meant the
+    // picker flow never re-ran validity after mount.
+    startEl.addEventListener('input', updateValidity);
     startEl.addEventListener('change', updateValidity);
+    endEl.addEventListener('input', updateValidity);
     endEl.addEventListener('change', updateValidity);
     // Initial pass so a pre-filled form (Edit Trip) gets the min
     // attribute synced before the user touches anything.

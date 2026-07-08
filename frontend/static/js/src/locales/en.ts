@@ -111,6 +111,7 @@ export const en = {
     // Server sometimes ships a row without a title; previously the
     // frontend swapped in hardcoded English. Now i18n.
     notifications: {
+        unread: "Unread.",
         titleNewFollower: 'New follower',
         titleTripCompleted: 'Trip Completed',
         titleTripInvite: 'Trip invitation',
@@ -149,6 +150,8 @@ export const en = {
     // online → server-unreachable transitions, and login / clone /
     // delete / map-load failures across the app.
     errors: {
+        tripSaveFailed: "Couldn't save your changes — please try again.",
+        mediaTooLarge: "That's too big to save — try removing a photo or shortening a note, then add it again.",
         backOnline: 'Back online — your changes are saved.',
         // R7-F1: the offline-mutation outbox now exists (see
         // src/outbox.ts) — failed mutations are queued in
@@ -198,7 +201,7 @@ export const en = {
         completeTripConfirmBtn: 'Complete',
         // Trip-controls — permanent delete copy.
         permaDeleteTitle: 'Delete Trip?',
-        permaDeleteBody: 'Are you sure you want to delete "{name}" permanently? This will remove all associated expenses and days.',
+        permaDeleteBody: 'Are you sure you want to delete "{name}" permanently? This will remove all associated expenses and days, along with every photo, document, marked place, and checklist — permanently deleted and unrecoverable.',
         permaDeleteConfirmBtn: 'Delete Permanently',
         ownerOnlyConfirmBtn: 'OK',
         restoreTripBody: 'This will move the trip back to your active list.',
@@ -295,6 +298,7 @@ export const en = {
         feature3Body: 'Invite people to plan along with you.',
     },
     settings: {
+        ratesAddCurrencyBtn: "Add currency",
         title: 'Settings',
         general: 'General Settings',
         generalDesc: 'Configure POI filters and appearance.',
@@ -706,6 +710,8 @@ export const en = {
         homeCountryNotSet: '— Not set —',
     },
     settlement: {
+        crossTripSettledBody: "No outstanding balances across any of your trips.",
+        crossTripSettledTitle: "Everyone's settled up",
         // Page header.
         title: 'Settlements',
         subtitle: 'Calculate who owes what and settle up fairly.',
@@ -1534,6 +1540,9 @@ export const en = {
         addSplitPersonAria: 'Add a person to split the expense between',
     },
     feed: {
+        commentEditCancel: "Cancel",
+        commentEditSave: "Save",
+        evSettledUpAmount: "{who} settled up {amount} with {other} on {trip} 🤝",
         // Page header.
         title: 'Feed',
         subtitle: 'What your friends are up to lately',
@@ -2079,6 +2088,8 @@ export const en = {
         badgeUnlockedFallback: 'New badge',
     },
     validation: {
+        dateCannotBeFuture: "The date can't be in the future.",
+        splitCannotBeNegative: "Split percentages can't be negative.",
         // Common input-validation messages reused across pages.
         required: 'This field is required.',
         invalidValue: 'Please enter a valid value.',
@@ -2255,6 +2266,7 @@ export const en = {
     // Five popups share these keys: documents list, photos grid, add
     // doc, edit doc, add-photo-by-link.
     tripMedia: {
+        addDocStatusFailedWithMsg: "❌ Upload failed: {error}",
         addDocValidationInvalidUrl: "That link isn't supported. Use an http(s):// URL, or upload the file instead.",
         photoUploadPartialReason: "{added} added, {failed} couldn't be uploaded — {reason}",
         photoUploadPartial: "{added} added, {failed} couldn't be uploaded.",

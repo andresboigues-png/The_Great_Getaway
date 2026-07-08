@@ -89,12 +89,18 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                         async (caption: string) => {
                             const result = await shareTripToFeed(activeTrip.id, caption);
                             if (result?.ok) {
+                                // E3-B2: re-sharing an already-shared trip returns
+                                // HTTP 200 { status: 'already_shared' } (never 409),
+                                // so a plain result.ok check told the user they made
+                                // a new post when they didn't. Branch on the body
+                                // status instead so the re-share path shows the
+                                // "already shared" toast rather than "Shared!".
+                                if (result.body?.status === 'already_shared') {
+                                    showLiquidAlert(t('share.sharedToFeedDuplicate'), 'info');
+                                    return 'feed'; // already shared — go to the feed to see it
+                                }
                                 showLiquidAlert(t('share.sharedToFeedSuccess'), 'success');
                                 return 'feed'; // success → close + jump to the feed
-                            }
-                            if (result?.status === 409) {
-                                showLiquidAlert(t('share.sharedToFeedDuplicate'), 'info');
-                                return 'feed'; // already shared — go to the feed to see it
                             }
                             // Real error — surface the status + body and KEEP the modal
                             // open so the user stays on this page to fix + retry.

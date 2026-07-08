@@ -13,6 +13,8 @@
 import { STATE, emit } from '../state.js';
 import { EVENTS } from '../constants.js';
 import type { Trip } from '../types';
+import { t } from '../i18n.js';
+import { showLiquidAlert } from '../utils.js';
 import { apiFetch, onUserWipe } from './core.js';
 
 /** R12-B4 Phase 2: per-trip "media is hydrated" set. A trip is only
@@ -212,6 +214,17 @@ export async function _postTripMedia(tripId: string, media: MediaSnapshot): Prom
                     // The snapshot we just wrote is now server truth — it
                     // becomes the base for the next edit's 409 merge.
                     _mediaBaseline.set(tripId, snapshot);
+                } else if (!res.ok) {
+                    // C4-B3: a non-409 error (notably 413 — the server 413s
+                    // when a media column exceeds its 512KB cap) was swallowed
+                    // silently: no toast, no retry, no re-park. The item stays
+                    // in STATE + localStorage looking saved but is never
+                    // written server-side. A 413 can't be fixed by retrying the
+                    // same over-cap payload, so surface actionable feedback and
+                    // let the user trim before it silently vanishes on reload.
+                    if (res.status === 413) {
+                        showLiquidAlert(t('errors.mediaTooLarge'));
+                    }
                 }
                 return;
             }

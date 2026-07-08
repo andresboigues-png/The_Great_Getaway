@@ -457,16 +457,25 @@ function HistoryTab({ trip, tripIsEditable, onEditSettlement, onUnsettle }: {
 
 function GlobalTab() {
     const globalBalances = computeGlobalBalances();
-    const sorted = Object.entries(globalBalances).sort((a, b) => b[1] - a[1]);
-    const maxAbs = Math.max(...Object.values(globalBalances).map(Math.abs), 1);
-    const hasBalances = sorted.some(([, v]) => Math.abs(v) > 0.01);
+    // B6-B2: computeGlobalBalances seeds EVERY roster name (even net-0), so
+    // filter to people who actually carry a balance before rendering — a
+    // fully-settled person must not render as a EUR0.00 row. `sorted` drives
+    // the list; the raw seeded map still feeds the empty-state check below.
+    const sorted = Object.entries(globalBalances)
+        .filter(([, v]) => Math.abs(v) > 0.01)
+        .sort((a, b) => b[1] - a[1]);
+    const maxAbs = Math.max(...sorted.map(([, v]) => Math.abs(v)), 1);
 
     if (sorted.length === 0) {
+        // No net balances. If there are seeded people they're all square
+        // (settled-up state); if the map is empty there are no companions at
+        // all. Both collapse to a single reassuring empty card here.
+        const everyoneSettled = Object.keys(globalBalances).length > 0;
         return (
             <div className="card glass" style={{ padding: '48px 32px', textAlign: 'center', borderRadius: '28px', border: '1.5px dashed rgba(52,199,89,0.3)', background: 'rgba(52,199,89,0.04)' }}>
-                <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>🌍</div>
-                <h2 style={{ margin: '0 0 6px', color: 'var(--text-brand-navy)' }}>{t('settlement.crossTripEmptyTitle')}</h2>
-                <p className="text-muted" style={{ margin: 0 }}>{t('settlement.crossTripEmptyBody')}</p>
+                <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>{everyoneSettled ? '🥂' : '🌍'}</div>
+                <h2 style={{ margin: '0 0 6px', color: 'var(--text-brand-navy)' }}>{everyoneSettled ? t('settlement.crossTripSettledTitle') : t('settlement.crossTripEmptyTitle')}</h2>
+                <p className="text-muted" style={{ margin: 0 }}>{everyoneSettled ? t('settlement.crossTripSettledBody') : t('settlement.crossTripEmptyBody')}</p>
             </div>
         );
     }
@@ -482,7 +491,9 @@ function GlobalTab() {
                 </div>
                 <div className="stl-flex-col-8">
                     {sorted.map(([person, bal]) => {
-                        const pct = hasBalances ? Math.min((Math.abs(bal) / maxAbs) * 100, 100) : 0;
+                        // Every row in `sorted` carries a non-zero balance
+                        // (B6-B2 filter), so the bar always renders here.
+                        const pct = Math.min((Math.abs(bal) / maxAbs) * 100, 100);
                         const isCredit = bal > 0.01;
                         const isDebt = bal < -0.01;
                         const color = isCredit ? 'var(--stl-green)' : isDebt ? 'var(--stl-red)' : 'var(--text-secondary)';
@@ -497,13 +508,11 @@ function GlobalTab() {
                                     <div style={{ flex: 1, minWidth: 0, fontWeight: 800, color: 'var(--text-brand-navy)', fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person}</div>
                                     <div style={{ fontWeight: 800, color, fontSize: '1rem' }}>{isCredit ? '+' : ''}{formatHome(bal, 'EUR')}</div>
                                 </div>
-                                {hasBalances ? (
-                                    <div style={{ height: '6px', background: 'rgba(0,0,0,0.05)', borderRadius: '999px', overflow: 'hidden', position: 'relative' }}>
-                                        {isCredit ? <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: `${pct / 2}%`, background: '#34c759', borderRadius: '999px' }} /> : null}
-                                        {isDebt ? <div style={{ position: 'absolute', right: '50%', top: 0, bottom: 0, width: `${pct / 2}%`, background: '#ff3b30', borderRadius: '999px' }} /> : null}
-                                        <div style={{ position: 'absolute', left: '50%', top: '-2px', bottom: '-2px', width: '1px', background: 'rgba(0,0,0,0.12)' }} />
-                                    </div>
-                                ) : null}
+                                <div style={{ height: '6px', background: 'rgba(0,0,0,0.05)', borderRadius: '999px', overflow: 'hidden', position: 'relative' }}>
+                                    {isCredit ? <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: `${pct / 2}%`, background: '#34c759', borderRadius: '999px' }} /> : null}
+                                    {isDebt ? <div style={{ position: 'absolute', right: '50%', top: 0, bottom: 0, width: `${pct / 2}%`, background: '#ff3b30', borderRadius: '999px' }} /> : null}
+                                    <div style={{ position: 'absolute', left: '50%', top: '-2px', bottom: '-2px', width: '1px', background: 'rgba(0,0,0,0.12)' }} />
+                                </div>
                             </div>
                         );
                     })}

@@ -342,16 +342,21 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
             const extra = r.days.length > INTERNAL_LIMIT ? groupToggleBtnHtml('days', r.days.length, internalShowAll.days) : '';
             html += groupWrap(t('search.groupDays'), rows, extra, r.days.length);
         }
-        if (r.expenses.length) {
-            const shown = internalShowAll.expenses ? r.expenses : r.expenses.slice(0, INTERNAL_LIMIT);
+        // C5-B3: drop expense hits whose parent trip is unknown (trip null →
+        // tripId ''). goToInternal bails on an empty tripId, so such a row is
+        // visible but inert — no navigation, no feedback. Filter them here so
+        // only navigable expenses render (and the group count matches).
+        const navigableExpenses = r.expenses.filter((hit) => hit.trip);
+        if (navigableExpenses.length) {
+            const shown = internalShowAll.expenses ? navigableExpenses : navigableExpenses.slice(0, INTERNAL_LIMIT);
             const rows = shown.map((hit) => internalRowHtml({
                 id: `${OPTION_ID_PREFIX}i${optIdx++}`,
                 kind: 'expense', tripId: hit.trip?.id || '', dayId: '', archived: hit.archived,
                 icon: 'wallet', title: hit.expense.label || t('search.expenseNoLabel'),
                 subtitle: `${formatAmount(hit.expense.value, hit.expense.currency)} · ${hit.expense.who || t('search.expenseNoPayer')}${hit.trip ? ` · ${hit.trip.name}` : ''}`,
             })).join('');
-            const extra = r.expenses.length > INTERNAL_LIMIT ? groupToggleBtnHtml('expenses', r.expenses.length, internalShowAll.expenses) : '';
-            html += groupWrap(t('search.groupExpenses'), rows, extra, r.expenses.length);
+            const extra = navigableExpenses.length > INTERNAL_LIMIT ? groupToggleBtnHtml('expenses', navigableExpenses.length, internalShowAll.expenses) : '';
+            html += groupWrap(t('search.groupExpenses'), rows, extra, navigableExpenses.length);
         }
         return html;
     };
@@ -361,6 +366,14 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         // C5-B1: a fresh render supersedes any error still counting down to
         // auto-hide — cancel it so it can't wipe these results mid-read.
         if (errorHideTimer) { clearTimeout(errorHideTimer); errorHideTimer = null; }
+        // C5-B2: remember which option the keyboard/SR pointer was on so an async
+        // repaint (a late Places response landing after the internalFallback
+        // painted, then the user arrow-keyed) can restore it below. Option ids
+        // are stable across these repaints — internal ids are `…i${n}` and Places
+        // ids `…${n}`, disjoint namespaces — so the same id is the same slot.
+        const prevActiveId = activeIndex >= 0
+            ? searchInput.getAttribute('aria-activedescendant')
+            : null;
         // DSGN-006: each (re)render resets the active option + opens the combobox.
         activeIndex = -1;
         searchInput.setAttribute('aria-expanded', 'true');
@@ -380,9 +393,22 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         }
         resultsEl.style.display = 'block';
         resultsEl.innerHTML = placesHtml + internalHtml;
-        const placeCount = lastPreds ? Math.min(lastPreds.length, 5) : 0;
-        const internalCount = lastInternal ? (lastInternal.trips.length + lastInternal.days.length + lastInternal.expenses.length) : 0;
-        if (statusEl) statusEl.textContent = tn('map.resultsAnnounce', placeCount + internalCount);
+        // C5-B2: reinstate the keyboard/SR highlight if the option it was on
+        // survived this repaint, so a late Places response doesn't silently drop
+        // the user's arrow-key selection (and the following Enter still fires).
+        if (prevActiveId) {
+            const rows = Array.from(resultsEl.querySelectorAll('.map-search-row, .map-internal-row')) as HTMLElement[];
+            const idx = rows.findIndex((r) => r.id === prevActiveId);
+            if (idx >= 0) setActiveOption(idx);
+        }
+        // C5-B4: announce what is actually navigable on screen, not the full
+        // match totals. Each internal group caps at INTERNAL_LIMIT rows (Places
+        // at 5) and inert expense rows are filtered out, so summing the raw
+        // lengths over-announced (e.g. "59 results" for ~13 rows). Count the
+        // rendered option rows instead — it tracks the caps, Show-all state and
+        // any expanded Places text results automatically.
+        const renderedCount = resultsEl.querySelectorAll('.map-search-row, .map-internal-row').length;
+        if (statusEl) statusEl.textContent = tn('map.resultsAnnounce', renderedCount);
     };
 
     /** Navigate to an internal hit — mirrors Search.tsx's goTo* handlers

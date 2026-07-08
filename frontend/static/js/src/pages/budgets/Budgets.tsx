@@ -10,7 +10,7 @@
 // only matters while the page is mounted, and re-mounts naturally
 // reset to "All trips" which matches user intuition.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../../react/store.js';
 import { formatHome } from '../../utils.js';
 import {
@@ -66,6 +66,27 @@ export function Budgets() {
             ? 'thisTrip'
             : 'total',
     );
+    // B4-B4: the lazy initializer above only runs on the FIRST render. On a
+    // hard reload with no persisted snapshot the component mounts before the
+    // pull lands, so allBudgets is empty and scope inits to 'total' — and the
+    // re-render when budgets arrive never re-runs the initializer, stranding
+    // the user on 'total'. Re-derive the default once the user hasn't picked a
+    // scope yet; a manual tap on either chip freezes the choice thereafter.
+    const scopePicked = useRef(false);
+    useEffect(() => {
+        if (scopePicked.current) return;
+        setScope(
+            activeTripId && allBudgets.some((b: Budget) => b.tripId === activeTripId)
+                ? 'thisTrip'
+                : 'total',
+        );
+    // allBudgets is derived from `budgets`; depend on the stable selector.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTripId, budgets]);
+    const pickScope = (s: 'thisTrip' | 'total') => {
+        scopePicked.current = true;
+        setScope(s);
+    };
     const visibleBudgets = scope === 'thisTrip'
         ? allBudgets.filter((b: Budget) => b.tripId === activeTripId)
         : allBudgets.filter((b: Budget) => b.tripId === 'all' || activeTripIds.has(b.tripId));
@@ -184,7 +205,7 @@ export function Budgets() {
                             type="button"
                             role="tab"
                             aria-selected={scope === s}
-                            onClick={() => setScope(s)}
+                            onClick={() => pickScope(s)}
                             className="py-2 px-[18px] rounded-full font-extrabold text-[0.82rem] cursor-pointer border-0"
                             style={{
                                 background: scope === s ? 'linear-gradient(135deg,#ffd60a,#ff9f0a)' : 'transparent',

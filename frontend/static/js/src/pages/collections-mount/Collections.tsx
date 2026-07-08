@@ -126,7 +126,17 @@ export function Collections() {
             setSearchTextLocal(searchInputValue);
             setCollectionsSearchText(searchInputValue);
         }, 220);
-        return () => clearTimeout(handle);
+        // Flush the just-typed value into the persisted store on cleanup
+        // too. Cleanup fires on unmount (e.g. navigating away < 220ms
+        // after a keystroke), which would otherwise clearTimeout the only
+        // writer and drop the search tail — on return the input would
+        // rehydrate from the stale filters.searchText. Writing to the
+        // module-level store is cheap (no re-render; it's not the React
+        // store), so mirroring it here is safe.
+        return () => {
+            clearTimeout(handle);
+            setCollectionsSearchText(searchInputValue);
+        };
     }, [searchInputValue]);
 
     // Build available filter values from the data so the dropdowns
@@ -463,7 +473,7 @@ export function Collections() {
                         <h2 className="mt-2.5 mb-0 flex items-center gap-2.5 flex-wrap">
                             {albumLabel(openAlbum.key, groupBy)}
                             <span className="text-secondary font-bold text-[0.85rem]">
-                                {t('collections.albumTripCount', { count: openAlbum.trips.length })}
+                                {tn('collections.tripCount', openAlbum.trips.length)}
                             </span>
                             {/* MK3-3: country flags disambiguate the continent
                                 (e.g. a Türkiye trip under "Asia"). */}
@@ -840,7 +850,7 @@ function AlbumStack(
         { src: covers[1], cls: 'album-stack__tile--back1' },
         { src: covers[0], cls: 'album-stack__tile--top' },
     ];
-    const countLabel = t('collections.albumTripCount', { count: album.trips.length });
+    const countLabel = tn('collections.tripCount', album.trips.length);
     const emptyBg = albumGradient(album.key);
     return (
         <div

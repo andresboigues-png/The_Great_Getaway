@@ -26,11 +26,21 @@ import { EVENTS } from './constants.js';
 
 export type Theme = 'light' | 'dark' | 'system';
 
+/** Coerce an arbitrary stored value into a valid `Theme`. Anything that
+ *  isn't exactly 'light' | 'dark' | 'system' (undefined, or a corrupt /
+ *  hand-edited localStorage value like 'blue') normalises to 'system'. Used
+ *  both to resolve the rendered theme AND to heal STATE.preferences.theme on
+ *  boot (see applyThemeFromState) so the Settings picker's highlight can't
+ *  desync from the concrete theme that renders. */
+export function normalizeTheme(pref: unknown): Theme {
+    return pref === 'light' || pref === 'dark' || pref === 'system' ? pref : 'system';
+}
+
 /** Resolve a `Theme` preference into the concrete light|dark that
  *  should be rendered RIGHT NOW. For `'system'` this checks the
  *  current `prefers-color-scheme` match. */
 export function resolveTheme(pref: Theme | undefined): 'light' | 'dark' {
-    const p = pref ?? 'system';
+    const p = normalizeTheme(pref);
     if (p === 'light' || p === 'dark') return p;
     // 'system' branch — read the live media query.
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -57,7 +67,15 @@ function setHtmlTheme(theme: 'light' | 'dark'): void {
  *  in initThemeManager). The set-attribute is cheap and noop if the
  *  attribute is already correct. */
 export function applyThemeFromState(): void {
-    const pref = (STATE.preferences?.theme ?? 'system') as Theme;
+    const pref = normalizeTheme(STATE.preferences?.theme);
+    // Heal a corrupt / hand-edited value in place: the Settings picker reads
+    // STATE.preferences.theme directly (currentTheme === value), so without
+    // writing the normalised value back a stray 'blue' would leave no card
+    // selected even though resolveTheme falls through to 'system'. Assign only
+    // when it differs, to avoid churn.
+    if (STATE.preferences && STATE.preferences.theme !== pref) {
+        STATE.preferences.theme = pref;
+    }
     setHtmlTheme(resolveTheme(pref));
 }
 

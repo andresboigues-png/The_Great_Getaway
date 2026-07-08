@@ -812,7 +812,7 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                             disabled={!newCur}
                             onClick={() => { addCurrency(newCur); setNewCur(''); }}
                         >
-                            {t('settings.ratesAddYear')}
+                            {t('settings.ratesAddCurrencyBtn')}
                         </button>
                     </div>
                 ) : null}

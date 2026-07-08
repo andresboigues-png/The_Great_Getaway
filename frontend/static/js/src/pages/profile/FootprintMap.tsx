@@ -157,7 +157,10 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
         void fetch(
             'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson',
         )
-            .then((res) => res.json())
+            .then((res) => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
+            })
             .then((data) => {
                 map.data.addGeoJson(data);
                 map.data.setStyle((feature: google.maps.Data.Feature) => {
@@ -235,6 +238,14 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
                         visible: true,
                     };
                 });
+            })
+            .catch((err) => {
+                // Offline, GitHub down/rate-limited, or a CSP block on
+                // raw.githubusercontent.com rejects the fetch. Swallow it
+                // so the promise doesn't reject unhandled — the map still
+                // renders its base style + trip pins, just without the
+                // country-fill data layer.
+                console.warn('[FootprintMap] country-fill GeoJSON failed to load:', err);
             });
 
         // Drop pins for every public trip. (Today the privacy toggle

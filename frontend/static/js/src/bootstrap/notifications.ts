@@ -252,7 +252,7 @@ export function renderNotificationDropdown() {
     const html = notes.map(n => {
         const title = n.title || notificationDefaultTitle(n.type);
         const message = localizeNotificationMessage(n.type, n.message);
-        const unreadPrefix = n.is_read ? '' : 'Unread. ';
+        const unreadPrefix = n.is_read ? '' : `${t('notifications.unread')} `;
         const ariaLabel = `${unreadPrefix}${title}. ${message}`;
         return `
             <div class="notification-item ${n.is_read ? '' : 'unread'}" data-notification-id="${esc(String(n.id))}" role="button" tabindex="0" aria-label="${esc(ariaLabel)}">

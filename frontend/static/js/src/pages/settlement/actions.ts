@@ -80,8 +80,11 @@ import type { Settlement, Trip } from '../../types';
  *  via applySettlementToBalances, so the fake-expense is no longer
  *  load-bearing for the linked-user path. */
 /** Integration audit A2: in-flight settle keys, to drop a concurrent
- *  double-fire of the same settlement (tripId|from|to|amount) before the
- *  optimistic repaint removes the button. Cleared in settleDebt's finally. */
+ *  double-fire of the same settlement (tripId|from|to|amount|currency)
+ *  before the optimistic repaint removes the button. Currency is part of
+ *  the key so a legitimate concurrent settle of the same pair/amount in a
+ *  second currency (e.g. USD vs EUR) isn't swallowed — it mirrors the
+ *  shell's settleDebtKey. Cleared in settleDebt's finally. */
 const _settleInFlight = new Set<string>();
 
 export async function settleDebt(
@@ -160,7 +163,7 @@ export async function settleDebt(
     // ("Sara owes Alex €X" became "Alex owes Sara €X"). The repaint is
     // fixed below via immutable replace; this guard additionally blocks a
     // concurrent double-fire during the async PATH A round-trip.
-    const inFlightKey = `${tripId}::${from}::${to}::${amount}`;
+    const inFlightKey = `${tripId}::${from}::${to}::${amount}::${cur}`;
     if (_settleInFlight.has(inFlightKey)) return;
     _settleInFlight.add(inFlightKey);
     try {

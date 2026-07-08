@@ -108,7 +108,12 @@ export const openCompanionPickerModal = (tripId: string) => {
 
     /** Build a row for one companion currently on the trip. */
     const buildRow = (c: import('../types').Companion) => {
-        const isLocked = referencedNames.has(c.name.toLocaleLowerCase());
+        // A2-B2: lock on ANY balance-affecting history, not just expenses.
+        // `referencedNames` covers expense payer/split keys only, so a
+        // companion whose name owns just a per-person budget row wasn't
+        // locked — the ✕ rendered, and removing it orphaned the budget key.
+        // `companionNameHasHistory` folds in per-person budgets too.
+        const isLocked = companionNameHasHistory(c.name);
         const linkedUserId = c.linkedUserId;
         const isSelf = !!linkedUserId && linkedUserId === myId;
         const member = linkedUserId ? membersByUserId.get(linkedUserId) : null;
@@ -495,7 +500,19 @@ export const openCompanionPickerModal = (tripId: string) => {
             let survivorName = friendName;
             if (linkTarget) {
                 const c = findTripCompanion(trip, linkTarget);
-                if (c) { c.linkedUserId = friendId; survivorName = c.name; }
+                if (c) {
+                    c.linkedUserId = friendId;
+                    survivorName = c.name;
+                } else {
+                    // A2-B3: the link target vanished mid-flow (e.g. a
+                    // concurrent poll/dedupe dropped the row) but the invite
+                    // already succeeded server-side. Adding it as a plain link
+                    // target would leave a member row + notification with NO
+                    // companion row, so the visible roster diverges from the
+                    // server. Fall back to a brand-new linked companion so the
+                    // invited friend still appears.
+                    survivorName = addTripCompanion(trip, friendName, friendId).name;
+                }
                 delete friendSheet.dataset.linkTargetName;
             } else {
                 const existingByName = findTripCompanion(trip, friendName);

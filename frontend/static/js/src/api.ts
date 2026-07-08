@@ -521,20 +521,38 @@ export function deleteTrip(tripId: string) {
 /** Mark a trip as archived on the server. Phase 3: archive is PER-USER —
  *  flips the caller's `trip_members.is_archived`, leaving other members'
  *  state untouched. Owners additionally mirror to legacy `trips.is_archived`
- *  so collections / public-trips rendering keeps working. */
-export function archiveTripOnServer(tripId: string) {
+ *  so collections / public-trips rendering keeps working.
+ *
+ *  A3-B2: the owner-mirror UPDATE bumps `trips.updated_at` server-side, but
+ *  `_post` never reads the response so the local `trip.updatedAt` stamp goes
+ *  stale. The response body only carries `{status}` (no fresh stamp), so we
+ *  re-pull on success to refresh every trip's stamp from server truth. Without
+ *  this, the FIRST trip edit right after an archive sends the stale
+ *  `clientUpdatedAt`, the server's atomic gate rejects it, and a spurious
+ *  stale-edit 409 toast fires (it only self-heals on the next 15s poll). We
+ *  await the pull so the awaited archive call resolves with a refreshed stamp
+ *  BEFORE the caller's follow-up `navigate()` aborts the in-flight request. */
+export async function archiveTripOnServer(tripId: string) {
     if (!STATE.user) return;
-    return _post(`/api/trips/${tripId}/archive`, {});
+    const res = await _post(`/api/trips/${tripId}/archive`, {});
+    if (res?.ok) await pullFromServer();
+    return res;
 }
 
 /** Inverse of archiveTripOnServer — flips the caller's
  *  `trip_members.is_archived` back to 0 (and `trips.is_archived` for
  *  owners). Restore-from-Collections must call this; otherwise the
  *  trip re-archives on every reload because /api/data reads the
- *  per-user member flag, which the local STATE mutation alone can't fix. */
-export function unarchiveTripOnServer(tripId: string) {
+ *  per-user member flag, which the local STATE mutation alone can't fix.
+ *
+ *  A3-B2: same stale-stamp fix as archiveTripOnServer — the owner-mirror
+ *  UPDATE bumps `trips.updated_at`, so re-pull on success to refresh the
+ *  local stamp and avoid a spurious 409 on the next edit. */
+export async function unarchiveTripOnServer(tripId: string) {
     if (!STATE.user) return;
-    return _post(`/api/trips/${tripId}/unarchive`, {});
+    const res = await _post(`/api/trips/${tripId}/unarchive`, {});
+    if (res?.ok) await pullFromServer();
+    return res;
 }
 
 /** Broadcast "I completed my public trip!" to every follower. The

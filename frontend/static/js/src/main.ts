@@ -36,7 +36,7 @@ import { navigate } from './router.js';
 import { PAGES, EVENTS } from './constants.js';
 
 import { updateUserUI } from './pages/profile.js';
-import { updateNotificationUI } from './bootstrap/notifications.js';
+import { updateNotificationUI, renderNotificationDropdown } from './bootstrap/notifications.js';
 import { updateTripSelector } from './bootstrap/trip-controls.js';
 import { paintI18nBindings } from './bootstrap/i18n-bindings.js';
 import { initGoogleLogin, restoreSession } from './bootstrap/auth.js';
@@ -57,6 +57,21 @@ subscribe('state:changed', updateTripSelector);
 // updateUserUI by hand.
 subscribe('state:changed', updateUserUI);
 subscribe('notifications:changed', updateNotificationUI);
+// E6-B4 — an OPEN dropdown froze on the 15s poll: only the badge
+// subscribed to 'notifications:changed', so renderNotificationDropdown
+// (invoked solely on bell-open) never saw the new/removed rows. A shown
+// row deleted server-side then tapped found no match in STATE and did
+// nothing. Re-render the dropdown on the event too, but only when one is
+// actually open — closed-dropdown re-renders would be wasted DOM writes
+// every tick, and re-rendering an open list is harmless (it keeps in sync
+// with the badge the user is watching tick up).
+subscribe('notifications:changed', () => {
+    const anyOpen = ['notificationDropdown', 'notificationDropdownDesktop'].some(id => {
+        const dd = document.getElementById(id);
+        return dd !== null && dd.style.display !== 'none' && dd.style.display !== '';
+    });
+    if (anyOpen) renderNotificationDropdown();
+});
 
 async function init() {
     loadState();

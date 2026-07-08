@@ -47,6 +47,12 @@ export function AddTripDocumentModal({ trip, close }: { trip: Trip; close: () =>
                     if (urlRef.current) urlRef.current.value = res.url;
                     if (nameRef.current && !nameRef.current.value) nameRef.current.value = res.name || file.name;
                     setStatusText(t('tripMedia.addDocStatusUploaded'));
+                } else if (res && res.error) {
+                    // uploadMedia returns actionable messages (too large,
+                    // unsupported type, 507 storage, network) — surface
+                    // them instead of the generic failure so the user knows
+                    // whether to shrink, retype, or free up space.
+                    setStatusText(t('tripMedia.addDocStatusFailedWithMsg', { error: res.error }));
                 } else {
                     setStatusText(t('tripMedia.addDocStatusFailed'));
                 }

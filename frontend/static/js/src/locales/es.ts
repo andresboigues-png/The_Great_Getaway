@@ -89,6 +89,7 @@ export const es: Translations = {
         skipToContent: 'Ir al contenido',
     },
     notifications: {
+        unread: "No leída.",
         titleNewFollower: 'Nuevo seguidor',
         titleTripCompleted: 'Viaje completado',
         titleTripInvite: 'Invitación de viaje',
@@ -113,6 +114,8 @@ export const es: Translations = {
         msgSettledUp: '{from} saldó {amount} {currency} contigo por {trip}.',
     },
     errors: {
+        tripSaveFailed: "No se pudieron guardar los cambios: inténtalo de nuevo.",
+        mediaTooLarge: "Es demasiado grande para guardar — prueba a quitar una foto o acortar una nota y añádelo de nuevo.",
         backOnline: 'De vuelta en línea — tus cambios se han guardado.',
         offline: 'Estás sin conexión — los cambios se sincronizarán cuando vuelvas.',
         serverUnreachable: 'No puedo alcanzar el servidor — seguiremos reintentando.',
@@ -220,6 +223,7 @@ export const es: Translations = {
         feature3Body: 'Invita a personas para planificar contigo.',
     },
     settings: {
+        ratesAddCurrencyBtn: "Añadir moneda",
         title: 'Ajustes',
         general: 'Ajustes generales',
         generalDesc: 'Configura los filtros de POI y la apariencia.',
@@ -584,6 +588,8 @@ export const es: Translations = {
         homeCountryNotSet: '— Sin definir —',
     },
     settlement: {
+        crossTripSettledBody: "No hay saldos pendientes en ninguno de tus viajes.",
+        crossTripSettledTitle: "Todos están al día",
         title: 'Liquidaciones',
         subtitle: 'Calcula quién debe qué y salda cuentas con justicia.',
         noTripsTitle: 'Aún no hay viajes',
@@ -1250,6 +1256,9 @@ export const es: Translations = {
         addSplitPersonAria: 'Añadir una persona para dividir el gasto',
     },
     feed: {
+        commentEditCancel: "Cancelar",
+        commentEditSave: "Guardar",
+        evSettledUpAmount: "{who} saldó {amount} con {other} en {trip} 🤝",
         title: 'Feed',
         subtitle: 'Lo que están haciendo tus amigos últimamente',
         tabPosts: 'Publicaciones',
@@ -1688,6 +1697,8 @@ export const es: Translations = {
         badgeUnlockedFallback: 'Nueva medalla',
     },
     validation: {
+        dateCannotBeFuture: "La fecha no puede estar en el futuro.",
+        splitCannotBeNegative: "Los porcentajes de división no pueden ser negativos.",
         required: 'Este campo es obligatorio.',
         invalidValue: 'Introduce un valor válido.',
         invalidEmail: 'Introduce un email válido.',
@@ -1828,6 +1839,7 @@ export const es: Translations = {
         toastUpdated: '¡Itinerario actualizado!',
     },
     tripMedia: {
+        addDocStatusFailedWithMsg: "❌ Error al subir: {error}",
         addDocValidationInvalidUrl: "Ese enlace no es compatible. Usa una URL http(s):// o sube el archivo.",
         photoUploadPartialReason: "{added} añadida(s), {failed} no se pudieron subir — {reason}",
         photoUploadPartial: "{added} añadida(s), {failed} no se pudieron subir.",
