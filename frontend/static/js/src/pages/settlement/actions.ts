@@ -32,12 +32,13 @@ import {
     findAcceptedMemberUserId,
     findTripCompanionByLinkedUser,
 } from '../../companions.js';
-import { hasRate } from '../../utils/currency.js';
+import { hasRate, getSupportedCurrencies } from '../../utils/currency.js';
+import { CURRENCY_SYMBOLS } from '../../constants.js';
 import { createSettlement, deleteSettlementOnServer, upsertExpense } from '../../api.js';
 import { showModal } from '../../components/Modal.js';
 import {
+    computeTripBalances,
     computeTripBalancesByCurrency,
-    simplifyDebts,
 } from './balances.js';
 import { tripPrimarySpendCurrency } from './viewData.js';
 import { t, formatCurrency } from '../../i18n.js';
@@ -137,7 +138,14 @@ export async function settleDebt(
     ) {
         euroValue = Math.round(options.euroValue * 10000) / 10000;
     } else {
-        showLiquidAlert(t('settlement.toastNoRateNeedEuro', { currency: cur }));
+        // B2-I5: an explicit euroValue only ever arrives from the manual
+        // modal itself, so this branch is exclusively the one-click Settle.
+        // Guide the user forward instead of a bare return — open the manual
+        // modal prefilled with this pair + amount + currency so they can
+        // supply the required euro value in one hop rather than hunting for
+        // "Settle up manually" themselves.
+        showLiquidAlert(t('settlement.toastNoRateNeedEuro', { currency: cur }), 'info');
+        openManualSettleModal(tripId, { from, to, amount, currency: cur });
         return;
     }
 
@@ -318,10 +326,31 @@ const SETTLE_METHODS = [
     { value: 'custom',        labelKey: 'settlement.methodCustom' as const },
 ];
 
-export function openManualSettleModal(tripId: string): void {
+export function openManualSettleModal(
+    tripId: string,
+    prefill?: { from?: string; to?: string; amount?: number; currency?: string },
+): void {
     const trip = STATE.trips.find((tr) => tr.id === tripId);
-    const peopleSource = getTripCompanionNames(trip);
-    const peopleOptions = peopleSource.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+    // B5-I1: include removed-roster members. Balances intentionally keep a
+    // removed companion's expenses so their debt stays visible ("Bob (removed)
+    // owes €40"); sourcing the picker from getTripCompanionNames alone left no
+    // way to record a manual payment for that debt. Union the live roster with
+    // the removed-companion names computeTripBalances surfaces.
+    const peopleSource = Array.from(new Set([
+        ...getTripCompanionNames(trip),
+        ...computeTripBalances(trip).removedFromRoster,
+    ]));
+    // B2-I5: when opened prefilled from the one-click Settle, keep the two
+    // recorded parties selectable even if they aren't in the picker's source
+    // (e.g. a name the balance math surfaced that isn't a current companion).
+    const fromSource = _peopleWith(peopleSource, prefill?.from);
+    const toSource = _peopleWith(fromSource, prefill?.to);
+    const optsFor = (people: string[], selected: string | undefined): string =>
+        people
+            .map((p) => `<option value="${esc(p)}" ${selected != null && p === selected ? 'selected' : ''}>${esc(p)}</option>`)
+            .join('');
+    const fromOptions = optsFor(fromSource, prefill?.from);
+    const toOptions = optsFor(toSource, prefill?.to);
     const methodOptions = SETTLE_METHODS
         .map(m => `<option value="${esc(m.value)}">${esc(t(m.labelKey))}</option>`)
         .join('');
@@ -330,10 +359,25 @@ export function openManualSettleModal(tripId: string): void {
     // currencies (default = the primary one), falling back to home when the
     // trip has no expenses yet. The debt is settled in the chosen currency
     // and the overpay check compares like-for-like.
+    // B5-I6: manual settle explicitly records off-app debts, which may be in a
+    // currency the trip never logged an expense in — so the picker can't be
+    // limited to the trip's own spend currencies. Union the trip's currencies
+    // (kept first so the common case is one tap) with the full supported set,
+    // mirroring the expense form's dropdown, so any legitimate currency is
+    // pickable. A prefill currency is folded in too.
     const _manualByCur = computeTripBalancesByCurrency(trip).byCurrency;
     const _manualCurs = Object.keys(_manualByCur);
-    const _manualDefaultCur = (tripPrimarySpendCurrency(trip?.id ?? '') || home).toUpperCase();
-    const _manualCurList = _manualCurs.length > 0 ? _manualCurs : [home.toUpperCase()];
+    const _prefillCur = prefill?.currency ? prefill.currency.toUpperCase() : undefined;
+    const _manualDefaultCur = (_prefillCur || tripPrimarySpendCurrency(trip?.id ?? '') || home).toUpperCase();
+    const _tripCurs = _manualCurs.length > 0 ? _manualCurs : [home.toUpperCase()];
+    const _allCurs = Array.from(new Set([...getSupportedCurrencies(), ...Object.keys(CURRENCY_SYMBOLS)]))
+        .filter((c) => !_tripCurs.includes(c))
+        .sort((a, b) => a.localeCompare(b));
+    const _manualCurList = Array.from(new Set([
+        ...(_prefillCur ? [_prefillCur] : []),
+        ..._tripCurs,
+        ..._allCurs,
+    ]));
     const currencyOptions = _manualCurList
         .map((c) => `<option value="${esc(c)}" ${c === _manualDefaultCur ? 'selected' : ''}>${esc(c)}</option>`)
         .join('');
@@ -346,12 +390,12 @@ export function openManualSettleModal(tripId: string): void {
             <p class="text-subtitle">${t('settlement.manualSubtitle')}</p>
             <form id="manualSettleForm" style="display:flex; flex-direction:column; gap: var(--space-3); margin-top: var(--space-4);">
                 <label class="form-label">${esc(t('settlement.labelFrom'))}</label>
-                <select id="manualSettleFrom" class="glass-input stl-card-minor-bg">${peopleOptions}</select>
+                <select id="manualSettleFrom" class="glass-input stl-card-minor-bg">${fromOptions}</select>
                 <label class="form-label stl-mt-6">${esc(t('settlement.labelTo'))}</label>
-                <select id="manualSettleTo" class="glass-input stl-card-minor-bg">${peopleOptions}</select>
+                <select id="manualSettleTo" class="glass-input stl-card-minor-bg">${toOptions}</select>
                 <label class="form-label stl-mt-6">${esc(t('settlement.labelAmount', { currency: _manualDefaultCur }))}</label>
                 <div style="display:flex; gap:8px;">
-                    <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input stl-card-minor" placeholder="0.00" required style="flex:2;">
+                    <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input stl-card-minor" placeholder="0.00" required style="flex:2;"${prefill?.amount != null && Number.isFinite(prefill.amount) && prefill.amount > 0 ? ` value="${esc(String(prefill.amount))}"` : ''}>
                     <select id="manualSettleCurrency" class="glass-input stl-card-minor-bg" style="flex:1;" aria-label="${esc(t('settlement.labelAmount', { currency: '' }))}">${currencyOptions}</select>
                 </div>
                 <div id="manualSettleEuroRow" style="display:none; flex-direction:column; gap: var(--space-2); margin-top: var(--space-2);">
@@ -456,23 +500,33 @@ export function openManualSettleModal(tripId: string): void {
 }
 
 
-/** Compute how much `from` net-owes `to` on a trip, in the user's
- *  home currency. Drives the overpayment warning on the manual-settle
- *  modal (audit S5). Walks the simplified-debt graph since pairwise
- *  netting can hide behind a chain (Alice owes Bob via Charlie etc.);
- *  if the direct from→to edge exists, that's the answer, otherwise 0
- *  (no direct debt; the user is paying into a chain we can't simplify
- *  without re-running netting from scratch). */
+/** Compute how much `from` can settle toward `to` on a trip without
+ *  flipping either party's balance, in the requested currency. Drives the
+ *  overpayment warning on the manual-settle modal (audit S5).
+ *
+ *  B5-I2: previously this returned the DIRECT from→to edge from
+ *  simplifyDebts(), else 0. But simplifyDebts greedily ROUTES debts through
+ *  a chain (Alice→Charlie→Bob), so settling Alice→Bob directly found no
+ *  direct edge and returned 0 — the overpay confirm fired spuriously even
+ *  though Alice genuinely owes into the pool that Bob is owed from, training
+ *  users to click through the guard. The real non-flip headroom is
+ *  independent of how the greedy pass happens to route: it's how much a
+ *  debtor `from` (negative net balance) can pay a creditor `to` (positive
+ *  net balance) before either crosses zero, i.e. min(what `from` owes, what
+ *  `to` is owed). That's exactly what a legitimate direct payment settles;
+ *  paying beyond it is the overpay the nudge is meant to catch. */
 function _pairwiseOwed(trip: Trip | undefined, from: string, to: string, currency: string): number {
     if (!trip) return 0;
-    // MK3-8: per-currency. Net debts within the requested currency only and
-    // return the direct from→to edge in that currency (no conversion), so the
-    // overpay nudge compares like-for-like with the entered amount.
+    // MK3-8: per-currency. Net debts within the requested currency only (no
+    // conversion) so the overpay nudge compares like-for-like with the amount.
     const { byCurrency } = computeTripBalancesByCurrency(trip);
     const bal = byCurrency[(currency || 'EUR').toUpperCase()];
     if (!bal) return 0;
-    const edge = simplifyDebts(bal).find((d) => d.from === from && d.to === to);
-    return edge ? edge.amount : 0;
+    // Positive balance = is owed (creditor); negative = owes (debtor).
+    const fromOwes = -(bal[from] ?? 0);   // how much `from` owes the pool
+    const toIsOwed = bal[to] ?? 0;        // how much `to` is owed from the pool
+    if (fromOwes <= 0 || toIsOwed <= 0) return 0;
+    return Math.min(fromOwes, toIsOwed);
 }
 
 /** B5-B1: guarantee a settlement's recorded party name survives in the

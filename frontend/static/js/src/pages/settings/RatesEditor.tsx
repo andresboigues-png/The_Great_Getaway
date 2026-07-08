@@ -244,6 +244,29 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
         markEdited();
     };
 
+    // F2-I3: an FX rate must be > 0. The input's min='0' lets a 0 (or a negative)
+    // through, but writeMerged/setManualRate silently drop it — so the user would
+    // see the "Saved" flash yet the cell reverts to auto. Flag such cells so we can
+    // outline them, block Save, and show an honest hint. Inflation % has no such
+    // floor (deflation is valid), so this only applies in FX mode.
+    const cellInvalid = (value: string): boolean => {
+        if (!isFx) return false;
+        const s = value.trim();
+        if (s === '') return false;
+        const n = Number(s);
+        return Number.isFinite(n) && n <= 0;
+    };
+    const hasInvalidFx = useMemo(() => {
+        if (!isFx) return false;
+        for (const row of Object.values(draft)) {
+            for (const v of Object.values(row || {})) {
+                if (cellInvalid(v)) return true;
+            }
+        }
+        return false;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [draft, isFx]);
+
     const addCurrency = (raw: string) => {
         const c = raw.toUpperCase();
         if (!c) return;
@@ -284,6 +307,8 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
     // Save the whole draft for this mode. Every cell is written (blank clears
     // this mode's field, preserving the other mode). Covers all rows × all years.
     const onSave = () => {
+        // F2-I3: never flash "Saved" for a value the store would reject (fx <= 0).
+        if (hasInvalidFx) return;
         for (const cur of rowCurrencies) {
             const row = draft[cur] || {};
             for (const year of years) {
@@ -761,21 +786,28 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                                             ) : null}
                                         </span>
                                     </th>
-                                    {years.map((year) => (
-                                        <td key={year} className="rates-matrix__cell">
-                                            <input
-                                                type="number"
-                                                step={isFx ? 'any' : '0.1'}
-                                                min={isFx ? '0' : '-100'}
-                                                inputMode="decimal"
-                                                className="rates-matrix__input"
-                                                placeholder={autoHint(cur, year) || t('settings.ratesAutoPlaceholder')}
-                                                value={draft[cur]?.[year] ?? ''}
-                                                onChange={(e) => updateCell(cur, year, e.target.value)}
-                                                aria-label={cellAria(cur, year)}
-                                            />
-                                        </td>
-                                    ))}
+                                    {years.map((year) => {
+                                        const invalid = cellInvalid(draft[cur]?.[year] ?? '');
+                                        return (
+                                            <td key={year} className="rates-matrix__cell">
+                                                <input
+                                                    type="number"
+                                                    step={isFx ? 'any' : '0.1'}
+                                                    // F2-I3: FX floor is strictly > 0; min='0' would still
+                                                    // let 0 through, so we validate in-component too.
+                                                    min={isFx ? '0.0000001' : '-100'}
+                                                    inputMode="decimal"
+                                                    className="rates-matrix__input"
+                                                    placeholder={autoHint(cur, year) || t('settings.ratesAutoPlaceholder')}
+                                                    value={draft[cur]?.[year] ?? ''}
+                                                    onChange={(e) => updateCell(cur, year, e.target.value)}
+                                                    aria-label={cellAria(cur, year)}
+                                                    aria-invalid={invalid || undefined}
+                                                    style={invalid ? { outline: '2px solid #ff3b30', outlineOffset: '-2px' } : undefined}
+                                                />
+                                            </td>
+                                        );
+                                    })}
                                 </tr>
                             ))
                         )}
@@ -851,9 +883,9 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                 <button
                     type="button"
                     className="btn-primary text-[0.9rem]"
-                    style={{ padding: '9px 22px', borderRadius: '999px', opacity: dirty ? 1 : 0.6 }}
+                    style={{ padding: '9px 22px', borderRadius: '999px', opacity: dirty && !hasInvalidFx ? 1 : 0.6 }}
                     onClick={onSave}
-                    disabled={!dirty}
+                    disabled={!dirty || hasInvalidFx}
                 >
                     {t('settings.ratesSave')}
                 </button>
@@ -867,7 +899,11 @@ export function RatesEditor({ mode }: { mode: RatesMode }) {
                         {t('settings.ratesResetAllAuto')}
                     </button>
                 ) : null}
-                {savedFlash ? (
+                {hasInvalidFx ? (
+                    <span className="text-[0.82rem] font-bold" style={{ color: '#ff3b30' }} role="alert">
+                        {t('settings.ratesFxPositive')}
+                    </span>
+                ) : savedFlash ? (
                     <span className="text-[0.82rem] font-bold" style={{ color: '#34c759' }}>
                         {t('settings.ratesSavedFlash')}
                     </span>

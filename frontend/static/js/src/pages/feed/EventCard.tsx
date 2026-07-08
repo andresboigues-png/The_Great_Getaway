@@ -42,6 +42,11 @@ interface EventCardProps {
     onCommentEdit: (eventId: string, commentId: number, body: string) => void;
     onUnshare: (postId: number) => void;
     onRepost: (postId: number, btn: HTMLButtonElement) => void;
+    /** E2-I4: true once the caller has reposted this post this session.
+     *  Drives the repost button's checkmark + disabled state through
+     *  props instead of an imperative innerHTML patch that a re-render
+     *  could wipe. */
+    reposted: boolean;
 }
 
 export function EventCard(props: EventCardProps) {
@@ -58,6 +63,7 @@ export function EventCard(props: EventCardProps) {
         onCommentEdit,
         onUnshare,
         onRepost,
+        reposted,
     } = props;
 
     const meId = STATE.user?.id;
@@ -66,14 +72,20 @@ export function EventCard(props: EventCardProps) {
 
     const isShareLike =
         ev.type === 'friend_shared_trip' || ev.type === 'friend_reposted_trip';
-    const isMyOriginalShare =
-        ev.type === 'friend_shared_trip' && ev.actor?.id === meId && ev.post_id;
+    // E4-I2: the removal ✕ applies to ANY post the caller authored — their
+    // own original share OR their own repost. The DELETE /api/feed/share/<id>
+    // endpoint is author-only and cascade-deletes a repost the same as an
+    // original, so a repost is just as undoable as a share.
+    const isMyPost = isShareLike && ev.actor?.id === meId && !!ev.post_id;
     const isPost = POSTS_EVENT_TYPES.has(ev.type);
     const liked = !!ev.is_liked;
     const likeCount = ev.like_count || 0;
     const commentCount = ev.comment_count || 0;
     const bookmarked = !!ev.is_bookmarked;
-    const canRepost = !!ev.post_id;
+    // E4-I4: reposting is only meaningful on someone ELSE's post. On the
+    // caller's own share/repost the button just round-trips to a
+    // "that's your own share" toast, so hide it.
+    const canRepost = !!ev.post_id && ev.actor?.id !== meId;
 
     return (
         <div
@@ -119,12 +131,22 @@ export function EventCard(props: EventCardProps) {
                         </div>
                     ) : null}
                 </div>
-                {isMyOriginalShare && ev.post_id ? (
+                {isMyPost && ev.post_id ? (
                     <button
                         type="button"
                         className="feed-unshare-btn bg-transparent border-0 text-[rgba(255,59,48,0.55)] cursor-pointer py-0.5 px-1.5 text-[0.85rem] font-extrabold shrink-0 leading-none"
-                        title={t('feed.btnUnshareTitle')}
-                        aria-label={t('feed.btnUnshare')}
+                        // E4-I2: honest wording per post kind — "Remove repost"
+                        // on the caller's own repost, "Unshare" on their share.
+                        title={
+                            ev.type === 'friend_reposted_trip'
+                                ? t('feed.btnRemoveRepostTitle')
+                                : t('feed.btnUnshareTitle')
+                        }
+                        aria-label={
+                            ev.type === 'friend_reposted_trip'
+                                ? t('feed.btnRemoveRepost')
+                                : t('feed.btnUnshare')
+                        }
                         onClick={() => onUnshare(ev.post_id!)}
                     >
                         ✕
@@ -222,8 +244,9 @@ export function EventCard(props: EventCardProps) {
                         {canRepost && ev.post_id ? (
                             <ActionButton
                                 kind="repost"
-                                active={false}
-                                title={t('feed.btnRepost')}
+                                active={reposted}
+                                disabled={reposted}
+                                title={reposted ? t('feed.btnReposted') : t('feed.btnRepost')}
                                 onClick={(btn) => onRepost(ev.post_id!, btn)}
                             />
                         ) : null}
@@ -261,6 +284,10 @@ export function EventCard(props: EventCardProps) {
                         <CommentThread
                             eventId={ev.id}
                             comments={threadComments || []}
+                            // E5-I1: post owner may moderate (delete) any
+                            // comment on their own share. Mirrors the
+                            // server branch in delete_feed_comment.
+                            canModerate={isMyPost}
                             onDelete={(commentId) => onCommentDelete(ev.id, commentId)}
                             onEdit={(commentId, body) => onCommentEdit(ev.id, commentId, body)}
                             onSubmit={(body, input) => onCommentSubmit(ev.id, body, input)}

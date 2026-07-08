@@ -265,26 +265,33 @@ export function TripDocumentsModal({
                                                 </div>
                                                 {tripIsEditable && (
                                                     <>
-                                                        {d._source === 'trip' && (anchorDay || numberedDays.length > 0) ? (
+                                                        {d._source === 'trip' && (anchorDay || numberedDays.length > 0 || d.dayId) ? (
                                                             /* Day-reassign only for trip-level entries —
                                                                legacy day.tickets can't move between days
                                                                without breaking their index-based id.
                                                                Uncontrolled select (defaultValue) keyed by
                                                                dayId: a dayId change remounts it with the
-                                                               fresh selection, mirroring the old repaint;
-                                                               a null dayId falls back to the browser's
-                                                               first option exactly like the old markup
-                                                               (which had no `selected` attr then). */
+                                                               fresh selection, mirroring the old repaint.
+                                                               The value="" Unsorted option is the detach
+                                                               path (→ dayId null) AND the real selection
+                                                               for an already-orphaned doc — so it no longer
+                                                               renders with the first day spuriously chosen,
+                                                               and legacy trips without an Anchor day still
+                                                               have a way back to trip-wide. It maps to the
+                                                               Unsorted group header (null dayId) — distinct
+                                                               from the Anchor option, which lands docs in
+                                                               the "Trip-wide" bucket. */
                                                             <select
                                                                 key={`${d.id ?? i}:${d.dayId ?? ''}`}
                                                                 className="trip-doc-day-select"
                                                                 data-doc-id={d.id}
-                                                                defaultValue={d.dayId ?? undefined}
+                                                                defaultValue={d.dayId ?? ''}
                                                                 style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.1)', fontSize: '0.75rem', background: 'white', maxWidth: 160 }}
                                                                 onChange={ev => {
                                                                     if (d.id) reassignDoc(d.id, ev.currentTarget.value || null);
                                                                 }}
                                                             >
+                                                                <option value="">{t('tripMedia.docsBucketUnsorted')}</option>
                                                                 {anchorDay && <option value={anchorDay.id}>{t('tripMedia.dayBucketAnchorShort')}</option>}
                                                                 {numberedDays.map(nd => (
                                                                     <option key={nd.id} value={nd.id}>

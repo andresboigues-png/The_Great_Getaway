@@ -36,6 +36,14 @@ export function ShareToFeedModal({
     closeForNavigation: () => void;
 }) {
     const [caption, setCaption] = useState(seedCaption || '');
+    // [E3-I5] The server distinguishes "caption key absent" from an empty
+    // string: re-sharing with an empty box sends caption="" → the server
+    // treats it as an explicit clear and NULLs the stored caption. When we
+    // opened with a stored caption (seedCaption) but the box is now empty,
+    // Share is destructive — surface a one-line "will be removed" hint so
+    // clearing is a choice, not an accident.
+    const hadStoredCaption = (seedCaption || '').trim().length > 0;
+    const willClearCaption = hadStoredCaption && caption.trim().length === 0;
     // [E3-B3] The server only AUTO-PUBLISHES on share for ACTIVE trips
     // (feed.py: is_owner && !is_archived). An archived trip has its own
     // privacy selector, so a private archived trip is NOT flipped public —
@@ -106,6 +114,11 @@ export function ShareToFeedModal({
                 </span>
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Friends can like, comment, repost.</span>
             </div>
+            {willClearCaption && (
+                <p role="note" style={{ margin: '10px 0 0', fontSize: '0.78rem', lineHeight: 1.4, color: 'var(--text-secondary)' }}>
+                    {t('share.captionWillBeRemoved')}
+                </p>
+            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
                 <button
                     id="shareModalCancel"

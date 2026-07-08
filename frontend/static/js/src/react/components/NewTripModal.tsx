@@ -30,7 +30,7 @@
 
 import { useEffect, useRef, type FormEvent } from 'react';
 import { STATE, emit } from '../../state.js';
-import { generateId, showLiquidAlert } from '../../utils.js';
+import { generateId, showLiquidAlert, showConfirmModal } from '../../utils.js';
 import {
     upsertTrip,
     upsertDay,
@@ -119,14 +119,12 @@ export function NewTripModal({
     // original) rather than React state — this modal is render-once by
     // design (see header), so imperative textContent/disabled mutations
     // are the consistent tool.
-    const onImportChange = () => {
+    const runImport = (file: File) => {
         void (async () => {
             const importBtn = importBtnRef.current;
             const importInput = importInputRef.current;
             const importLabel = importLabelRef.current;
             if (!importBtn || !importInput) return;
-            const file = importInput.files && importInput.files[0];
-            if (!file) return;
             importBtn.disabled = true;
             if (importLabel) importLabel.textContent = t('modals.importTripStatus');
             const result = await importTripFromFile(file);
@@ -141,6 +139,34 @@ export function NewTripModal({
             closeForNavigation();
             navigate('home');
         })();
+    };
+
+    // Confirm before uploading — the picked file becomes a whole new trip on
+    // this account, and import navigates away on success, so a mis-picked file
+    // would silently create a foreign trip with no surfaced undo. We can't read
+    // the trip's name/day/expense counts without unzipping (no client zip
+    // library), so the filename is the strongest pre-upload signal: we surface
+    // it in the confirm and, when the extension isn't the expected
+    // `.ggtrip.zip`, warn up front rather than after a wasted upload round-trip.
+    const onImportChange = () => {
+        const importInput = importInputRef.current;
+        if (!importInput) return;
+        const file = importInput.files && importInput.files[0];
+        if (!file) return;
+        const isGgTrip = file.name.toLowerCase().endsWith('.ggtrip.zip');
+        showConfirmModal({
+            title: t('modals.importConfirmTitle'),
+            message: isGgTrip
+                ? t('modals.importConfirmMessage', { file: file.name })
+                : t('modals.importConfirmWrongExt', { file: file.name }),
+            confirmText: t('modals.importConfirmBtn'),
+            confirmColor: '#0071e3',
+            onConfirm: () => runImport(file),
+        });
+        // Reset now so re-picking the same file after Cancel still fires
+        // onChange (the browser suppresses it when value is unchanged). The
+        // confirm captured `file` already, so clearing here is safe.
+        importInput.value = '';
     };
 
     const onSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -340,7 +366,7 @@ export function NewTripModal({
                 type="file"
                 id="importTripFileInput"
                 ref={importInputRef}
-                accept=".zip,application/zip"
+                accept=".ggtrip.zip,.zip,application/zip"
                 style={{ display: 'none' }}
                 onChange={onImportChange}
             />

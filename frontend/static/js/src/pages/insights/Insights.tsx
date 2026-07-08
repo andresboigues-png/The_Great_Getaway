@@ -22,7 +22,7 @@ import { useStore } from '../../react/store.js';
 import { useActiveTrip } from '../../react/TripContext.js';
 import { useNavigate } from '../../react/useNavigate.js';
 import { STATE, emit } from '../../state.js';
-import { EVENTS, CURRENCY_SYMBOLS } from '../../constants.js';
+import { EVENTS, CURRENCY_SYMBOLS, CURRENCY_TO_CPI_COUNTRY } from '../../constants.js';
 import { convertCurrency, hasRate } from '../../utils/currency.js';
 import { fetchHistoricalRates, fetchCpiSeries } from '../../api.js';
 import { getTripFxOverrides } from '../../utils/fxOverrides.js';
@@ -284,7 +284,17 @@ export function Insights() {
             getHomeCurrency().toUpperCase(),
             ...tripExps.map((e: Expense) => (e.currency || 'EUR').toUpperCase()),
         ]));
-        setCpiChecked(false);
+        // B7-I3: only drop the gate when a needed, CPI-mappable currency is not
+        // yet in the cache. `cur in cpiCache` records an ATTEMPT (even empty), and
+        // an un-mappable currency never enters the cache at all, so gating on
+        // "mapped-but-absent" means an unrelated expense edit — where every needed
+        // series is already cached — no longer reverts the headline to
+        // "Calculating…". If nothing's missing we skip the reset and keep
+        // cpiChecked true; the fetches below are dedupe no-ops.
+        const anyMappedMissing = curs.some(
+            (c) => c in CURRENCY_TO_CPI_COUNTRY && !(c in STATE.cpiCache),
+        );
+        if (anyMappedMissing) setCpiChecked(false);
         // PV-S1: release the hero gate when the fetches settle OR after ~4s,
         // whichever comes first — one slow/empty World-Bank endpoint (Taiwan
         // ~10s) must not freeze "Worth today". Late CPIs still refine the figure
@@ -310,6 +320,18 @@ export function Insights() {
     // so the note never flashes before the series has had a chance to land.
     const hasCpiData = !!(cpiCache[targetCurr] && Object.keys(cpiCache[targetCurr]).length > 0);
     const cpiUnavailable = cpiChecked && !hasCpiData;
+    // B3-I5: the 4s gate can release the hero while a slow World-Bank endpoint is
+    // still in flight, so a multi-currency trip can paint a "final" figure that's
+    // still missing some inflation factors and then silently refine. Detect that
+    // window — gate released (cpiChecked) but a needed, CPI-mappable currency
+    // hasn't landed in the cache yet — so the hero can carry a quiet "still
+    // updating" note. This reads the live useStore cpiCache, so it clears itself
+    // as the late series arrive. Only relevant in "today" mode (the only mode CPI
+    // feeds); at-trip never inflates.
+    const cpiStillUpdating = cpiChecked && mode === 'today' && Array.from(new Set([
+        targetCurr.toUpperCase(),
+        ...tripExps.map((e: Expense) => (e.currency || 'EUR').toUpperCase()),
+    ])).some((c) => c in CURRENCY_TO_CPI_COUNTRY && !(c in cpiCache));
 
     const {
         totalDisplay,
@@ -1407,6 +1429,17 @@ export function Insights() {
                             </>
                         )}
                     </div>
+                    {/* B3-I5: the 4s CPI gate can release this hero before a slow
+                        World-Bank series lands, so a multi-currency figure can show
+                        as "final" then quietly refine. Carry an explicit "still
+                        updating" note in that window so the number never looks
+                        settled while inflation factors are still arriving. Clears
+                        itself once the late series land (live cpiCache). */}
+                    {!heroCalculating && cpiStillUpdating ? (
+                        <p className="hero-stat-card__sub" style={{ opacity: 0.7, marginTop: '4px' }}>
+                            {t('insights.cpiStillUpdating')}
+                        </p>
+                    ) : null}
                     <p
                         className="hero-stat-card__sub"
                         // {count} interpolation rolls in the transaction
@@ -1606,16 +1639,29 @@ export function Insights() {
                             </select>
                         </div>
                     </div>
-                    <h1 className="metric-value">
-                        {targetSym}
-                        {formatNumberForCurrency(avgDailyData.avg, targetCurr)}
-                        <small
-                            className="text-[length:var(--font-lg)] font-normal text-secondary ml-2"
-                        >
-                            {t('insights.avgDailySuffix')}
-                        </small>
-                    </h1>
-                    <p className="metric-label mt-1">{t('insights.avgDailyOverDays', { days: String(avgDailyData.days) })}</p>
+                    {/* B7-I2: the average is computed only over PAST, dated days.
+                        A filter that matches solely future/undated rows leaves
+                        days=0, and the old markup rendered "€0.00 / day over 0
+                        days" — reads like a bug. Show an honest empty line
+                        instead. */}
+                    {avgDailyData.days === 0 ? (
+                        <p className="metric-value text-secondary text-[length:var(--font-lg)] font-normal">
+                            {t('insights.avgDailyNoDatedSpend')}
+                        </p>
+                    ) : (
+                        <>
+                            <h1 className="metric-value">
+                                {targetSym}
+                                {formatNumberForCurrency(avgDailyData.avg, targetCurr)}
+                                <small
+                                    className="text-[length:var(--font-lg)] font-normal text-secondary ml-2"
+                                >
+                                    {t('insights.avgDailySuffix')}
+                                </small>
+                            </h1>
+                            <p className="metric-label mt-1">{t('insights.avgDailyOverDays', { days: String(avgDailyData.days) })}</p>
+                        </>
+                    )}
                 </div>
                 {highestExpense && (
                     <div className="card glass">

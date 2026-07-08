@@ -56,6 +56,11 @@ interface FeedListBodyProps {
     onCommentEdit: (eventId: string, commentId: number, body: string) => void;
     onUnshare: (postId: number) => void;
     onRepost: (postId: number, btn: HTMLButtonElement) => void;
+    /** E2-I4: post_ids the caller has reposted this session. Drives the
+     *  repost button's checkmark + disabled state through props so a
+     *  re-render can't wipe it (the pre-fix imperative innerHTML patch
+     *  did). */
+    repostedPostIds: Set<number>;
     /** R9-F1: ref the IntersectionObserver attaches to. Mounted at
      *  the bottom of the rendered list; visibility triggers loadMore. */
     sentinelRef: React.RefObject<HTMLDivElement | null>;
@@ -94,6 +99,7 @@ export function FeedListBody(props: FeedListBodyProps) {
         onCommentEdit,
         onUnshare,
         onRepost,
+        repostedPostIds,
         sentinelRef,
         loadingMore,
         hasMore,
@@ -233,6 +239,7 @@ export function FeedListBody(props: FeedListBodyProps) {
                         onCommentEdit={onCommentEdit}
                         onUnshare={onUnshare}
                         onRepost={onRepost}
+                        reposted={ev.post_id ? repostedPostIds.has(ev.post_id) : false}
                     />
                 );
             })}

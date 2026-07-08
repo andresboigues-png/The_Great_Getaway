@@ -282,6 +282,7 @@ export const en = {
         yourNetwork: 'Your network',
     },
     login: {
+        stalledBlockedHint: "If you use an ad or tracker blocker, or a work network, it may be blocking accounts.google.com — allow it or try a different network.",
         brand: 'The Great Getaway',
         subtitleNewUser: 'Plan trips, split expenses, and bring friends along. All across devices.',
         subtitleReturning: 'Welcome back. Sign in to pick up where you left off.',
@@ -299,6 +300,14 @@ export const en = {
         feature3Body: 'Invite people to plan along with you.',
     },
     settings: {
+        resetScopeServer: "Permanent · deletes from the server, cannot be undone",
+        resetScopeLocal: "Reversible · restores defaults, keeps your data",
+        formatNameRequired: "Give this format a name before saving.",
+        formatMapDuplicate: "\"{variable}\" is already mapped — remove it first to remap.",
+        formatMapIncomplete: "Pick both a variable and a column before mapping.",
+        ratesFxPositive: "Exchange rate must be greater than 0.",
+        creatorSaveErrorSized: "Couldn't save the template. It may be too large — try including fewer sections, or try again.",
+        creatorEmptyWarn: "Pick at least one of day plans, marked places, or checklist — otherwise the template would be empty.",
         ratesAddCurrencyBtn: "Add currency",
         title: 'Settings',
         general: 'General Settings',
@@ -321,7 +330,7 @@ export const en = {
         backToControlCenter: '← Back to Control Center',
         // Top-level cards.
         cardGeneralTitle: 'General Settings',
-        cardGeneralBody: 'Customise per-pill filters for the home map (minimum rating, etc.).',
+        cardGeneralBody: 'Choose your theme (light, dark, or system) and tune the home map pill filters.',
         cardFormatTitle: 'Format Options',
         cardFormatBody: 'Configure Excel import mappings and global data formats.',
         cardConfigureCta: 'Configure →',
@@ -329,7 +338,7 @@ export const en = {
         cardDataMgmtBody: 'Wipe specific data categories or perform a factory reset.',
         cardDataMgmtCta: 'Manage Data →',
         cardPersonalizationTitle: 'Personalization',
-        cardPersonalizationBody: 'Customise expense categories and the look of your trips.',
+        cardPersonalizationBody: 'Customise expense categories and your exchange-rate and inflation overrides.',
         // BUG-30: Sessions + Blocked-users cards (were hard-coded English).
         cardSessionsTitle: 'Active sessions',
         cardSessionsBody: "See where you're signed in and sign out of any device.",
@@ -482,7 +491,7 @@ export const en = {
         resetCategoriesConfirmMessage: 'Reverts all expense categories to the system defaults.',
         resetCategoriesConfirmBtn: 'Restore Defaults',
         resetFactoryConfirmTitle: 'Factory Reset',
-        resetFactoryConfirmMessage: 'Absolute destruction. This wipes EVERY bit of data from the application.',
+        resetFactoryConfirmMessage: 'This permanently erases everything: every trip, day log and itinerary, all expense categories and budgets, your friends, feed posts and achievements, every uploaded photo and document — and the account itself. It cannot be undone.',
         resetFactoryConfirmBtn: 'ERASE EVERYTHING',
         // ── Format Options (Excel mapping + saved formats) ──
         formatTitle: 'Custom Excel Mapping',
@@ -603,6 +612,11 @@ export const en = {
         editCategorySaveBtn: 'Save Changes',
     },
     profile: {
+        memYearRange: "Enter a year between 1900 and 2100.",
+        unblockedToast: "{name} has been unblocked.",
+        unblockBtn: "Unblock",
+        blockedRelLabel: "Blocked",
+        moreMenuLabel: "More options",
         logOut: 'Log Out',
         follow: 'Follow',
         following: 'Following',
@@ -711,6 +725,7 @@ export const en = {
         homeCountryNotSet: '— Not set —',
     },
     settlement: {
+        historyEditReRecordsNote: "Editing re-records this payment and re-notifies the recipient.",
         crossTripSettledBody: "No outstanding balances across any of your trips.",
         crossTripSettledTitle: "Everyone's settled up",
         // Page header.
@@ -844,6 +859,7 @@ export const en = {
         overpayConfirmBtn: 'Settle anyway',
     },
     budgets: {
+        createFxNote: "Tracked in EUR at current rates — {curr} is converted on save and compared to spend in euros.",
         // Page header.
         title: 'Budgets',
         subtitle: 'Set spending ceilings and track them across trips.',
@@ -928,6 +944,8 @@ export const en = {
         createDuplicateScope: 'A budget for this trip, category and person already exists.',
     },
     insights: {
+        avgDailyNoDatedSpend: "No dated spend for this filter",
+        cpiStillUpdating: "Still updating inflation data…",
         // Page header.
         title: 'Insights',
         subtitle: 'Your travel spending at a glance.',
@@ -1147,6 +1165,10 @@ export const en = {
         openInMapsTitle: 'Open {place} on Google Maps',
     },
     ai: {
+        acceptChangeCleared: "cleared old plan from Days {range}",
+        acceptChangeAdded: "added Days {range}",
+        acceptChangeUpdated: "updated Days {range}",
+        acceptSummary: "Plan applied — {changes}. Your notes and photos were kept.",
         // Page header.
         title: 'Plan with AI ✦',
         // Pre-trip empty-state.
@@ -1434,6 +1456,10 @@ export const en = {
         networkFilterAria: 'Network filter',
     },
     expenses: {
+        splitTotalOver: "Total: {total}% — {delta}% over",
+        splitTotalShort: "Total: {total}% — {delta}% short",
+        splitTotalOk: "Total: {total}%",
+        selfPayer: "Me",
         // Page header.
         title: 'Expenses',
         historyTitle: 'Expense History',
@@ -1541,6 +1567,14 @@ export const en = {
         addSplitPersonAria: 'Add a person to split the expense between',
     },
     feed: {
+        commentModerateAria: "Delete comment",
+        commentModerateTitle: "Delete this comment",
+        commentCharsLeft: "{n} characters left",
+        toastRepostUnavailable: "This post can't be reposted anymore.",
+        toastRepostTripGone: "That trip is no longer available, so it can't be reposted.",
+        btnReposted: "Reposted",
+        btnRemoveRepostTitle: "Remove repost — takes it out of your friends' feeds",
+        btnRemoveRepost: "Remove repost",
         commentEditCancel: "Cancel",
         commentEditSave: "Save",
         evSettledUpAmount: "{who} settled up {amount} with {other} on {trip} 🤝",
@@ -1697,6 +1731,8 @@ export const en = {
     // dropdown. These render via imperative innerHTML builders, so they
     // read t() at build time rather than carrying data-i18n bindings.
     map: {
+        searchRateLimited: "Too many searches right now. Try again in a moment.",
+        searchUnavailable: "Search is temporarily unavailable. Please try again later.",
         addToTodo: '📋 Add to to-do list',
         onTodo: '✓ On your to-do list',
         onTodoPill: 'On your to-do list',
@@ -1713,6 +1749,7 @@ export const en = {
         searchLoadError: "Couldn't load this place.",
     },
     templates: {
+        startDateSkip: "Decide later",
         title: 'Templates',
         subtitle: 'Start from a trip a creator has already mapped out.',
         haveCode: 'Have a template code?',
@@ -1921,6 +1958,8 @@ export const en = {
     // R11-B7: tripChecklistModal.ts — packing/errand list. Every
     // template-literal label and inline-string fallback now via t().
     checklist: {
+        clearToDeleteBody: "You cleared the text, so this task will be removed from the checklist. Cancel to keep editing instead.",
+        clearToDeleteTitle: "Delete this task?",
         modalTitle: '📝 Trip checklist',
         modalSubtitle: '{name} · packing, errands, anything to tick off',
         addPlaceholder: 'Add a task — e.g. Charge power bank',
@@ -1933,6 +1972,7 @@ export const en = {
     },
     // Trip-companions roster (modals/companions.ts).
     companions: {
+        addDuplicate: "{name} is already on this trip.",
         // R11-B4 UX-1: confirm shown when removing a linked companion
         // (kicks them off the trip). Unlinked companions skip the
         // confirm since they're pure-local renames.
@@ -2024,6 +2064,7 @@ export const en = {
         rowDelete: 'Delete trip',
     },
     share: {
+        captionWillBeRemoved: "The caption box is empty — sharing will remove the caption saved on your existing post.",
         // Share-chooser modal — the entry point that asks "which way?"
         chooserTitle: 'Share "{name}"',
         chooserSubtitle: 'Choose how you want to share.',
@@ -2089,6 +2130,7 @@ export const en = {
         badgeUnlockedFallback: 'New badge',
     },
     validation: {
+        valueTooLarge: "Value is too large — the maximum allowed is 1,000,000,000.",
         dateCannotBeFuture: "The date can't be in the future.",
         splitCannotBeNegative: "Split percentages can't be negative.",
         // Common input-validation messages reused across pages.
@@ -2167,6 +2209,8 @@ export const en = {
     // handles BOTH the trip anchor (Trip Hub) AND any numbered day; some
     // keys are shared, others are mode-specific (anchor-only / day-only).
     dayDetail: {
+        fmtClearAria: "Clear formatting",
+        noteFull: "This note is full — remove some text to add more.",
         // Header chips & title.
         headerChipAnchor: '⭐ Trip Hub',
         headerChipDay: 'Day {n}',
@@ -2267,6 +2311,7 @@ export const en = {
     // Five popups share these keys: documents list, photos grid, add
     // doc, edit doc, add-photo-by-link.
     tripMedia: {
+        photoUploadQuota: "Storage limit reached — delete some photos or documents to free space, then try again.",
         addDocStatusFailedWithMsg: "❌ Upload failed: {error}",
         addDocValidationInvalidUrl: "That link isn't supported. Use an http(s):// URL, or upload the file instead.",
         photoUploadPartialReason: "{added} added, {failed} couldn't be uploaded — {reason}",
@@ -2367,6 +2412,10 @@ export const en = {
     // add day, trip invite. Companions + share modals have their own
     // sections (`companions:` / `share:`).
     modals: {
+        importConfirmBtn: "Import",
+        importConfirmWrongExt: "{file} isn't a .ggtrip.zip backup — it may not import. Continue anyway?",
+        importConfirmMessage: "A new trip will be added to your account from {file}.",
+        importConfirmTitle: "Import this trip?",
         newTripValidationName: "Give your trip a name.",
         // ── New trip modal ──
         newTripTitle: 'New Trip',

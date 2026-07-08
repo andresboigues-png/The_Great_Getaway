@@ -74,7 +74,6 @@ import { t } from '../../i18n.js';
 import {
     POSTS_EVENT_TYPES,
     ACTIONS_EVENT_TYPES,
-    ACTION_ACCENTS,
     bundleEvents,
     type FeedEvent,
     type FeedComment,
@@ -136,6 +135,14 @@ export function Feed({ highlightPostId }: { highlightPostId?: string | undefined
     // during a layout reflow.
     const [nextCursor, setNextCursor] = useState<string | null>(null);
     const [loadingMore, setLoadingMore] = useState(false);
+
+    // E2-I4: reposted state lives in React, not imperative DOM patches.
+    // Pre-fix onRepost rewrote the button's innerHTML/disabled directly on
+    // a React-managed node; a later setEvents-driven re-render reconciled
+    // that node and wiped the checkmark, so a reposted card silently
+    // reverted. Keyed by post_id — the ActionButton reads it as `active`
+    // (checkmark) + `disabled`, so the state survives re-renders.
+    const [repostedPostIds, setRepostedPostIds] = useState<Set<number>>(new Set());
 
     const rootRef = useRef<HTMLDivElement | null>(null);
     const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -511,7 +518,18 @@ export function Feed({ highlightPostId }: { highlightPostId?: string | undefined
         }
         const newComment = result.body.comment as FeedComment;
         const existing = getCachedThread(eventId) || [];
-        const updated = [...existing, newComment];
+        // E5-I3: match the server's canonical order (created_at ASC, id ASC)
+        // instead of blindly appending. created_at is SQLite second-precision,
+        // so a comment posted in the same second as an earlier one could sit
+        // out of order after a blind append and then visibly jump on the next
+        // fetch. Sorting by (when, id) here keeps the optimistic list stable
+        // against the authoritative refetch.
+        const updated = [...existing, newComment].sort((a, b) => {
+            const aw = a.when || '';
+            const bw = b.when || '';
+            if (aw !== bw) return aw < bw ? -1 : 1;
+            return a.id - b.id;
+        });
         setCachedThread(eventId, updated);
         setThreads((prev) => ({ ...prev, [eventId]: updated }));
         setEvents((prev) =>
@@ -638,10 +656,6 @@ export function Feed({ highlightPostId }: { highlightPostId?: string | undefined
     };
 
     const onRepost = async (postId: number, btn: HTMLButtonElement) => {
-        const origAccent =
-            btn.style.getPropertyValue('--accent') || ACTION_ACCENTS.muted;
-        btn.disabled = true;
-        btn.style.setProperty('--accent', ACTION_ACCENTS.muted);
         const result = await repostFeedPost(postId);
         if (result.ok && result.body?.status !== 'same_user') {
             const wasAlready = result.body?.status === 'already_reposted';
@@ -649,17 +663,27 @@ export function Feed({ highlightPostId }: { highlightPostId?: string | undefined
                 wasAlready ? t('feed.toastAlreadyReposted') : t('feed.toastReposted'),
                 'success',
             );
-            btn.style.setProperty('--accent', ACTION_ACCENTS.repost);
-            btn.innerHTML =
-                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+            // E2-I4: flip reposted state in React (checkmark + disabled
+            // flow through the ActionButton prop) instead of mutating the
+            // button's innerHTML — a re-render can no longer wipe it.
+            setRepostedPostIds((prev) => {
+                if (prev.has(postId)) return prev;
+                const next = new Set(prev);
+                next.add(postId);
+                return next;
+            });
             playTapPop(btn);
         } else if (result.body?.status === 'same_user') {
-            btn.disabled = false;
-            btn.style.setProperty('--accent', origAccent);
             showLiquidAlert(t('feed.toastRepostOwnShare'));
+        } else if (result.status === 410) {
+            // E4-I3: the trip is permanently gone — "try again" is wrong.
+            showLiquidAlert(t('feed.toastRepostTripGone'));
+        } else if (result.status === 404) {
+            // E4-I3: the post is unreachable (deleted, gone private, or a
+            // block edge) — retrying won't help either.
+            showLiquidAlert(t('feed.toastRepostUnavailable'));
         } else {
-            btn.disabled = false;
-            btn.style.setProperty('--accent', origAccent);
+            // Transient (rate limit, network, 5xx) — retry is meaningful.
             showLiquidAlert(t('feed.toastRepostFailed'));
         }
     };
@@ -770,6 +794,7 @@ export function Feed({ highlightPostId }: { highlightPostId?: string | undefined
                         onCommentEdit={(eventId, commentId, body) => void onCommentEdit(eventId, commentId, body)}
                         onUnshare={onUnshare}
                         onRepost={(postId, btn) => void onRepost(postId, btn)}
+                        repostedPostIds={repostedPostIds}
                         sentinelRef={sentinelRef}
                         loadingMore={loadingMore}
                         hasMore={nextCursor !== null}

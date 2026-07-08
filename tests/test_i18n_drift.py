@@ -60,6 +60,7 @@ _INTENTIONAL_ENGLISH = {
     'profile.continentsLabel.one': 'fr: "continent" identical (same word)',
     'profile.continentsLabel.other': 'fr: "continents" identical (same word)',
     'budgets.scopeTotal': 'es/fr/pt: "Total" identical across all four',
+    'expenses.splitTotalOk': 'es/pt: "Total: {total}%" — "Total" same word (fr differs on spacing)',
     'insights.dimGeneral': 'es: "General" identical (same word)',
     'dayDetail.editDayDateLabel': 'fr: "Date" identical (same word)',
     'collections.title': 'fr: identical loanword',

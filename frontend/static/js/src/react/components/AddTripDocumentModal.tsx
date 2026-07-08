@@ -111,7 +111,7 @@ export function AddTripDocumentModal({ trip, close }: { trip: Trip; close: () =>
                     />
                     <label className="btn-primary tmm-upload-pill">
                         {t('tripMedia.addDocUploadBtn')}
-                        <input type="file" id="newDocUpload" ref={fileRef} style={{ display: 'none' }} onChange={onUploadChange} />
+                        <input type="file" id="newDocUpload" ref={fileRef} accept=".pdf,image/*" style={{ display: 'none' }} onChange={onUploadChange} />
                     </label>
                 </div>
                 <div id="newDocStatus" className="tmm-status-hint">{statusText}</div>

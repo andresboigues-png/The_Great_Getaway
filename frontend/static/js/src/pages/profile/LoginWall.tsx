@@ -147,6 +147,12 @@ export function LoginWall() {
                         {status === 'stalled' ? (
                             <div className="login-wall__btn-stalled" aria-live="polite">
                                 <span>{t('login.stalledHint')}</span>
+                                {/* The most common real cause isn't a slow CDN
+                                    but a blocked host (ad/tracker blocker or
+                                    corporate proxy on accounts.google.com/gsi),
+                                    which Reload can't fix. Name it so those
+                                    users know what to change instead of looping. */}
+                                <span>{t('login.stalledBlockedHint')}</span>
                                 <button
                                     type="button"
                                     className="btn-primary"

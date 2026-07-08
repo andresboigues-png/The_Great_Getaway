@@ -78,10 +78,18 @@ export function Creator() {
         setConfirmDeleteId(null);
     };
 
+    // All toggles off → the snapshot carries only destination/structure and
+    // publishes as a hollow card. Block that before the save round-trip.
+    const contentEmpty = !inclPlans && !inclPlaces && !inclChecklist;
+
     const onSave = async () => {
         if (saving) return;
         const trimmed = name.trim();
         if (!trimmed || !sourceTripId) return;
+        if (contentEmpty) {
+            showLiquidAlert(t('settings.creatorEmptyWarn'));
+            return;
+        }
         setSaving(true);
         const input = {
             name: trimmed,
@@ -96,7 +104,9 @@ export function Creator() {
             : await createTemplate(input);
         setSaving(false);
         if (!result) {
-            showLiquidAlert(t('settings.creatorSaveError'));
+            // The server rejects an over-cap snapshot with 413; name that
+            // reason so the failure isn't buried behind a generic retry toast.
+            showLiquidAlert(t('settings.creatorSaveErrorSized'));
             return;
         }
         // Re-pull the list so the new/updated row (with code + counts) shows.
@@ -192,6 +202,12 @@ export function Creator() {
                             </label>
                         </div>
 
+                        {contentEmpty ? (
+                            <p className="text-secondary text-[0.78rem]" role="status">
+                                {t('settings.creatorEmptyWarn')}
+                            </p>
+                        ) : null}
+
                         <label className="flex items-center gap-2 text-[0.9rem] cursor-pointer">
                             <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />
                             <span>
@@ -204,7 +220,7 @@ export function Creator() {
                             <button
                                 type="button"
                                 className="btn-primary py-2.5 px-5"
-                                disabled={saving || !name.trim() || !sourceTripId}
+                                disabled={saving || !name.trim() || !sourceTripId || contentEmpty}
                                 onClick={() => void onSave()}
                             >
                                 {editingId ? t('settings.creatorUpdateBtn') : t('settings.creatorSaveBtn')}

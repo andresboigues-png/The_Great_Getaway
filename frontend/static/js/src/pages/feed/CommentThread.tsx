@@ -13,17 +13,31 @@ import { commentRowHtml, type FeedComment } from './render.js';
 import { CommentEditRow } from './CommentEditRow.js';
 
 
+// E5-I4: the server hard-slices body[:500] on both create + edit, so
+// a paste beyond this is silently truncated. The counter below appears
+// only once the user nears the cap, mirroring the server's contract.
+const MAX_COMMENT_LEN = 500;
+// Show the counter only when it's actually informative — Apple-like
+// restraint, no permanent chrome under an empty box.
+const COUNTER_THRESHOLD = MAX_COMMENT_LEN - 50;
+
 interface CommentThreadProps {
     eventId: string;
     comments: FeedComment[];
     onDelete: (commentId: number) => void;
     onEdit: (commentId: number, body: string) => void;
     onSubmit: (body: string, input: HTMLInputElement) => void;
+    // E5-I1: true when the viewer owns the post (isMyOriginalShare),
+    // so they may moderate — delete — any comment on their own share.
+    // The matching server branch lives in delete_feed_comment.
+    canModerate?: boolean;
 }
 
-export function CommentThread({ eventId, comments, onDelete, onEdit, onSubmit }: CommentThreadProps) {
+export function CommentThread({ eventId, comments, onDelete, onEdit, onSubmit, canModerate = false }: CommentThreadProps) {
     const meId = STATE.user?.id;
     const inputRef = useRef<HTMLInputElement | null>(null);
+    // E5-I4: live length of the new-comment input, for the counter.
+    const [draftLen, setDraftLen] = useState(0);
     // Audit fix (2026-05-27, fix #60): edit-in-place state. When set,
     // the matching comment row renders an input + Save/Cancel instead
     // of the static commentRowHtml. Submit calls onEdit which is the
@@ -41,6 +55,8 @@ export function CommentThread({ eventId, comments, onDelete, onEdit, onSubmit }:
         const body = input.value.trim();
         if (!body) return;
         onSubmit(body, input);
+        // Parent clears input.value synchronously — keep the counter in sync.
+        setDraftLen(0);
     };
 
     const listRef = useRef<HTMLDivElement | null>(null);
@@ -70,6 +86,10 @@ export function CommentThread({ eventId, comments, onDelete, onEdit, onSubmit }:
 
     const renderRow = (c: FeedComment) => {
         const isMine = c.author?.id === meId;
+        // Edit is author-only (server PATCH 403s non-authors); delete is
+        // author OR post owner (server delete_feed_comment moderation).
+        const canEdit = isMine;
+        const canDelete = isMine || canModerate;
         if (isMine && editingId === c.id) {
             return (
                 <CommentEditRow
@@ -77,7 +97,16 @@ export function CommentThread({ eventId, comments, onDelete, onEdit, onSubmit }:
                     comment={c}
                     onSave={(body) => {
                         setEditingId(null);
-                        if (body && body !== c.body) onEdit(c.id, body);
+                        // E5-I2: clearing the box and saving used to
+                        // silently no-op — the editor closed and the
+                        // original reappeared with no feedback. Treat an
+                        // empty save as intent-to-delete, routed through
+                        // the same confirm dialog as the ✕ affordance.
+                        if (!body) {
+                            onDelete(c.id);
+                            return;
+                        }
+                        if (body !== c.body) onEdit(c.id, body);
                     }}
                     onCancel={() => setEditingId(null)}
                 />
@@ -86,7 +115,7 @@ export function CommentThread({ eventId, comments, onDelete, onEdit, onSubmit }:
         return (
             <div
                 key={c.id}
-                dangerouslySetInnerHTML={{ __html: commentRowHtml(c, isMine) }}
+                dangerouslySetInnerHTML={{ __html: commentRowHtml(c, canEdit, canDelete) }}
             />
         );
     };
@@ -118,8 +147,9 @@ export function CommentThread({ eventId, comments, onDelete, onEdit, onSubmit }:
                      * the announcement matches the user's locale. */
                     aria-label={t('feed.commentInputLabel')}
                     placeholder={t('feed.commentInputLabel')}
-                    maxLength={500}
+                    maxLength={MAX_COMMENT_LEN}
                     autoComplete="off"
+                    onChange={(e) => setDraftLen(e.currentTarget.value.length)}
                     className="flex-1 min-w-0 py-2 px-3 border border-[rgba(0,45,91,0.12)] rounded-full text-[0.85rem] bg-[rgba(0,113,227,0.04)] text-brand-navy font-[inherit]"
                 />
                 <button
@@ -131,6 +161,18 @@ export function CommentThread({ eventId, comments, onDelete, onEdit, onSubmit }:
                     {t('feed.commentSubmit')}
                 </button>
             </form>
+            {/* E5-I4: counter appears only near the cap — no permanent
+                chrome. It goes red at 0 so a paste that would be
+                truncated is visible before the user hits Post. */}
+            {draftLen >= COUNTER_THRESHOLD ? (
+                <div
+                    aria-live="polite"
+                    className="text-[0.7rem] text-secondary text-right mt-1"
+                    style={draftLen >= MAX_COMMENT_LEN ? { color: 'rgba(255,59,48,0.85)' } : undefined}
+                >
+                    {t('feed.commentCharsLeft', { n: MAX_COMMENT_LEN - draftLen })}
+                </div>
+            ) : null}
         </>
     );
 }

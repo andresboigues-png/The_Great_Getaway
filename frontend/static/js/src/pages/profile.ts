@@ -45,22 +45,25 @@ export interface ProfileFriend {
 }
 
 
-export const logout = async () => {
+export const logout = () => {
     try {
-        // Final push of any unsynced local changes before we wipe local state
-        // and invalidate the session. Wrapped separately so a sync failure
-        // doesn't block the rest of logout.
-        try { await syncWithServer(); }
-        catch (e) { console.error('Final sync before logout failed:', e); }
-
-        // FIXING_ROADMAP §0.3 — call the server-side logout to bump
-        // the user's token_jti, which invalidates EVERY JWT we've
-        // issued them (including stolen copies on other devices /
-        // in leaked logs). The 30-day stateless JWT is no longer a
-        // 30-day window of exposure after a compromise. Wrapped so
-        // a network blip doesn't leave us stuck on the logout button.
-        try { await apiFetch('/api/auth/logout', { method: 'POST' }); }
-        catch (e) { console.error('Server-side logout failed:', e); }
+        // Optimistic teardown: fire the final sync + server-side revoke in the
+        // BACKGROUND, then wipe local state + navigate immediately. Awaiting
+        // these first hung the logout button on slow networks until the sync
+        // timeout resolved. Unsynced writes have already gone out via their
+        // per-row upsert*OnServer helpers (or sit in the offline outbox), and
+        // the server holds the authoritative copy, so we don't block the UI.
+        void (async () => {
+            try { await syncWithServer(); }
+            catch (e) { console.error('Final sync before logout failed:', e); }
+            // FIXING_ROADMAP §0.3 — bump token_jti to invalidate EVERY JWT we've
+            // issued (incl. stolen copies). Own AbortSignal (NOT the router's
+            // per-nav signal): the navigate('profile') below aborts every
+            // request that inherited the nav signal, which would silently kill
+            // this security-critical revoke before it reaches the server.
+            try { await apiFetch('/api/auth/logout', { method: 'POST', signal: AbortSignal.timeout(20_000) }); }
+            catch (e) { console.error('Server-side logout failed:', e); }
+        })();
 
         clearAuthToken();
 

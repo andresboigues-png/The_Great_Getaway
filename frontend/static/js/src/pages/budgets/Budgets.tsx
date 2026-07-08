@@ -336,7 +336,13 @@ export function Budgets() {
                             style={{
                                 height: '100%',
                                 width: `${Math.min(overallPct, 100)}%`,
-                                background: overallColor,
+                                // B4-I1: same non-color "over" cue as the cards —
+                                // diagonal hazard stripes distinguish over-budget
+                                // from near-limit without depending on hue.
+                                background:
+                                    overallTier === 'over'
+                                        ? `repeating-linear-gradient(-45deg, ${overallColor} 0, ${overallColor} 5px, rgba(255,255,255,0.55) 5px, rgba(255,255,255,0.55) 8px)`
+                                        : overallColor,
                                 borderRadius: '999px',
                                 transition: 'width 0.6s cubic-bezier(0.16,1,0.3,1)',
                                 boxShadow: `0 0 12px ${overallColor}`,
@@ -497,7 +503,16 @@ export function Budgets() {
                                             style={{
                                                 height: '100%',
                                                 width: `${Math.min(status.pct, 100)}%`,
-                                                background: status.color,
+                                                // B4-I1: give the "over" tier a
+                                                // diagonal hazard-stripe texture so
+                                                // it reads as over-budget without
+                                                // relying on hue alone (near/ok stay
+                                                // solid) — a non-color cue for
+                                                // color-blind users.
+                                                background:
+                                                    status.tier === 'over'
+                                                        ? `repeating-linear-gradient(-45deg, ${status.color} 0, ${status.color} 5px, rgba(255,255,255,0.55) 5px, rgba(255,255,255,0.55) 8px)`
+                                                        : status.color,
                                                 borderRadius: '999px',
                                                 transition: 'width 0.6s cubic-bezier(0.16,1,0.3,1)',
                                                 boxShadow: `0 0 8px ${status.color}`,

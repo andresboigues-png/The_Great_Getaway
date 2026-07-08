@@ -87,6 +87,12 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
     // DSGN-006: index of the keyboard-highlighted option (-1 = none).
     let activeIndex = -1;
     const OPTION_ID_PREFIX = 'homeMapSearchOpt';
+    // C5-I2: the combobox arrow-nav walks EVERY option-role node, including the
+    // "See more" (.map-places-toggle) and "Show all N" (.map-internal-showall)
+    // toggles — otherwise a keyboard/AT user driving the input can never reach
+    // them without Tab-ing out, which breaks the combobox contract. All four
+    // selectors are role="option" with ids, so they share one activedescendant.
+    const OPTION_SELECTOR = '.map-search-row, .map-internal-row, .map-places-toggle, .map-internal-showall';
 
     /** Pick the best POI category match for a place — used so the
      *  InfoWindow matches the colour/icon of the relevant pill if
@@ -218,11 +224,13 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
             </button>`;
     };
 
-    /** "See more" / "Show less" / "Searching…" toggle for the Places group. */
+    /** "See more" / "Show less" / "Searching…" toggle for the Places group.
+     *  C5-I2: role=option + a stable id (one Places toggle per panel) so the
+     *  combobox arrow-nav can land on it via aria-activedescendant. */
     const placesToggleHtml = (): string => {
         const label = placesLoading ? t('search.searching') : placesExpanded ? t('search.showLess') : t('search.seeMore');
         return `
-            <button type="button" class="map-places-toggle" aria-expanded="${placesExpanded ? 'true' : 'false'}"${placesLoading ? ' disabled' : ''}
+            <button type="button" class="map-places-toggle" role="option" id="${OPTION_ID_PREFIX}places" aria-selected="false" aria-expanded="${placesExpanded ? 'true' : 'false'}"${placesLoading ? ' disabled' : ''}
                 style="font-size:0.72rem; font-weight:800; color:var(--accent-blue); background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.18); border-radius:999px; padding:4px 11px; cursor:${placesLoading ? 'default' : 'pointer'};${placesLoading ? ' opacity:0.7;' : ''}">${esc(label)}</button>`;
     };
 
@@ -254,12 +262,13 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         resultsEl.scrollTop = keepScroll;
         const svc = getPlacesService();
         if (!svc) {
-            // Places SDK not ready (google.maps.places absent) — clear the
-            // in-flight loading state and surface the same error the non-OK
-            // Text Search path uses, rather than leaving the panel spinning.
+            // C5-I6: this is a "See more" search that can't run — not a specific
+            // place failing to load — so use the search-unavailable copy rather
+            // than the per-place searchLoadError. Clear the in-flight loading
+            // state so the panel doesn't stay spinning.
             placesLoading = false;
             paintResults();
-            showSearchError(t('map.searchLoadError'));
+            showSearchError(t('map.searchUnavailable'));
             return;
         }
         // Build the request without naming the TextSearchRequest type (absent
@@ -281,12 +290,18 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
                 // REQUEST_DENIED / network) as an EMPTY result. The old code set
                 // `[]` (truthy) + expanded, so the toggle reused it and never
                 // retried — a silent dead-end with no error. Keep lastTextResults
-                // null so the next "See more" re-fires, and surface the error
-                // like the getDetails path.
+                // null so the next "See more" re-fires.
                 lastTextResults = null;
                 placesExpanded = false;
                 paintResults();
-                showSearchError(t('map.searchLoadError'));
+                // C5-I6: distinguish a transient rate-limit (retry helps) from
+                // any other failure (denied key / bad request / network). The old
+                // single searchLoadError read wrong here — this is the "See more"
+                // search failing, not a specific place — and gave no hint whether
+                // retrying was worthwhile.
+                showSearchError(status === google.maps.places.PlacesServiceStatus.OVER_QUERY_LIMIT
+                    ? t('map.searchRateLimited')
+                    : t('map.searchUnavailable'));
             }
         });
     };
@@ -305,9 +320,11 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         </button>`;
 
     /** Group expand/collapse toggle — "Show all N" when collapsed,
-     *  "Show less" when expanded. Same pill, keyed by data-group. */
+     *  "Show less" when expanded. Same pill, keyed by data-group.
+     *  C5-I2: role=option + a per-group id (one toggle per group) so the
+     *  combobox arrow-nav can reach each "Show all N" via activedescendant. */
     const groupToggleBtnHtml = (group: string, count: number, expanded: boolean): string => `
-        <button type="button" class="map-internal-showall" data-group="${esc(group)}" aria-expanded="${expanded ? 'true' : 'false'}"
+        <button type="button" class="map-internal-showall" role="option" id="${OPTION_ID_PREFIX}showall-${esc(group)}" aria-selected="false" data-group="${esc(group)}" aria-expanded="${expanded ? 'true' : 'false'}"
             style="font-size:0.72rem; font-weight:800; color:var(--accent-blue); background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.18); border-radius:999px; padding:4px 11px; cursor:pointer;">${esc(expanded ? t('search.showLess') : t('search.showAll', { count }))}</button>`;
 
     /** Internal groups (Trips / Days / Expenses) — same labels, titles,
@@ -397,7 +414,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         // survived this repaint, so a late Places response doesn't silently drop
         // the user's arrow-key selection (and the following Enter still fires).
         if (prevActiveId) {
-            const rows = Array.from(resultsEl.querySelectorAll('.map-search-row, .map-internal-row')) as HTMLElement[];
+            const rows = Array.from(resultsEl.querySelectorAll(OPTION_SELECTOR)) as HTMLElement[];
             const idx = rows.findIndex((r) => r.id === prevActiveId);
             if (idx >= 0) setActiveOption(idx);
         }
@@ -663,12 +680,21 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
      *  a visible background so both AT and sighted keyboard users can see
      *  which result Enter will pick. */
     const setActiveOption = (nextIndex: number) => {
-        const rows = Array.from(resultsEl.querySelectorAll('.map-search-row, .map-internal-row')) as HTMLElement[];
+        const rows = Array.from(resultsEl.querySelectorAll(OPTION_SELECTOR)) as HTMLElement[];
         if (rows.length === 0) return;
         activeIndex = (nextIndex + rows.length) % rows.length;
         rows.forEach((r, i) => {
             const on = i === activeIndex;
-            r.style.background = on ? 'rgba(0,113,227,0.10)' : 'transparent';
+            // C5-I2: the toggles are pill-shaped with their own background — don't
+            // clobber it; ring them with an outline instead. Full-width rows keep
+            // the tinted-background highlight.
+            const isToggle = r.classList.contains('map-places-toggle') || r.classList.contains('map-internal-showall');
+            if (isToggle) {
+                r.style.outline = on ? '2px solid var(--accent-blue)' : 'none';
+                r.style.outlineOffset = on ? '1px' : '0';
+            } else {
+                r.style.background = on ? 'rgba(0,113,227,0.10)' : 'transparent';
+            }
             r.setAttribute('aria-selected', on ? 'true' : 'false');
         });
         const activeEl = rows[activeIndex];
@@ -687,10 +713,20 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
             e.preventDefault();
             setActiveOption(activeIndex - 1);
         } else if (e.key === 'Enter') {
-            const active = resultsEl.querySelector('[aria-selected="true"]') as HTMLElement | null;
+            // C5-I3: with no arrowed option, Enter implicitly picks the first
+            // result (the top Places prediction, or the first internal hit when
+            // Places is empty) rather than doing nothing — a user who types and
+            // presses Enter shouldn't have to ArrowDown first to commit.
+            const active = (resultsEl.querySelector('[aria-selected="true"]')
+                || resultsEl.querySelector('.map-search-row, .map-internal-row')) as HTMLElement | null;
             if (active) {
                 e.preventDefault();
-                if (active.classList.contains('map-internal-row')) {
+                // C5-I2: the toggles are options too now — Enter on one runs its
+                // action by reusing the delegated click handler (bubbles to
+                // resultsEl), rather than committing/navigating.
+                if (active.classList.contains('map-places-toggle') || active.classList.contains('map-internal-showall')) {
+                    active.click();
+                } else if (active.classList.contains('map-internal-row')) {
                     goToInternal(
                         active.dataset.internalKind || '',
                         active.dataset.tripId || '',

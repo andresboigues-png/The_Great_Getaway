@@ -91,6 +91,14 @@ export type DayDetailFlushRef = { current: (() => void) | null };
 
 const SLOTS: readonly Slot[] = ['morning', 'afternoon', 'evening'];
 
+// Server cap per text block, in SERIALISED-markdown chars (mirrors
+// day_writes.py _MAX_PLAN_BLOCK_TEXT). Paste is clamped to the remaining room
+// and typed inserts are blocked once a block reaches it; the block shows a
+// "note is full" notice within NOTE_FULL_MARGIN of the cap so the editor never
+// silently freezes.
+const MAX_BLOCK_LEN = 4000;
+const NOTE_FULL_MARGIN = 60;
+
 // Phase G v3 — per-user request the morning + afternoon glyphs got
 // swapped (sun for morning, sunset for afternoon) and the text labels
 // dropped from the tab UI entirely (the words were being truncated on
@@ -198,12 +206,12 @@ export function DayDetailModal({
     const [filterQuery, setFilterQuery] = useState('');
     const [activeCategoryFilters, setActiveCategoryFilters] = useState<ReadonlySet<string>>(() => new Set());
 
-    // Shortlist pool captured ONCE at open (matching the imperative
-    // version's `const allShortlist = ...` at the top of openDayDetail):
-    // it's a pure pool — assignment writes only touch dayId/timeOfDay on
-    // the SAME entry objects, which the derived ✓/card renders read live.
-    const [allShortlist] = useState<MarkedPlace[]>(() =>
-        (trip?.markedPlaces || []).filter((p) => p.forManual));
+    // Shortlist pool derived LIVE from trip.markedPlaces every render, so a
+    // pin added from the map behind the modal, an accepted AI plan, or a
+    // media refresh shows up without a reopen. Assignment writes only touch
+    // dayId/timeOfDay on these same entry objects, which the derived ✓/card
+    // renders read live.
+    const allShortlist: MarkedPlace[] = (trip?.markedPlaces || []).filter((p) => p.forManual);
 
     const notesTaRef = useRef<HTMLTextAreaElement>(null);
     const statusRef = useRef<HTMLDivElement>(null);
@@ -350,6 +358,9 @@ export function DayDetailModal({
     // these map block key → its editable element / row element.
     const blockRteRefs = useRef<Map<string, HTMLElement>>(new Map());
     const blockRowRefs = useRef<Map<string, HTMLElement>>(new Map());
+    // Per-block "note is full" notice element. Toggled imperatively (like the
+    // autosave badge) so surfacing it on a keystroke doesn't trigger a repaint.
+    const noteFullRefs = useRef<Map<string, HTMLElement>>(new Map());
     const focusedBlockEl = useRef<HTMLElement | null>(null);
     // The last text selection made inside a block editable. On touch, tapping
     // a toolbar button collapses the live selection before the format command
@@ -378,37 +389,84 @@ export function DayDetailModal({
             }
         }
     };
+    // Read back ONLY the one editable that fired an input event (keystroke),
+    // not every text block in the slot. The uncontrolled DOM is the source of
+    // truth for the block being typed; the others are unchanged since the last
+    // sync, so re-serialising them all on every keystroke is wasted work.
+    const syncOneBlock = (el: HTMLElement) => {
+        const slot = el.dataset.slot as Slot | undefined;
+        const k = el.dataset.k;
+        if (!slot || !k) return;
+        const b = blocksRef.current[slot].find((x) => x.k === k);
+        if (b && b.type === 'text') b.text = htmlToMd(el);
+    };
     const flattenSlot = (arr: KB[]) =>
         arr
             .filter((b) => b.type === 'text' && (b.text || '').trim())
             .map((b) => b.text)
             .join('\n\n');
-    const stripSlot = (arr: KB[]) =>
-        arr.map((b) =>
-            b.type === 'place'
-                ? { type: 'place' as const, placeId: b.placeId || '' }
-                : { type: 'text' as const, text: b.text || '' },
-        );
-    const writeSlotToDay = (slot: Slot) => {
+    // Serialise a slot's blocks for persistence. Empty text blocks are DROPPED
+    // (place blocks + non-empty text always survive) so repeated "+ Add note"
+    // taps can't accumulate blank entries that ride every save and rebuild as
+    // empty rows on reopen. `keepKey` spares the one block the user is actively
+    // typing into — dropping it mid-keystroke would yank their caret target.
+    const stripSlot = (arr: KB[], keepKey?: string) =>
+        arr
+            .filter((b) =>
+                b.type === 'place' || (b.text || '').trim() || b.k === keepKey,
+            )
+            .map((b) =>
+                b.type === 'place'
+                    ? { type: 'place' as const, placeId: b.placeId || '' }
+                    : { type: 'text' as const, text: b.text || '' },
+            );
+    const writeSlotToDay = (slot: Slot, keepKey?: string) => {
         const arr = blocksRef.current[slot];
         const pb = { ...(day.planBlocks || {}) } as Record<string, unknown>;
-        pb[slot] = stripSlot(arr);
+        pb[slot] = stripSlot(arr, keepKey);
         (day as { planBlocks?: unknown }).planBlocks = pb;
         (day.plan as Record<string, string>)[slot] = flattenSlot(arr);
     };
     // Persist a slot: mirror its blocks into day.planBlocks + the flat plan
-    // string, then schedule the debounced upsertDay via queueSave.
-    const persistSlot = (slot: Slot) => {
+    // string, then schedule the debounced upsertDay via queueSave. `keepKey`
+    // (the block being edited) is threaded through so its empty draft survives
+    // the empty-block drop in stripSlot.
+    const persistSlot = (slot: Slot, keepKey?: string) => {
         syncBlockTexts(slot);
-        writeSlotToDay(slot);
+        writeSlotToDay(slot, keepKey);
         queueSave();
     };
     const commitRte = (el: HTMLElement) => {
         const slot = el.dataset.slot as Slot | undefined;
         if (!slot) return;
         // persistSlot re-reads every editable in the slot (syncBlockTexts),
-        // so we don't need to write b.text for this one block here.
-        persistSlot(slot);
+        // so we don't need to write b.text for this one block here. Keep this
+        // block even if empty — it's the live typing target.
+        persistSlot(slot, el.dataset.k);
+    };
+    // Fast keystroke path: sync ONLY the edited block, mirror to day.plan/
+    // planBlocks, and schedule the debounced save — WITHOUT a forceRender. The
+    // editable is uncontrolled, so nothing in the DOM needs React to repaint on
+    // a keystroke; re-rendering every pane/block/shortlist/checklist/media on
+    // each keypress was pure waste. Structural changes (toolbar, paste, add/
+    // remove/reorder) still go through commitRte/persistSlot + forceRender.
+    const commitRteInput = (el: HTMLElement) => {
+        const slot = el.dataset.slot as Slot | undefined;
+        if (!slot) return;
+        syncOneBlock(el);
+        writeSlotToDay(slot, el.dataset.k);
+        queueSave();
+    };
+    // Show/hide the block's "note is full" notice based on how close its
+    // serialised markdown is to the server cap. Toggled imperatively on the
+    // notice's own DOM node (via noteFullRefs) so the frozen-at-cap state is
+    // explained without a keystroke-time re-render.
+    const updateNoteFull = (el: HTMLElement) => {
+        const k = el.dataset.k;
+        if (!k) return;
+        const notice = noteFullRefs.current.get(k);
+        if (!notice) return;
+        notice.hidden = htmlToMd(el).length < MAX_BLOCK_LEN - NOTE_FULL_MARGIN;
     };
 
     const moveBlock = (slot: Slot, from: number, to: number) => {
@@ -428,7 +486,15 @@ export function DayDetailModal({
     };
     const removeTextBlock = (slot: Slot, k: string) => {
         syncBlockTexts(slot);
-        blocksRef.current[slot] = blocksRef.current[slot].filter((b) => b.k !== k);
+        const next = blocksRef.current[slot].filter((b) => b.k !== k);
+        // Never leave a slot with place cards but no text block — the user
+        // would have no contentEditable to type into until the pane rebuilds
+        // (buildSlotBlocks only guarantees a trailing text block at build
+        // time). Re-seed an empty one so there's always a typing target.
+        if (!next.some((b) => b.type === 'text')) {
+            next.push({ k: freshK(), type: 'text', text: '' });
+        }
+        blocksRef.current[slot] = next;
         persistSlot(slot);
         forceRender();
     };
@@ -1038,15 +1104,19 @@ export function DayDetailModal({
                         }}
                         onFocus={(e) => { focusedBlockEl.current = e.currentTarget; }}
                         onBeforeInput={(e) => {
-                            // Server caps each block at 4000 chars of the SERIALISED
-                            // markdown (day_writes.py _MAX_PLAN_BLOCK_TEXT), which is
-                            // longer than the visible text once markers are added —
-                            // so gate on the markdown length, not textContent, to
-                            // block growth that would be silently truncated on save.
+                            // Server caps each block at MAX_BLOCK_LEN chars of the
+                            // SERIALISED markdown (day_writes.py _MAX_PLAN_BLOCK_TEXT),
+                            // which is longer than the visible text once markers are
+                            // added — so gate on the markdown length, not textContent,
+                            // to block growth that would be silently truncated on save.
                             const el = e.currentTarget;
                             const ev = e.nativeEvent as InputEvent;
-                            if (htmlToMd(el).length >= 4000 && ev.inputType?.startsWith('insert')) {
+                            if (htmlToMd(el).length >= MAX_BLOCK_LEN && ev.inputType?.startsWith('insert')) {
                                 e.preventDefault();
+                                // The block is frozen at the cap — the notice explains
+                                // why the keystroke did nothing rather than leaving the
+                                // editor looking broken.
+                                updateNoteFull(el);
                             }
                         }}
                         onPaste={(e) => {
@@ -1054,20 +1124,38 @@ export function DayDetailModal({
                             // + tidy), truncated to the block's remaining markdown room.
                             e.preventDefault();
                             const el = e.currentTarget;
-                            const room = Math.max(0, 4000 - htmlToMd(el).length);
+                            const room = Math.max(0, MAX_BLOCK_LEN - htmlToMd(el).length);
                             const text = (e.clipboardData?.getData('text/plain') ?? '')
                                 .replace(/\r\n?/g, '\n')
                                 .slice(0, room);
                             if (text) document.execCommand('insertText', false, text);
                             commitRte(el);
+                            // A paste that hit the cap (whole clip clamped away, or the
+                            // block now full) surfaces the notice so nothing looks lost.
+                            updateNoteFull(el);
                         }}
-                        onInput={(e) => { commitRte(e.currentTarget); forceRender(); }} />
+                        onInput={(e) => { commitRteInput(e.currentTarget); updateNoteFull(e.currentTarget); }} />
                 ) : (
                     (() => {
                         const p = placeById(b.placeId);
                         return p ? renderPlaceCard(p) : null;
                     })()
                 )}
+                {b.type === 'text' ? (
+                    // "Note is full" notice — hidden until the block nears the
+                    // server cap, then shown so the editor never looks frozen.
+                    // Owned imperatively (updateNoteFull) like the autosave badge;
+                    // the initial hidden state is seeded from the stored text so a
+                    // reopened full block shows it without a keystroke.
+                    <div className="plan-block__full" role="status"
+                        hidden={(b.text || '').length < MAX_BLOCK_LEN - NOTE_FULL_MARGIN}
+                        ref={(el) => {
+                            if (el) noteFullRefs.current.set(b.k, el);
+                            else noteFullRefs.current.delete(b.k);
+                        }}>
+                        {t('dayDetail.noteFull')}
+                    </div>
+                ) : null}
             </div>
             <div className="plan-block__move">
                 <button type="button" aria-label={t('dayDetail.blockUp')} disabled={i === 0}
@@ -1132,6 +1220,17 @@ export function DayDetailModal({
                                 <rect x="8.5" y="17" width="11.5" height="2" rx="1" />
                             </svg>,
                             () => execFmt(slot, 'insertUnorderedList'),
+                        )}
+                        {fmtBtn(
+                            // Clear formatting — strips bold/italic/underline from the
+                            // selection so a user who double-formatted a word (and hit
+                            // the nested-marker artefact) can recover without retyping.
+                            t('dayDetail.fmtClearAria'),
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M6 5h11" /><path d="M11 5 8 19" /><path d="m15 14 5 5" /><path d="m20 14-5 5" />
+                            </svg>,
+                            () => execFmt(slot, 'removeFormat'),
                         )}
                     </div>
                     <div className="plan-blocks">

@@ -331,12 +331,21 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 });
             };
             todoBtn.onclick = () => {
-                const sortedDays = [...(STATE.tripDays || [])]
-                    .filter((d) => d.tripId === activeTrip.id)
-                    .sort((a, b) => a.dayNumber - b.dayNumber);
-                const selectedId = resolveSelectedDayId(activeTrip, sortedDays);
-                const selectedDay = sortedDays.find((d) => d.id === selectedId);
-                const dayIdForAdd = selectedDay && selectedDay.dayNumber > 0 ? selectedDay.id : null;
+                // C3-I1: only auto-pin to a day when the user has an EXPLICIT
+                // wheel selection (getSelectedDayId — the persisted pick), not
+                // the derived default. resolveSelectedDayId always falls back to
+                // the first numbered day, so a fresh "Add to to-do" from the
+                // overview silently stamped Day 1. When nothing is selected the
+                // place stays trip-wide (dayId=null) and lives in the to-do list
+                // until the user assigns it.
+                const explicitId = getSelectedDayId(activeTrip.id);
+                const selectedDay = explicitId
+                    ? (STATE.tripDays || []).find(
+                          (d) => d.tripId === activeTrip.id && d.id === explicitId,
+                      )
+                    : undefined;
+                const dayIdForAdd =
+                    selectedDay && selectedDay.dayNumber > 0 ? selectedDay.id : null;
                 toggleTodoListMembership(activeTrip, place, cat, dayIdForAdd);
                 emit('state:changed');
                 void upsertTrip(activeTrip);

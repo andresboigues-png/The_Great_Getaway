@@ -6,7 +6,7 @@
 // (the DOM wiring) can import the render/click handlers without dragging
 // the whole main.ts import graph.
 
-import { STATE } from '../state.js';
+import { STATE, emit } from '../state.js';
 import { t, getIntlLocale } from '../i18n.js';
 import { navigate } from '../router.js';
 import { PAGES } from '../constants.js';
@@ -367,6 +367,26 @@ export function handleNotificationClick(notification: { type?: string; related_i
             // the viewer's own Best-of, so no userId → own profile).
             navigate(PAGES.PROFILE);
             break;
+        case 'settled_up':
+        case 'settled_up_reverted': {
+            // The whole point of a settlement ping is to review/confirm the
+            // payment, so route to the trip's Settlement surface instead of
+            // dumping the user on Home. `related_id` is the trip_id — switch
+            // the active trip to it (same STATE.activeTripId → emit → navigate
+            // idiom as the invite-accept + expense-edit flows) so Settlement
+            // opens on the right trip. Guarded on membership: if the trip
+            // isn't in STATE.trips (left it, or a stale poll), fall back to
+            // Home rather than land on an empty Settlement view.
+            const trip = relatedId ? STATE.trips.find(tr => tr.id === relatedId) : undefined;
+            if (trip) {
+                STATE.activeTripId = trip.id;
+                emit('state:changed');
+                navigate(PAGES.SETTLEMENT);
+            } else {
+                navigate(PAGES.HOME);
+            }
+            break;
+        }
         default:
             navigate(PAGES.HOME);
             break;

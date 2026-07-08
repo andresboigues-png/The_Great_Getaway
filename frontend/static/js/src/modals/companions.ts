@@ -317,7 +317,10 @@ export const openCompanionPickerModal = (tripId: string) => {
         delete friendSheet.dataset.linkTargetName;  // ADD mode, not link-existing
         if (friendSheetTitleEl) friendSheetTitleEl.textContent = t('companions.friendSheetTitle');
         friendSheet.hidden = false;
-        if (cachedFriends.length === 0) cachedFriends = await fetchAcceptedFriends();
+        // A2-I3: refetch every open, not just the first. A link/unlink earlier in
+        // this same modal session frees (or claims) a friend; a once-per-open
+        // cache would keep showing the stale candidate set.
+        cachedFriends = await fetchAcceptedFriends();
         buildFriendList();
     };
 
@@ -328,7 +331,9 @@ export const openCompanionPickerModal = (tripId: string) => {
         const newName = addInput.value.trim();
         if (!newName) return;
         if (findTripCompanion(trip, newName)) {
-            // Name collision — silently re-focus the existing row's area.
+            // A2-I4: name collision. Previously this silently cleared + refocused
+            // the input, which reads as a dead button. Say why nothing happened.
+            showLiquidAlert(t('companions.addDuplicate', { name: newName }), 'info');
             addInput.value = '';
             addInput.focus();
             return;
@@ -430,7 +435,9 @@ export const openCompanionPickerModal = (tripId: string) => {
             friendSheet.hidden = false;
             friendSheet.dataset.linkTargetName = linkBtn.dataset.name;
             if (friendSheetTitleEl) friendSheetTitleEl.textContent = t('companions.linkSheetTitle');
-            if (cachedFriends.length === 0) cachedFriends = await fetchAcceptedFriends();
+            // A2-I3: refetch every open so a friend freed by an unlink/remove
+            // earlier in this session reappears as a link candidate.
+            cachedFriends = await fetchAcceptedFriends();
             buildFriendList();
             return;
         }

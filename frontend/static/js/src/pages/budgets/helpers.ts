@@ -359,6 +359,11 @@ export const openCreateBudgetModal = (existing?: Budget) => {
                     <input type="number" id="newBudAmt" class="glass-input" placeholder="1000" min="0" step="any" value="${isEdit && existing?.originalAmount != null ? esc(String(existing.originalAmount)) : ''}" style="padding: var(--space-3); border-radius: 12px;">
                     <select id="newBudCurr" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">${currOpts}</select>
                 </div>
+                <!-- B4-I3: a budget always stores canonical EUR, so a non-EUR
+                     target is compared to spend in EUR at today's rate. Say so
+                     honestly (rate-backed non-EUR only; the no-rate case has its
+                     own manual-EUR hint below). -->
+                <span id="newBudFxNote" style="display:none; font-size:0.72rem; color: var(--text-secondary);"></span>
                 <!-- F2-DSGN1: manual EUR target, shown only for currencies with no
                      live rate (mirrors the expense form's manual-EUR field). -->
                 <div id="newBudEurRow" style="display:none; flex-direction:column; gap: var(--space-2); margin-top:8px;">
@@ -381,11 +386,18 @@ export const openCreateBudgetModal = (existing?: Budget) => {
     // reflects the default-selected (home) currency, which always has a rate.
     const eurRow = q(root, '#newBudEurRow') as HTMLElement;
     const eurHint = q(root, '#newBudEurHint') as HTMLElement;
+    const fxNote = q(root, '#newBudFxNote') as HTMLElement;
     const currSel = q(root, '#newBudCurr') as HTMLSelectElement;
     const syncEurRow = () => {
         const needsEur = !!currSel.value && !hasRate(currSel.value);
         eurRow.style.display = needsEur ? 'flex' : 'none';
         if (needsEur) eurHint.textContent = t('budgets.createEurHint', { curr: currSel.value });
+        // B4-I3: for a rate-backed non-EUR target, disclose that it's stored and
+        // tracked in EUR at the current rate (the no-rate case already explains
+        // its own manual-EUR field, and an EUR target needs no note).
+        const showFx = !!currSel.value && currSel.value !== 'EUR' && !needsEur;
+        fxNote.style.display = showFx ? 'block' : 'none';
+        if (showFx) fxNote.textContent = t('budgets.createFxNote', { curr: currSel.value });
     };
     currSel.onchange = syncEurRow;
     syncEurRow();

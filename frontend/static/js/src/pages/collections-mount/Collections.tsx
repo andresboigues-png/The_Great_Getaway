@@ -151,7 +151,9 @@ export function Collections() {
     );
     const availableDestinations = useMemo(
         () =>
-            [...new Set(archived.map((t) => tripDestination(t)).filter(Boolean))].sort(),
+            [...new Set(archived.map((t) => tripDestination(t)).filter(Boolean))].sort((a, b) =>
+                a.localeCompare(b),
+            ),
         [archived],
     );
 
@@ -367,7 +369,11 @@ export function Collections() {
                         <option value="daysDesc">{t('collections.sortDaysDesc')}</option>
                     </select>
 
-                    {availableYears.length > 1 && (
+                    {/* F5-I1: keep the chip mounted whenever its filter is
+                        active, even if the visible pool has shrunk to one
+                        year — otherwise the select vanishes while filterYear
+                        still empties the grid, with no way to undo it. */}
+                    {(availableYears.length > 1 || !!filterYear) && (
                         <select
                             title={t('collections.filterYearTitle')}
                             value={filterYear}
@@ -383,7 +389,9 @@ export function Collections() {
                         </select>
                     )}
 
-                    {availableDestinations.length > 1 && (
+                    {/* F5-I1: keep mounted while the destination filter is
+                        active even if it's the only surviving destination. */}
+                    {(availableDestinations.length > 1 || !!filterDestination) && (
                         <select
                             title={t('collections.filterDestTitle')}
                             value={filterDestination}
@@ -802,31 +810,60 @@ function albumGradient(key: string): string {
 // never hydrates them (fetchTripMedia only fires for the active/opened
 // trip), so un-opened trips render gradient placeholders even when they're
 // full of photos. We lazily hydrate each album's cover candidates via the
-// existing (media-write-invariant-safe) fetchTripMedia path. Bounded three
-// ways so opening Collections can't fan out an unbounded burst of media
-// GETs: per-album (only enough trips to fill the 3-cover fan), per-session
-// (_COVER_HYDRATION_SESSION_CAP), and deduped (each trip attempted once).
+// existing (media-write-invariant-safe) fetchTripMedia path.
+//
+// F5-I3: bound the fetch burst by VISIBILITY rather than a fixed session
+// count. The old `_COVER_HYDRATION_SESSION_CAP=30` was never reset, so a
+// user with 40+ photo-albums permanently saw gradient placeholders for the
+// 31st+ un-opened album — even after navigating away and back. Instead each
+// AlbumStack waits until it scrolls into view (IntersectionObserver) before
+// fetching, so only visible albums fan out media GETs and scrolling reaches
+// every album eventually. Still bounded per-album (the 3-cover fan) and
+// deduped (`_coverHydrationTried` — each trip attempted at most once).
 const _coverHydrationTried = new Set<string>();
-const _COVER_HYDRATION_SESSION_CAP = 30;
 
 function AlbumStack(
     { album, label, groupBy, onOpen }: { album: TripAlbum; label: string; groupBy: GroupBy; onOpen: () => void },
 ) {
-    // DSGN-010: hydrate missing covers for this album, then force a LOCAL
-    // recompute — the parent's `albums` useMemo won't bust on an in-place
-    // media mutation, so a state:changed repaint wouldn't refresh the fan.
+    // DSGN-010 / F5-I3: hydrate missing covers once this card scrolls into
+    // view, then force a LOCAL recompute — the parent's `albums` useMemo
+    // won't bust on an in-place media mutation, so a state:changed repaint
+    // wouldn't refresh the fan.
+    const cardRef = useRef<HTMLDivElement | null>(null);
     const [, bumpCovers] = useState(0);
     useEffect(() => {
-        if (_coverHydrationTried.size >= _COVER_HYDRATION_SESSION_CAP) return;
-        const needHydrate = album.trips
-            .filter((tr) => !tripCover(tr) && !_coverHydrationTried.has(tr.id))
-            .slice(0, 3);
-        if (needHydrate.length === 0) return;
+        const el = cardRef.current;
+        if (!el) return;
         let alive = true;
-        for (const tr of needHydrate) _coverHydrationTried.add(tr.id);
-        void Promise.all(needHydrate.map((tr) => fetchTripMedia(tr.id).catch(() => {})))
-            .then(() => { if (alive) bumpCovers((n) => n + 1); });
-        return () => { alive = false; };
+        const hydrate = () => {
+            const needHydrate = album.trips
+                .filter((tr) => !tripCover(tr) && !_coverHydrationTried.has(tr.id))
+                .slice(0, 3);
+            if (needHydrate.length === 0) return;
+            for (const tr of needHydrate) _coverHydrationTried.add(tr.id);
+            void Promise.all(needHydrate.map((tr) => fetchTripMedia(tr.id).catch(() => {})))
+                .then(() => { if (alive) bumpCovers((n) => n + 1); });
+        };
+        // No IntersectionObserver (older webviews) → hydrate eagerly; the
+        // per-album fan + dedupe still bound the burst.
+        if (typeof IntersectionObserver === 'undefined') {
+            hydrate();
+            return () => { alive = false; };
+        }
+        const io = new IntersectionObserver((entries) => {
+            for (const entry of entries) {
+                if (entry.isIntersecting) {
+                    io.disconnect();
+                    hydrate();
+                    break;
+                }
+            }
+        }, { rootMargin: '200px' });
+        io.observe(el);
+        return () => {
+            alive = false;
+            io.disconnect();
+        };
     }, [album]);
     // Group-identity watermark over the stack: a continent silhouette when
     // grouping by continent, the year number when grouping by year.
@@ -854,6 +891,7 @@ function AlbumStack(
     const emptyBg = albumGradient(album.key);
     return (
         <div
+            ref={cardRef}
             className="card glass album-card"
             role="button"
             tabIndex={0}

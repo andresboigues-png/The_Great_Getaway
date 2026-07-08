@@ -412,6 +412,12 @@ function HistoryTab({ trip, tripIsEditable, onEditSettlement, onUnsettle }: {
                                     // guided undo + re-record (openEditSettlementModal branches
                                     // on the id's store). Pre-fix server rows had Undo-only.
                                     const showEdit = tripIsEditable;
+                                    // B5-I4: on server rows the Edit button is a destructive
+                                    // undo + re-record (deletes the row, re-notifies the
+                                    // recipient) — visually identical to a legacy in-place
+                                    // edit. Surface a small inline note so the user knows
+                                    // before clicking; legacy expense rows edit silently.
+                                    const showEditRecordsNote = showEdit && s.source === 'settlement';
                                     return (
                                         <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 14px', background: 'var(--card-bg)', border: '1px solid var(--border-subtle)', borderRadius: '14px' }}>
                                             <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'rgba(52,199,89,0.12)', color: 'var(--stl-green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.95rem', flexShrink: 0 }}>{fromInitial}</div>
@@ -427,6 +433,9 @@ function HistoryTab({ trip, tripIsEditable, onEditSettlement, onUnsettle }: {
                                                 </div>
                                                 {showNote ? (
                                                     <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '4px', fontStyle: 'italic' }}>&quot;{s.note}&quot;</div>
+                                                ) : null}
+                                                {showEditRecordsNote ? (
+                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '4px' }}>{t('settlement.historyEditReRecordsNote')}</div>
                                                 ) : null}
                                             </div>
                                             <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--stl-green)', flexShrink: 0 }}>{formatHome(s.euroValue || 0, 'EUR')}</div>

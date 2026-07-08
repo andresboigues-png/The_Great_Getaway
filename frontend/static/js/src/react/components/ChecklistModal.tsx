@@ -25,7 +25,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { emit } from '../../state.js';
 import { upsertTrip } from '../../api.js';
 import { canEdit } from '../../permissions.js';
-import { generateId } from '../../utils.js';
+import { generateId, showConfirmModal } from '../../utils.js';
 import { t } from '../../i18n.js';
 import { useStore } from '../store.js';
 import type { Trip } from '../../types';
@@ -92,7 +92,20 @@ export function ChecklistModal({ trip, close }: { trip: Trip; close: () => void 
 
     const commitEdit = (item: ChecklistItem) => {
         const next = (editInputRef.current?.value || '').trim().slice(0, 200);
-        if (next) item.body = next; // empty input → silently keep old text
+        if (!next) {
+            // Clearing the text is an honest delete intent, not a no-op: the old
+            // silent "keep old text" gave no cue the clear was rejected. Confirm
+            // the delete; on cancel leave the edit input open (no
+            // setEditingId(null)) so the user can fix it.
+            showConfirmModal({
+                title: t('checklist.clearToDeleteTitle'),
+                message: t('checklist.clearToDeleteBody'),
+                confirmText: t('common.delete'),
+                onConfirm: () => removeItem(item),
+            });
+            return;
+        }
+        item.body = next;
         setEditingId(null);
         persist();
     };

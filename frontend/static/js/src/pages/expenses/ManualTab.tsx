@@ -96,6 +96,12 @@ export function ManualTab() {
         [activeTrip],
     );
     const hasTripCompanions = tripCompanionNames.length > 0;
+    // B1-I1: on a trip with no companion rows the "Who paid" select would
+    // render only a blank required <option>, so native validation blocks a
+    // solo traveller from ever saving. Seed a self payer (the user's first
+    // name, or a translated "Me" fallback) so solo entry works out of the box.
+    const selfPayer = STATE.user?.name?.split(' ')[0] || t('expenses.selfPayer');
+    const payerNames = hasTripCompanions ? tripCompanionNames : [selfPayer];
     const categories = STATE.categories;
 
     // ── refs for uncontrolled form fields ────────────────────────
@@ -135,6 +141,19 @@ export function ManualTab() {
 
     // ── split editor state ───────────────────────────────────────
     const [splitters, setSplitters] = useState<string[]>([]);
+    // B2-I1: live running total of the split inputs. The inputs stay
+    // uncontrolled (defaultValue, to preserve typed values on add/remove per
+    // B2-B2), so we read their DOM values on each keystroke into this state to
+    // paint a "Total: 96% — 4% short" hint. Pre-fix the only "doesn't add to
+    // 100" signal was a blocking alert AFTER Save, forcing guess-and-retry.
+    const splitRowsRef = useRef<HTMLDivElement | null>(null);
+    const [splitTotal, setSplitTotal] = useState(0);
+    const recomputeSplitTotal = () => {
+        const inputs = splitRowsRef.current?.querySelectorAll<HTMLInputElement>('.split-input');
+        let sum = 0;
+        inputs?.forEach((input) => { sum += parseFloat(input.value) || 0; });
+        setSplitTotal(Math.round(sum * 100) / 100);
+    };
 
     // ── receipt picker state ─────────────────────────────────────
     const [receiptUrl, setReceiptUrl] = useState<string | null>(
@@ -278,6 +297,13 @@ export function ManualTab() {
     const onRemoveSplit = (person: string) => {
         setSplitters(splitters.filter((p) => p !== person));
     };
+    // B2-I1: after a row is added/removed the surviving inputs keep their DOM
+    // values and the new row mounts with its equal-split default, so re-read the
+    // live total off the DOM once React has painted the new row set.
+    useEffect(() => {
+        recomputeSplitTotal();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [splitters]);
 
     // ── receipt picker handlers ──────────────────────────────────
     const onPickReceipt = () => receiptInputRef.current?.click();
@@ -374,6 +400,14 @@ export function ManualTab() {
 
         if (isNaN(val) || val <= 0) {
             showLiquidAlert(t('validation.invalidExpenseValue'));
+            return;
+        }
+        // B1-I2: the value input had no upper bound, so 2e9 passed the client
+        // gate and only 400'd server-side (validators._MAX_MONEY = 1e9), landing
+        // in the blanket saveFailed toast. Mirror the server ceiling here so the
+        // user gets a specific, actionable message before any optimistic push.
+        if (val > 1e9) {
+            showLiquidAlert(t('validation.valueTooLarge'));
             return;
         }
         if (!curr) {
@@ -512,7 +546,13 @@ export function ManualTab() {
         // the outbox, only PENDING). Mirrors the day-detail BUG-17 template.
         const res = await upsertExpense(expense);
         if (!res || !res.ok) {
-            setSaveStatus({ text: t('expenses.saveFailed'), color: '#ff3b30' });
+            // B1-I2: prefer the server's specific reason (e.g. "value exceeds
+            // the maximum allowed" / "currency 'XYZ' is not supported") when it
+            // ships one in the JSON body, instead of the blanket saveFailed
+            // toast that hides why the save was rejected. Falls back to the
+            // generic copy for 409s / network drops that carry no `error`.
+            const serverReason = typeof res?.body?.error === 'string' ? res.body.error : '';
+            setSaveStatus({ text: serverReason || t('expenses.saveFailed'), color: '#ff3b30' });
         } else {
             setSaveStatus({
                 text: isEdit ? t('expenses.updatedToast') : t('expenses.savedToast'),
@@ -568,15 +608,11 @@ export function ManualTab() {
                             defaultValue={STATE.draftExpense?.who || ''}
                             onChange={(e) => draft('who', e.target.value)}
                         >
-                            {hasTripCompanions ? (
-                                tripCompanionNames.map((p) => (
-                                    <option key={p} value={p}>
-                                        {p}
-                                    </option>
-                                ))
-                            ) : (
-                                <option value="">{t('expenses.noCompanionsAddFromHome')}</option>
-                            )}
+                            {payerNames.map((p) => (
+                                <option key={p} value={p}>
+                                    {p}
+                                </option>
+                            ))}
                         </select>
                         {!hasTripCompanions ? (
                             <div
@@ -733,6 +769,8 @@ export function ManualTab() {
                             ref={valueRef}
                             type="number"
                             step="0.01"
+                            min="0.01"
+                            max="1000000000"
                             className="glass-input-light font-bold"
                             required
                             defaultValue={
@@ -901,7 +939,7 @@ export function ManualTab() {
                                 {t('expenses.addPersonBtn')}
                             </button>
                         </div>
-                        <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-3" ref={splitRowsRef}>
                             {splitters.length === 0 ? (
                                 <p
                                     className="text-secondary text-[0.85rem] p-2.5 border border-dashed border-[var(--glass-border)] rounded-lg text-center"
@@ -932,6 +970,7 @@ export function ManualTab() {
                                                 step="any"
                                                 min="0"
                                                 required
+                                                onInput={recomputeSplitTotal}
                                             />
                                             <span
                                                 className="text-secondary text-[length:var(--font-base)]"
@@ -951,6 +990,33 @@ export function ManualTab() {
                                 ))
                             )}
                         </div>
+                        {/* B2-I1: live running total. Pre-fix the only "doesn't add
+                            to 100" signal was a blocking alert AFTER Save; this hint
+                            lets the user tune the split before submitting. Delta is
+                            rounded to 2dp to match the submit-gate tolerance. */}
+                        {splitters.length > 0 ? (() => {
+                            const delta = Math.round((100 - splitTotal) * 100) / 100;
+                            const isBalanced = Math.abs(delta) <= 0.01;
+                            return (
+                                <p
+                                    className="mt-4 text-[0.85rem] font-bold text-center"
+                                    style={{ color: isBalanced ? '#1a6b3c' : '#ff3b30' }}
+                                    aria-live="polite"
+                                >
+                                    {isBalanced
+                                        ? t('expenses.splitTotalOk', { total: splitTotal })
+                                        : delta > 0
+                                            ? t('expenses.splitTotalShort', {
+                                                total: splitTotal,
+                                                delta,
+                                            })
+                                            : t('expenses.splitTotalOver', {
+                                                total: splitTotal,
+                                                delta: -delta,
+                                            })}
+                                </p>
+                            );
+                        })() : null}
                     </div>
 
                     <button type="submit" className="btn-primary btn-primary--lg" disabled={saving}>

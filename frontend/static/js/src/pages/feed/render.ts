@@ -448,9 +448,13 @@ export function actionButton(opts: {
     `;
 }
 
-/** Render a single comment row for the thread. canDelete=true when
- *  the current user authored the comment — adds a small ✕ button. */
-export function commentRowHtml(c: FeedComment, canDelete: boolean) {
+/** Render a single comment row for the thread.
+ *  - canEdit  = the current user authored it (edit is author-only,
+ *    matching the server's 403-for-non-authors on PATCH) → ✎ button.
+ *  - canDelete = author OR post/trip owner (owner moderation is a
+ *    real server branch in delete_feed_comment) → ✕ button.
+ *  An owner viewing someone else's comment gets delete-only. */
+export function commentRowHtml(c: FeedComment, canEdit: boolean, canDelete: boolean) {
     // Audit fix (2026-05-27): escape `c.id` everywhere it's
     // interpolated. The server normally returns an auto-increment
     // INTEGER, but the type is `any` here and a tampered API
@@ -470,13 +474,21 @@ export function commentRowHtml(c: FeedComment, canDelete: boolean) {
                 <div style="font-size:0.88rem; color:#002d5b; line-height:1.4; margin-top:2px; white-space:pre-wrap; word-wrap:break-word;">${esc(c.body || '')}</div>
             </div>
             ${
-                canDelete
+                canEdit || canDelete
                     ? `
                 <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
-                    <button type="button" class="feed-comment-edit-btn" data-comment-id="${idAttr}" title="${t('feed.commentEditTitle')}" aria-label="${t('feed.commentEditAria')}"
-                        style="background:transparent; border:0; color:rgba(0,113,227,0.65); cursor:pointer; padding:2px 6px; font-size:0.78rem; font-weight:800;">✎</button>
-                    <button type="button" class="feed-comment-delete-btn" data-comment-id="${idAttr}" title="${t('feed.commentDeleteTitle')}" aria-label="${t('feed.commentDeleteAria')}"
-                        style="background:transparent; border:0; color:rgba(255,59,48,0.6); cursor:pointer; padding:2px 6px; font-size:0.72rem; font-weight:800;">✕</button>
+                    ${
+                        canEdit
+                            ? `<button type="button" class="feed-comment-edit-btn" data-comment-id="${idAttr}" title="${t('feed.commentEditTitle')}" aria-label="${t('feed.commentEditAria')}"
+                        style="background:transparent; border:0; color:rgba(0,113,227,0.65); cursor:pointer; padding:2px 6px; font-size:0.78rem; font-weight:800;">✎</button>`
+                            : ''
+                    }
+                    ${
+                        canDelete
+                            ? `<button type="button" class="feed-comment-delete-btn" data-comment-id="${idAttr}" title="${canEdit ? t('feed.commentDeleteTitle') : t('feed.commentModerateTitle')}" aria-label="${canEdit ? t('feed.commentDeleteAria') : t('feed.commentModerateAria')}"
+                        style="background:transparent; border:0; color:rgba(255,59,48,0.6); cursor:pointer; padding:2px 6px; font-size:0.72rem; font-weight:800;">✕</button>`
+                            : ''
+                    }
                 </div>`
                     : ''
             }

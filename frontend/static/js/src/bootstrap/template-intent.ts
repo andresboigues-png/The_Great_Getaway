@@ -43,47 +43,67 @@ export function hasPendingTemplateIntent(): boolean {
     catch { return false; }
 }
 
-/** Mandatory start-date prompt for instantiating a template. Templates
- *  carry a fixed day RANGE, so we only need the first day — the rest are
- *  derived server-side (day N → start + N-1). Resolves to a YYYY-MM-DD
- *  string, or null if the user dismisses (any close path). */
-function promptTemplateStartDate(): Promise<string | null> {
+/** Outcome of the start-date prompt:
+ *   - { action: 'create', startDate?: string } → proceed, optionally dated
+ *     ('decide later' resolves with no startDate → an undated trip).
+ *   - null → the user dismissed the prompt; abort without creating. */
+type StartDateChoice = { action: 'create'; startDate?: string };
+
+/** Start-date prompt for instantiating a template. Templates carry a fixed
+ *  day RANGE, so we only need the first day — the rest are derived server-side
+ *  (day N → start + N-1). The date is optional: the backend supports an undated
+ *  create, so a 'decide later' path lets the user create now and date it later.
+ *  Resolves to a StartDateChoice, or null if the user dismisses (any close
+ *  path). */
+function promptTemplateStartDate(): Promise<StartDateChoice | null> {
     return new Promise((resolve) => {
         let settled = false;
-        const finish = (val: string | null) => {
+        const finish = (val: StartDateChoice | null) => {
             if (settled) return;
             settled = true;
             resolve(val);
         };
+        // Cap the picker at a decade out: real trip planning stays well inside
+        // this, while it keeps a far-future date (e.g. 9999-12-31) from pushing
+        // later days past date.max server-side. Today is the floor — a template
+        // dated into the past makes no sense.
+        const today = new Date();
+        const minIso = today.toISOString().slice(0, 10);
+        const maxDate = new Date(today);
+        maxDate.setFullYear(maxDate.getFullYear() + 10);
+        const maxIso = maxDate.toISOString().slice(0, 10);
         const { root, close } = showModal({
             variant: 'glass',
             cardStyle: 'width: 380px;',
             // onClose fires on EVERY dismiss path (✕, backdrop, Esc, or the
             // Cancel button calling close()) — resolve null there so the
-            // awaiting caller never hangs. The confirm path settles first.
+            // awaiting caller never hangs. The confirm/skip paths settle first.
             onClose: () => finish(null),
             innerHTML: `
                 <h2 class="card-title mdl-title-hero">${esc(t('templates.startDateTitle'))}</h2>
                 <p class="form-hint" style="margin: 8px 0 16px;">${esc(t('templates.startDatePrompt'))}</p>
-                <input type="date" id="tmplStartDate" class="glass-input-modal" aria-label="${esc(t('templates.startDateTitle'))}" style="margin-bottom: 18px;">
+                <input type="date" id="tmplStartDate" class="glass-input-modal" min="${minIso}" max="${maxIso}" aria-label="${esc(t('templates.startDateTitle'))}" style="margin-bottom: 18px;">
                 <div class="mdl-btn-row">
                     <button type="button" id="tmplStartConfirm" class="btn-primary flex-[2]" disabled>${esc(t('templates.startDateConfirm'))}</button>
-                    <button type="button" id="tmplStartCancel" class="btn-ghost flex-1">${esc(t('modals.newTripCancelBtn'))}</button>
+                    <button type="button" id="tmplStartSkip" class="btn-ghost flex-1">${esc(t('templates.startDateSkip'))}</button>
                 </div>
             `,
         });
         const input = root.querySelector('#tmplStartDate') as HTMLInputElement;
         const confirmBtn = root.querySelector('#tmplStartConfirm') as HTMLButtonElement;
-        const cancelBtn = root.querySelector('#tmplStartCancel') as HTMLButtonElement;
+        const skipBtn = root.querySelector('#tmplStartSkip') as HTMLButtonElement;
         const sync = () => { confirmBtn.disabled = !input.value; };
         input.addEventListener('input', sync);
         input.addEventListener('change', sync);
         confirmBtn.onclick = () => {
             if (!input.value) return;
-            finish(input.value);   // settle BEFORE close so onClose's null is ignored
+            finish({ action: 'create', startDate: input.value });   // settle BEFORE close so onClose's null is ignored
             close();
         };
-        cancelBtn.onclick = () => close();   // → onClose → finish(null)
+        skipBtn.onclick = () => {
+            finish({ action: 'create' });   // create now, undated — date it later
+            close();
+        };
         setTimeout(() => { try { input.focus(); } catch { /* ignore */ } }, 80);
     });
 }
@@ -92,12 +112,13 @@ function promptTemplateStartDate(): Promise<string | null> {
  *  it. Returns true on success. Shared by the Templates page, the new-trip
  *  modal's code path, and the post-signup intent resume.
  *
- *  Always prompts for a mandatory start date first (templates come with a
- *  fixed day range) — dismissing the prompt aborts without creating. */
+ *  Prompts for a start date first (templates come with a fixed day range),
+ *  but the date is optional — 'decide later' creates an undated trip.
+ *  Dismissing the prompt aborts without creating. */
 export async function createFromTemplateAndOpen(code: string): Promise<boolean> {
-    const startDate = await promptTemplateStartDate();
-    if (!startDate) return false;   // user dismissed the mandatory date prompt
-    const res = await createTripFromTemplateCode(code, startDate);
+    const choice = await promptTemplateStartDate();
+    if (!choice) return false;   // user dismissed the date prompt
+    const res = await createTripFromTemplateCode(code, choice.startDate);
     if (!res.ok || !res.tripId) {
         showLiquidAlert(res.status === 404 ? t('modals.tmplBadCode') : t('modals.tmplError'));
         return false;

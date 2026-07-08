@@ -114,6 +114,18 @@ export function TripPhotosModal({
             // user sees WHY, not a generic "upload failed". Kept for the
             // full-failure and partial-failure toasts below.
             let firstError: string | null = null;
+            // The 507 quota rejection is a DISTINCT failure the backend
+            // opened deliberately (media.py returns a "Storage limit
+            // reached…" body). uploadMedia collapses the 507 to res.error
+            // (the structured quotaBytes/usedBytes fields don't survive),
+            // so we detect it off the stable marker phrase and route it to
+            // a dedicated, localized toast instead of leaking the raw
+            // English string to non-EN users. Case-insensitive so a
+            // reworded server string still trips as long as it says
+            // "storage limit".
+            const isQuotaError = (msg: string | undefined) =>
+                /storage limit/i.test(msg || '');
+            let quotaHit = false;
             for (const file of files) {
                 try {
                     // §4.9 — read the photo's EXIF capture date BEFORE
@@ -136,6 +148,7 @@ export function TripPhotosModal({
                         // It hands back an actionable res.error we must not
                         // discard.
                         failed++;
+                        if (isQuotaError(res?.error)) quotaHit = true;
                         if (!firstError && res?.error) firstError = res.error;
                     }
                 } catch (e) {
@@ -150,10 +163,13 @@ export function TripPhotosModal({
                 if (failed > 0) {
                     // Partial batch — some files landed, some didn't. Report
                     // both counts (and the first reason) so the missing files
-                    // aren't silently masked as full success.
+                    // aren't silently masked as full success. A quota hit gets
+                    // the dedicated localized reason so PT/ES/FR users don't
+                    // see the raw English server string.
+                    const reason = quotaHit ? t('tripMedia.photoUploadQuota') : firstError;
                     showLiquidAlert(
-                        firstError
-                            ? t('tripMedia.photoUploadPartialReason', { added, failed, reason: firstError })
+                        reason
+                            ? t('tripMedia.photoUploadPartialReason', { added, failed, reason })
                             : t('tripMedia.photoUploadPartial', { added, failed }),
                         'error',
                     );
@@ -173,9 +189,16 @@ export function TripPhotosModal({
                 }
             } else {
                 // Every file failed — surface the server's actionable reason
-                // (quota/size/type) verbatim when we have one instead of the
-                // generic fallback.
-                showLiquidAlert(firstError || t('tripMedia.photoUploadFailed'));
+                // (size/type) verbatim when we have one instead of the
+                // generic fallback. A quota hit is the one distinct case we
+                // localize: show the dedicated key rather than the raw
+                // English "Storage limit reached…" body.
+                showLiquidAlert(
+                    quotaHit
+                        ? t('tripMedia.photoUploadQuota')
+                        : (firstError || t('tripMedia.photoUploadFailed')),
+                    'error',
+                );
             }
         })();
     };

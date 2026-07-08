@@ -849,33 +849,49 @@ function GeneralLanguageSection() {
     // setLocale (which writes STATE + emits) lands the new locale.
     useStore((s) => s.preferences);
     const currentLocale = getLocale();
+    // F2-I5: setLocale dynamically imports the locale chunk, so on a slow
+    // connection there's a gap between tap and repaint. Track the locale
+    // being loaded to show a pending highlight + lock the picker; clear it
+    // on success (the store emit re-highlights the active card) and on
+    // failure (so the previous selection shows again).
+    const [pending, setPending] = useState<Locale | null>(null);
 
     const onPick = async (value: Locale) => {
+        if (pending || value === currentLocale) return;
+        setPending(value);
         try {
             await setLocale(value);
         } catch (err) {
             console.error('setLocale failed:', err);
             showLiquidAlert(t('toasts.loadFailed'));
+        } finally {
+            setPending(null);
         }
     };
 
-    const langOpt = (value: Locale, label: string, native: string) => (
-        <button
-            key={value}
-            type="button"
-            className={`theme-option-card${currentLocale === value ? ' is-active' : ''}`}
-            onClick={() => void onPick(value)}
-        >
-            <span className="theme-option-card__icon" aria-hidden="true">
-                🌐
-            </span>
-            <span className="theme-option-card__label">{label}</span>
-            <span className="theme-option-card__body">{native}</span>
-            <span className="theme-option-card__check" aria-hidden="true">
-                {currentLocale === value ? '✓' : ''}
-            </span>
-        </button>
-    );
+    const langOpt = (value: Locale, label: string, native: string) => {
+        const isPending = pending === value;
+        const isActive = currentLocale === value;
+        return (
+            <button
+                key={value}
+                type="button"
+                className={`theme-option-card${isActive || isPending ? ' is-active' : ''}`}
+                disabled={pending !== null}
+                aria-busy={isPending}
+                onClick={() => void onPick(value)}
+            >
+                <span className="theme-option-card__icon" aria-hidden="true">
+                    🌐
+                </span>
+                <span className="theme-option-card__label">{label}</span>
+                <span className="theme-option-card__body">{native}</span>
+                <span className="theme-option-card__check" aria-hidden="true">
+                    {isPending ? '…' : isActive ? '✓' : ''}
+                </span>
+            </button>
+        );
+    };
 
     return (
         <div className="card glass settings-section">
@@ -895,24 +911,22 @@ function GeneralLanguageSection() {
 
 
 // ── Reset view (3 reset cards) ─────────────────────────────────────
+// F2-I6: the cards are grouped + styled by SCOPE, not laid out flat.
+//   • Reset Categories is a purely LOCAL restore-to-defaults (reversible
+//     by re-adding categories) → neutral card, listed first (safest).
+//   • Reset Trips and Factory Reset are IRREVERSIBLE SERVER WIPES → both
+//     carry danger-card styling so a destructive server action never
+//     reads like the benign local one. A scope caption on every card
+//     spells out exactly what gets deleted and from where.
 function ResetView() {
     return (
         <div className="settings-grid">
             <div className="card glass p-6">
-                <h3 className="st-card-title-amber">{t('settings.resetTripsTitle')}</h3>
-                <p className="muted-meta">{t('settings.resetTripsBody')}</p>
-                <button
-                    type="button"
-                    className="themed-block-btn"
-                    style={{ ['--accent' as string]: '255,149,0' }}
-                    onClick={confirmResetTrips}
-                >
-                    {t('settings.resetTripsBtn')}
-                </button>
-            </div>
-            <div className="card glass p-6">
                 <h3 className="st-card-title-indigo">{t('settings.resetCategoriesTitle')}</h3>
                 <p className="muted-meta">{t('settings.resetCategoriesBody')}</p>
+                <p className="text-secondary text-[0.78rem] font-semibold mb-4">
+                    {t('settings.resetScopeLocal')}
+                </p>
                 <button
                     type="button"
                     className="themed-block-btn"
@@ -922,11 +936,28 @@ function ResetView() {
                     {t('settings.resetCategoriesBtn')}
                 </button>
             </div>
+            <div className="card glass danger-card p-6 border-[rgba(255,_59,_48,_0.3)]">
+                <h3 className="text-[#ff3b30] mt-0">{t('settings.resetTripsTitle')}</h3>
+                <p className="muted-meta">{t('settings.resetTripsBody')}</p>
+                <p className="text-[#ff3b30] text-[0.78rem] font-semibold mb-4">
+                    {t('settings.resetScopeServer')}
+                </p>
+                <button
+                    type="button"
+                    className="btn-confirm-danger text-[length:var(--font-sm)] p-3"
+                    onClick={confirmResetTrips}
+                >
+                    {t('settings.resetTripsBtn')}
+                </button>
+            </div>
             <div
                 className="card glass danger-card p-6 border-[rgba(255,_59,_48,_0.3)]"
             >
                 <h3 className="text-[#ff3b30] mt-0">{t('settings.resetFactoryTitle')}</h3>
                 <p className="muted-meta">{t('settings.resetFactoryBody')}</p>
+                <p className="text-[#ff3b30] text-[0.78rem] font-semibold mb-4">
+                    {t('settings.resetScopeServer')}
+                </p>
                 <button
                     type="button"
                     className="btn-confirm-danger text-[length:var(--font-sm)] p-3"
@@ -956,9 +987,15 @@ function FormatView() {
     const used = new Set(customFormat.map((m) => m.variable));
 
     const onAddMapping = () => {
-        if (!mapVar || !mapCol) return;
+        if (!mapVar || !mapCol) {
+            showLiquidAlert(t('settings.formatMapIncomplete'));
+            return;
+        }
         STATE.customFormat = STATE.customFormat || [];
-        if (STATE.customFormat.some((m) => m.variable === mapVar)) return;
+        if (STATE.customFormat.some((m) => m.variable === mapVar)) {
+            showLiquidAlert(t('settings.formatMapDuplicate', { variable: mapVar }));
+            return;
+        }
         STATE.customFormat.push({ variable: mapVar, column: mapCol });
         emit('state:changed');
         setMapVar('');
@@ -981,7 +1018,10 @@ function FormatView() {
             return;
         }
         const name = formatName.trim();
-        if (!name) return;
+        if (!name) {
+            showLiquidAlert(t('settings.formatNameRequired'));
+            return;
+        }
         STATE.savedFormats = STATE.savedFormats || [];
         STATE.savedFormats.push({ id: generateId(), name, mappings: [...fmt] });
         STATE.customFormat = [];

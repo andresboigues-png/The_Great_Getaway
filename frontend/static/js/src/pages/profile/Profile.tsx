@@ -36,7 +36,7 @@ import type {
 } from 'react';
 import { useStore } from '../../react/store.js';
 import { STATE, emit } from '../../state.js';
-import { apiFetch, uploadMedia, blockUser } from '../../api.js';
+import { apiFetch, uploadMedia, blockUser, unblockUser, fetchBlockedUsers } from '../../api.js';
 import { showLiquidAlert, getHomeCurrency, showConfirmModal } from '../../utils.js';
 import { CURRENCY_SYMBOLS } from '../../constants.js';
 import { getSupportedCurrencies } from '../../utils/currency.js';
@@ -783,6 +783,24 @@ function ProfileInfoSection({
     onFollowersChange,
 }: ProfileInfoSectionProps) {
     const follow = useFollowLists(targetUserId ?? user.id);
+    // E8-I2: reflect an existing block relationship. A profile the caller is
+    // currently blocking 404s server-side (public.py), so a rendered foreign
+    // profile normally means "not blocked" — but a block placed THIS session
+    // stays on-screen (we no longer navigate away), so the affordance must
+    // flip to "Blocked · Unblock" to avoid a dead-end. Seeded from the blocks
+    // list on mount so a still-cached nav lands on the honest state too.
+    const [isBlocked, setIsBlocked] = useState(false);
+    useEffect(() => {
+        if (isOwnProfile || !targetUserId) return;
+        let alive = true;
+        void (async () => {
+            const blocked = await fetchBlockedUsers();
+            if (alive) setIsBlocked(blocked.some((b) => b.id === targetUserId));
+        })();
+        return () => {
+            alive = false;
+        };
+    }, [isOwnProfile, targetUserId]);
 
     // Travel stats derived from the (completed) trips.
     const dayCount = (tp: Trip): number => {
@@ -944,42 +962,83 @@ function ProfileInfoSection({
                 <h2 className="pf-identity__name">{user.name}</h2>
                 <span className="pf-identity__email">{user.email}</span>
                 {!isOwnProfile && targetUserId ? (
-                    <div className="flex items-center gap-2 mt-1">
-                        <FollowButton
-                            targetUserId={targetUserId}
-                            initialIsFollowing={followSnap.isFollowing}
-                            onFollowersChange={onFollowersChange}
-                        />
-                        {/* Audit MK5 P1: Block was server-enforced but had NO UI
-                            entry — overflow next to Follow → confirm → blockUser.
-                            Unblock lives in Settings → Blocked. */}
-                        <button
-                            type="button"
-                            className="btn-small bg-[rgba(0,0,0,0.05)] text-primary border border-[var(--glass-border)] rounded-md w-8 h-8 flex items-center justify-center font-bold leading-none shrink-0"
-                            title={t('profile.blockBtnLabel')}
-                            aria-label={t('profile.blockBtnLabel')}
-                            onClick={() => {
-                                showConfirmModal({
-                                    title: t('profile.blockConfirmTitle', { name: user.name }),
-                                    message: t('profile.blockConfirmBody', { name: user.name }),
-                                    confirmText: t('profile.blockConfirmBtn'),
-                                    onConfirm: () => {
-                                        void (async () => {
-                                            const ok = await blockUser(targetUserId);
-                                            if (ok) {
-                                                showLiquidAlert(t('profile.blockedToast', { name: user.name }), 'info');
-                                                navigate('friends');
-                                            } else {
-                                                showLiquidAlert(t('profile.blockFailed'));
-                                            }
-                                        })();
-                                    },
-                                });
-                            }}
-                        >
-                            ⋯
-                        </button>
-                    </div>
+                    isBlocked ? (
+                        // E8-I2: blocked relationship made explicit — a plain
+                        // "Blocked · Unblock" control instead of a Follow button,
+                        // so the state is honest and the block is reversible in
+                        // place (no dead-end back to a now-404 profile).
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[0.85rem] text-secondary font-semibold">
+                                {t('profile.blockedRelLabel')}
+                            </span>
+                            <button
+                                type="button"
+                                className="btn-small bg-[rgba(0,0,0,0.05)] text-primary border border-[var(--glass-border)] rounded-md py-1.5 px-3 font-bold shrink-0"
+                                onClick={() => {
+                                    void (async () => {
+                                        const ok = await unblockUser(targetUserId);
+                                        if (ok) {
+                                            setIsBlocked(false);
+                                            showLiquidAlert(t('profile.unblockedToast', { name: user.name }), 'success');
+                                        } else {
+                                            showLiquidAlert(t('profile.blockFailed'));
+                                        }
+                                    })();
+                                }}
+                            >
+                                {t('profile.unblockBtn')}
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 mt-1">
+                            <FollowButton
+                                targetUserId={targetUserId}
+                                initialIsFollowing={followSnap.isFollowing}
+                                onFollowersChange={onFollowersChange}
+                            />
+                            {/* E8-I1: the '⋯' overflow now opens a real menu (a
+                                labelled action list) instead of firing the block
+                                confirm directly — three dots signals "open a menu",
+                                and a single destructive action shouldn't hide behind
+                                that gesture. */}
+                            <button
+                                type="button"
+                                className="btn-small bg-[rgba(0,0,0,0.05)] text-primary border border-[var(--glass-border)] rounded-md w-8 h-8 flex items-center justify-center font-bold leading-none shrink-0"
+                                title={t('profile.moreMenuLabel')}
+                                aria-label={t('profile.moreMenuLabel')}
+                                onClick={() => {
+                                    openStatListModal({
+                                        title: t('profile.moreMenuLabel'),
+                                        items: [
+                                            {
+                                                primary: t('profile.blockBtnLabel'),
+                                                onClick: () => {
+                                                    showConfirmModal({
+                                                        title: t('profile.blockConfirmTitle', { name: user.name }),
+                                                        message: t('profile.blockConfirmBody', { name: user.name }),
+                                                        confirmText: t('profile.blockConfirmBtn'),
+                                                        onConfirm: () => {
+                                                            void (async () => {
+                                                                const ok = await blockUser(targetUserId);
+                                                                if (ok) {
+                                                                    setIsBlocked(true);
+                                                                    showLiquidAlert(t('profile.blockedToast', { name: user.name }), 'info');
+                                                                } else {
+                                                                    showLiquidAlert(t('profile.blockFailed'));
+                                                                }
+                                                            })();
+                                                        },
+                                                    });
+                                                },
+                                            },
+                                        ],
+                                    });
+                                }}
+                            >
+                                ⋯
+                            </button>
+                        </div>
+                    )
                 ) : null}
             </div>
 
@@ -1312,8 +1371,18 @@ function QuotesSection({
         const text = draft.trim();
         if (!text || posting || !profileUserId) return;
         const body: { text: string; year?: number; tripId?: string } = { text };
-        const yr = parseInt(draftYear, 10);
-        if (draftYear.trim() && !Number.isNaN(yr)) body.year = yr;
+        if (draftYear.trim()) {
+            const yr = parseInt(draftYear, 10);
+            // F4-I1: validate against the input's own min/max BEFORE the POST.
+            // The backend rejects out-of-range years with a 400 the client used
+            // to surface only as the opaque "save failed (400)"; catch it here so
+            // a typo like 2500 (or "2e3" → parsed as 2) gets a clear message.
+            if (Number.isNaN(yr) || yr < 1900 || yr > 2100) {
+                showLiquidAlert(t('profile.memYearRange'));
+                return;
+            }
+            body.year = yr;
+        }
         if (draftTripId) body.tripId = draftTripId;
         setPosting(true);
         try {
@@ -1948,10 +2017,10 @@ function BioBlock({
         // resurrect a concrete currency for a user whose home_currency is still
         // NULL ("never picked") when they only edit their bio.
         const newHomeCurrency = STATE.user.homeCurrency || null;
-        // Empty string = "Not set" sentinel from the picker — store as null
-        // so downstream readers (AI page default destination, country-stats)
-        // can distinguish "user actively cleared" from "never picked".
-        const newHomeCountry = homeCountry || null;
+        // E7-I1: home country now auto-saves on pick too (applyHomeCountry), so
+        // like currency the source of truth is STATE.user — the bio/status save
+        // must not re-send stale display state and clobber the persisted value.
+        const newHomeCountry = STATE.user.homeCountry || null;
         setSaving(true);
         try {
             const res = await apiFetch('/api/profile/update', {
@@ -2038,25 +2107,56 @@ function BioBlock({
         }
     };
 
-    // Country tile → searchable picker (flag + name rows). Picking marks the
-    // form dirty; the value persists via "Save profile" like the bio/status.
+    // Home country applies IMMEDIATELY on pick, mirroring home currency.
+    // E7-I1: the two tiles sit side by side, so a country that only persisted
+    // via the (conditionally-shown) "Save profile" button while currency saved
+    // instantly was an inconsistency — users picked a country, left, and lost
+    // it. Auto-save both. Empty string = "Not set" sentinel → stored as null so
+    // downstream readers distinguish "actively cleared" from "never picked".
+    // On failure we revert the tile so it never lies.
+    const applyHomeCountry = async (name: string) => {
+        if (!STATE.user) return;
+        const old = STATE.user.homeCountry || null;
+        const next = name || null;
+        if (next === old) {
+            setHomeCountry(name);
+            return;
+        }
+        setHomeCountry(name); // optimistic — revert below if the POST fails
+        try {
+            const res = await apiFetch('/api/profile/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ homeCountry: next }),
+            });
+            if (!res.ok) {
+                showLiquidAlert(t('profile.saveFailed', { status: res.status }));
+                setHomeCountry(old || '');
+                return;
+            }
+            STATE.user.homeCountry = next;
+            emit('state:changed');
+            showLiquidAlert(t('profile.updated'), 'success');
+        } catch (e) {
+            console.error('Home country update failed:', e);
+            showLiquidAlert(t('profile.saveNetwork'));
+            setHomeCountry(old || '');
+        }
+    };
+
+    // Country tile → searchable picker (flag + name rows). Picking auto-saves
+    // immediately (see applyHomeCountry).
     const openCountryPicker = () => {
         const items: StatListItem[] = [
             {
                 primary: t('profile.homeCountryNotSet'),
                 avatarInitial: '—',
-                onClick: () => {
-                    setHomeCountry('');
-                    setDirty(true);
-                },
+                onClick: () => void applyHomeCountry(''),
             },
             ...getCountryOptions().map(({ code, name }) => ({
                 primary: name,
                 avatarUrl: flagUrl(code),
-                onClick: () => {
-                    setHomeCountry(name);
-                    setDirty(true);
-                },
+                onClick: () => void applyHomeCountry(name),
             })),
         ];
         openStatListModal({ title: t('profile.homeCountryAria'), items });

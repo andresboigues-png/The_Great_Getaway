@@ -207,6 +207,7 @@ export const es: Translations = {
         yourNetwork: 'Tu red',
     },
     login: {
+        stalledBlockedHint: "Si usas un bloqueador de anuncios o rastreadores, o una red de trabajo, puede estar bloqueando accounts.google.com — permítelo o prueba con otra red.",
         brand: 'The Great Getaway',
         subtitleNewUser: 'Planifica viajes, divide gastos y trae amigos. En todos tus dispositivos.',
         subtitleReturning: 'Bienvenido de vuelta. Inicia sesión para continuar donde lo dejaste.',
@@ -224,6 +225,14 @@ export const es: Translations = {
         feature3Body: 'Invita a personas para planificar contigo.',
     },
     settings: {
+        resetScopeServer: "Permanente · elimina del servidor, no se puede deshacer",
+        resetScopeLocal: "Reversible · restablece los valores predeterminados, conserva tus datos",
+        formatNameRequired: "Dale un nombre a este formato antes de guardar.",
+        formatMapDuplicate: "\"{variable}\" ya está mapeada — quítala primero para reasignar.",
+        formatMapIncomplete: "Elige una variable y una columna antes de mapear.",
+        ratesFxPositive: "El tipo de cambio debe ser mayor que 0.",
+        creatorSaveErrorSized: "No se pudo guardar la plantilla. Puede ser demasiado grande: prueba a incluir menos secciones o inténtalo de nuevo.",
+        creatorEmptyWarn: "Elige al menos uno: planes del día, lugares marcados o checklist; de lo contrario la plantilla quedaría vacía.",
         ratesAddCurrencyBtn: "Añadir moneda",
         title: 'Ajustes',
         general: 'Ajustes generales',
@@ -494,6 +503,11 @@ export const es: Translations = {
         editCategorySaveBtn: 'Guardar cambios',
     },
     profile: {
+        memYearRange: "Introduce un año entre 1900 y 2100.",
+        unblockedToast: "Has desbloqueado a {name}.",
+        unblockBtn: "Desbloquear",
+        blockedRelLabel: "Bloqueado",
+        moreMenuLabel: "Más opciones",
         logOut: 'Cerrar sesión',
         follow: 'Seguir',
         following: 'Siguiendo',
@@ -589,6 +603,7 @@ export const es: Translations = {
         homeCountryNotSet: '— Sin definir —',
     },
     settlement: {
+        historyEditReRecordsNote: "Editar vuelve a registrar este pago y notifica de nuevo al destinatario.",
         crossTripSettledBody: "No hay saldos pendientes en ninguno de tus viajes.",
         crossTripSettledTitle: "Todos están al día",
         title: 'Liquidaciones',
@@ -689,6 +704,7 @@ export const es: Translations = {
         overpayConfirmBtn: 'Saldar igualmente',
     },
     budgets: {
+        createFxNote: "Se controla en EUR al tipo de cambio actual — {curr} se convierte al guardar y se compara con el gasto en euros.",
         title: 'Presupuestos',
         subtitle: 'Establece límites de gasto y síguelos en todos tus viajes.',
         newBudgetBtn: '+ Nuevo presupuesto',
@@ -762,6 +778,8 @@ export const es: Translations = {
         createDuplicateScope: 'Ya existe un presupuesto para este viaje, categoría y persona.',
     },
     insights: {
+        avgDailyNoDatedSpend: "Sin gastos con fecha para este filtro",
+        cpiStillUpdating: "Actualizando datos de inflación…",
         title: 'Análisis',
         subtitle: 'Tus gastos de viaje de un vistazo.',
         emptyNoTripBody: 'Selecciona un viaje.',
@@ -938,6 +956,10 @@ export const es: Translations = {
         openInMapsTitle: 'Abrir {place} en Google Maps',
     },
     ai: {
+        acceptChangeCleared: "plan anterior eliminado de los días {range}",
+        acceptChangeAdded: "días {range} añadidos",
+        acceptChangeUpdated: "días {range} actualizados",
+        acceptSummary: "Plan aplicado — {changes}. Tus notas y fotos se han conservado.",
         title: 'Planificar con IA ✦',
         noTripTitle: '¿Listo para una nueva aventura?',
         noTripBody: 'Para generar un itinerario de IA personalizado, primero necesitas crear un viaje.',
@@ -1166,6 +1188,10 @@ export const es: Translations = {
         networkFilterAria: 'Filtro de red',
     },
     expenses: {
+        splitTotalOver: "Total: {total}% — {delta}% de más",
+        splitTotalShort: "Total: {total}% — faltan {delta}%",
+        splitTotalOk: "Total: {total}%",
+        selfPayer: "Yo",
         title: 'Gastos',
         historyTitle: 'Historial de gastos',
         deleteConfirmTitle: '¿Eliminar gasto?',
@@ -1257,6 +1283,14 @@ export const es: Translations = {
         addSplitPersonAria: 'Añadir una persona para dividir el gasto',
     },
     feed: {
+        commentModerateAria: "Eliminar comentario",
+        commentModerateTitle: "Eliminar este comentario",
+        commentCharsLeft: "Quedan {n} caracteres",
+        toastRepostUnavailable: "Esta publicación ya no se puede recompartir.",
+        toastRepostTripGone: "Ese viaje ya no está disponible, así que no se puede recompartir.",
+        btnReposted: "Recompartido",
+        btnRemoveRepostTitle: "Quitar republicación — se eliminará del feed de tus amigos",
+        btnRemoveRepost: "Quitar republicación",
         commentEditCancel: "Cancelar",
         commentEditSave: "Guardar",
         evSettledUpAmount: "{who} saldó {amount} con {other} en {trip} 🤝",
@@ -1365,6 +1399,8 @@ export const es: Translations = {
         commentPostAria: 'Publicar comentario',
     },
     map: {
+        searchRateLimited: "Demasiadas búsquedas en este momento. Inténtalo de nuevo en un momento.",
+        searchUnavailable: "La búsqueda no está disponible temporalmente. Inténtalo de nuevo más tarde.",
         addToTodo: '📋 Añadir a la lista de tareas',
         onTodo: '✓ En tu lista de tareas',
         onTodoPill: 'En tu lista de tareas',
@@ -1381,6 +1417,7 @@ export const es: Translations = {
         searchLoadError: 'No se pudo cargar este lugar.',
     },
     templates: {
+        startDateSkip: "Decidir más tarde",
         title: 'Plantillas',
         subtitle: 'Empieza desde un viaje que un creador ya ha planificado.',
         haveCode: '¿Tienes un código de plantilla?',
@@ -1557,6 +1594,8 @@ export const es: Translations = {
         pinCancelAria: 'Cancelar edición del pin',
     },
     checklist: {
+        clearToDeleteBody: "Borraste el texto, así que esta tarea se eliminará de la lista. Cancela para seguir editando.",
+        clearToDeleteTitle: "¿Eliminar esta tarea?",
         modalTitle: '📝 Lista del viaje',
         modalSubtitle: '{name} · equipaje, recados, lo que sea',
         addPlaceholder: 'Añadir una tarea — p. ej. Cargar la batería externa',
@@ -1568,6 +1607,7 @@ export const es: Translations = {
         markNotDone: 'Marcar como no hecho',
     },
     companions: {
+        addDuplicate: "{name} ya está en este viaje.",
         // R11-B4 UX-1: confirmar antes de eliminar a un compañero vinculado.
         removeConfirmTitle: '¿Quitar a este compañero?',
         removeConfirmBody: '{name} será eliminado del viaje y perderá el acceso. Sus saldos liquidados se conservan; puedes invitarle de nuevo más tarde.',
@@ -1647,6 +1687,7 @@ export const es: Translations = {
         rowDelete: 'Eliminar viaje',
     },
     share: {
+        captionWillBeRemoved: "El cuadro de texto está vacío — al compartir se eliminará el pie de foto guardado en tu publicación existente.",
         chooserTitle: 'Compartir "{name}"',
         chooserSubtitle: 'Elige cómo quieres compartir.',
         chooserFeedTitle: 'Compartir en el feed',
@@ -1698,6 +1739,7 @@ export const es: Translations = {
         badgeUnlockedFallback: 'Nueva medalla',
     },
     validation: {
+        valueTooLarge: "El valor es demasiado alto: el máximo permitido es 1.000.000.000.",
         dateCannotBeFuture: "La fecha no puede estar en el futuro.",
         splitCannotBeNegative: "Los porcentajes de división no pueden ser negativos.",
         required: 'Este campo es obligatorio.',
@@ -1758,6 +1800,8 @@ export const es: Translations = {
         traffic: 'Nombres de autopistas / carreteras principales + tráfico en vivo de Google + gasolineras en el área amplia del viaje',
     },
     dayDetail: {
+        fmtClearAria: "Borrar formato",
+        noteFull: "Esta nota está llena — elimina algo de texto para añadir más.",
         headerChipAnchor: '⭐ Centro del Viaje',
         headerChipDay: 'Día {n}',
         titleAnchor: 'Centro del Viaje',
@@ -1840,6 +1884,7 @@ export const es: Translations = {
         toastUpdated: '¡Itinerario actualizado!',
     },
     tripMedia: {
+        photoUploadQuota: "Límite de almacenamiento alcanzado — elimina algunas fotos o documentos para liberar espacio e inténtalo de nuevo.",
         addDocStatusFailedWithMsg: "❌ Error al subir: {error}",
         addDocValidationInvalidUrl: "Ese enlace no es compatible. Usa una URL http(s):// o sube el archivo.",
         photoUploadPartialReason: "{added} añadida(s), {failed} no se pudieron subir — {reason}",
@@ -1928,6 +1973,10 @@ export const es: Translations = {
         dayBucketDay: 'Día {n}',
     },
     modals: {
+        importConfirmBtn: "Importar",
+        importConfirmWrongExt: "{file} no es una copia .ggtrip.zip — puede que no se importe. ¿Continuar de todos modos?",
+        importConfirmMessage: "Se añadirá un nuevo viaje a tu cuenta desde {file}.",
+        importConfirmTitle: "¿Importar este viaje?",
         newTripValidationName: "Dale un nombre a tu viaje.",
         newTripTitle: 'Nuevo Viaje',
         newTripLabelName: 'Nombre de la Aventura',
