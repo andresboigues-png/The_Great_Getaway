@@ -388,7 +388,12 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                     bio: (STATE.user?.bio || '').trim(),
                     gemini_key: (STATE.geminiApiKey || '').trim(),
                 }),
-            }, 75_000);  // MK2 BUG-3: generation takes ~30s (Gemini + Places); the blanket 20s aborted every multi-day plan
+            }, 150_000);  // MK2 BUG-3 + user report 2026-07-08: server time = Gemini
+            // (30s, ×2 when the first model 503s during a demand spike — the
+            // documented fallback) PLUS the Places verification/enrichment pass,
+            // which routinely exceeds the old 75s cap and fired "signal timed
+            // out" on the client before the server could answer. 150s covers a
+            // model-fallback + enrichment; PA allows the long request.
             serverStatus = r.status;
             const d = await r.json();
             // R10-B6b MA2: capture the explicit per-user-cap signal

@@ -69,6 +69,7 @@ export const fr: Translations = {
         rangeTo: 'au',
     },
     nav: {
+        dismissKeyboard: "Terminé",
         home: 'Accueil',
         feed: 'Fil',
         todo: 'À faire',

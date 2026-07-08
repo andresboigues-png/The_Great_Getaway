@@ -3,7 +3,14 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <!-- interactive-widget=overlays-content: when the on-screen keyboard opens,
+         overlay it on top of the content WITHOUT resizing the viewport or
+         force-scrolling the focused field into view. Under the spec default
+         (resizes-visual) Android Chrome shrinks the visual viewport and yanks
+         the focused day-notes field up — the whole page appears to jump. This
+         keeps the page exactly where it was; the user scrolls if they want.
+         (iOS Safari ignores the key and already overlays without reflow.) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=overlays-content">
     <title>The Great Getaway</title>
 
     <!-- R9-F3: resource hints. These belong as early as possible in

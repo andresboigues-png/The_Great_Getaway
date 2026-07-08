@@ -43,6 +43,7 @@ import { initGoogleLogin, restoreSession } from './bootstrap/auth.js';
 import { captureCloneIntent, attemptPendingClone, hasPendingCloneIntent } from './bootstrap/clone-intent.js';
 import { captureTemplateIntent, attemptPendingTemplate, hasPendingTemplateIntent } from './bootstrap/template-intent.js';
 import { wireNavChrome, resolvePage } from './bootstrap/nav-chrome.js';
+import { wireKeyboardDismiss } from './bootstrap/keyboard-dismiss.js';
 import { setupInstallPrompt } from './bootstrap/install-prompt.js';
 import { initPullToRefresh } from './pullToRefresh.js';
 import { initBottomNavScroll } from './bottomNavScroll.js';
@@ -208,6 +209,9 @@ async function init() {
     // delegated navigation clicks, outside-click handlers) lives in one
     // place now — see bootstrap/nav-chrome.ts.
     wireNavChrome();
+    // Floating "Done" pill so touch users (esp. iPhone) can dismiss the
+    // on-screen keyboard when editing day notes / any text field.
+    wireKeyboardDismiss();
 
     // Mobile pull-to-refresh. Custom gesture (the app sets
     // overscroll-behavior-y: contain in index.css, which disables the

@@ -64,6 +64,7 @@ export const es: Translations = {
         rangeTo: 'a',
     },
     nav: {
+        dismissKeyboard: "Hecho",
         home: 'Inicio',
         feed: 'Feed',
         todo: 'Lista de tareas',

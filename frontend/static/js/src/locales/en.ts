@@ -79,6 +79,7 @@ export const en = {
         rangeTo: 'to',
     },
     nav: {
+        dismissKeyboard: "Done",
         home: 'Home',
         feed: 'Feed',
         todo: 'To do list',

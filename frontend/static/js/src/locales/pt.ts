@@ -64,6 +64,7 @@ export const pt: Translations = {
         rangeTo: 'a',
     },
     nav: {
+        dismissKeyboard: "Concluído",
         home: 'Início',
         feed: 'Feed',
         todo: 'Lista de tarefas',
