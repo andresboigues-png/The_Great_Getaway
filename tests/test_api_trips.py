@@ -2534,3 +2534,84 @@ def test_trip_invite_respond_410_when_inviter_kicked(
     assert accept_res.status_code in (404, 410), (
         f"respond after inviter-side teardown must 404/410, not 200; got {accept_res.status_code}"
     )
+
+
+def test_upsert_trip_caps_name_length(client, seed_user, auth_headers):
+    """A1-B2: the trip name is capped to 200 chars server-side, like every
+    other named entity (companions, expense label/who, budget label). A
+    huge pasted name — which would otherwise flow into the unbounded
+    `name TEXT` column and bloat every /api/data poll — is rejected 400,
+    while a name at the 200-char limit is accepted."""
+    over = "x" * 201
+    res = client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={"trip": {"id": "trip-longname", "name": over, "country": "Test"}},
+    )
+    assert res.status_code == 400, res.get_data(as_text=True)
+    # Nothing was persisted for the rejected create.
+    from database import get_db
+
+    with get_db() as conn:
+        row = conn.execute("SELECT 1 FROM trips WHERE id = ?", ("trip-longname",)).fetchone()
+    assert row is None, "an over-cap name must not create a trip row"
+
+    # Exactly 200 chars is fine.
+    ok = client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={"trip": {"id": "trip-name-ok", "name": "y" * 200, "country": "Test"}},
+    )
+    assert ok.status_code == 200, ok.get_data(as_text=True)
+
+
+def test_upsert_trip_rejects_bogus_country_code(client, seed_user, auth_headers):
+    """A1-B3: a present-but-bogus `countryCode` (not a 2-letter ISO alpha
+    code) is rejected 400 instead of being stored raw into `country_code`,
+    where every read surface (slideshow / chip strip / flag tile) assumes
+    a real alpha-2 code. A valid lowercase code is normalized to upper."""
+    for bad in ("not-a-country", "P", "PORTUGAL", "P1", "12"):
+        res = client.post(
+            "/api/trips",
+            headers=auth_headers,
+            json={
+                "trip": {
+                    "id": "trip-badcc",
+                    "name": "Nowhere",
+                    "country": "Test",
+                    "countryCode": bad,
+                }
+            },
+        )
+        assert res.status_code == 400, (
+            f"countryCode={bad!r} should be rejected; got {res.status_code} "
+            f"{res.get_data(as_text=True)}"
+        )
+
+    from database import get_db
+
+    with get_db() as conn:
+        row = conn.execute("SELECT 1 FROM trips WHERE id = ?", ("trip-badcc",)).fetchone()
+    assert row is None, "a bogus countryCode must not create a trip row"
+
+    # A valid lowercase code is accepted AND normalized to upper-case.
+    ok = client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {
+                "id": "trip-goodcc",
+                "name": "Lisboa",
+                "country": "Portugal",
+                "countryCode": "pt",
+            }
+        },
+    )
+    assert ok.status_code == 200, ok.get_data(as_text=True)
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT country_code FROM trips WHERE id = ?", ("trip-goodcc",)
+        ).fetchone()
+    assert row["country_code"] == "PT", (
+        f"lowercase countryCode should normalize to upper; got {row['country_code']!r}"
+    )

@@ -247,6 +247,24 @@ def test_memory_notification_deduped_per_day(
     assert len(memory_notifs) == 1
 
 
+def test_fresh_schema_has_no_dead_memory_country_column(client):
+    """F4-B2: the fresh profile_quotes schema must NOT carry a memory_country
+    column. An early design (migration b2e5d8c3f4a6) added one, but it is never
+    written or read — a memory carries its country via memory_trip_id +
+    trip-derived country_code instead. Keeping it in the CREATE just misleads a
+    reader into thinking the feature exists."""
+    from database import get_db
+
+    with get_db() as conn:
+        cols = {row["name"] for row in conn.execute("PRAGMA table_info(profile_quotes)")}
+
+    assert "memory_country" not in cols, (
+        "fresh schema still creates the dead memory_country column (F4-B2)"
+    )
+    # Sanity: the columns the feature actually uses are present.
+    assert {"memory_year", "memory_trip_id"} <= cols
+
+
 def test_deleting_trip_nulls_pinned_quote_memory(client, seed_user, seed_other_user, auth_headers):
     """F4-B1: deleting a trip must null memory_trip_id on any profile_quote that
     pinned it as a memory. The schema declares ON DELETE SET NULL, but that only

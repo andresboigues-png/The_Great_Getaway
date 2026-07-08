@@ -755,6 +755,67 @@ def test_follow_idempotent(client, seed_user, seed_other_user, auth_headers):
     assert body["followers"] == 1
 
 
+def test_follow_idempotent_repost_at_cap_does_not_429(
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+):
+    """E1-B4: a pure no-op re-POST for someone the caller ALREADY follows
+    must not 429 even when the daily follow cap is fully spent. Pre-fix the
+    cap gate ran before the INSERT / before was_new was known, so a user who
+    legitimately made 100 new follows today and then re-POSTed an existing
+    follow (the UI repainting stale state) got a 429 and had their optimistic
+    state reverted — contradicting the docstring that idempotent re-POSTs are
+    free. The idempotent re-POST stays 200 + isFollowing=true."""
+    from datetime import date
+
+    import helpers
+    from routes.follows import _FOLLOW_DAILY_CAP
+
+    # Establish a real follow, then pin the caller's follow bucket at the cap.
+    first = client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    assert first.status_code == 201
+    helpers._USER_DAILY_BUCKETS.setdefault("follow", {})[seed_user] = (
+        _FOLLOW_DAILY_CAP,
+        date.today().toordinal(),
+    )
+
+    # Re-POSTing the SAME follow is a no-op and must not be refused.
+    again = client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    assert again.status_code == 200, (
+        f"idempotent re-POST at the cap must not 429 (E1-B4); got {again.status_code}"
+    )
+    body = again.get_json()
+    assert body["isFollowing"] is True
+    assert body.get("followCapHit") is not True
+    # Quota was not burned by the no-op.
+    assert helpers.user_daily_count("follow", seed_user) == _FOLLOW_DAILY_CAP
+
+
+def test_follow_new_follow_at_cap_still_429s(
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+):
+    """E1-B4 guard: the cap still bites a genuinely-NEW follow. Fixing the
+    idempotent-re-POST false 429 must not open the gate for brand-new
+    (bell-spamming) follows once the cap is spent."""
+    from datetime import date
+
+    import helpers
+    from routes.follows import _FOLLOW_DAILY_CAP
+
+    helpers._USER_DAILY_BUCKETS.setdefault("follow", {})[seed_user] = (
+        _FOLLOW_DAILY_CAP,
+        date.today().toordinal(),
+    )
+    capped = client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    assert capped.status_code == 429
+    assert capped.get_json().get("followCapHit") is True
+
+
 def test_follow_self_rejected(client, seed_user, auth_headers):
     """Self-follow is rejected — would just spam the user's own bell
     and creates pointless rows."""

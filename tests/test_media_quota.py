@@ -77,6 +77,37 @@ def test_upload_under_quota_succeeds(client, seed_user, auth_headers, tmp_path, 
     assert r.status_code == 200, r.get_data(as_text=True)
 
 
+def test_upload_post_write_quota_is_a_hard_bound(
+    client, seed_user, auth_headers, tmp_path, monkeypatch
+):
+    """D1-B3: the pre-write gate uses the ORIGINAL byte length, but the file
+    we persist is the PIL re-encode (which can grow) — and two concurrent
+    uploads can both pass the pre-write check off the same stale `used`. Model
+    both by under-reporting `_incoming_size` so the pre-write gate waves the
+    upload through; the post-write recount of what's ACTUALLY on disk must
+    still enforce the cap (507) and roll back the file it just wrote.
+    """
+    _use_tmp_uploads(monkeypatch, tmp_path)
+    monkeypatch.setattr(media, "_UPLOAD_QUOTA_BYTES", 100)
+
+    # Fill to the cap with two 40-byte files (both fresh, so nothing is
+    # reclaimable).
+    assert _upload(client, auth_headers, "a.jpg", 40).status_code == 200
+    assert _upload(client, auth_headers, "b.jpg", 40).status_code == 200
+
+    # Under-report the incoming size to 0 so the PRE-write gate (80 + 0 ≤ 100)
+    # lets it through even though the real 40-byte file pushes disk to 120.
+    monkeypatch.setattr(media, "_incoming_size", lambda _f: 0)
+    over = _upload(client, auth_headers, "c.jpg", 40)
+    assert over.status_code == 507, over.get_data(as_text=True)
+    assert over.get_json()["quotaBytes"] == 100
+    # The overshooting file must have been rolled back: only the two committed
+    # files (a.jpg, b.jpg) remain and usage is back at 80 (≤ the cap).
+    user_dir = tmp_path / "test-user-1"
+    assert len([p for p in user_dir.iterdir() if p.is_file()]) == 2
+    assert media._user_dir_bytes(str(user_dir)) == 80
+
+
 # ── orphan reclaim ───────────────────────────────────────────────────────
 def _age(path, seconds_ago):
     old = time.time() - seconds_ago

@@ -11,6 +11,7 @@ clients don't break, but new code should prefer the delta routes.
 import json
 
 from flask import Blueprint, jsonify, request
+from flask_limiter.util import get_remote_address
 
 from achievements import (
     check_user_achievements,
@@ -53,6 +54,28 @@ def _tombstoned_trip_ids(cursor, rows) -> set:
 
 
 bp = Blueprint("data", __name__)
+
+
+def _factory_reset_rate_key() -> str:
+    """Rate-limit key for the factory-reset endpoint: the caller's
+    user_id, NOT the remote IP.
+
+    F2-B3: the global limiter keys on remote address (extensions.py),
+    so the 1/hour cap on /api/user-data was per-source-IP. That made
+    one user's reset spend the bucket for EVERY other user behind the
+    same NAT/proxy — and, once the "Delete all trips" and "Factory
+    reset" flows share a source IP, tapping one 429s the other within
+    the hour. The client's confirmReset swallows that 429 and still
+    runs localStorage.clear() + reload, so the app believes a wipe
+    happened while the server call never ran (silent data desync).
+
+    Keying per-user removes that collateral entirely while preserving
+    the anti-abuse intent: the guarded threat is a single stolen
+    session looping the wipe, and that attacker IS one user_id. Fall
+    back to the remote address only when no user resolves (defensive —
+    @require_auth already 401s the unauthenticated case first)."""
+    return current_user_id() or get_remote_address()
+
 
 # MK1 Wave E (T2-5 / DATA-1): the /api/data poll used `SELECT t.*`, which
 # reads the four heavy media JSON blobs (photos/documents/marked_places/
@@ -1036,7 +1059,7 @@ def get_data():
 
 @bp.route("/api/user-data", methods=["DELETE"])
 @require_auth
-@limiter.limit("1 per hour")
+@limiter.limit("1 per hour", key_func=_factory_reset_rate_key)
 def delete_user_data():
     """Wipe all data for a user (factory reset).
 
@@ -1046,12 +1069,16 @@ def delete_user_data():
     surface as `DROP DATABASE`. Now each statement targets only the
     caller's own rows (or rows that hang off trips they own).
 
-    Rate limited to 1/hour: legitimate factory-reset is a once-in-a-
-    blue-moon action, but a logged-in attacker (or stolen session
+    Rate limited to 1/hour, keyed PER-USER (see
+    `_factory_reset_rate_key`): legitimate factory-reset is a once-in-
+    a-blue-moon action, but a logged-in attacker (or stolen session
     token) could otherwise script this in a loop to keep wiping the
     victim's data immediately after they restore from a backup. The
     1/hour cap gives the user a real chance to notice + invalidate
-    the session before catastrophic data loss can recur."""
+    the session before catastrophic data loss can recur. F2-B3: the
+    key is the user_id, not the remote IP, so one caller's reset
+    never spends another user's (or another reset flow's) bucket — a
+    429 there would be swallowed client-side and desync the app."""
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()

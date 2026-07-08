@@ -116,7 +116,15 @@ def follow_user(user_id):
         # follows (incremented below), so unfollow/refollow toggling and
         # idempotent re-POSTs don't burn quota — only genuinely-new
         # notification-generating follows do.
-        if user_daily_count("follow", caller_id) >= _FOLLOW_DAILY_CAP:
+        #
+        # E1-B4: gate ONLY genuinely-new follows. A pure no-op re-POST for
+        # someone the caller already follows must never 429 — the docstring
+        # promises idempotent re-POSTs are free, and a user who legitimately
+        # made 100 follows today must still be able to re-POST an existing
+        # follow (e.g. the UI repainting stale state). So skip the cap when
+        # the follow already exists.
+        already_follows = is_following(cursor, caller_id, user_id)
+        if not already_follows and user_daily_count("follow", caller_id) >= _FOLLOW_DAILY_CAP:
             return jsonify(
                 {
                     "error": "You've hit today's follow limit. Try again tomorrow.",

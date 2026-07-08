@@ -382,6 +382,50 @@ def test_create_from_template_without_start_leaves_dates_blank(client, seed_user
     assert not day["date"]
 
 
+def test_create_from_template_far_future_start_does_not_500(client, seed_user, auth_headers):
+    """A5-B2: the startDate input has no max, so a far-future date like
+    9999-12-31 pushes day 2+ past date.max and OverflowError used to escape as
+    a 500. It must instead succeed, dating what fits and blanking the day that
+    overflows."""
+    _make_creator(seed_user)
+    _create_trip(client, auth_headers, trip_id="ff-src", name="Trip")
+    from database import get_db
+
+    with get_db() as conn:
+        c = conn.cursor()
+        for n in (1, 2, 3):
+            c.execute(
+                "INSERT INTO trip_days (id, trip_id, day_number, name) VALUES (?, ?, ?, ?)",
+                (f"ff{n}", "ff-src", n, f"Day {n}"),
+            )
+        conn.commit()
+    code = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "FarFuture",
+            "sourceTripId": "ff-src",
+            "includePlans": True,
+        },
+    ).get_json()["template"]["code"]
+    res = client.post(
+        f"/api/templates/{code}/create",
+        headers=auth_headers,
+        json={"startDate": "9999-12-31"},
+    )
+    assert res.status_code == 200
+    new_trip_id = res.get_json()["tripId"]
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    days = sorted(
+        (d for d in data["tripDays"] if d["tripId"] == new_trip_id),
+        key=lambda d: d["dayNumber"],
+    )
+    # Day 1 fits exactly at date.max; days 2+ overflow and blank out.
+    assert days[0]["date"] == "9999-12-31"
+    assert not days[1]["date"]
+    assert not days[2]["date"]
+
+
 def test_snapshot_and_instantiate_carry_plan_blocks(
     client,
     seed_user,

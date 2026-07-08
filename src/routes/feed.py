@@ -1017,18 +1017,41 @@ def repost_feed_post(post_id):
         existing = cursor.fetchone()
         if existing:
             return jsonify({"status": "already_reposted", "post_id": existing['id']})
+        # E4-B4: the SELECT above is only advisory — there's no DB-level UNIQUE
+        # backing (idx_feed_posts_unique_original_share is scoped
+        # `WHERE repost_of_post_id IS NULL`, so it deliberately excludes
+        # reposts). A double-tap / two-device race lets both callers pass the
+        # SELECT before either INSERTs, yielding two repost rows + two
+        # notifications. SQLite serialises writers, so an
+        # `INSERT … SELECT … WHERE NOT EXISTS` re-checks the guard while HOLDING
+        # the write lock, making the insert atomic without a schema migration.
         cursor.execute(
-            "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id) VALUES (?, ?, ?)",
-            (user_id, trip_id, post_id),
+            "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id) "
+            "SELECT ?, ?, ? WHERE NOT EXISTS ("
+            "  SELECT 1 FROM feed_posts WHERE user_id = ? AND repost_of_post_id = ?"
+            ")",
+            (user_id, trip_id, post_id, user_id, post_id),
         )
+        if cursor.rowcount == 0:
+            # Lost the race: the concurrent repost already committed. Return its
+            # id and fire NO second notification.
+            cursor.execute(
+                "SELECT id FROM feed_posts WHERE user_id = ? AND repost_of_post_id = ?",
+                (user_id, post_id),
+            )
+            dup = cursor.fetchone()
+            conn.commit()
+            return jsonify({"status": "already_reposted", "post_id": dup['id'] if dup else post_id})
         new_post_id = cursor.lastrowid
-        # Notify the original sharer that someone reposted them. The
-        # post_id we pass is the ORIGINAL post — that's what clicking
-        # the notification should route to (their own share that just
-        # got engagement), not the new repost row.
-        _fire_engagement_notification(
-            cursor, original['user_id'], user_id, "share_reposted", post_id
-        )
+        # E4-B3: notify the TRUE content author, not the immediate parent. On a
+        # repost-of-repost, `original` is the parent repost row (whose user_id
+        # merely reposted, never authored); `content_author` was resolved above
+        # to the root share's author. Pre-fix the parent reposter got a
+        # misleading "reposted your share." and the real author was never told.
+        # For a plain repost-of-original, content_author == original['user_id']
+        # so this is behaviour-preserving. The post_id we pass is still the
+        # ORIGINAL post the notification routes to.
+        _fire_engagement_notification(cursor, content_author, user_id, "share_reposted", post_id)
         conn.commit()
     return jsonify({"status": "reposted", "post_id": new_post_id})
 

@@ -671,6 +671,36 @@ def upload_file():
     else:
         file.save(out_path)
 
+    # D1-B3: the pre-write gate above is a cheap fast-path but NOT a hard
+    # bound — it compares against `_incoming_size` (the ORIGINAL byte length)
+    # while the file we actually persisted is the PIL re-encode, which can
+    # land LARGER than the input (e.g. a highly-compressed source expanded to
+    # a quality-82 JPEG). It's also a TOCTOU: two concurrent uploads both read
+    # the same pre-write `used` and both pass. Re-measure the directory now
+    # that OUR bytes are on disk (a concurrent upload that finished first is
+    # counted too). If we're over, roll back OUR file (+ its variants aren't
+    # generated yet) and 507. Bounded by the 10 MB body cap so the overshoot
+    # was never catastrophic, but this makes the cap a real ceiling.
+    used_after = _user_dir_bytes(user_folder)
+    if used_after > _UPLOAD_QUOTA_BYTES:
+        used_after -= _reclaim_orphan_bytes(safe_user_dir, user_folder)
+        if used_after > _UPLOAD_QUOTA_BYTES:
+            try:
+                os.remove(out_path)
+            except OSError:
+                pass
+            _remove_variants(user_folder, filename)
+            return jsonify(
+                {
+                    "error": (
+                        "Storage limit reached — delete some photos or documents "
+                        "to free space, then try again."
+                    ),
+                    "quotaBytes": _UPLOAD_QUOTA_BYTES,
+                    "usedBytes": max(_user_dir_bytes(user_folder), 0),
+                }
+            ), 507
+
     # MK1 Wave C (T1-5): derive downscaled variants from the file that
     # actually landed on disk. Best-effort — a variant failure must
     # never fail the upload.

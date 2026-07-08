@@ -79,3 +79,40 @@ def test_auth_google_same_email_new_sub_reconciles_not_500(client, monkeypatch):
         rows = c.fetchall()
     assert len(rows) == 1
     assert rows[0]["id"] == "old-sub-111"
+
+
+def test_test_login_response_includes_home_country(client, monkeypatch):
+    """F1-B3: the GG_ALLOW_TEST_LOGIN response must carry the SAME user-shape
+    keys as real login + /api/user-status. Pre-fix it returned homeCurrency /
+    language / isCreator but omitted homeCountry — leaving STATE.user.homeCountry
+    undefined until the next boot probe, so the home-country flag/tile paints
+    blank on first login.
+
+    A brand-new test user is created with only id/email/name/picture, so
+    home_country is always NULL; pin that the key is PRESENT and None (not
+    absent), mirroring the real-login path's db_home_country for a new row.
+    """
+    monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
+
+    res = client.post("/api/auth/google", json={"token": "test:test-country-user"})
+    assert res.status_code == 200
+    user = res.get_json()["user"]
+
+    # The key must exist (an absent key leaves the frontend field undefined).
+    assert "homeCountry" in user
+    assert user["homeCountry"] is None
+
+    # Shape parity with the real-login / user-status user object.
+    for key in (
+        "id",
+        "name",
+        "email",
+        "picture",
+        "bio",
+        "status",
+        "homeCurrency",
+        "homeCountry",
+        "language",
+        "isCreator",
+    ):
+        assert key in user

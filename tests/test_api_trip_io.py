@@ -13,6 +13,7 @@ import os
 import zipfile
 
 from database import get_db
+from routes.trip_io import _rewrite_urls
 from tests.conftest import _create_trip
 
 
@@ -417,6 +418,75 @@ def test_import_rejects_malformed_manifest_shape(client, seed_user, auth_headers
         res = _import_manifest(client, auth_headers, m)
         assert res.status_code == 400, (m, res.get_data(as_text=True))
         assert res.get_json()["error"] == "Invalid or corrupt trip archive", m
+
+
+def test_import_collapsing_categories_no_budget_constraint_500(
+    client, seed_user, auth_headers, tmp_path, monkeypatch
+):
+    """A7-B3: `categories` has no unique-name constraint, so an export can carry
+    two rows ("Food" and "food") that the case-insensitive category match
+    collapses to ONE importer category. Two budgets backed by those categories
+    then share the same (user_id, trip_id, category_id, owner_name) and collide
+    on the budgets UNIQUE. Pre-fix that IntegrityError went uncaught and rolled
+    the whole import back to a 500; post-fix the import succeeds (200) and the
+    surviving budget still lands."""
+    monkeypatch.setitem(client.application.config, "UPLOAD_FOLDER", str(tmp_path))
+    manifest = {
+        "format": "gg.trip",
+        "formatVersion": 1,
+        "sections": {
+            "trips": [{"id": "src-trip", "name": "Collide"}],
+            "categories": [
+                {"id": "cat-A", "name": "Food", "icon": "", "color": "#111111"},
+                {"id": "cat-B", "name": "food", "icon": "", "color": "#222222"},
+            ],
+            "budgets": [
+                {"id": "bud-A", "label": "Food", "amount": 100, "category_id": "cat-A"},
+                {"id": "bud-B", "label": "food", "amount": 200, "category_id": "cat-B"},
+            ],
+        },
+        "media": {},
+    }
+    res = _import_manifest(client, auth_headers, manifest)
+    assert res.status_code == 200, res.get_data(as_text=True)
+    new_id = res.get_json()["tripId"]
+
+    with get_db() as conn:
+        c = conn.cursor()
+        # Both source categories collapsed to a single importer category…
+        assert (
+            c.execute("SELECT COUNT(*) FROM categories WHERE user_id=?", (seed_user,)).fetchone()[0]
+            == 1
+        )
+        # …and exactly one of the two colliding budgets survived (the other was
+        # skipped, not a 500). The trip itself imported fine.
+        assert (
+            c.execute("SELECT COUNT(*) FROM budgets WHERE trip_id=?", (new_id,)).fetchone()[0] == 1
+        )
+
+
+def test_rewrite_urls_is_prefix_safe(client, seed_user, auth_headers):
+    """A7-B4: two exported upload URLs can be in a prefix relationship
+    (`pic.jpg` and `pic.jpg.thumb.jpg`). A naive order-dependent replace loop
+    that hit the shorter key first would rewrite it as a substring INSIDE the
+    longer URL, corrupting it into a dead 404. Longest-key-first replacement
+    must leave BOTH references pointing at their own re-saved copy."""
+    short_old = "/static/uploads/u1/pic.jpg"
+    long_old = "/static/uploads/u1/pic.jpg.thumb.jpg"
+    short_new = "/static/uploads/u2/aaaa.jpg"
+    long_new = "/static/uploads/u2/bbbb.jpg"
+    # Dict insertion order puts the SHORT (prefix) key first — the order that
+    # trips a naive loop.
+    remap = {short_old: short_new, long_old: long_new}
+
+    # The long URL, rewritten alone, must map to long_new (not short_new with a
+    # dangling `.thumb.jpg` tail).
+    assert _rewrite_urls(long_old, remap) == long_new
+    # A JSON blob holding both URLs must come out with each mapped correctly.
+    payload = json.dumps({"a": short_old, "b": long_old})
+    out = json.loads(_rewrite_urls(payload, remap))
+    assert out["a"] == short_new
+    assert out["b"] == long_new
 
 
 def test_import_body_over_10mb_not_rejected_by_global_cap(client, seed_user, auth_headers):

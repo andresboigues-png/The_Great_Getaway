@@ -44,6 +44,7 @@ import io
 import json
 import os
 import re
+import sqlite3
 import uuid
 import zipfile
 from datetime import UTC, datetime
@@ -307,12 +308,19 @@ def export_trip(trip_id):
 
 def _rewrite_urls(value, url_remap: dict):
     """Replace every old upload URL with its new one inside a string (covers
-    plain columns and substrings inside JSON-string columns)."""
+    plain columns and substrings inside JSON-string columns).
+
+    A7-B4: apply the replacements longest-old-URL first. Two exported URLs can
+    have a prefix relationship (`.../pic.jpg` and `.../pic.jpg.thumb.jpg`); a
+    naive dict-order loop that hit the shorter one first would rewrite it as a
+    substring INSIDE the longer URL, corrupting it into a dead 404 reference.
+    Handling the longest key first means the longer URL is fully consumed
+    before its shorter prefix can match anything left in the string."""
     if not isinstance(value, str) or "/static/uploads/" not in value:
         return value
-    for old, new in url_remap.items():
+    for old in sorted(url_remap, key=len, reverse=True):
         if old in value:
-            value = value.replace(old, new)
+            value = value.replace(old, url_remap[old])
     return value
 
 
@@ -594,19 +602,33 @@ def import_trip():
                 )
 
             # 4) Budgets — fresh id, new trip, importer-owned, remapped cat.
+            #    A7-B3: `categories` has no unique-name constraint, so the
+            #    source can hold two rows ("Food" and "food") that the
+            #    case-insensitive cat_remap collapses to ONE importer category.
+            #    Two budgets backed by those categories then share the same
+            #    (user_id, trip_id, category_id, owner_name) and collide on the
+            #    budgets UNIQUE. Skip the duplicate per-row (SAVEPOINT so the
+            #    failed INSERT rolls back only itself) instead of letting the
+            #    IntegrityError abort the whole import into a 500.
             for b in sections.get("budgets", []):
-                _insert_remapped(
-                    cursor,
-                    "budgets",
-                    b,
-                    overrides={
-                        "id": uuid.uuid4().hex,
-                        "trip_id": new_trip_id,
-                        "user_id": user_id,
-                        "category_id": cat_remap.get(b.get("category_id")),
-                    },
-                    url_remap=url_remap,
-                )
+                try:
+                    cursor.execute("SAVEPOINT budget_ins")
+                    _insert_remapped(
+                        cursor,
+                        "budgets",
+                        b,
+                        overrides={
+                            "id": uuid.uuid4().hex,
+                            "trip_id": new_trip_id,
+                            "user_id": user_id,
+                            "category_id": cat_remap.get(b.get("category_id")),
+                        },
+                        url_remap=url_remap,
+                    )
+                except sqlite3.IntegrityError:
+                    cursor.execute("ROLLBACK TO SAVEPOINT budget_ins")
+                else:
+                    cursor.execute("RELEASE SAVEPOINT budget_ins")
 
             # 5) Settlements — fresh id, new trip. Account references can't
             #    transfer, so null the linked user ids and credit the importer

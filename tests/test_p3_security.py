@@ -49,13 +49,23 @@ def test_follow_increments_then_caps(client, auth_headers, seed_user, seed_other
     assert again.status_code == 200
     assert helpers.user_daily_count("follow", seed_user) == 1
 
-    # At the cap, the next follow is refused (the cap gate fires before the
-    # idempotent insert, so even a re-follow of an existing target 429s).
+    # At the cap, a genuinely-NEW follow is refused with followCapHit. (E1-B4:
+    # a re-POST of an ALREADY-followed target stays free even at the cap — the
+    # docstring promises idempotent re-POSTs don't burn quota — so the cap must
+    # be exercised against a FRESH target, not the one already followed above.)
+    from database import get_db
+
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            ("test-cap-target", "capt@example.com", "Cap Target"),
+        )
+        conn.commit()
     helpers._USER_DAILY_BUCKETS.setdefault("follow", {})[seed_user] = (
         _FOLLOW_DAILY_CAP,
         date.today().toordinal(),
     )
-    capped = client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    capped = client.post("/api/follows/test-cap-target", headers=auth_headers)
     assert capped.status_code == 429
     assert capped.get_json().get("followCapHit") is True
 

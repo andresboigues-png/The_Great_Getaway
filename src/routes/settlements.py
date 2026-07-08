@@ -457,18 +457,20 @@ def create_settlement():
             cursor.execute("SELECT name FROM trips WHERE id = ?", (trip_id,))
             trip_row = cursor.fetchone()
             trip_name = (trip_row["name"] if trip_row else "the trip") or "the trip"
-            if user_id != from_user_id:
-                # Recorder is a third party — surface their name so
-                # the recipient knows to confirm with the actual payer.
-                cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
-                recorder_row = cursor.fetchone()
-                recorder_name = (recorder_row["name"] if recorder_row else "Someone") or "Someone"
-                message = (
-                    f"{recorder_name} recorded that {from_name} paid you "
-                    f"{amount_f:g} {currency} for {trip_name} — confirm with them."
-                )
-            else:
-                message = f"{from_name} settled {amount_f:g} {currency} with you for {trip_name}."
+            # E6-B2: emit the ONE canonical `settled_up` message shape for
+            # BOTH the self-recorded and third-party-recorded cases. The
+            # client localizer (bootstrap/notifications.ts) keys off
+            # kind='settled_up' and matches a single regex —
+            #   "{from} settled {amount} {currency} with you for {trip}."
+            # The old third-party branch produced a DIFFERENT sentence
+            # ("{recorder} recorded that {from} paid you …") under the same
+            # kind, so the regex returned null and a fr/es/pt user always saw
+            # this money notification untranslated (raw English fallback).
+            # The recipient's load-bearing fact is who PAID them (`from_name`)
+            # + amount + trip, which this shape carries and localizes; the
+            # recorder attribution was a nicety that made the whole line
+            # untranslatable, so it is dropped in favour of correct i18n.
+            message = f"{from_name} settled {amount_f:g} {currency} with you for {trip_name}."
             insert_notification(
                 cursor,
                 user_id=to_user_id,

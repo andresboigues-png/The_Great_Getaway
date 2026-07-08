@@ -37,6 +37,7 @@ from observability import bind_trip_context
 from validators import (
     ValidationError,
     clean_companions,
+    clean_text,
     is_safe_media_url,
     validate_upload_url,
 )
@@ -92,6 +93,21 @@ def upsert_trip():
     # KeyError → 500 (and so a partial body can't blank a trip's name).
     if not t.get("name"):
         return jsonify({"error": "Missing trip name"}), 400
+    # A1-B2: cap the trip name server-side. Every OTHER named entity
+    # (companions via clean_companions, expense label/who, budget label,
+    # day title) clamps to 200 chars, but the trip name flowed straight
+    # into an unbounded `name TEXT` column — a huge pasted name then
+    # bloated every /api/data payload (which ships the name on each
+    # 15-second poll). Normalize + bound here so a single-line 400 is
+    # the ceiling; the value written below reads back from `t['name']`.
+    try:
+        t["name"] = clean_text(t["name"], max_len=200, allow_newlines=False, field_name="name")
+    except ValidationError as ve:
+        return jsonify({"error": str(ve)}), 400
+    if not t["name"]:
+        # clean_text may have stripped a control-only / whitespace name to
+        # empty — treat the same as a missing name.
+        return jsonify({"error": "Missing trip name"}), 400
     bind_trip_context(t.get("id"))
     with get_db() as conn:
         cursor = conn.cursor()
@@ -114,6 +130,34 @@ def upsert_trip():
         existing = cursor.fetchone()
         if existing and not can_edit_trip(cursor, t["id"], user_id):
             return jsonify({"error": "Forbidden"}), 403
+        # A1-B3: validate `countryCode` server-side. The client enforces a
+        # real ISO alpha-2 country before letting the user save, but the
+        # server bound `t.get('countryCode')` RAW into the nullable
+        # `country_code` column with no check — so a direct POST with a
+        # bogus non-ISO string (e.g. "not-a-country", or a 30-char blob)
+        # was persisted verbatim, corrupting every read surface that keys
+        # off it (slideshow, chip strip, flag tile — all assume a real
+        # alpha-2 code). Mirror the sibling `countries` array normalization
+        # (which upper-cases + length-checks its members): when a
+        # non-empty countryCode is present it MUST be a 2-letter alpha
+        # code, and we normalize to upper-case in place so a lowercase
+        # `pt` reads back as `PT`.
+        #
+        # Scope note: an ABSENT / empty countryCode is intentionally NOT
+        # rejected here. Country is mandatory in the create UI, but the
+        # server has long accepted countryless creates (the shared test
+        # harness + several import/clone paths mint trips before the
+        # country resolves), so newly 400-ing them would be a behavioural
+        # break, not a bug fix. This closes the "bogus value stored raw"
+        # half; the empty-on-create half is a client-side invariant.
+        raw_cc = t.get("countryCode")
+        if raw_cc not in (None, ""):
+            if not isinstance(raw_cc, str):
+                return jsonify({"error": "countryCode must be a string"}), 400
+            cc = raw_cc.strip().upper()
+            if len(cc) != 2 or not cc.isalpha():
+                return jsonify({"error": "countryCode must be a 2-letter ISO country code"}), 400
+            t["countryCode"] = cc
         # BUG-35 (MK2 audit): is_public / public_show_expenses are an
         # OWNER-only privacy decision. A non-owner planner may edit the
         # trip's name + itinerary, but must NOT publish it (or expose its

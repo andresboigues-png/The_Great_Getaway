@@ -203,6 +203,14 @@ def google_auth():
                         "bio": "",
                         "status": "",
                         "homeCurrency": None,
+                        # F1-B3: include homeCountry so the test-login response
+                        # matches the real-login + /api/user-status shapes. The
+                        # test user is created with only id/email/name/picture,
+                        # so home_country is always NULL here — mirror that with
+                        # None rather than omitting the key (an absent key leaves
+                        # STATE.user.homeCountry undefined, blanking the home-
+                        # country flag/tile until the next boot probe).
+                        "homeCountry": None,
                         # Test users start with no locale preference — frontend
                         # falls back to navigator.language.
                         "language": None,

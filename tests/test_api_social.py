@@ -2594,3 +2594,131 @@ def test_block_sweeps_non_engagement_notifications_from_blocker_bell(
     assert inv_notif == 0, "B-originated trip_invite notif must be swept on block"
     # …while the unrelated third-party settlement notif is untouched.
     assert c_notifs == 1, "block over-deleted an unrelated third-party settlement notification"
+
+
+def test_block_sweeps_trip_invite_into_blocked_owners_trip(
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
+):
+    """E8-B2: blocking the OWNER of a private trip must sweep a pending
+    trip_invite notification whose click-through lands on that trip —
+    even when the invite was fired by a co-planner (invited_by != owner).
+
+    The deep-link gate (public.py get_public_trip) keys the block 404 on
+    the trip OWNER, so once A blocks owner B the notif's deep-link 404s.
+    The E8-B1 sweep scoped trip_invite ONLY by trip_members.invited_by =
+    blocked, so a co-planner-fired invite into B's trip survived as a
+    dead notification. The sweep must also drop trip_invite notifs whose
+    trip is OWNED by the blocked user."""
+    from database import get_db
+
+    # B owns a private trip. A holds a PENDING invite to it, but the
+    # inviter recorded on the member row is a co-planner C — NOT owner B.
+    trip_id = _create_trip(client, other_auth_headers, trip_id="t-e8b2", public=False)
+    user_c = "test-c-e8b2"
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            (user_c, "ce8b2@example.com", "Cee"),
+        )
+        conn.execute(
+            "INSERT INTO trip_members "
+            "(trip_id, user_id, role, is_archived, invitation_status, invited_by) "
+            "VALUES (?, ?, 'relaxer', 0, 'pending', ?)",
+            (trip_id, seed_user, user_c),
+        )
+        conn.execute(
+            "INSERT INTO notifications (user_id, type, title, related_id, message) "
+            "VALUES (?, 'trip_invite', 'Trip invitation', ?, 'C invited you.')",
+            (seed_user, trip_id),
+        )
+        conn.commit()
+
+    # Baseline: the invite notif is on A's bell.
+    before = {
+        n["related_id"]
+        for n in client.get("/api/notifications/list", headers=auth_headers).get_json()[
+            "notifications"
+        ]
+    }
+    assert trip_id in before, "invite notification should exist before the block"
+
+    # A blocks the trip OWNER B.
+    assert client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers).status_code == 200
+
+    # The now-dead trip_invite notif is swept (its deep-link would 404).
+    with get_db() as conn:
+        inv_notif = conn.execute(
+            "SELECT COUNT(*) FROM notifications "
+            "WHERE user_id = ? AND related_id = ? AND type = 'trip_invite'",
+            (seed_user, trip_id),
+        ).fetchone()[0]
+    assert inv_notif == 0, "trip_invite notif into the blocked owner's trip must be swept on block"
+    # The deep-link now 404s (block gate keys on the owner) — confirms
+    # the swept notif would otherwise have been a dead click-through.
+    assert client.get(f"/api/public-trip/{trip_id}", headers=auth_headers).status_code == 404
+
+
+def test_repost_of_repost_notifies_root_author_not_immediate_parent(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers
+):
+    """E4-B3: a repost-of-repost must notify the TRUE content author (root),
+    not the immediate parent whose row merely reposted."""
+    from auth import issue_token
+    from database import get_db
+
+    user_c = "test-c-e4b3"
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            (user_c, "c_e4b3@example.com", "Cee"),
+        )
+        conn.commit()
+    headers_c = {"Authorization": f"Bearer {issue_token(user_c)}"}
+    trip_id = _create_trip(client, headers_c, trip_id="trip-e4b3", public=True)
+    share = client.post("/api/feed/share", headers=headers_c, json={"trip_id": trip_id})
+    root_post_id = share.get_json()["post_id"]
+    # A reposts C's root; B then reposts A's repost.
+    a_repost = client.post(f"/api/feed/repost/{root_post_id}", headers=auth_headers)
+    a_repost_id = a_repost.get_json()["post_id"]
+    client.post(f"/api/feed/repost/{a_repost_id}", headers=other_auth_headers)
+    with get_db() as conn:
+        c_notif = conn.execute(
+            "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND type = 'share_reposted' AND related_id = ?",
+            (user_c, seed_other_user),
+        ).fetchone()[0]
+        a_notif = conn.execute(
+            "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND type = 'share_reposted' AND related_id = ?",
+            (seed_user, seed_other_user),
+        ).fetchone()[0]
+    assert c_notif == 1, "root author C must be notified of the downstream repost"
+    assert a_notif == 0, "the intermediate reposter A must NOT be miscredited as author"
+
+
+def test_repost_double_tap_makes_no_duplicate_row(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers
+):
+    """E4-B4: a double-click repost lands exactly one row + one notification
+    (the INSERT…WHERE NOT EXISTS guard is atomic under the writer lock)."""
+    from database import get_db
+
+    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-e4b4", public=True)
+    post_id = client.post(
+        "/api/feed/share", headers=other_auth_headers, json={"trip_id": trip_id}
+    ).get_json()["post_id"]
+    client.post(f"/api/feed/repost/{post_id}", headers=auth_headers)
+    client.post(f"/api/feed/repost/{post_id}", headers=auth_headers)
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT COUNT(*) FROM feed_posts WHERE user_id = ? AND repost_of_post_id = ?",
+            (seed_user, post_id),
+        ).fetchone()[0]
+        notifs = conn.execute(
+            "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND type = 'share_reposted' AND related_id = ?",
+            (seed_other_user, seed_user),
+        ).fetchone()[0]
+    assert rows == 1
+    assert notifs == 1

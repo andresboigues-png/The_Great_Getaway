@@ -745,6 +745,67 @@ def test_settle_up_notification_to_recipient(
     assert any(r["type"] == "settled_up" and r["related_id"] == trip_id for r in rows)
 
 
+def test_third_party_recorded_settlement_notification_matches_localizer(
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+):
+    """E6-B2: a settlement recorded by a THIRD party (neither payer nor
+    recipient) fans out to the recipient under kind='settled_up'. Its
+    `message` MUST therefore match the client localizer's single
+    `settled_up` regex in bootstrap/notifications.ts —
+        "{from} settled {amount} {currency} with you for {trip}."
+    Pre-fix the third-party branch emitted a DIFFERENT sentence
+    ("{recorder} recorded that {from} paid you …") under the same kind,
+    so the regex returned null and fr/es/pt users saw raw English."""
+    import re
+
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-3p-settle")
+    _seed_member(trip_id, seed_other_user, role="planner")
+    # Cee is a planner and neither party — she records "Test User (owner)
+    # paid Other User". This is the third-party-recorder path.
+    user_c = "test-user-c-3p"
+    headers_c = _seed_third_user(user_c, "c3p@example.com")
+    _seed_member(trip_id, user_c, role="planner")
+
+    res = client.post(
+        "/api/settlements",
+        headers=headers_c,
+        json={
+            "tripId": trip_id,
+            "fromUserId": seed_user,
+            "toUserId": seed_other_user,
+            "amount": 25.0,
+            "currency": "EUR",
+            "euroValue": 25.0,
+        },
+    )
+    assert res.status_code == 201, res.get_json()
+
+    from database import get_db
+
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "SELECT type, message FROM notifications WHERE user_id = ? AND type = 'settled_up'",
+            (seed_other_user,),
+        )
+        row = c.fetchone()
+    assert row is not None, "recipient should get a settled_up notification"
+
+    # The EXACT regex the client uses (bootstrap/notifications.ts).
+    localizer_re = re.compile(r"^(.+?) settled ([\d.,]+) (\S+) with you for (.+?)\.?$")
+    m = localizer_re.match(row["message"])
+    assert m is not None, (
+        f"third-party settled_up message must match the client localizer "
+        f"regex so fr/es/pt copy renders; got: {row['message']!r}"
+    )
+    # The localizable {from} slot must name the PAYER (the money fact the
+    # recipient needs), not the recorder.
+    assert m.group(1) == "Test User", m.groups()
+
+
 def test_settle_up_self_recorded_no_self_notification(
     client,
     seed_user,

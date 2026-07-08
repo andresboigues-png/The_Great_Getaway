@@ -806,7 +806,13 @@ def init_db():
                 author_id TEXT NOT NULL,
                 content TEXT NOT NULL,
                 memory_year INTEGER,
-                memory_country TEXT,
+                -- NB: no memory_country column. An early design (migration
+                -- b2e5d8c3f4a6) added one, but it was never written or read —
+                -- the feature landed as memory_trip_id + trip-derived
+                -- country_code instead. Dropped from the fresh schema so a
+                -- reader isn't misled that a memory carries its own country.
+                -- (Migrated prod DBs keep the harmless dead column; SQLite
+                -- can't easily DROP it and nothing touches it.)
                 memory_trip_id TEXT,
                 is_visible INTEGER NOT NULL DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

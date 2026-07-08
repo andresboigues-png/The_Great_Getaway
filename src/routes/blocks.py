@@ -240,17 +240,27 @@ def _sweep_non_engagement_notifications(cursor, blocker: str, blocked: str) -> N
     trip-keyed notif to the blocked originator, so unrelated settlements
     / invites on the SAME trip are left untouched:
       - trip_invite: blocked user is the inviter (trip_members.invited_by)
-        on the blocker's row for that trip. MUST run before the
-        pending-invite teardown or the row is already gone.
+        on the blocker's row for that trip, OR the blocked user OWNS the
+        trip. E8-B2: the deep-link gate (public.py get_public_trip) 404s
+        on the trip OWNER, not the inviter, so an invite fired by a
+        co-planner into the blocked user's trip leaves a click-through
+        that 404s once the owner is blocked. Scoping by owner too — not
+        just invited_by — sweeps that dead notification. MUST run before
+        the pending-invite teardown or the trip_members row is gone.
       - settled_up / settled_up_reverted: a settlement on that trip has
         the blocked user as a party (from/to) or the recorder.
       - trip_public: the trip is owned by the blocked user.
     """
     cursor.execute(
         "DELETE FROM notifications WHERE user_id = ? AND ("
-        "  (type = 'trip_invite' AND EXISTS ("
-        "     SELECT 1 FROM trip_members tm WHERE tm.trip_id = notifications.related_id "
-        "     AND tm.user_id = ? AND tm.invited_by = ?"
+        "  (type = 'trip_invite' AND ("
+        "     EXISTS ("
+        "       SELECT 1 FROM trip_members tm WHERE tm.trip_id = notifications.related_id "
+        "       AND tm.user_id = ? AND tm.invited_by = ?"
+        "     ) OR EXISTS ("
+        "       SELECT 1 FROM trips t WHERE t.id = notifications.related_id "
+        "       AND t.user_id = ?"
+        "     )"
         "  )) OR"
         "  (type IN ('settled_up', 'settled_up_reverted') AND EXISTS ("
         "     SELECT 1 FROM settlements s WHERE s.trip_id = notifications.related_id "
@@ -261,7 +271,7 @@ def _sweep_non_engagement_notifications(cursor, blocker: str, blocked: str) -> N
         "     AND t.user_id = ?"
         "  ))"
         ")",
-        (blocker, blocker, blocked, blocked, blocked, blocked, blocked),
+        (blocker, blocker, blocked, blocked, blocked, blocked, blocked, blocked),
     )
 
 

@@ -310,7 +310,15 @@ def _instantiate_template(cursor, snap, includes, new_owner_id, start_date=None)
         day_num = d.get("dayNumber")
         day_date = None
         if base_date is not None and isinstance(day_num, int) and day_num > 0:
-            day_date = (base_date + _timedelta(days=day_num - 1)).isoformat()
+            # A far-future start date (e.g. 9999-12-31) pushes later days past
+            # date.max and raises OverflowError; the start-date input has no
+            # max, so this is reachable. Fall back to a blank date for the
+            # overflowing day rather than 500 — same posture as an invalid
+            # start date blanking all dates.
+            try:
+                day_date = (base_date + _timedelta(days=day_num - 1)).isoformat()
+            except (OverflowError, ValueError):
+                day_date = None
         # Ordered block content ({slot: [text|place refs]}) written alongside the
         # flat text so a block-editor template keeps its place blocks (the flat
         # columns drop them). Serialized only when present; pre-blocks templates

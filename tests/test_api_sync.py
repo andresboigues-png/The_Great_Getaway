@@ -1202,16 +1202,18 @@ def test_user_data_delete_rate_limited(temp_db, seed_user, seed_other_user):
     row itself). Without a rate limit, a logged-in attacker (or
     stolen session token) could script the endpoint in a loop and
     keep wiping the victim's data immediately after they restore
-    from backup. Cap is 1/hour.
+    from backup. Cap is 1/hour, keyed PER-USER.
 
-    flask-limiter defaults to keying on the remote address, so the
-    cap protects the FLOW per-source-IP, not per-user-id. Test two
-    distinct users from the same test-client (both 127.0.0.1) — the
-    second one must 429 even though it's a different user_id, because
-    the per-IP bucket is already spent. Using two users instead of
-    one re-poll avoids the "JWT valid but user row missing" 401 that
-    would otherwise mask the limiter response (first call deletes
-    the user row, so the user can't auth a second time)."""
+    F2-B3: the cap is now keyed on the caller's user_id (not the
+    remote IP). A DIFFERENT user resetting from the same source IP is
+    NO LONGER blocked (was 429 pre-fix, now 200): one user's reset
+    must never spend another's bucket, because the client swallows a
+    429 and still clears localStorage + reloads, desyncing the app
+    from a server that never wiped. The anti-abuse intent survives —
+    a stolen session still can't loop the wipe: once the first reset
+    deletes the caller's own `users` row, that same token no longer
+    resolves to a user, so a repeat by the SAME identity 401s at the
+    auth gate (asserted below) rather than re-running the wipe."""
     if "main" in sys.modules:
         from database import init_db
 
@@ -1240,14 +1242,23 @@ def test_user_data_delete_rate_limited(temp_db, seed_user, seed_other_user):
     limiter.reset()
     try:
         with app.test_client() as c:
+            # User A resets once — allowed.
             res = c.delete("/api/user-data", headers=headers_a)
             assert res.status_code == 200
-            # Second call from the same IP — flask-limiter rejects
-            # before the request reaches the handler.
+            # DIFFERENT user, SAME source IP — must NOT be collateral of
+            # A's spent bucket. Pre-fix (per-IP keying) this 429'd; the
+            # per-user key lets B's own reset through (200). This is the
+            # load-bearing F2-B3 assertion.
             res = c.delete("/api/user-data", headers=headers_b)
-            assert res.status_code == 429, (
-                "second factory-reset within the hour must be rejected by the limiter"
+            assert res.status_code == 200, (
+                "a different user's factory-reset from the same IP must not "
+                "be blocked by another user's spent bucket (F2-B3)"
             )
+            # A repeat by the SAME (now-deleted) identity can't re-run the
+            # wipe: the token no longer resolves to a user, so @require_auth
+            # 401s. This is why a stolen session still can't loop the reset.
+            res = c.delete("/api/user-data", headers=headers_a)
+            assert res.status_code == 401, "a self-deleted user's token must no longer authenticate"
     finally:
         app.config["RATELIMIT_ENABLED"] = False
         limiter.enabled = _prev_enabled
