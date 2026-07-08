@@ -593,12 +593,47 @@ def _build_friend_shared_trip(cursor, ctx: FeedContext) -> list:
 def _build_friend_reposted_trip(cursor, ctx: FeedContext) -> list:
     """Reposts — `feed_posts` rows where `repost_of_post_id IS NOT
     NULL`. Pulls original-sharer info so the card can render
-    "Reposted X's share" with the original blurb visible."""
+    "Reposted X's share" with the original blurb visible.
+
+    E4-B1: `repost_of_post_id` chains — reposting a repost points at
+    the INTERMEDIATE repost, not the root original share. A single
+    one-hop join to that parent misattributed `original_sharer` (and
+    the original caption + the SOCIAL-1 block check) to the middle
+    reposter. Resolve the true root of the chain (the ancestor whose
+    `repost_of_post_id IS NULL`) via a recursive walk and attribute to
+    THAT post's author. `roots` maps every repost row to its root
+    original id in one CTE; `orig` then joins on the root, so the card
+    always credits the true original poster."""
     if not ctx.actor_ids:
         return []
     placeholders = ",".join(["?"] * len(ctx.actor_ids))
     cursor.execute(
         f'''
+        WITH RECURSIVE chain(id, ancestor_id) AS (
+            -- Seed: every repost row paired with its immediate parent.
+            SELECT id, repost_of_post_id
+            FROM feed_posts
+            WHERE repost_of_post_id IS NOT NULL
+            UNION ALL
+            -- Walk up one hop: replace the current ancestor with ITS
+            -- parent, as long as that ancestor is itself a repost. The
+            -- walk stops once ancestor_id is an original share
+            -- (repost_of_post_id IS NULL), so the terminal row per `id`
+            -- carries the ROOT original's id in ancestor_id.
+            SELECT c.id, a.repost_of_post_id
+            FROM chain c
+            JOIN feed_posts a ON a.id = c.ancestor_id
+            WHERE a.repost_of_post_id IS NOT NULL
+        ),
+        roots(id, root_id) AS (
+            -- Keep only the terminal row per repost: the ancestor that is
+            -- an original share. `chain` also emits the intermediate hops,
+            -- so restrict to ancestors with repost_of_post_id IS NULL.
+            SELECT chain.id, chain.ancestor_id
+            FROM chain
+            JOIN feed_posts anc ON anc.id = chain.ancestor_id
+            WHERE anc.repost_of_post_id IS NULL
+        )
         SELECT fp.id, fp.user_id AS reposter_id, fp.trip_id, fp.created_at,
                u.name AS reposter_name, u.picture AS reposter_picture,
                t.name AS trip_name, t.country AS trip_country,
@@ -607,7 +642,10 @@ def _build_friend_reposted_trip(cursor, ctx: FeedContext) -> list:
         FROM feed_posts fp
         JOIN users u ON u.id = fp.user_id
         JOIN trips t ON t.id = fp.trip_id
-        JOIN feed_posts orig ON orig.id = fp.repost_of_post_id
+        -- Root of this repost's chain: the original share the chain
+        -- ultimately descends from (resolved by the `roots` CTE above).
+        JOIN roots ON roots.id = fp.id
+        JOIN feed_posts orig ON orig.id = roots.root_id
         JOIN users ou ON ou.id = orig.user_id
         WHERE fp.user_id IN ({placeholders})
           AND fp.repost_of_post_id IS NOT NULL

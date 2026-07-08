@@ -35,8 +35,15 @@ from flask import Blueprint, jsonify, request
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
-from helpers import ensure_user_exists, insert_notification, json_body
+from helpers import (
+    ensure_user_exists,
+    insert_notification,
+    json_body,
+    user_daily_count,
+    user_daily_increment,
+)
 from routes.blocks import is_blocked
+from routes.follows import _FOLLOW_DAILY_CAP
 from social import mutuals_of
 
 bp = Blueprint("friends", __name__)
@@ -128,11 +135,18 @@ def _mask_email(email: str | None) -> str:
     return f"{local[0]}{'*' * (len(local) - 2)}{local[-1]}@{domain}"
 
 
-def _follow(cursor, follower_id: str, followee_id: str, source: str) -> bool:
+def _follow(cursor, follower_id: str, followee_id: str, source: str) -> str:
     """Shared implementation of "follow this user" used by both
     /api/friends/add and /api/friends/accept (which under Model B are
-    just two phrasings of the same action). Returns True iff a NEW
-    follow row was inserted (False for an idempotent re-call).
+    just two phrasings of the same action).
+
+    Returns a status string so callers can render an honest response:
+      - "blocked"  — a block edge exists in EITHER direction; no follow
+                     was created (see the block-gate note below).
+      - "capped"   — the caller has hit today's per-account follow cap;
+                     no follow was created (see E1-B1 note below).
+      - "created"  — a genuinely-new follow row was inserted.
+      - "exists"   — idempotent re-call; the follow already existed.
 
     Mirrors the routes/follows.py POST handler's notification rule:
     fire `followed_you` only on the FIRST-EVER follow for the pair,
@@ -148,11 +162,26 @@ def _follow(cursor, follower_id: str, followee_id: str, source: str) -> bool:
     skipped the block check entirely (the new /api/follows/<id> POST
     had it, but the legacy façades didn't). That meant a blocked user
     could re-establish a follow via the legacy endpoint and entirely
-    defeat the block primitive. Returns False (idempotent no-op) when
-    either party blocks the other, NOT an error — matches the silent
-    no-op semantics the rest of the route surface uses for blocks."""
+    defeat the block primitive. Returns "blocked" when either party
+    blocks the other, NOT an error — matches the silent no-op semantics
+    the rest of the route surface uses for blocks.
+
+    E1-B1: per-account daily follow cap. The 100/day gate lived only in
+    routes/follows.py::follow_user; the Friends-page follow / "Follow
+    back" go through here and bypassed it entirely. Reuse the SAME
+    `_FOLLOW_DAILY_CAP` + `user_daily_count`/`user_daily_increment`
+    bucket so both entry points share one quota — the cap fires BEFORE
+    the insert (so even an idempotent re-follow at the cap is refused,
+    matching follow_user) and only a genuinely-new, notifying follow
+    increments the bucket (so unfollow/refollow toggling and no-op
+    re-calls don't burn quota)."""
     if is_blocked(cursor, follower_id, followee_id) or is_blocked(cursor, followee_id, follower_id):
-        return False
+        return "blocked"
+    # E1-B1: same per-account daily cap as routes/follows.py::follow_user.
+    # Gate before the insert so a capped account can't slip a follow
+    # through the legacy façade.
+    if user_daily_count("follow", follower_id) >= _FOLLOW_DAILY_CAP:
+        return "capped"
     cursor.execute(
         "INSERT OR IGNORE INTO follows (follower_id, followee_id) VALUES (?, ?)",
         (follower_id, followee_id),
@@ -179,7 +208,11 @@ def _follow(cursor, follower_id: str, followee_id: str, source: str) -> bool:
                 related_id=follower_id,
                 message=f"{actor_name} started following you.",
             )
-    return is_new
+            # E1-B1: meter this genuinely-new, notifying follow against the
+            # daily bucket — after the notification is queued so a failed
+            # insert can't burn quota. Mirrors follow_user exactly.
+            user_daily_increment("follow", follower_id)
+    return "created" if is_new else "exists"
 
 
 @bp.route("/api/friends/add", methods=["POST"])
@@ -203,14 +236,27 @@ def add_friend():
         cursor = conn.cursor()
         if not ensure_user_exists(cursor, friend_id):
             return jsonify({"error": "Friend not found"}), 404
-        # DSGN-039: surface a distinct 'blocked' status when the caller has
-        # blocked the target. _follow() no-ops silently on a block edge
-        # (returns False, same as an already-following idempotent re-call),
-        # so without this check the endpoint always returns 'success' and the
-        # UI shows 'Request sent!' for a follow that was never created.
-        if is_blocked(cursor, user_id, friend_id):
+        # DSGN-039 + E1-B2: surface a distinct 'blocked' status when a block
+        # edge exists in EITHER direction. _follow() no-ops silently on a
+        # block edge (returns "blocked"), so without honouring that the
+        # endpoint always returned 'success' and the UI showed 'Request
+        # sent!' for a follow that was never created — a phantom follow.
+        # Pre-fix only the caller-blocked-target direction was caught here;
+        # if the TARGET had blocked the caller, _follow() still no-op'd but
+        # the route reported success. Now both directions report 'blocked'.
+        status = _follow(cursor, user_id, friend_id, source='friend_request')
+        if status == "blocked":
             return jsonify({"status": "blocked"})
-        _follow(cursor, user_id, friend_id, source='friend_request')
+        # E1-B1: honour the shared per-account daily follow cap (same gate as
+        # /api/follows/<id>). 429 + followCapHit so the UI can show the same
+        # "hit today's follow limit" copy the profile-follow button uses.
+        if status == "capped":
+            return jsonify(
+                {
+                    "error": "You've hit today's follow limit. Try again tomorrow.",
+                    "followCapHit": True,
+                }
+            ), 429
         conn.commit()
     return jsonify({"status": "success"})
 
@@ -246,7 +292,18 @@ def accept_friend():
         cursor = conn.cursor()
         if not ensure_user_exists(cursor, friend_id):
             return jsonify({"error": "User not found"}), 404
-        _follow(cursor, user_id, friend_id, source='accepted_request')
+        status = _follow(cursor, user_id, friend_id, source='accepted_request')
+        # E1-B1: "Follow back" is a follow — honour the same daily cap so a
+        # capped account can't slip an extra follow through the accept
+        # façade (and so the caller sees an honest 429, not a phantom
+        # 'success' for a follow that never happened).
+        if status == "capped":
+            return jsonify(
+                {
+                    "error": "You've hit today's follow limit. Try again tomorrow.",
+                    "followCapHit": True,
+                }
+            ), 429
         conn.commit()
     return jsonify({"status": "success"})
 

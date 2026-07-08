@@ -248,6 +248,33 @@ def apply_day_upsert(
         set_clause += "\n            plan_blocks_json=excluded.plan_blocks_json,"
         params.append(json.dumps(_blocks) if _blocks else None)
 
+    # ── LEGACY day-attached media (trip_days.documents / trip_days.photos) ──
+    # D2-B2: these are the OLD per-day media arrays (frontend day.tickets /
+    # day.photos, surfaced via tripMedia.getAll* with `_source:'day'`). A
+    # delete/rename of a `_source==='day'` item mutates the day object and
+    # POSTs it here, but the column list above never persisted them — so the
+    # server dropped the edit and /api/data resurrected the stale item on the
+    # next read. Persist them, JSON-encoded, mirroring the planBlocks pattern:
+    # written ONLY when the client actually sends the key, so any write that
+    # omits it leaves the column untouched (never clobbers to NULL).
+    #
+    # SCOPE / R12: this is the trip_days LEGACY columns — a distinct write
+    # path from the trip-level trips.photos_json/documents_json media the R12
+    # invariant guards. /api/data already round-trips these exact keys off
+    # trip_days (day['documents'] / day['photos']); upsert_trip and the
+    # trip-media endpoints are untouched. The four heavy trip-level columns
+    # are not reachable from here.
+    if "documents" in d:
+        _docs = d.get("documents")
+        cols += ", documents"
+        set_clause += "\n            documents=excluded.documents,"
+        params.append(json.dumps(_docs) if _docs else None)
+    if "photos" in d:
+        _photos = d.get("photos")
+        cols += ", photos"
+        set_clause += "\n            photos=excluded.photos,"
+        params.append(json.dumps(_photos) if _photos else None)
+
     if policy.stamp_insert_updated_at:
         cols += ", updated_at"
         values_sql = ", ".join(["?"] * (len(params))) + ", strftime('%Y-%m-%d %H:%M:%f', 'now')"

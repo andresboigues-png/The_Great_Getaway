@@ -143,6 +143,92 @@ def test_upsert_day_null_plan_blocks_clears_column(client, seed_user, auth_heade
     assert row["morning"] == "🥐 Louvre Café", "the new AI plan text must be stored"
 
 
+def test_upsert_day_persists_legacy_documents_delete(client, seed_user, auth_headers):
+    """D2-B2: legacy day-attached documents live in trip_days.documents (the
+    frontend's `_source:'day'` items). Deleting/renaming one POSTs the day
+    here — the upsert MUST persist the new `documents` array, else the edit is
+    silently dropped and /api/data resurrects the stale item on next read."""
+    import json as _json
+
+    from database import get_db
+
+    client.post("/api/trips", headers=auth_headers, json={"trip": {"id": "trip-doc", "name": "T"}})
+    # Seed two day-attached documents.
+    client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={
+            "day": {
+                "id": "day-doc",
+                "tripId": "trip-doc",
+                "dayNumber": 1,
+                "documents": [
+                    {"name": "Boarding pass", "url": "/static/uploads/u/bp.pdf"},
+                    {"name": "Hotel voucher", "url": "/static/uploads/u/hv.pdf"},
+                ],
+            }
+        },
+    )
+    # User deletes the first doc → the client resends the day with the pruned
+    # array. Before the fix this write was discarded server-side.
+    res = client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={
+            "day": {
+                "id": "day-doc",
+                "tripId": "trip-doc",
+                "dayNumber": 1,
+                "documents": [{"name": "Hotel voucher", "url": "/static/uploads/u/hv.pdf"}],
+            }
+        },
+    )
+    assert res.status_code == 200
+    with get_db() as conn:
+        row = conn.execute("SELECT documents FROM trip_days WHERE id = ?", ("day-doc",)).fetchone()
+    stored = _json.loads(row["documents"])
+    assert stored == [{"name": "Hotel voucher", "url": "/static/uploads/u/hv.pdf"}], (
+        "the delete must persist — the deleted doc must be gone server-side"
+    )
+
+
+def test_upsert_day_omitting_documents_preserves_column(client, seed_user, auth_headers):
+    """A later write that OMITS `documents` (e.g. a name-only edit) must NOT
+    clobber the stored legacy day documents to NULL — same no-clobber guard as
+    planBlocks."""
+    import json as _json
+
+    from database import get_db
+
+    client.post("/api/trips", headers=auth_headers, json={"trip": {"id": "trip-doc2", "name": "T"}})
+    client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={
+            "day": {
+                "id": "day-doc2",
+                "tripId": "trip-doc2",
+                "dayNumber": 1,
+                "documents": [{"name": "Ticket", "url": "/static/uploads/u/t.pdf"}],
+                "photos": ["/static/uploads/u/p.jpg"],
+            }
+        },
+    )
+    # Second write with NEITHER documents NOR photos key.
+    client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={"day": {"id": "day-doc2", "tripId": "trip-doc2", "dayNumber": 1, "name": "Renamed"}},
+    )
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT name, documents, photos FROM trip_days WHERE id = ?", ("day-doc2",)
+        ).fetchone()
+    assert row["name"] == "Renamed"
+    assert _json.loads(row["documents"]) == [{"name": "Ticket", "url": "/static/uploads/u/t.pdf"}]
+    assert _json.loads(row["photos"]) == ["/static/uploads/u/p.jpg"]
+
+
 def test_upsert_day_missing_payload(client, auth_headers):
     res = client.post("/api/days", headers=auth_headers, json={})
     assert res.status_code == 400

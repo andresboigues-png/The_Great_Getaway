@@ -1499,6 +1499,83 @@ def test_feed_repost_hidden_when_original_sharer_blocked_viewer(
     )
 
 
+def test_repost_of_repost_credits_root_original_sharer(
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+):
+    """E4-B1: a repost-of-a-repost must attribute `original_sharer`
+    (and the original caption) to the TRUE root poster, not the
+    intermediate reposter it directly points at.
+
+    Chain: root_author shares → intermediate reposts root → the
+    viewer's friend (seed_other) reposts the intermediate. The card
+    the viewer sees is for seed_other's repost, whose
+    `repost_of_post_id` references the INTERMEDIATE post. Pre-fix the
+    one-hop join credited the intermediate reposter as original_sharer
+    and showed the intermediate's (empty) caption. It must credit
+    root_author + the root's caption instead."""
+    from database import get_db
+
+    root_author = "root-author-e4b1"
+    intermediate = "intermediate-e4b1"
+    trip_id = "trip-repost-chain-e4b1"
+    _make_friends(seed_user, seed_other_user)  # viewer is friends with the reposter
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            (root_author, "rootauthor@example.com", "Root Author"),
+        )
+        c.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            (intermediate, "intermediate@example.com", "Intermediate Reposter"),
+        )
+        c.execute(
+            "INSERT INTO trips (id, user_id, name, country, is_public, created_at) "
+            "VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)",
+            (trip_id, root_author, "Kyoto Gardens", "Japan"),
+        )
+        # Root original share (with a caption), then a repost of it, then
+        # a repost OF THAT repost by the viewer's friend.
+        c.execute(
+            "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id, caption, created_at) "
+            "VALUES (?, ?, NULL, ?, CURRENT_TIMESTAMP)",
+            (root_author, trip_id, "The true original caption"),
+        )
+        root_id = c.lastrowid
+        c.execute(
+            "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id, created_at) "
+            "VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+            (intermediate, trip_id, root_id),
+        )
+        intermediate_id = c.lastrowid
+        c.execute(
+            "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id, created_at) "
+            "VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+            (seed_other_user, trip_id, intermediate_id),
+        )
+        conn.commit()
+
+    events = client.get("/api/feed", headers=auth_headers).get_json()
+    reposts = [
+        e
+        for e in events
+        if e.get("type") == "friend_reposted_trip" and e.get("trip", {}).get("id") == trip_id
+    ]
+    assert len(reposts) == 1, "expected the friend's repost-of-a-repost card to surface"
+    card = reposts[0]
+    assert card["original_sharer"]["id"] == root_author, (
+        "original_sharer must be the ROOT poster, not the intermediate reposter "
+        f"(got {card['original_sharer']['id']!r})"
+    )
+    assert card["original_sharer"]["name"] == "Root Author"
+    assert card["caption"] == "The true original caption", (
+        "the card must show the ROOT original's caption, not the intermediate's"
+    )
+
+
 def test_share_card_disappears_when_trip_turned_private(
     client,
     seed_user,
@@ -2322,3 +2399,198 @@ def test_bookmarking_settled_up_event_is_rejected(
             "SELECT COUNT(*) FROM feed_bookmarks WHERE event_id='settled_up_set-bm'"
         ).fetchone()[0]
     assert n == 0, "a resolver-less settled_up bookmark was written"
+
+
+# ── E1-B1 / E1-B2: /api/friends/add shares follow_user's cap + block gate ────
+
+
+def test_friends_add_meters_and_caps_like_follow_user(
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+):
+    """E1-B1: the 100/day per-account follow cap lived only in
+    routes/follows.py::follow_user. The Friends-page follow / "Follow back"
+    go through /api/friends/add → _follow, which pre-fix never checked or
+    metered the cap — a scripted account could fan out unlimited first-ever
+    follows (each bell-spams the target) through the legacy façade.
+
+    Now /api/friends/add shares the SAME `follow` bucket: a genuinely-new
+    follow bumps it by exactly 1, and once the bucket is at the cap the
+    endpoint 429s with followCapHit (same shape /api/follows/<id> returns)."""
+    from datetime import date
+
+    import helpers
+    from routes.follows import _FOLLOW_DAILY_CAP
+
+    # A genuinely-new follow through the Friends façade meters one unit
+    # against the SHARED "follow" bucket (the same one follow_user uses).
+    res = client.post("/api/friends/add", headers=auth_headers, json={"friend_id": seed_other_user})
+    assert res.status_code == 200
+    assert res.get_json().get("status") == "success"
+    assert helpers.user_daily_count("follow", seed_user) == 1, (
+        "an /api/friends/add follow must meter against the shared daily bucket (E1-B1)"
+    )
+
+    # Re-add (idempotent, already following) does NOT burn more quota.
+    again = client.post(
+        "/api/friends/add", headers=auth_headers, json={"friend_id": seed_other_user}
+    )
+    assert again.status_code == 200
+    assert helpers.user_daily_count("follow", seed_user) == 1
+
+    # At the cap, the next /api/friends/add is refused (the gate fires
+    # before the insert, mirroring follow_user's 429 + followCapHit).
+    helpers._USER_DAILY_BUCKETS.setdefault("follow", {})[seed_user] = (
+        _FOLLOW_DAILY_CAP,
+        date.today().toordinal(),
+    )
+    capped = client.post(
+        "/api/friends/add", headers=auth_headers, json={"friend_id": seed_other_user}
+    )
+    assert capped.status_code == 429, (
+        f"/api/friends/add must honour the daily follow cap (E1-B1); got {capped.status_code}"
+    )
+    assert capped.get_json().get("followCapHit") is True
+
+
+def test_friends_add_reports_blocked_when_target_blocked_caller(
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+):
+    """E1-B2: /api/friends/add returned {status: 'success'} even when the
+    TARGET had blocked the caller — _follow silently no-op'd (the block-
+    symmetry gate created no follow row) but the route still reported
+    success, so the UI showed a phantom follow / "Request sent!".
+
+    Now the endpoint reports {status: 'blocked'} in that direction (matching
+    follow_user's refusal) and, critically, NO follow row is created."""
+    from database import get_db
+
+    # seed_other_user (the target) blocks seed_user (the caller).
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO blocks (blocker_id, blocked_id) VALUES (?, ?)",
+            (seed_other_user, seed_user),
+        )
+        conn.commit()
+
+    res = client.post("/api/friends/add", headers=auth_headers, json={"friend_id": seed_other_user})
+    assert res.status_code == 200
+    assert res.get_json().get("status") == "blocked", (
+        "add_friend must report 'blocked' (not phantom 'success') when the "
+        "target has blocked the caller (E1-B2)"
+    )
+
+    # The block gate must have prevented any follow row from being written.
+    with get_db() as conn:
+        n = conn.execute(
+            "SELECT COUNT(*) FROM follows WHERE follower_id = ? AND followee_id = ?",
+            (seed_user, seed_other_user),
+        ).fetchone()[0]
+    assert n == 0, "a follow row was created despite the target blocking the caller (E1-B2)"
+
+
+def test_block_sweeps_non_engagement_notifications_from_blocker_bell(
+    client,
+    seed_user,
+    seed_other_user,
+    auth_headers,
+    other_auth_headers,
+):
+    """E8-B1: blocking B must also drop B-originated NON-engagement
+    notifications (settlements, trip invites) from A's bell. These store
+    the TRIP id in related_id (not the actor), so the engagement sweep
+    (`related_id = blocked`) misses them and B's ping lingers. A
+    settlement notification whose ONLY counterparty is a THIRD party must
+    survive — the sweep is scoped to the blocked originator, not the trip."""
+    from database import get_db
+
+    # A owns t-e8-set (a settlement with B) + t-e8-third (settlement with
+    # unrelated C). B owns t-e8-inv and invited A to it.
+    _create_trip(client, auth_headers, trip_id="t-e8-set")
+    _create_trip(client, other_auth_headers, trip_id="t-e8-inv")
+    _create_trip(client, auth_headers, trip_id="t-e8-third")
+    user_c = "test-c-e8b1"
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            (user_c, "ce8b1@example.com", "Cee"),
+        )
+        # B settled up with A on t-e8-set → notif on A's bell,
+        # related_id = trip id (NOT B's user id).
+        conn.execute(
+            "INSERT INTO settlements (id, trip_id, from_user_id, to_user_id, "
+            "from_name, to_name, amount, currency, euro_value, recorded_by) "
+            "VALUES ('s-e8-b', 't-e8-set', ?, ?, 'B', 'A', 30, 'EUR', 30, ?)",
+            (seed_other_user, seed_user, seed_other_user),
+        )
+        conn.execute(
+            "INSERT INTO notifications (user_id, type, title, related_id, message) "
+            "VALUES (?, 'settled_up', 'Settled up', 't-e8-set', 'B settled 30 EUR with you.')",
+            (seed_user,),
+        )
+        # B (owner of t-e8-inv) invited A → trip_invite notif on A's bell,
+        # related_id = trip; A's member row records invited_by = B.
+        conn.execute(
+            "INSERT INTO trip_members "
+            "(trip_id, user_id, role, is_archived, invitation_status, invited_by) "
+            "VALUES ('t-e8-inv', ?, 'relaxer', 0, 'pending', ?)",
+            (seed_user, seed_other_user),
+        )
+        conn.execute(
+            "INSERT INTO notifications (user_id, type, title, related_id, message) "
+            "VALUES (?, 'trip_invite', 'Trip invitation', 't-e8-inv', 'B invited you.')",
+            (seed_user,),
+        )
+        # UNRELATED: C settled with A on t-e8-third → notif that must
+        # SURVIVE the block on B (no over-deletion by trip).
+        conn.execute(
+            "INSERT INTO settlements (id, trip_id, from_user_id, to_user_id, "
+            "from_name, to_name, amount, currency, euro_value, recorded_by) "
+            "VALUES ('s-e8-c', 't-e8-third', ?, ?, 'C', 'A', 15, 'EUR', 15, ?)",
+            (user_c, seed_user, user_c),
+        )
+        conn.execute(
+            "INSERT INTO notifications (user_id, type, title, related_id, message) "
+            "VALUES (?, 'settled_up', 'Settled up', 't-e8-third', 'C settled 15 EUR with you.')",
+            (seed_user,),
+        )
+        conn.commit()
+
+    # Baseline: all three notifications are on A's bell. The list route
+    # keys related_id in snake_case (only post_id is camel-cased).
+    before = {
+        n["related_id"]
+        for n in client.get("/api/notifications/list", headers=auth_headers).get_json()[
+            "notifications"
+        ]
+    }
+    assert {"t-e8-set", "t-e8-inv", "t-e8-third"} <= before, (
+        "all three notifications should exist before the block"
+    )
+
+    # A blocks B.
+    assert client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers).status_code == 200
+
+    # B-originated settlement + invite notifications are swept…
+    with get_db() as conn:
+        set_notif = conn.execute(
+            "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND related_id = 't-e8-set'",
+            (seed_user,),
+        ).fetchone()[0]
+        inv_notif = conn.execute(
+            "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND related_id = 't-e8-inv'",
+            (seed_user,),
+        ).fetchone()[0]
+        c_notifs = conn.execute(
+            "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND related_id = 't-e8-third'",
+            (seed_user,),
+        ).fetchone()[0]
+    assert set_notif == 0, "B-originated settlement notif must be swept on block"
+    assert inv_notif == 0, "B-originated trip_invite notif must be swept on block"
+    # …while the unrelated third-party settlement notif is untouched.
+    assert c_notifs == 1, "block over-deleted an unrelated third-party settlement notification"

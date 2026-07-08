@@ -1914,6 +1914,63 @@ def test_clone_trip_deep_copies_days_and_metadata(
     assert cloned_days[0]["id"] != "d-src-1"
 
 
+def test_clone_copies_plan_blocks_and_accommodation(client, seed_user, auth_headers):
+    """A4-B1/A4-B2: a member clone must deep-copy the block-editor structure
+    (plan_blocks_json — place blocks + ordering) AND the day's accommodation
+    columns, not just the flat morning/afternoon/evening strings. Regression:
+    the per-day clone SELECT/INSERT dropped both, so a cloned template lost its
+    block layout and where-you're-staying data."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-blocks-src", name="Blocks Trip")
+    res = client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={
+            "day": {
+                "id": "d-blk-1",
+                "tripId": trip_id,
+                "dayNumber": 1,
+                "date": "2026-06-01",
+                "name": "Lisbon",
+                "plan": {"morning": "Cafe", "afternoon": "", "evening": ""},
+                "planBlocks": {
+                    "morning": [
+                        {"type": "text", "text": "Cafe"},
+                        {"type": "place", "placeId": "ChIJ-abc-123"},
+                    ],
+                },
+                "accommodation": "Hotel Baixa",
+                "accommodationPlaceId": "ChIJ-hotel-999",
+                "accommodationAddress": "Rua Augusta 1, Lisbon",
+                "lat": 38.7,
+                "lng": -9.1,
+            },
+        },
+    )
+    assert res.status_code == 200
+
+    res = client.post(f"/api/trips/clone/{trip_id}", headers=auth_headers)
+    assert res.status_code == 200
+    new_trip_id = res.get_json()["tripId"]
+    assert new_trip_id and new_trip_id != trip_id
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    cloned_days = [d for d in data["tripDays"] if d["tripId"] == new_trip_id]
+    assert len(cloned_days) == 1
+    day = cloned_days[0]
+
+    # A4-B1: the block-editor structure is copied verbatim (place block + order).
+    assert day["planBlocks"] == {
+        "morning": [
+            {"type": "text", "text": "Cafe"},
+            {"type": "place", "placeId": "ChIJ-abc-123"},
+        ],
+    }
+    # A4-B2: the three accommodation columns come across.
+    assert day["accommodation"] == "Hotel Baixa"
+    assert day["accommodationPlaceId"] == "ChIJ-hotel-999"
+    assert day["accommodationAddress"] == "Rua Augusta 1, Lisbon"
+
+
 def test_clone_drops_uploaded_cover_keeps_shared(client, seed_user, auth_headers):
     """Audit MK5 BUG-037/057: a clone must not point at the SOURCE owner's
     uploaded cover file — it 404s when the owner deletes/unshares, and the cloner

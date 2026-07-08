@@ -382,6 +382,64 @@ def test_create_from_template_without_start_leaves_dates_blank(client, seed_user
     assert not day["date"]
 
 
+def test_snapshot_and_instantiate_carry_plan_blocks(
+    client,
+    seed_user,
+    auth_headers,
+    seed_other_user,
+    other_auth_headers,
+):
+    """A5-B1: a day's block-editor content (plan_blocks_json) includes PLACE
+    blocks that the flat morning/afternoon/evening columns drop
+    (_flatten_block_text keeps only text). The template snapshot must capture
+    plan_blocks_json and instantiation must write it back, or a template loses
+    every place block. Round-trip: source day place block → snapshot.planBlocks
+    → new trip's day.planBlocks (read via /api/data)."""
+    _make_creator(seed_user)
+    _create_trip(client, auth_headers, trip_id="blk-src", name="Rome")
+    blocks = {
+        "morning": [
+            {"type": "text", "text": "Wander the Forum"},
+            {"type": "place", "placeId": "PLACE_COLOSSEUM"},
+        ]
+    }
+    from database import get_db
+
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO trip_days (id, trip_id, day_number, name, morning, plan_blocks_json) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("blk-d1", "blk-src", 1, "Day 1", "Wander the Forum", json.dumps(blocks)),
+        )
+        conn.commit()
+
+    code = client.post(
+        "/api/templates",
+        headers=auth_headers,
+        json={
+            "name": "Rome",
+            "sourceTripId": "blk-src",
+            "includePlans": True,
+        },
+    ).get_json()["template"]["code"]
+
+    # Snapshot carries the ordered blocks (incl. the place ref the flat text drops).
+    snap = _read_snapshot(code)
+    assert len(snap["days"]) == 1
+    assert snap["days"][0]["planBlocks"] == blocks
+    # Flat text still present for back-compat readers.
+    assert snap["days"][0]["plan"]["morning"] == "Wander the Forum"
+
+    # Instantiation writes the blocks back onto the new owner's day.
+    new_id = client.post(
+        f"/api/templates/{code}/create",
+        headers=other_auth_headers,
+    ).get_json()["tripId"]
+    data = client.get("/api/data", headers=other_auth_headers).get_json()
+    new_day = next(d for d in data["tripDays"] if d["tripId"] == new_id)
+    assert new_day["planBlocks"] == blocks
+
+
 def test_snapshot_toggles_off_omit_sections(client, seed_user, auth_headers):
     _make_creator(seed_user)
     _seed_rich_source_trip(client, auth_headers, seed_user, trip_id="src2")

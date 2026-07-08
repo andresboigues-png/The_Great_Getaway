@@ -1574,7 +1574,8 @@ def _clone_trip_record(
     # soft-deleted day doesn't reincarnate in the destination trip.
     cursor.execute(
         "SELECT day_number, date, name, morning, afternoon, evening, "
-        "       tip, lat, lng "
+        "       tip, plan_blocks_json, lat, lng, "
+        "       accommodation, accommodation_place_id, accommodation_address "
         "FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL",
         (source_trip_id,),
     )
@@ -1600,8 +1601,11 @@ def _clone_trip_record(
                     INSERT INTO trip_days (
                         id, trip_id, day_number, date, name,
                         morning, afternoon, evening, tip,
-                        lat, lng
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        plan_blocks_json,
+                        lat, lng,
+                        accommodation, accommodation_place_id,
+                        accommodation_address
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''',
                     (
                         candidate_day_id,
@@ -1617,8 +1621,23 @@ def _clone_trip_record(
                         d['afternoon'] if include_plans else None,
                         d['evening'] if include_plans else None,
                         d['tip'] if include_plans else None,
+                        # plan_blocks_json is the block-editor structure (place
+                        # blocks + ordering) backing morning/afternoon/evening —
+                        # same plan content, same share gate. Copy it verbatim so
+                        # the clone keeps the block layout, but NULL it when plans
+                        # are hidden so a share-link clone can't resurrect plan
+                        # blocks the share page suppressed (A4-B1 / Audit MK5 P1).
+                        d['plan_blocks_json'] if include_plans else None,
                         d['lat'],
                         d['lng'],
+                        # Accommodation (where you sleep this day) is member-only
+                        # content — the share page + public-trip read strip it from
+                        # non-members. Copy it only for a full-access member clone
+                        # (include_marked_places), never for a share-link clone,
+                        # matching the markedPlaces privacy gate (A4-B2).
+                        d['accommodation'] if include_marked_places else None,
+                        d['accommodation_place_id'] if include_marked_places else None,
+                        d['accommodation_address'] if include_marked_places else None,
                     ),
                 )
                 inserted = True
@@ -1693,6 +1712,11 @@ def clone_trip(source_id):
         # access control, not completion state.
         new_trip_id = _clone_trip_record(cursor, source_id, user_id)
         if not new_trip_id:
+            # _clone_trip_record can bail mid-clone (id-collision retries
+            # exhausted) after INSERTing the trip row + some days. Roll back
+            # explicitly so the `with get_db()` block doesn't commit a
+            # half-cloned orphan on the way out (A4-B3).
+            conn.rollback()
             return jsonify({"error": "Not found"}), 404
         conn.commit()
     return jsonify({"tripId": new_trip_id})
@@ -1739,6 +1763,11 @@ def clone_trip_from_share_token(token):
             include_marked_places=False,
         )
         if not new_trip_id:
+            # Same half-clone hazard as clone_trip: _clone_trip_record may
+            # have written the trip row + some days before exhausting its
+            # id-collision retries. Roll back so we don't commit an orphan
+            # (A4-B3).
+            conn.rollback()
             return jsonify({"error": "Not found"}), 404
         conn.commit()
     return jsonify({"tripId": new_trip_id})

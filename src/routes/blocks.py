@@ -95,6 +95,15 @@ def block_user(user_id):
             "(follower_id = ? AND followee_id = ?)",
             (caller_id, user_id, user_id, caller_id),
         )
+        # E8-B1: sweep non-engagement notifications BEFORE tearing down
+        # the pending invite rows below — the trip_invite branch of this
+        # sweep reads trip_members.invited_by to identify the originator,
+        # and the pending-invite DELETE that follows would erase that row
+        # first, hiding the notification's origin. See the detailed
+        # per-type scoping note at the sweep body.
+        for blocker, blocked in ((caller_id, user_id), (user_id, caller_id)):
+            _sweep_non_engagement_notifications(cursor, blocker, blocked)
+
         # Tear down any pending trip invites in BOTH directions.
         # Accepted memberships stay — kicking them out of trips
         # they're already on is a separate, more destructive
@@ -202,13 +211,58 @@ def block_user(user_id):
                         [blocked] + _synth_ids,
                     )
             # Notifications the blocker received from the blocked user.
-            # related_id stores the ACTOR for engagement notifs.
+            # related_id stores the ACTOR for engagement notifs. The
+            # NON-engagement notifs (settlements / invites / trip_public)
+            # store the TRIP id here instead, so they're swept separately
+            # by _sweep_non_engagement_notifications() above (which has to
+            # run before the pending-invite teardown).
             cursor.execute(
                 "DELETE FROM notifications WHERE user_id = ? AND related_id = ?",
                 (blocker, blocked),
             )
         conn.commit()
     return jsonify({"status": "blocked"})
+
+
+def _sweep_non_engagement_notifications(cursor, blocker: str, blocked: str) -> None:
+    """E8-B1: drop the blocker's NON-engagement notifications that the
+    blocked user originated.
+
+    Engagement notifs (share_liked / commented / reposted) store the
+    ACTOR in related_id and are swept by the plain `related_id = blocked`
+    delete in block_user(). But settlements, trip invites, and
+    trip-public broadcasts store the TRIP id in related_id and never
+    record the actor on the row (it's only baked into the free-text
+    message), so that sweep misses them and a blocked user's ping
+    lingers on the blocker's bell.
+
+    Each type is scoped via the structured table that ties the
+    trip-keyed notif to the blocked originator, so unrelated settlements
+    / invites on the SAME trip are left untouched:
+      - trip_invite: blocked user is the inviter (trip_members.invited_by)
+        on the blocker's row for that trip. MUST run before the
+        pending-invite teardown or the row is already gone.
+      - settled_up / settled_up_reverted: a settlement on that trip has
+        the blocked user as a party (from/to) or the recorder.
+      - trip_public: the trip is owned by the blocked user.
+    """
+    cursor.execute(
+        "DELETE FROM notifications WHERE user_id = ? AND ("
+        "  (type = 'trip_invite' AND EXISTS ("
+        "     SELECT 1 FROM trip_members tm WHERE tm.trip_id = notifications.related_id "
+        "     AND tm.user_id = ? AND tm.invited_by = ?"
+        "  )) OR"
+        "  (type IN ('settled_up', 'settled_up_reverted') AND EXISTS ("
+        "     SELECT 1 FROM settlements s WHERE s.trip_id = notifications.related_id "
+        "     AND (s.from_user_id = ? OR s.to_user_id = ? OR s.recorded_by = ?)"
+        "  )) OR"
+        "  (type = 'trip_public' AND EXISTS ("
+        "     SELECT 1 FROM trips t WHERE t.id = notifications.related_id "
+        "     AND t.user_id = ?"
+        "  ))"
+        ")",
+        (blocker, blocker, blocked, blocked, blocked, blocked, blocked),
+    )
 
 
 @bp.route("/api/blocks/<user_id>", methods=["DELETE"])

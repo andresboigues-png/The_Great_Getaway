@@ -167,26 +167,35 @@ def _build_template_snapshot(cursor, trip_id, include_plans, include_places, inc
 
     if include_plans:
         cursor.execute(
-            "SELECT day_number, name, morning, afternoon, evening, tip, lat, lng "
+            "SELECT day_number, name, morning, afternoon, evening, tip, lat, lng, "
+            "       plan_blocks_json "
             "FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL "
             "ORDER BY day_number",
             (trip_id,),
         )
         for d in cursor.fetchall():
-            snap["days"].append(
-                {
-                    "dayNumber": d["day_number"],
-                    "name": d["name"],
-                    "plan": {
-                        "morning": d["morning"],
-                        "afternoon": d["afternoon"],
-                        "evening": d["evening"],
-                    },
-                    "tip": d["tip"],
-                    "lat": d["lat"],
-                    "lng": d["lng"],
-                }
-            )
+            day_snap = {
+                "dayNumber": d["day_number"],
+                "name": d["name"],
+                "plan": {
+                    "morning": d["morning"],
+                    "afternoon": d["afternoon"],
+                    "evening": d["evening"],
+                },
+                "tip": d["tip"],
+                "lat": d["lat"],
+                "lng": d["lng"],
+            }
+            # Ordered block content ({slot: [text|place refs]}) supersedes the
+            # flat plan text; a place block carries only a placeId reference (no
+            # place data), which is shareable template content like the plan
+            # text. Carry it so a block-editor template keeps its place blocks —
+            # the flat columns above drop them (_flatten_block_text). Kept as the
+            # snapshot-native parsed value; null/absent for pre-blocks days.
+            blocks = _loads(d["plan_blocks_json"])
+            if blocks:
+                day_snap["planBlocks"] = blocks
+            snap["days"].append(day_snap)
 
     if include_places:
         places = _loads(t["marked_places_json"]) or []
@@ -302,6 +311,12 @@ def _instantiate_template(cursor, snap, includes, new_owner_id, start_date=None)
         day_date = None
         if base_date is not None and isinstance(day_num, int) and day_num > 0:
             day_date = (base_date + _timedelta(days=day_num - 1)).isoformat()
+        # Ordered block content ({slot: [text|place refs]}) written alongside the
+        # flat text so a block-editor template keeps its place blocks (the flat
+        # columns drop them). Serialized only when present; pre-blocks templates
+        # leave the column NULL and the client renders from the flat plan text.
+        blocks = d.get("planBlocks")
+        blocks_json = json.dumps(blocks) if blocks else None
         for _attempt in range(5):
             day_id = _new_id()
             try:
@@ -309,8 +324,9 @@ def _instantiate_template(cursor, snap, includes, new_owner_id, start_date=None)
                     """
                     INSERT INTO trip_days (
                         id, trip_id, day_number, date, name,
-                        morning, afternoon, evening, tip, lat, lng
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        morning, afternoon, evening, tip, lat, lng,
+                        plan_blocks_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         day_id,
@@ -324,6 +340,7 @@ def _instantiate_template(cursor, snap, includes, new_owner_id, start_date=None)
                         d.get("tip"),
                         d.get("lat"),
                         d.get("lng"),
+                        blocks_json,
                     ),
                 )
                 break

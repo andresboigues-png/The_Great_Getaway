@@ -477,6 +477,31 @@ def _num(v: Any, default: float = 0.0) -> float:
         return default
 
 
+def _as_bool_int(v: Any) -> int:
+    """Coerce a stored boolean-ish flag (e.g. is_settlement) to 0/1 WITHOUT
+    raising. A bare int(v or 0) 500s the export when a legacy / trip-ZIP-import
+    row carries 'true' or '1.5' (SQLite's loose affinity + JSON import), because
+    int('true') raises ValueError during story construction — OUTSIDE doc.build's
+    try/except, and the route only catches RuntimeError. (A6-B1)
+
+    Accepts real bools, numeric 0/non-0 (incl. floats like 1.5 → truthy),
+    numeric STRINGS ('1' / '1.5' → truthy, '0' / '0.0' → falsey), and the
+    keyword string forms 'true'/'yes'/'t'/'y' (case-insensitive). Everything
+    else — '', 'false', 'no', None, junk — is treated as falsey."""
+    if isinstance(v, bool):
+        return 1 if v else 0
+    if isinstance(v, (int, float)):
+        return 1 if v else 0
+    if isinstance(v, str):
+        s = v.strip().lower()
+        try:
+            # Numeric-string flags ('1', '1.5', '0', '0.0') — truthy if != 0.
+            return 1 if float(s) != 0 else 0
+        except ValueError:
+            return 1 if s in ("true", "yes", "t", "y") else 0
+    return 1 if v else 0
+
+
 def _hr(rl, color: str = _BRAND_BLUE, thickness: float = 2.0):
     """Brand-accent horizontal rule under section headers."""
     return rl.HRFlowable(
@@ -684,7 +709,7 @@ def _expenses_section(
         return str(e.get("date") or "")
 
     rows_data = [
-        e for e in expenses if isinstance(e, dict) and not int(e.get("is_settlement") or 0)
+        e for e in expenses if isinstance(e, dict) and not _as_bool_int(e.get("is_settlement"))
     ]
     rows_data.sort(key=_key)
 
@@ -870,7 +895,7 @@ def _settle_section(
 
     # Expenses (exclude settlement rows here — they're applied below).
     for e in expenses:
-        if not isinstance(e, dict) or int(e.get("is_settlement") or 0):
+        if not isinstance(e, dict) or _as_bool_int(e.get("is_settlement")):
             continue
         cur = (e.get("currency") or "EUR").upper()
         try:
@@ -901,7 +926,7 @@ def _settle_section(
     # (2) settlements-table rows. Both shift payer +amt / receiver -amt.
     recorded: list[tuple[str, str, str, float]] = []  # (from, to, cur, amt)
     for e in expenses:
-        if not isinstance(e, dict) or not int(e.get("is_settlement") or 0):
+        if not isinstance(e, dict) or not _as_bool_int(e.get("is_settlement")):
             continue
         # Legacy settlement expense: `who` paid; splits (if any) name the
         # receiver. Treat as payer credit only when we can resolve names.

@@ -250,6 +250,25 @@ def google_auth():
 
         with get_db() as conn:
             cursor = conn.cursor()
+            # F1-B1: Google can rotate a user's `sub` (id-token subject) while
+            # the verified email stays the same — a Workspace domain migration,
+            # an account-type change, or Google's own opaque re-issuance. Our
+            # `users.id` column IS the sub, and `users.email` is UNIQUE, so a
+            # naive `INSERT ... ON CONFLICT(id)` for the NEW sub collides on the
+            # EMAIL constraint (not the id), raising sqlite3.IntegrityError —
+            # which the `except ValueError` below does NOT catch → a login 500.
+            #
+            # Reconcile instead: if this verified email already belongs to a
+            # row under a DIFFERENT id, that IS the returning user. We keep the
+            # existing account's id as the canonical identity (all their trips,
+            # expenses, friends, etc. hang off it via FKs with no ON UPDATE
+            # CASCADE — mutating the PK would orphan every child row) and mint
+            # the session for that id. The email is Google-verified above, so
+            # trusting it as the stable match key is safe.
+            cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+            existing = cursor.fetchone()
+            if existing and existing["id"] != user_id:
+                user_id = existing["id"]
             cursor.execute(
                 '''
                 INSERT INTO users (id, email, name, picture)

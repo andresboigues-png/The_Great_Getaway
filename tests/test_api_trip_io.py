@@ -361,6 +361,64 @@ def test_import_rejects_newer_format_version(client, seed_user, auth_headers):
     assert "newer version" in res.get_json()["error"]
 
 
+def _import_manifest(client, headers, manifest):
+    """POST a one-file .ggtrip.zip carrying `manifest` (any JSON value) and
+    return the response — for exercising the import's manifest-shape guards."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("manifest.json", json.dumps(manifest))
+    buf.seek(0)
+    return client.post(
+        "/api/trips/import",
+        headers=headers,
+        data={"file": (buf, "trip.ggtrip.zip")},
+        content_type="multipart/form-data",
+    )
+
+
+def test_import_rejects_malformed_manifest_shape(client, seed_user, auth_headers):
+    """A7-B1: a manifest with the right `format` but a malformed envelope must
+    return a clean 400 ('Invalid or corrupt trip archive'), never blow up into
+    a 500. Pre-fix, int(formatVersion) / sections.get / media.items() / dict()
+    ran unguarded, so each of these shapes raised and 500'd the request."""
+    bad_manifests = [
+        # non-int formatVersion (int() raises ValueError)
+        {
+            "format": "gg.trip",
+            "formatVersion": "not-a-number",
+            "sections": {"trips": [{"id": "x", "name": "T"}]},
+            "media": {},
+        },
+        # formatVersion is a list (int() raises TypeError)
+        {
+            "format": "gg.trip",
+            "formatVersion": [1],
+            "sections": {"trips": [{"id": "x", "name": "T"}]},
+            "media": {},
+        },
+        # sections is a list, not a dict (.get('trips') → AttributeError)
+        {"format": "gg.trip", "formatVersion": 1, "sections": [{"trips": []}], "media": {}},
+        # sections['trips'] is not a list of dicts (dict(trips[0]) → error)
+        {
+            "format": "gg.trip",
+            "formatVersion": 1,
+            "sections": {"trips": ["not-a-dict"]},
+            "media": {},
+        },
+        # media is a list, not a dict (.items() → AttributeError)
+        {
+            "format": "gg.trip",
+            "formatVersion": 1,
+            "sections": {"trips": [{"id": "x", "name": "T"}]},
+            "media": ["oops"],
+        },
+    ]
+    for m in bad_manifests:
+        res = _import_manifest(client, auth_headers, m)
+        assert res.status_code == 400, (m, res.get_data(as_text=True))
+        assert res.get_json()["error"] == "Invalid or corrupt trip archive", m
+
+
 def test_import_body_over_10mb_not_rejected_by_global_cap(client, seed_user, auth_headers):
     """MK6 P2: /api/trips/import must accept bodies over the 10 MB global cap
     (up to 64 MB) so a media-bearing export round-trips. An 11 MB non-ZIP body

@@ -436,7 +436,19 @@ def import_trip():
 
         if manifest.get("format") != FORMAT_ID:
             return jsonify({"error": "Unrecognised trip file"}), 400
-        if int(manifest.get("formatVersion", 0)) > FORMAT_VERSION:
+
+        # Validate the manifest envelope shape BEFORE we start unpacking it.
+        # Everything below assumes formatVersion is int-coercible, sections is a
+        # dict, sections['trips'] is a list of dicts, and media is a dict — a
+        # malformed/corrupt manifest that violated any of these previously blew
+        # up unguarded (ValueError from int(), AttributeError from .get()/.items()
+        # or dict()) → a raw 500. Fail cleanly with a 400 instead.
+        _bad = jsonify({"error": "Invalid or corrupt trip archive"}), 400
+        try:
+            format_version = int(manifest.get("formatVersion", 0))
+        except (TypeError, ValueError):
+            return _bad
+        if format_version > FORMAT_VERSION:
             return jsonify(
                 {
                     "error": "This trip file was made by a newer version of the "
@@ -445,9 +457,18 @@ def import_trip():
             ), 400
 
         sections = manifest.get("sections") or {}
-        if not sections.get("trips"):
+        if not isinstance(sections, dict):
+            return _bad
+        trips_section = sections.get("trips")
+        if not trips_section:
             return jsonify({"error": "Trip file contains no trip"}), 400
+        if not isinstance(trips_section, list) or not all(
+            isinstance(t, dict) for t in trips_section
+        ):
+            return _bad
         media_manifest = manifest.get("media") or {}
+        if not isinstance(media_manifest, dict):
+            return _bad
 
         upload_root = current_app.config["UPLOAD_FOLDER"]
         user_dir = os.path.join(upload_root, user_id)
