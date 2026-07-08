@@ -515,7 +515,18 @@ export function navigate(
     // wins via natural ordering but the first's React tree
     // would briefly paint + double-fetch any of its async
     // effects.
-    isInternalNav = true;
+    // F3 fix: only ARM the internal-nav guard when the hash will actually
+    // change. Assigning the SAME hash value fires no `hashchange` event, so
+    // the guard below would never be consumed — it would sit `true` and make
+    // the onhashchange handler swallow the user's NEXT real back/forward
+    // (return early without navigating). The 15s poll's `navigate(current)`
+    // (a same-page re-render after a pull) writes an unchanged hash on every
+    // tick, so pre-fix a back/forward was eaten on any non-modal page every
+    // 15s. When the hash is unchanged we leave the guard untouched (its
+    // resting state is already false).
+    if (window.location.hash.replace(/^#/, '') !== page) {
+        isInternalNav = true;
+    }
     window.location.hash = page;
 
     // Scroll positioning now happens in the loader's .then() (see the
