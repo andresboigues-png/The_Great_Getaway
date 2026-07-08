@@ -2615,3 +2615,18 @@ def test_upsert_trip_rejects_bogus_country_code(client, seed_user, auth_headers)
     assert row["country_code"] == "PT", (
         f"lowercase countryCode should normalize to upper; got {row['country_code']!r}"
     )
+
+
+def test_archive_persists_archivedAt_in_data(client, seed_user, auth_headers):
+    """A3-B4: archiving stamps trip_members.completed_at; /api/data must surface
+    it as archivedAt so the 'Marked complete on {date}' badge + 'Recently
+    completed' sort survive the next pull (pre-fix the client's optimistic
+    archivedAt was dropped on every poll because the server never sent it)."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-archat")
+    assert client.post(f"/api/trips/{trip_id}/archive", headers=auth_headers).status_code == 200
+    body = client.get("/api/data", headers=auth_headers).get_json()
+    trips = body.get("trips", []) + body.get("archivedTrips", [])
+    trip = next((t for t in trips if t["id"] == trip_id), None)
+    assert trip is not None, "archived trip should still be in /api/data"
+    assert trip.get("isArchived") is True
+    assert trip.get("archivedAt"), "archivedAt must be serialized for an archived trip (A3-B4)"

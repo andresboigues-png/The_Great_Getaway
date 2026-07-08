@@ -402,12 +402,15 @@ _PHOTO_MAX_PER_TRIP = 60  # bound total embeds so a 500-photo
 #                                    trip can't balloon the doc / RAM
 
 
-def _is_public_http_url(url: str) -> bool:
-    """SSRF guard for the photo fetcher. Returns True only when the URL's
-    host resolves entirely to PUBLIC, routable IPs. Blocks loopback,
-    link-local (incl. the 169.254.169.254 cloud-metadata endpoint),
-    private (RFC1918), and other reserved ranges so a user-controlled
-    photo `src` can't turn the export into an internal-network probe."""
+def _resolve_first_public_ip(url: str) -> str | None:
+    """Resolve the URL's host and return its FIRST address, but ONLY when
+    EVERY resolved address is public + routable (else None). Blocks loopback,
+    link-local (incl. the 169.254.169.254 cloud-metadata endpoint), private
+    (RFC1918), and other reserved ranges. The returned IP is PINNED for the
+    fetch (see `_pinned_get`) so the host cannot be re-resolved to an internal
+    address between this check and the GET — closing the DNS-rebinding bypass
+    (A6-B2) where a short-TTL domain passes the guard then answers the fetch
+    from an internal IP."""
     try:
         import ipaddress
         import socket
@@ -415,13 +418,13 @@ def _is_public_http_url(url: str) -> bool:
 
         host = urlparse(url).hostname
         if not host:
-            return False
-        # Resolve ALL addresses the host maps to; reject if ANY is
-        # non-public (defends against a DNS name pointing at a private IP).
+            return None
+        # Resolve ALL addresses; reject if ANY is non-public. Keep order so we
+        # can pin the first one for the connection.
         infos = socket.getaddrinfo(host, None)
-        addrs = {info[4][0] for info in infos}
+        addrs = [info[4][0] for info in infos]
         if not addrs:
-            return False
+            return None
         for addr in addrs:
             ip = ipaddress.ip_address(addr)
             if (
@@ -432,10 +435,50 @@ def _is_public_http_url(url: str) -> bool:
                 or ip.is_reserved
                 or ip.is_unspecified
             ):
-                return False
-        return True
+                return None
+        return addrs[0]
     except Exception:
-        return False
+        return None
+
+
+def _is_public_http_url(url: str) -> bool:
+    """SSRF guard for the photo fetcher — True only when the URL's host
+    resolves entirely to PUBLIC, routable IPs. Delegates to
+    `_resolve_first_public_ip` so the bool check and the pinned fetch share
+    ONE resolution + validation pass."""
+    return _resolve_first_public_ip(url) is not None
+
+
+# A6-B2: the create_connection override in _pinned_get is process-global, so
+# serialize pinned fetches. Photo fetches are rare + per-export byte-capped, so
+# the contention is negligible.
+_dns_pin_lock = _threading.Lock()
+
+
+def _pinned_get(url: str, resolved_ip: str, **kwargs):
+    """`requests.get` that FORCES the TCP connection to `resolved_ip` (a
+    pre-validated public IP) while keeping the hostname for the Host header +
+    TLS SNI / cert validation. This closes the DNS-rebinding window: without
+    it, requests re-resolves the host independently of `_resolve_first_public_ip`,
+    so a short-TTL domain could pass the check then connect to an internal IP.
+    Only the TCP target is overridden — SNI + cert still validate the hostname."""
+    from urllib.parse import urlparse
+
+    import urllib3.util.connection as _u3c
+
+    host = urlparse(url).hostname
+    _orig_create_conn = _u3c.create_connection
+
+    def _patched(address, *args, **kw):
+        h, port = address
+        return _orig_create_conn((resolved_ip, port) if h == host else address, *args, **kw)
+
+    with _dns_pin_lock:
+        _u3c.create_connection = _patched
+        try:
+            return requests.get(url, **kwargs)
+        finally:
+            _u3c.create_connection = _orig_create_conn
 
 
 def _photo_src(entry: Any) -> str | None:
@@ -507,7 +550,8 @@ def _load_photo_png(src: str) -> bytes | None:
             # or internal services. App photos are same-origin uploads
             # (handled above) or data URLs — arbitrary external hosts are
             # the only ones that reach here, and only public ones are OK.
-            if not _is_public_http_url(src):
+            _pinned_ip = _resolve_first_public_ip(src)
+            if _pinned_ip is None:
                 logger.warning("PDF photo skipped: non-public URL host")
                 return None
             # Fail-soft capped GET — same `with requests.get(...)` socket
@@ -517,7 +561,11 @@ def _load_photo_png(src: str) -> bytes | None:
             # http://169.254.169.254/ (or an RFC1918 host) would be followed
             # and its body embedded — an SSRF bypass. The map fetchers already
             # pin this; the photo GET had been on the requests default (True).
-            with requests.get(src, timeout=10, stream=True, allow_redirects=False) as res:
+            # A6-B2: pin the validated IP for the connection so the host can't
+            # rebind to an internal address between the check above and this GET.
+            with _pinned_get(
+                src, _pinned_ip, timeout=10, stream=True, allow_redirects=False
+            ) as res:
                 if not res.ok:
                     return None
                 # Enforce the byte cap while streaming so a huge/streaming

@@ -668,3 +668,57 @@ def test_a6i1_day_maps_fire_when_day_plan_on(monkeypatch):
     calls.clear()
     _build_trip_pdf(trip, {"includeDays": True, "includeDayPins": False})
     assert calls == [], "Day maps off must fetch no pin maps even with Day plan on"
+
+
+# ── A6-B2: SSRF DNS-rebind — resolve+validate once, then pin the IP ──
+def test_resolve_first_public_ip_rejects_private_returns_public(monkeypatch):
+    """The resolver returns the first address only when EVERY resolved address
+    is public; a single private/metadata address (a rebind target) → None."""
+    import socket
+
+    from routes.pdf import _maps
+
+    monkeypatch.setattr(
+        socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("93.184.216.34", 443))]
+    )
+    assert _maps._resolve_first_public_ip("https://example.com/p.jpg") == "93.184.216.34"
+
+    # A public + a private (split-horizon / rebind) → reject entirely.
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *a, **k: [(2, 1, 6, "", ("93.184.216.34", 443)), (2, 1, 6, "", ("10.0.0.5", 443))],
+    )
+    assert _maps._resolve_first_public_ip("https://example.com/p.jpg") is None
+
+    # Cloud metadata endpoint → reject.
+    monkeypatch.setattr(
+        socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("169.254.169.254", 80))]
+    )
+    assert _maps._resolve_first_public_ip("http://metadata/p.jpg") is None
+
+
+def test_pinned_get_connects_to_validated_ip_not_rehostname(monkeypatch):
+    """A6-B2: _pinned_get must open the socket to the PRE-VALIDATED IP (not
+    re-resolve the hostname), so a short-TTL rebind can't slip an internal IP
+    into the GET. It also restores create_connection afterward (no leak)."""
+    import urllib3.util.connection as u3c
+
+    from routes.pdf import _maps
+
+    seen = {}
+
+    def fake_create_conn(address, *a, **k):
+        seen["address"] = address
+        raise OSError("blocked in test before real connect")
+
+    monkeypatch.setattr(u3c, "create_connection", fake_create_conn)
+    try:
+        _maps._pinned_get("https://example.com/photo.jpg", "203.0.113.7", timeout=1)
+    except Exception:
+        pass
+    assert seen.get("address") == ("203.0.113.7", 443), (
+        "the fetch must connect to the pinned validated IP, not re-resolve the host"
+    )
+    # create_connection restored to what it was before the call (no global leak).
+    assert u3c.create_connection is fake_create_conn

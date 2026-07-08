@@ -720,7 +720,7 @@ def get_data():
         if all_trip_ids:
             placeholders = ','.join(['?'] * len(all_trip_ids))
             cursor.execute(
-                f"SELECT trip_id, role, is_archived FROM trip_members "
+                f"SELECT trip_id, role, is_archived, completed_at FROM trip_members "
                 f"WHERE user_id = ? AND trip_id IN ({placeholders})",
                 [user_id, *all_trip_ids],
             )
@@ -821,6 +821,15 @@ def get_data():
                 t['myRole'] = mrow['role']
                 t['myArchived'] = bool(mrow['is_archived'])
                 t['isArchived'] = bool(mrow['is_archived'])
+                # A3-B4: surface the per-user completion timestamp as
+                # archivedAt so the "Marked complete on {date}" badge and the
+                # "Recently completed" sort survive the next /api/data pull.
+                # archive_trip already stamps trip_members.completed_at; it was
+                # just never serialized, so the client's optimistic archivedAt
+                # was dropped on every poll. Only when actually archived (an
+                # unarchive leaves a stale completed_at behind).
+                if mrow['is_archived'] and mrow['completed_at']:
+                    t['archivedAt'] = mrow['completed_at']
             else:
                 # Legacy path — owner without a member row.
                 t['myRole'] = 'planner' if t['ownerId'] == user_id else 'relaxer'
