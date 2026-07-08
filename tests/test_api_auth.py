@@ -116,3 +116,46 @@ def test_test_login_response_includes_home_country(client, monkeypatch):
         "isCreator",
     ):
         assert key in user
+
+
+def test_user_status_exposes_token_expiry(client, monkeypatch):
+    """F1-I1: /api/user-status must surface the JWT's expiry so the frontend's
+    restoreSession can PROACTIVELY warn / re-auth before the 30-day token dies
+    mid-task — instead of the silent 401 → wipeUserState → login wall that
+    drops in-progress UI.
+
+    Pin: a logged-in boot probe returns an `expiresAt` ISO-8601 UTC timestamp
+    roughly JWT_LIFETIME_DAYS out; a logged-out probe carries no such field.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from auth import JWT_LIFETIME_DAYS
+
+    monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
+
+    # Logged-out boot probe: no session cookie → no expiry to report.
+    anon = client.get("/api/user-status")
+    assert anon.status_code == 200
+    anon_body = anon.get_json()
+    assert anon_body["logged_in"] is False
+    assert "expiresAt" not in anon_body
+
+    # Log in (test-mode) — set_auth_cookie drops the real JWT into the
+    # client's cookie jar, so the next request authenticates.
+    login = client.post("/api/auth/google", json={"token": "test:test-expiry-user"})
+    assert login.status_code == 200
+
+    status = client.get("/api/user-status")
+    assert status.status_code == 200
+    body = status.get_json()
+    assert body["logged_in"] is True
+
+    # The expiry must be present and parseable as a tz-aware ISO-8601 string.
+    assert body["expiresAt"]
+    expires_at = datetime.fromisoformat(body["expiresAt"])
+    assert expires_at.tzinfo is not None
+
+    # ...and land within a day of the configured lifetime (guards against an
+    # off-by-unit bug, e.g. seconds vs ms or a wrong timedelta).
+    expected = datetime.now(UTC) + timedelta(days=JWT_LIFETIME_DAYS)
+    assert abs((expires_at - expected).total_seconds()) < 86400

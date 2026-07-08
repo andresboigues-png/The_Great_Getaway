@@ -489,6 +489,126 @@ def test_rewrite_urls_is_prefix_safe(client, seed_user, auth_headers):
     assert out["b"] == long_new
 
 
+def _import_manifest_with_media(client, headers, manifest, media_files):
+    """POST a .ggtrip.zip carrying `manifest` plus `media_files`
+    ({arc_path: bytes}) so the import's media re-save path runs on real
+    bytes. Returns the response."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("manifest.json", json.dumps(manifest))
+        for arc, content in media_files.items():
+            zf.writestr(arc, content)
+    buf.seek(0)
+    return client.post(
+        "/api/trips/import",
+        headers=headers,
+        data={"file": (buf, "trip.ggtrip.zip")},
+        content_type="multipart/form-data",
+    )
+
+
+def test_import_unknown_extension_media_gets_sniffed_extension(
+    client, seed_user, auth_headers, tmp_path, monkeypatch
+):
+    """A7-I4: an exported media file whose name carries an UNRECOGNISED
+    extension (or none) must not land extension-less — the static route infers
+    Content-Type from the extension, so an extension-less file breaks inline
+    preview. The importer sniffs the leading bytes and gives the re-saved copy
+    a servable extension (JPEG magic → `.jpg`)."""
+    monkeypatch.setitem(client.application.config, "UPLOAD_FOLDER", str(tmp_path))
+    old_url = "/static/uploads/u1/receipt.weirdext"
+    jpeg_bytes = b"\xff\xd8\xff\xe0" + b"\x00" * 32  # JPEG magic + filler
+    manifest = {
+        "format": "gg.trip",
+        "formatVersion": 1,
+        "sections": {
+            "trips": [{"id": "src", "name": "Sniff", "cover_url": old_url}],
+        },
+        # arc name mirrors the unrecognised source extension.
+        "media": {old_url: "media/0000_receipt.weirdext"},
+    }
+    res = _import_manifest_with_media(
+        client, auth_headers, manifest, {"media/0000_receipt.weirdext": jpeg_bytes}
+    )
+    assert res.status_code == 200, res.get_data(as_text=True)
+    new_id = res.get_json()["tripId"]
+
+    with get_db() as conn:
+        cover = conn.execute("SELECT cover_url FROM trips WHERE id=?", (new_id,)).fetchone()[0]
+    # The rewritten URL must carry the sniffed `.jpg`, not be extension-less.
+    assert cover.startswith(f"/static/uploads/{seed_user}/")
+    assert cover.endswith(".jpg"), f"expected sniffed .jpg extension, got {cover!r}"
+    rel = cover.replace("/static/uploads/", "")
+    assert os.path.isfile(os.path.join(str(tmp_path), rel))
+
+
+def test_import_reports_media_write_failure_count(
+    client, seed_user, auth_headers, tmp_path, monkeypatch
+):
+    """A7-I5: a per-file media write failure (disk full, bad path) must no
+    longer be swallowed into a bare 200. The response reports how many files
+    were expected vs. saved so the client can warn the user that the imported
+    trip has broken references."""
+    monkeypatch.setitem(client.application.config, "UPLOAD_FOLDER", str(tmp_path))
+    old_url = "/static/uploads/u1/photo.jpg"
+    manifest = {
+        "format": "gg.trip",
+        "formatVersion": 1,
+        "sections": {
+            "trips": [{"id": "src", "name": "Fail", "cover_url": old_url}],
+        },
+        "media": {old_url: "media/0000_photo.jpg"},
+    }
+
+    # Force the deferred media write to fail: `open(path, "wb")` inside the
+    # import loop raises OSError (simulating a full disk / unwritable target).
+    import builtins
+
+    real_open = builtins.open
+
+    def _boom(path, *a, **k):
+        mode = a[0] if a else k.get("mode", "r")
+        if isinstance(path, str) and path.startswith(str(tmp_path)) and "w" in mode:
+            raise OSError("disk full")
+        return real_open(path, *a, **k)
+
+    monkeypatch.setattr(builtins, "open", _boom)
+
+    res = _import_manifest_with_media(
+        client, auth_headers, manifest, {"media/0000_photo.jpg": b"\xff\xd8\xff-bytes"}
+    )
+    assert res.status_code == 200, res.get_data(as_text=True)
+    body = res.get_json()
+    assert body["mediaExpected"] == 1
+    assert body["mediaFailed"] == 1
+    assert body["mediaSaved"] == 0
+
+
+def test_import_reports_clean_media_success_count(
+    client, seed_user, auth_headers, tmp_path, monkeypatch
+):
+    """A7-I5 (happy path): a clean import reports every media file saved and
+    zero failures, so the client stays silent."""
+    monkeypatch.setitem(client.application.config, "UPLOAD_FOLDER", str(tmp_path))
+    old_url = "/static/uploads/u1/photo.jpg"
+    manifest = {
+        "format": "gg.trip",
+        "formatVersion": 1,
+        "sections": {
+            "trips": [{"id": "src", "name": "Clean", "cover_url": old_url}],
+        },
+        "media": {old_url: "media/0000_photo.jpg"},
+    }
+    res = _import_manifest_with_media(
+        client, auth_headers, manifest, {"media/0000_photo.jpg": b"\xff\xd8\xff-bytes"}
+    )
+    assert res.status_code == 200, res.get_data(as_text=True)
+    body = res.get_json()
+    assert body["mediaExpected"] == 1
+    assert body["mediaSaved"] == 1
+    assert body["mediaFailed"] == 0
+
+
 def test_import_body_over_10mb_not_rejected_by_global_cap(client, seed_user, auth_headers):
     """MK6 P2: /api/trips/import must accept bodies over the 10 MB global cap
     (up to 64 MB) so a media-bearing export round-trips. An 11 MB non-ZIP body

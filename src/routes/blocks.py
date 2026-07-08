@@ -18,7 +18,7 @@ having a one-way follow into a person you've blocked is a
 nonsense state.
 """
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
@@ -68,7 +68,10 @@ def block_user(user_id):
     Side effects on insert:
       - Drop any follow rows in EITHER direction between the two
         users. A follow into someone you've blocked is a nonsense
-        state; clearing both directions is symmetric + clean.
+        state; clearing both directions is symmetric + clean. The
+        caller's own follow toward the target can be restored later
+        via unblock's opt-in `?refollow=1` (see unblock_user) so a
+        mis-tap block-then-unblock isn't a silent one-way data loss.
       - The blocked user's pending trip invites to the caller are
         removed (they can't send new ones either).
     """
@@ -281,18 +284,55 @@ def _sweep_non_engagement_notifications(cursor, blocker: str, blocked: str) -> N
 @retry_on_lock()
 def unblock_user(user_id):
     """Unblock `user_id`. Idempotent — DELETE on a non-existent block
-    returns success. Doesn't restore the follow rows torn down at
-    block time; the caller has to refollow manually if they want.
+    returns success.
+
+    E8-I3: block silently tore down the caller's follow edge toward the
+    blocked user, and unblock historically left it torn down — a mis-tap
+    block-then-unblock dropped a follow with no way back. Since there's
+    no ledger of what block removed, restore is OPT-IN + honest: pass
+    `?refollow=1` (or JSON `{"refollow": true}`) to re-create the
+    caller → target follow edge. We only ever restore the caller's OWN
+    follow — the reverse edge (target → caller) is the target's
+    subscription and re-adding it without their consent would be a
+    privacy leak, so it's never touched. `restoredFollow` in the
+    response tells the UI whether an edge was actually (re)created so it
+    can repaint follower counts.
     """
     caller_id = current_user_id()
+    # Accept the flag from either the query string (DELETE with no body)
+    # or a JSON body, so the front-end can send it whichever way is
+    # convenient for its fetch wrapper.
+    refollow = request.args.get("refollow") in ("1", "true")
+    if not refollow:
+        body = request.get_json(silent=True) or {}
+        refollow = body.get("refollow") is True
+
+    restored_follow = False
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
             "DELETE FROM blocks WHERE blocker_id = ? AND blocked_id = ?",
             (caller_id, user_id),
         )
+        if refollow and caller_id != user_id:
+            # Only re-follow if the target still exists AND hasn't blocked
+            # the caller back — you can't follow someone who's blocked you,
+            # mirroring the block gate in follow_user().
+            if is_blocked(cursor, user_id, caller_id):
+                restored_follow = False
+            else:
+                cursor.execute(
+                    "SELECT 1 FROM users WHERE id = ? LIMIT 1",
+                    (user_id,),
+                )
+                if cursor.fetchone() is not None:
+                    cursor.execute(
+                        "INSERT OR IGNORE INTO follows (follower_id, followee_id) VALUES (?, ?)",
+                        (caller_id, user_id),
+                    )
+                    restored_follow = cursor.rowcount > 0
         conn.commit()
-    return jsonify({"status": "unblocked"})
+    return jsonify({"status": "unblocked", "restoredFollow": restored_follow})
 
 
 @bp.route("/api/blocks", methods=["GET"])

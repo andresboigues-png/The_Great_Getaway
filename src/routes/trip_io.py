@@ -129,6 +129,23 @@ _MEDIA_EXT_ALLOW = {
     ".svg",
 }
 
+# A7-I4: when an exported file's name carries an extension we don't recognise
+# (or none at all), the re-saved copy would land extension-less and
+# `serve_upload`'s `send_from_directory` — which infers Content-Type purely
+# from the extension — would serve it with no usable type, breaking inline
+# preview. As a last resort we sniff the leading bytes for a diagnostic magic
+# number and give the file a sensible default extension. Simple-prefix
+# signatures only (mirrors media.py's `_SIMPLE_PREFIX_SIGNATURES`); WebP/HEIC
+# need structural checks, but a JPEG/PNG/GIF/PDF default already covers the
+# overwhelming majority of real trip media.
+_MAGIC_EXT_SIGNATURES = (
+    (b"\xff\xd8\xff", ".jpg"),
+    (b"\x89PNG\r\n\x1a\n", ".png"),
+    (b"GIF87a", ".gif"),
+    (b"GIF89a", ".gif"),
+    (b"%PDF-", ".pdf"),
+)
+
 
 # ── shared helpers ───────────────────────────────────────────────────────
 
@@ -171,11 +188,21 @@ def _disk_path_for_url(upload_root: str, url: str):
     return candidate
 
 
+def _sniff_ext(head: bytes) -> str:
+    """Best-effort extension from a file's leading bytes via magic number.
+    Returns '' if nothing diagnostic matches."""
+    for sig, ext in _MAGIC_EXT_SIGNATURES:
+        if head.startswith(sig):
+            return ext
+    return ""
+
+
 def _safe_ext(name: str) -> str:
     ext = os.path.splitext(name)[1].lower()
-    # Keep only sane, short, all- listed extensions; otherwise drop it (the
-    # file is still served via the auth-gated static route, but we don't want
-    # a crafted name introducing an odd extension).
+    # Keep only sane, short, allow-listed extensions; otherwise drop it (a
+    # crafted name must not introduce an odd extension). The import caller
+    # falls back to `_sniff_ext` when this returns '' so the re-saved file
+    # still lands with a servable extension (A7-I4).
     if ext in _MEDIA_EXT_ALLOW and len(ext) <= 6:
         return ext
     return ""
@@ -494,12 +521,20 @@ def import_trip():
         # checks but fails an insert. Deferring the writes until AFTER commit
         # means a rollback leaves nothing on disk. The names are deterministic,
         # so the DB rows can reference the final URLs before the bytes land.
+        arc_names = set(zf.namelist())
         url_remap: dict[str, str] = {}
         pending_writes: list[tuple[str, str]] = []  # (arc, disk_path)
         for old_url, arc in media_manifest.items():
-            if arc not in zf.namelist():
+            if arc not in arc_names:
                 continue
-            new_name = uuid.uuid4().hex + _safe_ext(arc)
+            # A7-I4: name the re-saved copy from the arc's extension; if that's
+            # unrecognised/absent, sniff the entry's leading bytes so the file
+            # still gets a servable extension (a magic-number peek — cheap).
+            ext = _safe_ext(arc)
+            if not ext:
+                with zf.open(arc) as _fh:
+                    ext = _sniff_ext(_fh.read(16))
+            new_name = uuid.uuid4().hex + ext
             pending_writes.append((arc, os.path.join(user_dir, new_name)))
             url_remap[old_url] = f"/static/uploads/{user_id}/{new_name}"
 
@@ -655,11 +690,18 @@ def import_trip():
         # Still inside `with zf:` so the archive is readable. A write failure
         # here leaves the trip with one 404'ing image — a far better outcome
         # than an on-disk file with no referencing DB row.
+        # A7-I5: count the failures. Pre-fix a full disk / write error was
+        # swallowed into the log and the import still returned a bare 200, so
+        # the trip opened with silently-broken references and no user feedback.
+        # We now report how many media files landed vs. were expected so the
+        # client can warn ("N of M photos couldn't be saved").
+        media_failed = 0
         for arc, disk_path in pending_writes:
             try:
                 with open(disk_path, "wb") as fh:
                     fh.write(zf.read(arc))
             except Exception:
+                media_failed += 1
                 current_app.logger.warning(
                     "trip import %s: media write failed for %s",
                     new_trip_id,
@@ -667,4 +709,16 @@ def import_trip():
                     exc_info=True,
                 )
 
-    return jsonify({"status": "imported", "tripId": new_trip_id})
+    media_expected = len(pending_writes)
+    return jsonify(
+        {
+            "status": "imported",
+            "tripId": new_trip_id,
+            # Partial-success signal for the client. `mediaFailed == 0` on a
+            # clean import; a non-zero value means that many referenced files
+            # will 404 until re-uploaded, so the client should warn the user.
+            "mediaExpected": media_expected,
+            "mediaSaved": media_expected - media_failed,
+            "mediaFailed": media_failed,
+        }
+    )

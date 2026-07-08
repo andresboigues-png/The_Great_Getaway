@@ -11,6 +11,7 @@ bodies entirely.
 
 import logging
 import os
+from datetime import UTC, datetime
 
 from flask import Blueprint, jsonify, make_response, request
 from google.auth.transport import requests as google_requests
@@ -39,6 +40,38 @@ logger = logging.getLogger(__name__)
 bp = Blueprint("auth", __name__)
 
 
+def _current_token_expiry() -> str | None:
+    """Return the request JWT's `exp` claim as an ISO-8601 UTC string,
+    or None if there's no token / no `exp`.
+
+    F1-I1: the 30-day session has no refresh path — when the JWT expires
+    while the app is open, the next apiFetch 401s and the user is thrown
+    to the login wall mid-task. Surfacing the expiry on the boot probe
+    lets restoreSession do a PROACTIVE check (warn / re-auth before the
+    boundary, rather than after a silent 401). We decode without a DB
+    round-trip — current_user_id() has already validated the token for
+    this request; here we only need the already-verified `exp`.
+    """
+    import jwt as _jwt
+
+    from auth import JWT_ALGORITHM, _extract_token, _secret
+
+    token = _extract_token()
+    if not token:
+        return None
+    try:
+        payload = _jwt.decode(token, _secret(), algorithms=[JWT_ALGORITHM])
+    except _jwt.PyJWTError:
+        return None
+    exp = payload.get("exp")
+    if exp is None:
+        return None
+    # `.isoformat()` on a tz-aware datetime yields e.g.
+    # "2026-08-06T12:34:56+00:00" — the frontend can Date.parse() it
+    # directly to schedule an "expiring soon" warning.
+    return datetime.fromtimestamp(exp, tz=UTC).isoformat()
+
+
 @bp.route("/api/user-status")
 @limiter.limit("60/minute")
 def user_status():
@@ -65,6 +98,12 @@ def user_status():
     return jsonify(
         {
             "logged_in": True,
+            # F1-I1: the JWT's expiry, so the frontend's restoreSession can
+            # schedule a "your session is expiring" warning / re-auth prompt
+            # BEFORE the token dies mid-task — instead of the current silent
+            # 401 → wipeUserState → login wall with in-progress UI lost. Null
+            # only for the (unreachable-here) no-`exp` legacy-token case.
+            "expiresAt": _current_token_expiry(),
             "user": {
                 "id": row["id"],
                 "email": row["email"],

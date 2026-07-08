@@ -158,7 +158,11 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
       includeCoverMap        bool  embed the cover map image
       includeStats           bool  the summary stats strip on the cover
       includeDays            bool  per-day schedule pages
-      includeDayPins         bool  per-day mini-map with slot pins
+      includeDayPins         bool  per-day mini-map with slot pins;
+                                   a SUB-option of includeDays — the maps
+                                   only render when includeDays is also on
+                                   (A6-I1), so unchecking Day plan disables
+                                   Day maps rather than silently no-op'ing
       includeTodos           bool  to-do list section
       includeBudgets         bool  budgets section (only if any exist)
       includeExpenses        bool  itemised expenses table (PDF-2)
@@ -621,6 +625,18 @@ def _sec_days(b: _PdfBuild) -> None:
     # ── DAYS ──
     # days_renderable was computed earlier (Day 0 anchor + empty
     # days dropped) so the cover stats / TOC see the same count.
+    #
+    # A6-I1: "Day maps" (includeDayPins) is a SUB-option of "Day plan"
+    # (includeDays) — the maps only ever render inside a day card / the
+    # day-section overview, both of which live under this block. The
+    # export modal draws the two as sibling checkboxes with no dependency
+    # wiring, so a user who unchecks Day plan but leaves Day maps ticked
+    # would otherwise get a silent no-op (maps quietly dropped with no
+    # signal). Enforce the nesting server-side: Day maps require Day plan.
+    # `day_pins_on` is the single derived flag every pin branch below
+    # reads, so the dependency is stated once instead of relying on the
+    # incidental fact that all three pin gates sit inside this `if`.
+    day_pins_on = opt("includeDays") and opt("includeDayPins")
     if opt("includeDays") and days_renderable:
         story.append(rl.PageBreak())
         story.extend(
@@ -647,7 +663,7 @@ def _sec_days(b: _PdfBuild) -> None:
         # individual day cards. Day 1-9 get numeric pin labels;
         # day 10+ get unlabeled pins (Static Maps labels are
         # single-character).
-        if opt("includeDayPins"):
+        if day_pins_on:
             pins: list[tuple[float, float, str]] = []
             for day in days_renderable:
                 if not isinstance(day, dict):
@@ -716,7 +732,7 @@ def _sec_days(b: _PdfBuild) -> None:
                 continue
             # Per-day mini-map (opt-in), bounded per export.
             day_map_png = None
-            if opt("includeDayPins") and _day_maps_left > 0:
+            if day_pins_on and _day_maps_left > 0:
                 d_lat = day.get("lat")
                 d_lng = day.get("lng")
                 if d_lat is None or d_lng is None:

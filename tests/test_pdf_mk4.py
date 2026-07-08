@@ -609,3 +609,62 @@ def test_pdf_photo_fetch_does_not_follow_redirects(monkeypatch):
     assert captured.get("allow_redirects") is False, (
         "photo GET must set allow_redirects=False (SSRF redirect guard)"
     )
+
+
+# ── A6-I1: Day maps (includeDayPins) is nested under Day plan (includeDays) ──
+def test_a6i1_day_maps_no_op_when_day_plan_off(monkeypatch):
+    """includeDayPins is a SUB-option of includeDays. With Day plan OFF but
+    Day maps ON, NO day-pin map fetch may fire — otherwise it's a silent
+    no-op the modal never wired a dependency for. Spy on the two day-pin
+    fetchers and assert zero calls."""
+    calls: list[str] = []
+    monkeypatch.setattr(
+        pdfmod, "_fetch_overview_pins_map", lambda *a, **k: calls.append("overview") or None
+    )
+    monkeypatch.setattr(pdfmod, "_fetch_day_pin_map", lambda *a, **k: calls.append("day") or None)
+    trip = _base_trip(
+        days=[
+            {
+                "id": "d1",
+                "day_number": 1,
+                "date": "2026-04-01",
+                "name": "Day 1",
+                "morning": "Museum",
+                "lat": 40.4,
+                "lng": -3.7,
+            },
+        ]
+    )
+    _build_trip_pdf(trip, {"includeDays": False, "includeDayPins": True})
+    assert calls == [], "Day maps must not fetch when Day plan is unchecked"
+
+
+def test_a6i1_day_maps_fire_when_day_plan_on(monkeypatch):
+    """Positive control: with BOTH Day plan and Day maps on, the day-pin
+    fetchers ARE invoked (the sub-option still works when its parent is on)."""
+    calls: list[str] = []
+    monkeypatch.setattr(
+        pdfmod, "_fetch_overview_pins_map", lambda *a, **k: calls.append("overview") or None
+    )
+    monkeypatch.setattr(pdfmod, "_fetch_day_pin_map", lambda *a, **k: calls.append("day") or None)
+    trip = _base_trip(
+        days=[
+            {
+                "id": "d1",
+                "day_number": 1,
+                "date": "2026-04-01",
+                "name": "Day 1",
+                "morning": "Museum",
+                "lat": 40.4,
+                "lng": -3.7,
+            },
+        ]
+    )
+    _build_trip_pdf(trip, {"includeDays": True, "includeDayPins": True})
+    assert "day" in calls, "Day maps must fetch when both Day plan + Day maps are on"
+
+    # And the sub-option is still independently honoured: Day plan on but
+    # Day maps OFF must fetch NO pin maps.
+    calls.clear()
+    _build_trip_pdf(trip, {"includeDays": True, "includeDayPins": False})
+    assert calls == [], "Day maps off must fetch no pin maps even with Day plan on"
