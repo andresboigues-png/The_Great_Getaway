@@ -910,7 +910,14 @@ def get_data():
         def _budget_row(r):
             return {
                 'id': r['id'],
-                'tripId': r['trip_id'],
+                # Audit MK1 B4: a global ("All trips") budget is written with
+                # tripId='all' but stored as NULL (the FK has no 'all' row).
+                # Read it back as 'all' — symmetric with the write coerce in
+                # budgets.py — so the client's 'all'/active-trip scope filters
+                # (and the edit-modal trip <select> default) recognise it.
+                # NULL used to match NEITHER scope, so global budgets vanished
+                # from the Budgets page after any pull.
+                'tripId': r['trip_id'] or 'all',
                 'label': r['label'],
                 'amount': r['amount'],
                 'currency': r['currency'],

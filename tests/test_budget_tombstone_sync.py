@@ -68,3 +68,15 @@ def test_redelete_is_idempotent(client, auth_headers):
     # A second delete of an already-tombstoned/absent budget stays a clean 200.
     assert client.delete("/api/budgets/b5", headers=auth_headers).status_code == 200
     assert "b5" not in _budget_ids(client, auth_headers)
+
+
+def test_global_budget_round_trips_as_all_not_null(client, auth_headers):
+    """Audit MK1 B4: a global ("All trips") budget is created with
+    tripId='all' but stored as NULL (the FK has no 'all' row). It MUST read
+    back as 'all', not null — otherwise the Budgets page's 'all' /
+    active-trip scope filters (Budgets.tsx) match NEITHER scope and the
+    account-wide budget silently vanishes from the page after any pull."""
+    assert _post_budget(client, auth_headers, _budget("bg", tripId="all")).status_code == 200
+    res = client.get("/api/data", headers=auth_headers)
+    row = next(b for b in res.get_json().get("budgets", []) if b["id"] == "bg")
+    assert row["tripId"] == "all"
