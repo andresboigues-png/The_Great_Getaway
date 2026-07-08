@@ -819,18 +819,31 @@ def _sec_days(b: _PdfBuild) -> None:
                     if isinstance(slot, dict):
                         nm = slot.get("name") or slot.get("text") or ""
                         why = slot.get("why") or ""
+                        fact = slot.get("fact") or ""
                         inner.append(rl.Paragraph(slot_label, styles["slotLabel"]))
                         if nm:
                             inner.append(rl.Paragraph(_esc(nm), styles["body"]))
                         if why:
                             inner.append(rl.Paragraph(_esc(why), styles["muted"]))
+                        if fact:
+                            inner.append(rl.Paragraph(_esc(fact), styles["fact"]))
                 sights = day.get("sights")
                 if isinstance(sights, list) and sights:
                     inner.append(rl.Paragraph(tr("meal_sights"), styles["slotLabel"]))
                     for s in sights:
                         if isinstance(s, dict):
                             nm = s.get("name") or s.get("text") or ""
-                            inner.append(rl.Paragraph(f"• {_esc(nm)}", styles["body"]))
+                            # Sightseeing places carry the same why/fact the
+                            # meals do — surface them so the tourism stops read
+                            # with the LLM's reasoning, not as a bare name list.
+                            why = s.get("why") or ""
+                            fact = s.get("fact") or ""
+                            if nm:
+                                inner.append(rl.Paragraph(f"• {_esc(nm)}", styles["body"]))
+                            if why:
+                                inner.append(rl.Paragraph(_esc(why), styles["muted"]))
+                            if fact:
+                                inner.append(rl.Paragraph(_esc(fact), styles["fact"]))
                         elif isinstance(s, str):
                             inner.append(rl.Paragraph(f"• {_esc(s)}", styles["body"]))
                 card = rl.Table([[inner]], colWidths=[page_w - 2 * margin_lr])

@@ -722,3 +722,41 @@ def test_pinned_get_connects_to_validated_ip_not_rehostname(monkeypatch):
     )
     # create_connection restored to what it was before the call (no global leak).
     assert u3c.create_connection is fake_create_conn
+
+
+def test_pdf_ai_sights_carry_why_and_fact():
+    """User request 2026-07-09: the AI plan's tourism / sightseeing places
+    must surface their `why` (and `fact`) in the PDF the same way the meals
+    do. Pre-fix the sights rendered as a bare name list while breakfast /
+    lunch / dinner showed the LLM's reasoning — an asymmetry the user
+    noticed ("gemini notes should also include why's ... for the tourism
+    places"). Single-token markers dodge pypdf's word-spacing quirks."""
+    ai_plan = [
+        {
+            "day": 1,
+            "date": "2026-04-01",
+            "title": "Arrival",
+            "mainLocation": "Old Town",
+            "breakfast": {
+                "name": "Cafe Uno",
+                "why": "cozybreakfastspot",
+                "fact": "roastedbeans1919",
+            },
+            "sights": [
+                {"name": "Grand Cathedral", "why": "sunriseviewpoint", "fact": "builtin1248"},
+                {"name": "Harbor Walk", "why": "seasidestroll", "fact": "oldestpier"},
+            ],
+        }
+    ]
+    # The inline aiPlan layer is appended inside the Days section, which
+    # only runs when there is at least one renderable journaled day.
+    t = _base_trip(days=[{"day_number": 1, "date": "2026-04-01", "name": "Day 1", "notes": "hi"}])
+    txt = _pdf_text(_build_trip_pdf(t, {"aiPlan": ai_plan}))
+    # Meals keep their why AND now render their fact.
+    assert "cozybreakfastspot" in txt, "meal why must render"
+    assert "roastedbeans1919" in txt, "meal fact must render"
+    # The fix: each sight carries its why + fact, not just the name.
+    assert "sunriseviewpoint" in txt, "sight #1 why must render in the PDF"
+    assert "builtin1248" in txt, "sight #1 fact must render in the PDF"
+    assert "seasidestroll" in txt, "sight #2 why must render in the PDF"
+    assert "oldestpier" in txt, "sight #2 fact must render in the PDF"

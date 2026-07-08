@@ -256,6 +256,21 @@ def _styles(rl):
             spaceBefore=4,
             spaceAfter=2,
         ),
+        # The Gemini "fun fact" line under each place (meals + sights).
+        # Oblique + secondary grey mirrors the in-app fun-fact styling
+        # (a quiet italic caption below the why); distinct from `muted`
+        # (used for the why) so a place's two supporting lines don't
+        # read as one undifferentiated block.
+        "fact": rl.ParagraphStyle(
+            "GGFact",
+            parent=base["BodyText"],
+            fontName=_font(oblique=True),
+            fontSize=9,
+            leading=12,
+            textColor=_TEXT_SECONDARY,
+            spaceBefore=0,
+            spaceAfter=5,
+        ),
         # ── Cover stats tiles ────────────────────────────────────
         "stat": rl.ParagraphStyle(
             "GGStat",
