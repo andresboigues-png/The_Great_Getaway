@@ -616,10 +616,13 @@ export function upsertBudget(budget: Budget) {
     return _upsertWithUpdatedAt('/api/budgets', 'budget', budget);
 }
 
-/** Delete a single budget from the server. */
+/** Delete a single budget from the server, returning the result envelope
+ *  (via `_deleteJson`) so the call site can honestly surface a server
+ *  rejection + roll the optimistic delete back — instead of a fake "deleted"
+ *  toast that reverts on the next pull. Mirrors deleteTripOnServer. */
 export function deleteBudgetOnServer(budgetId: string) {
     if (!STATE.user) return;
-    return _delete(`/api/budgets/${budgetId}`, {});
+    return _deleteJson(`/api/budgets/${budgetId}`, {});
 }
 
 /** Upsert a single trip day to the server.

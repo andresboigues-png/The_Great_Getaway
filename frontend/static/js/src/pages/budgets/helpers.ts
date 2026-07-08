@@ -265,9 +265,26 @@ export const deleteBudget = (id: string) => {
         onConfirm: () => {
             STATE.budgets = STATE.budgets.filter((x) => x.id !== id);
             emit(EVENTS.STATE_CHANGED);
-            const p = deleteBudgetOnServer(id);
-            if (p) p.catch((err) => console.error('Delete budget failed:', err));
-            showLiquidAlert(t('budgets.deletedToast'), 'success');
+            void (async () => {
+                // Audit MK1 (silent-failure theme): honest-save. The old code
+                // fired a fire-and-forget _delete and ALWAYS toasted "deleted",
+                // so a server rejection (e.g. an archived-trip 409) reverted
+                // the budget on the next pull with no feedback. Now branch on
+                // the result: surface + roll back on an unretryable rejection.
+                const res = await deleteBudgetOnServer(id);
+                if (isUnretryableRejection(res)) {
+                    if (!STATE.budgets.some((x) => x.id === id)) {
+                        STATE.budgets = [...STATE.budgets, b];
+                        emit(EVENTS.STATE_CHANGED);
+                    }
+                    showLiquidAlert(t('errors.deleteFailed'), 'error');
+                } else {
+                    // Success, or a network failure the outbox will replay
+                    // (isUnretryableRejection lets status-0 stand) → the
+                    // optimistic delete holds.
+                    showLiquidAlert(t('budgets.deletedToast'), 'success');
+                }
+            })();
         },
     });
 };
