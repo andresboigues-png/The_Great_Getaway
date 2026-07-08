@@ -32,7 +32,7 @@ import { showLiquidAlert } from './utils.js';
 import { showConfirmModal } from './components/ConfirmModal.js';
 import { syncWithServer, pullFromServer, fetchNotifications, refreshFxRates } from './api.js';
 import { normalizeDayNumbers } from './utils/tripDays.js';
-import { navigate } from './router.js';
+import { navigateToHash } from './router.js';
 import { PAGES, EVENTS } from './constants.js';
 
 import { updateUserUI } from './pages/profile.js';
@@ -42,7 +42,7 @@ import { paintI18nBindings } from './bootstrap/i18n-bindings.js';
 import { initGoogleLogin, restoreSession } from './bootstrap/auth.js';
 import { captureCloneIntent, attemptPendingClone, hasPendingCloneIntent } from './bootstrap/clone-intent.js';
 import { captureTemplateIntent, attemptPendingTemplate, hasPendingTemplateIntent } from './bootstrap/template-intent.js';
-import { wireNavChrome, resolvePage } from './bootstrap/nav-chrome.js';
+import { wireNavChrome } from './bootstrap/nav-chrome.js';
 import { wireKeyboardDismiss } from './bootstrap/keyboard-dismiss.js';
 import { setupInstallPrompt } from './bootstrap/install-prompt.js';
 import { initPullToRefresh } from './pullToRefresh.js';
@@ -199,9 +199,11 @@ async function init() {
     paintI18nBindings();
     subscribe(EVENTS.LOCALE_CHANGED, paintI18nBindings);
 
-    // Determine start page based on hash or default to home
-    const startPage = resolvePage(window.location.hash.replace('#', '') || PAGES.HOME);
-    navigate(startPage);
+    // Determine start page based on hash or default to home. F3-I3:
+    // navigateToHash parses any `profile/<id>` sub-segment so a cold load of
+    // a shared/refreshed foreign-profile deep link mounts THAT user — and
+    // still narrows unknown page names down to home.
+    navigateToHash(window.location.hash.replace('#', '') || PAGES.HOME);
 
     initGoogleLogin();
 

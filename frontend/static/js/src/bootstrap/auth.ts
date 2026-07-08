@@ -6,7 +6,7 @@
 
 import { STATE, emit } from '../state.js';
 import { apiUrl, apiFetch, clearAuthToken, syncWithServer, pullFromServer, announceUserToSW, beginLoginGrace } from '../api.js';
-import { navigate } from '../router.js';
+import { navigateToHash } from '../router.js';
 import { showLiquidAlert } from '../utils.js';
 import { t } from '../i18n.js';
 import { updateUserUI } from '../pages/profile.js';
@@ -96,9 +96,12 @@ async function handleGoogleLogin(response: { credential?: string; [key: string]:
         // Prefer the route the user originally tried to reach. Logged-out
         // users land on the login wall with `window.location.hash` set
         // to that route; preserving it post-login keeps deep links honest.
-        const targetHash = window.location.hash.replace(/^#/, '');
-        const target = (targetHash && targetHash !== 'profile') ? targetHash : 'profile';
-        navigate(target as Parameters<typeof navigate>[0]);
+        // F3-I3: navigateToHash parses a `profile/<id>` sub-segment so a
+        // foreign-profile deep link opened while signed out lands on the
+        // right profile after login. An empty hash defaults to own profile,
+        // preserving the prior post-login landing.
+        const rawHash = window.location.hash.replace(/^#/, '');
+        navigateToHash(rawHash || 'profile');
     } catch (e) {
         console.error("Google Login Failed:", e);
         showLiquidAlert(t('errors.loginFailed'));

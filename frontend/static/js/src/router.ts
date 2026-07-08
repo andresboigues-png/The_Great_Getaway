@@ -15,6 +15,7 @@
 
 import { STATE } from './state.js';
 import { PAGES, type PageName } from './constants.js';
+import { hashForTarget, parseHash } from './routerHash.js';
 import { t } from './i18n.js';
 import { esc } from './utils.js';
 // stopHomeSlideshow stays a STATIC import because it's called at
@@ -308,6 +309,17 @@ export function preloadBottomTabChunks(): void {
     else setTimeout(warm, 1500);
 }
 
+/** F3-I3: navigate to whatever a raw hash string points at, parsing any
+ *  `profile/<id>` sub-segment. Used by cold boot + the post-login redirect,
+ *  which both start from a bare hash string rather than a (page, params)
+ *  pair. `extra` merges into the params (e.g. fromHashChange from the
+ *  back/forward handler). */
+export function navigateToHash(raw: string, extra?: NavigateParams): void {
+    const { page, userId } = parseHash(raw);
+    const params: NavigateParams = { ...(extra ?? {}), ...(userId ? { userId } : {}) };
+    navigate(page, Object.keys(params).length ? params : null);
+}
+
 /** Navigate to a known page. */
 export function navigate(
     page: PageName,
@@ -317,6 +329,13 @@ export function navigate(
 ): void {
     const content = document.getElementById('app-container');
     if (!content) return;
+
+    // F3-I3: the hash we'll actually write for this target — `profile/<id>`
+    // for a foreign profile, the bare page name otherwise. Used for the hash
+    // write AND the two guards below (which detect a SUBSEQUENT navigate by
+    // comparing location.hash against this value), so a profile/<id> deep
+    // link is never mistaken for a stale/changed route.
+    const targetHash = hashForTarget(page, params?.userId);
 
     // Tapping the ALREADY-active nav tab is a "scroll to top" gesture (like
     // iOS). Handle it SYNCHRONOUSLY here and bail — no page re-mount needed,
@@ -370,7 +389,9 @@ export function navigate(
         mountReact(content, createElement(LoginWall));
         document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
         isInternalNav = true;
-        window.location.hash = page;
+        // Preserve the full target (incl. profile/<id>) so a deep link
+        // survives the sign-in round trip — auth.ts re-navigates to it.
+        window.location.hash = targetHash;
         if (!preserveScroll) window.scrollTo(0, 0);
         return;
     }
@@ -455,8 +476,10 @@ export function navigate(
         // Re-check that the route hasn't changed under us (the user
         // tapped a different nav item while the chunk was loading).
         // If it did, drop this mount on the floor — the newer
-        // navigate() call already painted the right page.
-        if (window.location.hash.replace('#', '') !== page) return;
+        // navigate() call already painted the right page. Compare against
+        // targetHash (not `page`) so a foreign-profile nav to `profile/<id>`
+        // isn't dropped for "not equalling" the bare `profile` page name.
+        if (window.location.hash.replace('#', '') !== targetHash) return;
         // Now that the chunk is in hand, atomically swap: unmount
         // any active React tree, clear residual legacy DOM, mount.
         clearReactMount();
@@ -533,11 +556,13 @@ export function navigate(
     // (a same-page re-render after a pull) writes an unchanged hash on every
     // tick, so pre-fix a back/forward was eaten on any non-modal page every
     // 15s. When the hash is unchanged we leave the guard untouched (its
-    // resting state is already false).
-    if (window.location.hash.replace(/^#/, '') !== page) {
+    // resting state is already false). F3-I3: arm/compare against targetHash
+    // so a profile/<id> → profile/<other-id> move (both base `profile`) still
+    // registers as a hash change and re-mounts the new user.
+    if (window.location.hash.replace(/^#/, '') !== targetHash) {
         isInternalNav = true;
     }
-    window.location.hash = page;
+    window.location.hash = targetHash;
 
     // Scroll positioning now happens in the loader's .then() (see the
     // targetY block above) so it lands AFTER the new tree is committed and
@@ -552,13 +577,12 @@ window.onhashchange = () => {
         isInternalNav = false;
         return;
     }
-    const hash = window.location.hash.replace('#', '');
-    // Validate the hash against known pages so a malformed deep link
-    // (e.g. someone shares a URL with #profle) lands on home rather than
-    // tripping the default branch with an unknown name.
-    const known: readonly string[] = Object.values(PAGES);
-    const page: PageName = (known.includes(hash) ? hash : PAGES.HOME) as PageName;
+    const raw = window.location.hash.replace('#', '');
     // Back/forward or an external deep link is a user-initiated return, so
     // Home restores its remembered scroll (see NavigateParams.fromHashChange).
-    navigate(page, { fromHashChange: true });
+    // F3-I3: navigateToHash parses any `profile/<id>` sub-segment so a
+    // Back/Forward onto a foreign profile re-mounts THAT user (not a bare
+    // own-profile), and still validates unknown page names down to home
+    // (e.g. a shared URL with #profle).
+    navigateToHash(raw, { fromHashChange: true });
 };
