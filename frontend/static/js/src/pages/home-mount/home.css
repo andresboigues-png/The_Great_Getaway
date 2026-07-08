@@ -128,10 +128,13 @@
 
 /* ── Companions card (Home → Companions tab) ──────────────────────
    Glass card with a blue-purple gradient header strip + chip row +
-   gradient CTA underneath. Max-width capped at 560px so it doesn't
-   stretch into wall-of-gradient territory on wide screens. */
+   gradient CTA underneath. Shared by the Trip Hub tab too. Width
+   capped at 720px (was 560px — the tab card read as too small/cramped
+   on wider screens) so it lines up with the search-bar row above and
+   gives the Hub/Path/Companions content more breathing room, while
+   still not stretching into wall-of-gradient territory. */
 .trip-companions-card {
-    max-width: 560px;
+    max-width: 720px;
     margin: 0 auto;
     background: white;
     border: 1px solid rgba(0, 113, 227, 0.14);
@@ -2044,13 +2047,13 @@
 .path-column--selected { flex: 1 1 auto; }
 /* 2026-06: the Path wheel now renders a SINGLE selected-day column (the
    anchor moved to its own Trip Hub tab). Cap its width + centre it so the
-   day card matches the Trip Hub / Companions cards (max-width 560px,
+   day card matches the Trip Hub / Companions cards (max-width 720px,
    centred) instead of spanning the whole page. */
 .path-cards-row--solo-anchor { justify-content: center; }
 .path-cards-row--solo-anchor .path-column--selected {
     flex: 0 1 auto;
     width: 100%;
-    max-width: 560px;
+    max-width: 720px;
 }
 @media (max-width: 720px) {
     .path-cards-row { flex-direction: column; }

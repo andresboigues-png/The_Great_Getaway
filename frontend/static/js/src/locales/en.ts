@@ -1209,6 +1209,8 @@ export const en = {
         // Generate button — idle + in-flight.
         generateBtn: '✦ Generate My Itinerary',
         generatingBtn: '⌛ Generating…',
+        // Clear the persisted per-trip prompt.
+        resetPrompt: 'Reset prompt',
         // Loading state.
         loadingTitle: 'Consulting Gemini AI…',
         loadingBody: 'This usually takes 5-15 seconds. Maps lookups for each place add a few more.',

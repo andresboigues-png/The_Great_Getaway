@@ -342,6 +342,18 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                                 placeholder={t('ai.sightsReqPlaceholder')}
                             />
                         </div>
+                        {/* The prompt persists per-trip until cleared here, so
+                            users can iterate instead of retyping from scratch.
+                            Only shown when there's something to clear. */}
+                        {tripIsEditable && plan.hasPrompt ? (
+                            <button
+                                type="button"
+                                onClick={plan.onResetPrompt}
+                                className="self-end text-[0.72rem] font-bold uppercase tracking-[0.08em] text-secondary hover:text-accent-blue-deep transition-colors"
+                            >
+                                {t('ai.resetPrompt')}
+                            </button>
+                        ) : null}
                     </div>
 
                     {/* Generate button (or role notice) */}

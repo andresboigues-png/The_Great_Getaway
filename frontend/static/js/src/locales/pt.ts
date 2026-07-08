@@ -991,6 +991,7 @@ export const pt: Translations = {
         sectionAiEngine: '✦ Motor de IA — Gemini',
         generateBtn: '✦ Gerar o meu itinerário',
         generatingBtn: '⌛ A gerar…',
+        resetPrompt: 'Limpar pedido',
         loadingTitle: 'A consultar o Gemini AI…',
         loadingBody: 'Costuma demorar 5-15 segundos. As pesquisas no Maps para cada local acrescentam mais alguns.',
         resultHeading: 'Itinerário de {numDays} dias em {country}',

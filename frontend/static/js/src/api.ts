@@ -179,6 +179,18 @@ export async function pullFromServer() {
             if (tt.documents === undefined) tt.documents = existing?.documents ?? [];
             if (tt.markedPlaces === undefined) tt.markedPlaces = existing?.markedPlaces ?? [];
             if (tt.checklist === undefined) tt.checklist = existing?.checklist ?? [];
+            // The AI-planner fields are CLIENT-ONLY (persisted via saveState to
+            // localStorage, never shipped by /api/data). Without re-attaching
+            // them from the existing STATE copy, every poll rebuilt the trip
+            // WITHOUT them → the next AI-page (re)mount read `undefined` and the
+            // user's prompt (and their accepted plan) silently vanished
+            // mid-session. Preserve them exactly like the 4 media fields so the
+            // prompt survives until the user clears it, per trip.
+            if (tt.aiPlan === undefined) tt.aiPlan = existing?.aiPlan;
+            if (tt.aiFoodContext === undefined) tt.aiFoodContext = existing?.aiFoodContext;
+            if (tt.aiSightseeingContext === undefined) tt.aiSightseeingContext = existing?.aiSightseeingContext;
+            if (tt.aiContext === undefined) tt.aiContext = existing?.aiContext;
+            if (tt.aiNumDays === undefined) tt.aiNumDays = existing?.aiNumDays;
         }
         // Audit MK5 BUG-069 (sync): if the Edit-Trip modal is open, KEEP the
         // existing in-memory object for the trip being edited instead of

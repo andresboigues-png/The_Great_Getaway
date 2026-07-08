@@ -99,6 +99,11 @@ export interface UseAiPlanResult {
     sightseeingContext: string;
     onFoodContextChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
     onSightseeingContextChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+    /** Clear both prompt textareas + the trip's stored prompt (the only way
+     *  the prompt is emptied — it otherwise persists per-trip). */
+    onResetPrompt: () => void;
+    /** True when either prompt field has content (drives the Reset button). */
+    hasPrompt: boolean;
     // BYO key.
     geminiKey: string;
     onKeyChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -203,6 +208,39 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
         activeTrip.aiSightseeingContext = v;
         emit('state:changed');
     };
+
+    // ── Clear the prompt (the ONLY thing that empties it) ────────
+    // The prompt otherwise persists per-trip forever (input handlers write
+    // it onto the trip + saveState). This is the deliberate "start over"
+    // escape hatch — wipes both textareas AND the trip's stored copy.
+    const onResetPrompt = () => {
+        setFoodContext('');
+        setSightseeingContext('');
+        activeTrip.aiFoodContext = '';
+        activeTrip.aiSightseeingContext = '';
+        activeTrip.aiContext = '';
+        emit('state:changed');
+    };
+    const hasPrompt = Boolean(foodContext.trim() || sightseeingContext.trim());
+
+    // ── Re-sync inputs when the ACTIVE TRIP changes ──────────────
+    // useState initialisers run once on mount, so a trip switch that reuses
+    // the same mounted AI page would keep showing the PREVIOUS trip's prompt
+    // / plan / dates. Re-seed everything from the newly-active trip. Keyed on
+    // the trip *id* (a primitive), NOT the trip object — the 15s poll swaps
+    // the trip object every tick but keeps the same id, so this never fires
+    // mid-typing and never churns the itinerary array. Each trip keeps its
+    // own prompt, so switching back restores it (the pull-merge in api.ts
+    // preserves these client-only fields across polls).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => {
+        setFoodContext(activeTrip.aiFoodContext ?? activeTrip.aiContext ?? '');
+        setSightseeingContext(activeTrip.aiSightseeingContext ?? '');
+        setItinerary(toItineraryDays(activeTrip.aiPlan));
+        const d = deriveInitialDates(activeTrip);
+        setDateFrom(d.from);
+        setDateTo(d.to);
+    }, [activeTrip.id]);
 
     // ── Gemini key plumbing ─────────────────────────────────────
     const onKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -686,6 +724,8 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
         sightseeingContext,
         onFoodContextChange,
         onSightseeingContextChange,
+        onResetPrompt,
+        hasPrompt,
         geminiKey,
         onKeyChange,
         showKey,

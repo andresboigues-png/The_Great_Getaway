@@ -540,10 +540,10 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                             strokeLinejoin="round"
                             aria-hidden="true"
                         >
-                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="9" cy="7" r="4"></circle>
-                            <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            {/* Companions mark — a clean triangle (per design
+                                feedback), matching the Hub ring + Path trail as
+                                a set of simple geometric glyphs. */}
+                            <polygon points="12 4 20 19 4 19"></polygon>
                         </svg>
                         <span className="trip-tabnav__label">{t('home.tabCompanions')}</span>
                     </button>
