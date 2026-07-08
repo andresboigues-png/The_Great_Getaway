@@ -203,3 +203,21 @@
 .tap-pop {
     animation: actionPop 0.28s var(--easing-bounce);
 }
+
+/* E6: engagement-notification deep link — the target card pulses briefly
+   after the bell scrolls to it, so the user sees WHICH post was liked /
+   commented / reposted. Purple ring matches the feed accent. */
+@keyframes feedCardHighlightPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(124, 58, 158, 0.55);
+    }
+    100% {
+        box-shadow: 0 0 0 10px rgba(124, 58, 158, 0);
+    }
+}
+.feed-card-highlight {
+    outline: 2px solid rgba(124, 58, 158, 0.65);
+    outline-offset: 2px;
+    border-radius: 18px;
+    animation: feedCardHighlightPulse 1.3s ease-out 2;
+}

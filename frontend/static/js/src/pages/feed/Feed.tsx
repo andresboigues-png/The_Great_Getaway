@@ -103,7 +103,7 @@ import { FeedListBody } from './FeedListBody.js';
 import './feed.css';
 
 
-export function Feed() {
+export function Feed({ highlightPostId }: { highlightPostId?: string | undefined }) {
     // React state mirror of the module-level cache. Initial values
     // pulled from state.ts so a navigate-away + come-back paints
     // instantly; the background refresh below updates with fresh
@@ -139,6 +139,31 @@ export function Feed() {
 
     const rootRef = useRef<HTMLDivElement | null>(null);
     const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+    // E6: engagement-notification deep link. When the bell navigates here
+    // with a highlightPostId, scroll to that post's card and pulse it. The
+    // card may not be mounted yet (feed still loading), so poll briefly.
+    useEffect(() => {
+        if (!highlightPostId) return;
+        let tries = 0;
+        let timer: number | undefined;
+        const attempt = () => {
+            const el = rootRef.current?.querySelector<HTMLElement>(
+                `[data-post-id="${CSS.escape(highlightPostId)}"]`,
+            );
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el.classList.add('feed-card-highlight');
+                timer = window.setTimeout(() => el.classList.remove('feed-card-highlight'), 2600);
+                return;
+            }
+            if (tries++ < 24) timer = window.setTimeout(attempt, 150);
+        };
+        attempt();
+        return () => {
+            if (timer) window.clearTimeout(timer);
+        };
+    }, [highlightPostId, initialFetchDone]);
 
     // ── Initial paint from cache + background refresh ────────────
     useEffect(() => {

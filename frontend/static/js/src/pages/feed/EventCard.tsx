@@ -79,6 +79,10 @@ export function EventCard(props: EventCardProps) {
         <div
             className="card glass feed-event"
             data-event-id={ev.id}
+            // E6: anchor for engagement-notification deep links. The bell
+            // navigates to FEED with highlightPostId = the post's id; Feed
+            // scrolls to and pulses the matching card.
+            data-post-id={ev.post_id ? String(ev.post_id) : undefined}
             style={{
                 padding: '16px 18px',
                 borderRadius: 18,
