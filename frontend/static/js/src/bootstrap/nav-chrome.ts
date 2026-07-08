@@ -364,7 +364,14 @@ export function wireNavChrome(): void {
                 const first = tripControlsPopover.querySelector<HTMLElement>(
                     'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
                 );
-                first?.focus();
+                // preventScroll: the first focusable is the trip <select>.
+                // When "Your trip" is tapped OFF Home, the handler navigates
+                // Home (which scrolls to the top) and opens this popover in the
+                // same tick. A plain .focus() on a native <select> makes mobile
+                // browsers scroll the page to align it — overriding that
+                // scroll-to-top and dropping the user mid-page. preventScroll
+                // keeps the focus (a11y) without yanking the scroll.
+                first?.focus({ preventScroll: true });
             });
         }
     };
