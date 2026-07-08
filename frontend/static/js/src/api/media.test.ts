@@ -8,7 +8,7 @@
 // has must not duplicate. These pin that contract.
 
 import { describe, it, expect } from 'vitest';
-import { _mergeMediaField } from './media.js';
+import { _mergeMediaField, _reconcileMediaField } from './media.js';
 
 describe('_mergeMediaField (union-by-key, server wins)', () => {
     it('appends pending items the server does not already have', () => {
@@ -43,5 +43,75 @@ describe('_mergeMediaField (union-by-key, server wins)', () => {
         expect(_mergeMediaField(none, [{ id: 'a' }])).toEqual([{ id: 'a' }]);
         expect(_mergeMediaField([{ id: 'a' }], none)).toEqual([{ id: 'a' }]);
         expect(_mergeMediaField(none, none)).toEqual([]);
+    });
+
+    it('C3: keys markedPlaces by placeId so two same-named pins both survive', () => {
+        // Pre-fix both keyed on name "Starbucks" → the second was dropped.
+        const server = [{ placeId: 'p1', name: 'Starbucks' }];
+        const pending = [
+            { placeId: 'p1', name: 'Starbucks' },
+            { placeId: 'p2', name: 'Starbucks' },
+        ];
+        expect(_mergeMediaField(server, pending)).toEqual([
+            { placeId: 'p1', name: 'Starbucks' },
+            { placeId: 'p2', name: 'Starbucks' },
+        ]);
+    });
+});
+
+describe('_reconcileMediaField (deletion-aware 3-way, 409 path)', () => {
+    it('honours a local delete instead of resurrecting it from the server echo', () => {
+        // We removed B; server still has [A, B]. The old add-only union
+        // re-added B (the reported P1). The 3-way merge must drop it.
+        const base = [{ id: 'A' }, { id: 'B' }];
+        const local = [{ id: 'A' }];
+        const server = [{ id: 'A' }, { id: 'B' }];
+        expect(_reconcileMediaField(base, local, server)).toEqual([{ id: 'A' }]);
+    });
+
+    it('honours our delete AND keeps a concurrent peer add', () => {
+        const base = [{ id: 'A' }, { id: 'B' }];
+        const local = [{ id: 'A' }]; // we deleted B
+        const server = [{ id: 'A' }, { id: 'B' }, { id: 'C' }]; // peer added C
+        expect(_reconcileMediaField(base, local, server)).toEqual([{ id: 'A' }, { id: 'C' }]);
+    });
+
+    it('keeps both our add and a peer add', () => {
+        const base = [{ id: 'A' }];
+        const local = [{ id: 'A' }, { id: 'D' }]; // we added D
+        const server = [{ id: 'A' }, { id: 'C' }]; // peer added C
+        expect(_reconcileMediaField(base, local, server)).toEqual([
+            { id: 'A' },
+            { id: 'C' },
+            { id: 'D' },
+        ]);
+    });
+
+    it('is loss-free for a pure local add (no delete to honour)', () => {
+        const base = [{ id: 'A' }];
+        const local = [{ id: 'A' }, { id: 'B' }];
+        const server = [{ id: 'A' }];
+        expect(_reconcileMediaField(base, local, server)).toEqual([{ id: 'A' }, { id: 'B' }]);
+    });
+
+    it('falls back to the loss-free union when no baseline is known', () => {
+        // undefined base → cannot tell add from delete → never drop a server item.
+        expect(_reconcileMediaField(undefined, [{ id: 'B' }], [{ id: 'A' }])).toEqual([
+            { id: 'A' },
+            { id: 'B' },
+        ]);
+    });
+
+    it('honours a local delete of one of two same-named pins (placeId-keyed)', () => {
+        const base = [
+            { placeId: 'p1', name: 'Museum' },
+            { placeId: 'p2', name: 'Museum' },
+        ];
+        const local = [{ placeId: 'p1', name: 'Museum' }]; // removed the p2 "Museum"
+        const server = [
+            { placeId: 'p1', name: 'Museum' },
+            { placeId: 'p2', name: 'Museum' },
+        ];
+        expect(_reconcileMediaField(base, local, server)).toEqual([{ placeId: 'p1', name: 'Museum' }]);
     });
 });

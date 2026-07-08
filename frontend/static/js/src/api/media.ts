@@ -51,14 +51,23 @@ const _pendingMedia = new Map<
 
 function _mediaKey(item: unknown): string {
     if (item && typeof item === 'object') {
-        const o = item as { id?: unknown; url?: unknown; name?: unknown };
-        return String(o.id ?? o.url ?? o.name ?? JSON.stringify(item));
+        const o = item as { id?: unknown; placeId?: unknown; url?: unknown; name?: unknown };
+        // C3 fix: markedPlaces carry NO id/url — only placeId + name. Keying
+        // on name collided two distinct same-named pins ("Starbucks" ×2), so
+        // the union silently dropped one. placeId is the intended identity for
+        // a marked place (two entries with the same placeId ARE one marker),
+        // so prefer it right after id and before the name fallback.
+        return String(o.id ?? o.placeId ?? o.url ?? o.name ?? JSON.stringify(item));
     }
     return String(item);
 }
 
 /** Union server + parked-local items by key: server items first, then
- *  any parked item whose key the server doesn't already have. */
+ *  any parked item whose key the server doesn't already have. ADD-ONLY by
+ *  design — used for the cold-window `_pendingMedia` flush where the only
+ *  possible local edit is an ADD (nothing is hydrated yet to delete), so a
+ *  loss-free union is exactly right. Do NOT use this for the hydrated 409
+ *  path (a delete there must be honoured — see `_reconcileMediaField`). */
 export function _mergeMediaField(serverItems: unknown[], pendingItems: unknown[]): unknown[] {
     const out = Array.isArray(serverItems) ? [...serverItems] : [];
     const seen = new Set(out.map(_mediaKey));
@@ -72,12 +81,69 @@ export function _mergeMediaField(serverItems: unknown[], pendingItems: unknown[]
     return out;
 }
 
+/** C3 fix: deletion-AWARE 3-way merge for the HYDRATED 409-conflict path.
+ *  The add-only union above resurrects a delete — if this tab removed a
+ *  marked place / checklist item and a peer wrote media concurrently, the
+ *  409 echo still carries the removed item, and a plain union re-adds it, so
+ *  the delete silently reverts (and is re-POSTed into STATE).
+ *
+ *  With a `base` (the last server-authoritative snapshot this tab synced) we
+ *  can tell an ADD from a DELETE: `base − local` = what WE removed, `local −
+ *  base` = what WE added. Result = server items minus the ones we deleted,
+ *  preferring our local copy for keys we still hold (our latest edit wins),
+ *  then our genuine adds appended. Peer adds (in server, not in base) are
+ *  kept. If `base` is missing we fall back to the loss-free union so we never
+ *  regress to dropping a server item we can't reason about.
+ *
+ *  Note: a peer's delete of an item we still hold locally is intentionally
+ *  NOT honoured (we keep our copy) — same as the old union; only OUR own
+ *  deletes are the reported data-loss bug this fixes. */
+export function _reconcileMediaField(
+    baseItems: unknown[] | undefined,
+    localItems: unknown[],
+    serverItems: unknown[],
+): unknown[] {
+    if (!Array.isArray(baseItems)) return _mergeMediaField(serverItems, localItems);
+    const local = Array.isArray(localItems) ? localItems : [];
+    const server = Array.isArray(serverItems) ? serverItems : [];
+    const localByKey = new Map(local.map((it) => [_mediaKey(it), it]));
+    // Keys present in base but no longer in local = deleted by this tab.
+    const deletedByUs = new Set(
+        baseItems.map(_mediaKey).filter((k) => !localByKey.has(k)),
+    );
+    const out: unknown[] = [];
+    const emitted = new Set<string>();
+    // Server-first ordering: keep each server item unless WE deleted it;
+    // use our local copy when we still hold that key (our latest edit wins).
+    for (const s of server) {
+        const k = _mediaKey(s);
+        if (deletedByUs.has(k)) continue;
+        out.push(localByKey.has(k) ? localByKey.get(k) : s);
+        emitted.add(k);
+    }
+    // Append our items the server doesn't have yet (genuine local adds).
+    for (const l of local) {
+        const k = _mediaKey(l);
+        if (!emitted.has(k)) {
+            out.push(l);
+            emitted.add(k);
+        }
+    }
+    return out;
+}
+
 /** 4.8 audit TRIP-4: the media-only optimistic-concurrency version this
  *  tab last saw for each trip (from GET /media or the last successful
  *  write). Echoed back as `clientMediaUpdatedAt` so two warm devices
  *  editing the same trip's media detect the conflict instead of silently
  *  last-write-wins. */
 export const _mediaVersion = new Map<string, string>();
+
+/** C3 fix: the last SERVER-authoritative media snapshot this tab synced for
+ *  each trip (from GET /media, or the snapshot last successfully written).
+ *  Used as the `base` for the deletion-aware 3-way merge in the 409 path so
+ *  a local delete can be distinguished from a peer add. Reset on logout. */
+export const _mediaBaseline = new Map<string, MediaSnapshot>();
 
 /** Clear the per-user media-hydration caches. Audit MK5 P1: these module-level
  *  maps survived logout / 401, so on a shared device the next user could lose
@@ -89,6 +155,7 @@ export const _mediaVersion = new Map<string, string>();
 export function resetMediaTracking(): void {
     _mediaLoadedTrips.clear();
     _mediaVersion.clear();
+    _mediaBaseline.clear();
     _pendingMedia.clear();
 }
 onUserWipe(resetMediaTracking);
@@ -129,6 +196,10 @@ export async function _postTripMedia(tripId: string, media: MediaSnapshot): Prom
     try {
         let snapshot = media;
         let version = _mediaVersion.get(tripId);
+        // The base for deletion-aware merging stays fixed across the retry
+        // loop: it's what the server looked like when THIS tab last synced,
+        // so `base − snapshot` is a stable picture of what WE removed.
+        const base = _mediaBaseline.get(tripId);
         // First send + up to _MEDIA_MAX_MERGE_RETRIES merge-retries.
         for (let attempt = 0; attempt <= _MEDIA_MAX_MERGE_RETRIES; attempt++) {
             const res = await send(snapshot, version);
@@ -136,7 +207,12 @@ export async function _postTripMedia(tripId: string, media: MediaSnapshot): Prom
                 // Success (or a non-conflict error). On success refresh the
                 // version so the next write carries the latest token.
                 const rb = await res.json().catch(() => null);
-                if (res.ok && rb && rb.mediaUpdatedAt) _mediaVersion.set(tripId, rb.mediaUpdatedAt);
+                if (res.ok && rb && rb.mediaUpdatedAt) {
+                    _mediaVersion.set(tripId, rb.mediaUpdatedAt);
+                    // The snapshot we just wrote is now server truth — it
+                    // becomes the base for the next edit's 409 merge.
+                    _mediaBaseline.set(tripId, snapshot);
+                }
                 return;
             }
             // 409 — a peer wrote media since `version`. Re-merge the live
@@ -151,10 +227,14 @@ export async function _postTripMedia(tripId: string, media: MediaSnapshot): Prom
                 break;
             }
             snapshot = {
-                photos: _mergeMediaField(cur.photos ?? [], snapshot.photos ?? []),
-                documents: _mergeMediaField(cur.documents ?? [], snapshot.documents ?? []),
-                markedPlaces: _mergeMediaField(cur.markedPlaces ?? [], snapshot.markedPlaces ?? []),
-                checklist: _mergeMediaField(cur.checklist ?? [], snapshot.checklist ?? []),
+                photos: _reconcileMediaField(base?.photos, snapshot.photos ?? [], cur.photos ?? []),
+                documents: _reconcileMediaField(base?.documents, snapshot.documents ?? [], cur.documents ?? []),
+                markedPlaces: _reconcileMediaField(
+                    base?.markedPlaces,
+                    snapshot.markedPlaces ?? [],
+                    cur.markedPlaces ?? [],
+                ),
+                checklist: _reconcileMediaField(base?.checklist, snapshot.checklist ?? [], cur.checklist ?? []),
             };
             version = curVer ?? undefined;
             if (curVer) _mediaVersion.set(tripId, curVer);
@@ -218,6 +298,11 @@ export async function fetchTripMedia(tripId: string): Promise<void> {
                 markedPlaces: (media.markedPlaces ?? []) as unknown[],
                 checklist: (media.checklist ?? []) as unknown[],
             };
+            // C3: the freshly-fetched server media is the base for the next
+            // edit's deletion-aware 409 merge (distinguishes our delete from a
+            // peer add). Set before any pending flush so that flush merges
+            // against the true server base.
+            _mediaBaseline.set(tripId, serverMedia);
             const pending = _pendingMedia.get(tripId);
             if (pending) {
                 // 4.8 audit TRIP-1: a media write was attempted during the
