@@ -512,7 +512,13 @@ export function Insights() {
         let total = 0;
         for (const e of convertedExps) {
             if (avgWho !== 'all' && (e.who || '—') !== avgWho) continue;
-            if (avgCat !== 'all' && findCategory(e.categoryId).id !== avgCat) continue;
+            // Match the SAME key the catOptions dropdown emits (`c.id || c.name`)
+            // — otherwise an uncategorized expense (id '') never equals its own
+            // 'Unknown' option value and every such row is silently skipped.
+            if (avgCat !== 'all') {
+                const c = findCategory(e.categoryId);
+                if ((c.id || c.name) !== avgCat) continue;
+            }
             if (!e.date || !/^\d{4}-\d{2}-\d{2}$/.test(e.date) || e.date > todayIso) continue;
             byDay[e.date] = (byDay[e.date] || 0) + e.displayValue;
             total += e.displayValue;
@@ -701,11 +707,17 @@ export function Insights() {
     };
     // Direction + colour for a worth-today move: pricier reads amber, cheaper
     // green, flat grey — same cue as the hero's "more/less expensive today".
+    // The dark surface (--card-bg #1c1c1e) needs lighter tones — the deep
+    // amber/green read at ~1.5:1 there — so we pick theme-aware variants the
+    // same way the chart ticks do (isDarkMode above).
+    const dark = isDarkMode();
+    const pricierColor = dark ? '#ff9f0a' : '#a85d00';
+    const cheaperColor = dark ? '#30d158' : '#1a6b3c';
     const mv = (pct: number) => {
         const r = Math.round(pct * 10) / 10 || 0;
         const text = `${Math.abs(r).toFixed(1)}%`;
-        if (r > 0) return { color: '#a85d00', arrow: '↑ ', text };
-        if (r < 0) return { color: '#1a6b3c', arrow: '↓ ', text };
+        if (r > 0) return { color: pricierColor, arrow: '↑ ', text };
+        if (r < 0) return { color: cheaperColor, arrow: '↓ ', text };
         return { color: 'var(--text-secondary)', arrow: '', text };
     };
     const fxPctNum = (totalSpent > 0 ? (totalTodayNoInfl - totalSpent) / totalSpent : 0) * 100;

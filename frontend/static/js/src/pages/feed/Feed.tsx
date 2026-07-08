@@ -471,19 +471,32 @@ export function Feed({ highlightPostId }: { highlightPostId?: string | undefined
             return next;
         });
         if (!willOpen) return;
-        // Reuse cache when present, else fetch.
+        // E5-B1: the cache is write-only (setCachedThread) and never
+        // invalidated, so a comment another user posted while this thread was
+        // collapsed never surfaced on re-expand — the stale list stuck while
+        // the comment_count chip refreshed on the next /api/feed mount. Fix:
+        // paint the cached list immediately (no loading flash), then ALWAYS
+        // revalidate against the server in the background and reconcile.
         const cached = getCachedThread(eventId);
         if (cached) {
             setThreads((prev) => ({ ...prev, [eventId]: cached }));
-            return;
+        } else {
+            setThreadLoading((prev) => ({ ...prev, [eventId]: true }));
         }
-        setThreadLoading((prev) => ({ ...prev, [eventId]: true }));
         try {
-            const comments = (await fetchFeedComments(eventId)) || [];
-            setCachedThread(eventId, comments);
-            setThreads((prev) => ({ ...prev, [eventId]: comments }));
+            const fresh = await fetchFeedComments(eventId);
+            // null = fetch failed; keep the cached list rather than clobbering
+            // good comments with an empty thread (fetchFeedComments' documented
+            // null-on-failure contract).
+            if (fresh) {
+                setCachedThread(eventId, fresh);
+                setThreads((prev) => ({ ...prev, [eventId]: fresh }));
+            } else if (!cached) {
+                setCachedThread(eventId, []);
+                setThreads((prev) => ({ ...prev, [eventId]: [] }));
+            }
         } finally {
-            setThreadLoading((prev) => ({ ...prev, [eventId]: false }));
+            if (!cached) setThreadLoading((prev) => ({ ...prev, [eventId]: false }));
         }
     };
 

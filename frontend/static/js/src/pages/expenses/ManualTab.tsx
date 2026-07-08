@@ -464,6 +464,13 @@ export function ManualTab() {
         formEl.reset();
         setSplitters([]);
         setReceiptUrl(null);
+        // B1: mirror the currency reset into React state. formEl.reset()
+        // restores the <select> default and the draft above resets to
+        // currency:'EUR', but selCurrency is separate state — without this
+        // it stays on the just-submitted no-rate currency (EGP/VND/…), so
+        // needsManualEuro stays true and the stale manual-EUR field + "no
+        // rate for X" help text keep rendering for the next expense.
+        setSelCurrency('EUR');
 
         // FE-2 (MK4): honest save — await the write and reflect the truth.
         // Pre-fix this flashed green "Saved ✓" unconditionally, lying on a

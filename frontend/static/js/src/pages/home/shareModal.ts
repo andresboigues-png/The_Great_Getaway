@@ -64,7 +64,7 @@ export function applySilenceBtnVisual(btn: HTMLElement | null, silenced: boolean
  *  (share failed); 'feed' closes-for-navigation and routes to the
  *  feed; anything else closes in place. */
 export function openShareToFeedModal(
-    trip: { name: string; country?: string; isPublic?: boolean },
+    trip: { name: string; country?: string; isPublic?: boolean; isArchived?: boolean },
     onSubmit: (caption: string) => ShareSubmitResult,
     seedCaption: string = '',
 ): void {

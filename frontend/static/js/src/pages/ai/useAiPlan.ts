@@ -541,7 +541,14 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                 // otherwise). Sending null explicitly wipes plan_blocks_json;
                 // the editor rebuilds blocks from this text on next open.
                 prior.planBlocks = null;
-                if (tip) prior.tip = tip;
+                // C2-B1: reassign the sightseeing summary UNCONDITIONALLY so a
+                // re-run whose new day has empty sights clears the prior run's
+                // stale 'Sightseeing: …' text. Guarding on `if (tip)` (tip is ''
+                // for an empty sights list) left the FIRST run's summary on the
+                // reused day row — surfacing on the public share page. The plan
+                // slots above are already overwritten unconditionally; tip must
+                // match. `''` serialises through upsertDay and clears the column.
+                prior.tip = tip;
                 if (typeof dayInfo.lat === 'number') prior.lat = dayInfo.lat;
                 if (typeof dayInfo.lon === 'number') prior.lng = dayInfo.lon;
                 void upsertDay(prior);

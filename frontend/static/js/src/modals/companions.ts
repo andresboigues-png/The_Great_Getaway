@@ -137,7 +137,14 @@ export const openCompanionPickerModal = (tripId: string) => {
             linkAction = `<button type="button" class="btn-link-action picker-unlink-btn" data-name="${esc(c.name)}">${esc(t('companions.rowUnlinkBtn'))}</button>`;
         }
 
-        const removeBtn = isLocked
+        // A2-B1: the self-linked "You" row is the owner themselves — the
+        // server rejects an owner self-leave, so a ✕ here would drop + persist
+        // the local row while the member-remove 400s, orphaning any name-keyed
+        // per-person budget. Offer "Unlink" (already rendered above) instead of
+        // a remove that can't succeed.
+        const removeBtn = isSelf
+            ? ''
+            : isLocked
             ? `<span class="companion-row__lock" title="${esc(t('companions.rowLockTitle'))}" style="display:inline-flex; align-items:center;">${iconSvg('lock', { size: 14 })}</span>`
             : `<button type="button" class="btn-x-bare picker-remove-btn" data-name="${esc(c.name)}" title="${esc(t('companions.rowRemoveTitle'))}">✕</button>`;
 
@@ -339,6 +346,11 @@ export const openCompanionPickerModal = (tripId: string) => {
             const name = removeBtn.dataset.name;
             const companion = findTripCompanion(trip, name);
             if (!companion) return;
+            // A2-B1: never remove the owner's own self-linked row. The server
+            // rejects an owner self-leave, but removeIt would already have
+            // dropped + persisted the local row, orphaning any name-keyed
+            // per-person budget. The self row exposes "Unlink" for de-linking.
+            if (companion.linkedUserId && companion.linkedUserId === myId) return;
             // R11-B4 UX-1: confirm before silently kicking. Pre-fix
             // clicking the ✕ next to an accepted linked member fired
             // removeTripMember immediately — no warning, no undo. The

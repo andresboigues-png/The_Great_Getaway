@@ -29,14 +29,20 @@ export function ShareToFeedModal({
     close,
     closeForNavigation,
 }: {
-    trip: { name: string; country?: string; isPublic?: boolean };
+    trip: { name: string; country?: string; isPublic?: boolean; isArchived?: boolean };
     onSubmit: (caption: string) => ShareSubmitResult;
     seedCaption: string;
     close: () => void;
     closeForNavigation: () => void;
 }) {
     const [caption, setCaption] = useState(seedCaption || '');
-    const willGoPublic = !trip.isPublic;
+    // [E3-B3] The server only AUTO-PUBLISHES on share for ACTIVE trips
+    // (feed.py: is_owner && !is_archived). An archived trip has its own
+    // privacy selector, so a private archived trip is NOT flipped public —
+    // the share 400s and ArchivedTripDetail points the owner at that
+    // selector. Only warn "sharing makes it public" when the share actually
+    // will, i.e. the trip is active AND currently private.
+    const willGoPublic = !trip.isPublic && !trip.isArchived;
 
     const submit = async () => {
         const ok = await onSubmit(caption.trim());

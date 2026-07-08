@@ -277,6 +277,12 @@ export async function fetchTripMedia(tripId: string): Promise<void> {
     if (!tripId || !STATE.user) return;
     if (_mediaInflight.has(tripId)) return;
     _mediaInflight.add(tripId);
+    // C4-B2: was this trip already hydrated when the GET fired? If it
+    // becomes loaded DURING the in-flight window (a cold-window unhydrated
+    // add force-writes via persistTripMedia and marks it loaded), the
+    // arrays now in STATE are fresher than this GET's snapshot, which the
+    // server may have generated before that force-write committed.
+    const wasLoadedAtFetchStart = _mediaLoadedTrips.has(tripId);
     try {
         const res = await apiFetch(`/api/trips/${encodeURIComponent(tripId)}/media`);
         if (!res.ok) return;
@@ -326,6 +332,20 @@ export async function fetchTripMedia(tripId: string): Promise<void> {
                 // landed between our GET and this flush still 409-merges
                 // rather than clobbering (TRIP-4).
                 void _postTripMedia(tripId, merged);
+            } else if (!wasLoadedAtFetchStart && _mediaLoadedTrips.has(tripId)) {
+                // C4-B2: the trip was hydrated by a concurrent force-write
+                // (a cold-window unhydrated add) WHILE this GET was in
+                // flight, so `_pendingMedia` was already drained by that
+                // path. This GET's server snapshot can predate the
+                // force-write and lack the just-added item; blindly
+                // overwriting would make it transiently vanish. Union the
+                // server arrays onto what's now in STATE (add-only,
+                // loss-free) so the local add survives — the force-write
+                // already POSTed it, so no re-flush is needed here.
+                tt.photos = _mergeMediaField(serverMedia.photos, tt.photos as unknown[]);
+                tt.documents = _mergeMediaField(serverMedia.documents, tt.documents as unknown[]);
+                tt.markedPlaces = _mergeMediaField(serverMedia.markedPlaces, tt.markedPlaces as unknown[]);
+                tt.checklist = _mergeMediaField(serverMedia.checklist, tt.checklist as unknown[]);
             } else {
                 tt.photos = serverMedia.photos;
                 tt.documents = serverMedia.documents;

@@ -108,6 +108,12 @@ export function TripPhotosModal({
             const defaultDayId = anchorDay ? anchorDay.id : null;
             let added = 0;
             let autoTagged = 0;
+            let failed = 0;
+            // First actionable server reason (e.g. media.py's 507 quota
+            // body threaded back as res.error) — surfaced verbatim so the
+            // user sees WHY, not a generic "upload failed". Kept for the
+            // full-failure and partial-failure toasts below.
+            let firstError: string | null = null;
             for (const file of files) {
                 try {
                     // §4.9 — read the photo's EXIF capture date BEFORE
@@ -124,21 +130,39 @@ export function TripPhotosModal({
                         addTripPhoto(trip, { src: res.url, dayId });
                         added++;
                         if (exifDayId) autoTagged++;
+                    } else {
+                        // uploadMedia resolved without a url — a rejected
+                        // upload (quota 507, magic-sniff, bomb, HEIC, size).
+                        // It hands back an actionable res.error we must not
+                        // discard.
+                        failed++;
+                        if (!firstError && res?.error) firstError = res.error;
                     }
                 } catch (e) {
                     console.error('Photo upload failed:', e);
+                    failed++;
                 }
             }
             input.value = '';
             if (added > 0) {
                 emit('state:changed'); // re-renders the grid (the old repaint())
                 await upsertTrip(trip);
-                // §4.9 — surface the auto-tag count in the success
-                // toast so the user knows the EXIF magic happened. Bare
-                // "N photos added" stays the message when nothing got
-                // auto-tagged (the common case for trips with no day
-                // dates set yet — anchor bucket is still correct).
-                if (autoTagged > 0) {
+                if (failed > 0) {
+                    // Partial batch — some files landed, some didn't. Report
+                    // both counts (and the first reason) so the missing files
+                    // aren't silently masked as full success.
+                    showLiquidAlert(
+                        firstError
+                            ? t('tripMedia.photoUploadPartialReason', { added, failed, reason: firstError })
+                            : t('tripMedia.photoUploadPartial', { added, failed }),
+                        'error',
+                    );
+                } else if (autoTagged > 0) {
+                    // §4.9 — surface the auto-tag count in the success
+                    // toast so the user knows the EXIF magic happened. Bare
+                    // "N photos added" stays the message when nothing got
+                    // auto-tagged (the common case for trips with no day
+                    // dates set yet — anchor bucket is still correct).
                     showLiquidAlert(added === 1
                         ? t('tripMedia.photoUploadedSortedOne', { count: added, sorted: autoTagged })
                         : t('tripMedia.photoUploadedSortedOther', { count: added, sorted: autoTagged }), 'success');
@@ -148,7 +172,10 @@ export function TripPhotosModal({
                         : t('tripMedia.photoUploadedOther', { count: added }), 'success');
                 }
             } else {
-                showLiquidAlert(t('tripMedia.photoUploadFailed'));
+                // Every file failed — surface the server's actionable reason
+                // (quota/size/type) verbatim when we have one instead of the
+                // generic fallback.
+                showLiquidAlert(firstError || t('tripMedia.photoUploadFailed'));
             }
         })();
     };

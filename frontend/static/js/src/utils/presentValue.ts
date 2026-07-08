@@ -206,7 +206,13 @@ export function makePresentValueCalc(ctx: PvContext): (e: PvExpenseInput) => PvR
         const eYear = (e.date || '').slice(0, 4);
         const k = `${e.date}_${e.currency}_EUR`;
         const hk = `${e.date}_${targetCurr}_EUR`;
-        const histForeign = rateCache ? rateCache[k] : undefined;
+        // B3-B1: Frankfurter is EUR-based and never stores an EUR→EUR key, so
+        // an EUR-denominated row's `${date}_EUR_EUR` lookup is always undefined.
+        // The foreign→EUR rate for an EUR expense is trivially 1 — guard it the
+        // same way `histHome` guards the EUR-home case, otherwise the `else`
+        // branch converts at TODAY'S FX and every non-EUR-home user's EUR spend
+        // is priced at the present-day rate.
+        const histForeign = curUp === 'EUR' ? 1 : (rateCache ? rateCache[k] : undefined);
         const histHome = targetCurr === 'EUR' ? 1 : (rateCache ? rateCache[hk] : undefined);
         const manualSpentFx = manualFxFor(curUp, eYear);
         let spentHome: number;

@@ -123,7 +123,7 @@ function TripsStrip({ currentTripId, onPickTrip }: { currentTripId: string | nul
                 })}
             </select>
             {activeTrip && settledTotal > 0 ? (
-                <span style={{ display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: '999px', background: 'rgba(52,199,89,0.08)', color: '#0a7d3f', fontSize: '0.78rem', fontWeight: 800, flexShrink: 0 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: '999px', background: 'rgba(52,199,89,0.08)', color: 'var(--stl-green-deep)', fontSize: '0.78rem', fontWeight: 800, flexShrink: 0 }}>
                     {formatHome(settledTotal, 'EUR')} {t('settlement.settledSuffix')}
                 </span>
             ) : null}
@@ -135,21 +135,22 @@ function TripsStrip({ currentTripId, onPickTrip }: { currentTripId: string | nul
 
 function TabsNav({ trip, activeTab, onSetTab }: { trip: Trip; activeTab: SettlementTab; onSetTab: (tab: SettlementTab) => void }) {
     const settlementsCount = settledStatsForTrip(trip.id).count;
-    // D3 contrast: active tab text uses #0a7d3f (darker
-    // brand blue, 5.3:1) so the active state passes WCAG AA.
+    // D3 contrast: active tab text uses --stl-green-deep (#0a7d3f in
+    // light, 5.3:1) so the active state passes WCAG AA; the token
+    // lifts to a legible green on dark card surfaces (F6-B1).
     const tabBtn = (key: SettlementTab, label: string, badge?: number) => (
         <button
             key={key}
             className={`settle-tab${activeTab === key ? ' is-active' : ''}`}
             type="button"
             onClick={() => onSetTab(key)}
-            style={{ background: 'none', border: 0, padding: '12px 4px', fontSize: '0.95rem', fontWeight: activeTab === key ? 800 : 600, color: activeTab === key ? '#0a7d3f' : 'var(--text-secondary)', cursor: 'pointer', borderBottom: `2px solid ${activeTab === key ? '#34c759' : 'transparent'}`, marginBottom: '-1px', letterSpacing: '-0.01em', transition: 'color 0.2s, border-color 0.2s' }}
+            style={{ background: 'none', border: 0, padding: '12px 4px', fontSize: '0.95rem', fontWeight: activeTab === key ? 800 : 600, color: activeTab === key ? 'var(--stl-green-deep)' : 'var(--text-secondary)', cursor: 'pointer', borderBottom: `2px solid ${activeTab === key ? '#34c759' : 'transparent'}`, marginBottom: '-1px', letterSpacing: '-0.01em', transition: 'color 0.2s, border-color 0.2s' }}
         >
             {label}
             {badge !== undefined && badge > 0 ? (
                 <>
                     {' '}
-                    <span style={{ background: 'rgba(52,199,89,0.12)', color: '#0a7d3f', padding: '1px 6px', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 800, marginLeft: '2px' }}>{badge}</span>
+                    <span style={{ background: 'rgba(52,199,89,0.12)', color: 'var(--stl-green-deep)', padding: '1px 6px', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 800, marginLeft: '2px' }}>{badge}</span>
                 </>
             ) : null}
         </button>
@@ -222,14 +223,14 @@ function TripTab({ trip, tripIsEditable, settlingKeys, onSettle, onManualSettle 
                             <div className="stl-center-min-120">
                                 <div style={{ fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#34c759' }}>{t('settlement.topOwed')}</div>
                                 <div className="stl-heading-2">{topOwed.name}</div>
-                                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1a6b3c' }}>+{formatHome(topOwed.net, 'EUR')}</div>
+                                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--stl-green)' }}>+{formatHome(topOwed.net, 'EUR')}</div>
                             </div>
                         ) : null}
                         {topOwes && topOwes.net < -0.01 ? (
                             <div className="stl-center-min-120">
                                 <div style={{ fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#ff3b30' }}>{t('settlement.topOwes')}</div>
                                 <div className="stl-heading-2">{topOwes.name}</div>
-                                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#a30000' }}>{formatHome(topOwes.net, 'EUR')}</div>
+                                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--stl-red)' }}>{formatHome(topOwes.net, 'EUR')}</div>
                             </div>
                         ) : null}
                     </div>
@@ -252,7 +253,7 @@ function TripTab({ trip, tripIsEditable, settlingKeys, onSettle, onManualSettle 
                                 const isRemoved = removedSet.has(person);
                                 return (
                                     <div key={person} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 14px', background: 'var(--card-bg)', border: '1px solid var(--border-subtle)', borderRadius: '14px' }}>
-                                        <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: isCredit ? 'rgba(52,199,89,0.18)' : isDebt ? 'rgba(255,59,48,0.18)' : 'var(--surface-subtle)', color: isCredit ? '#1a6b3c' : isDebt ? '#a30000' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.95rem', flexShrink: 0 }}>
+                                        <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: isCredit ? 'rgba(52,199,89,0.18)' : isDebt ? 'rgba(255,59,48,0.18)' : 'var(--surface-subtle)', color: isCredit ? 'var(--stl-green)' : isDebt ? 'var(--stl-red)' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.95rem', flexShrink: 0 }}>
                                             {person.charAt(0).toUpperCase()}
                                         </div>
                                         <div style={{ flex: 1, minWidth: 0, fontWeight: 800, color: 'var(--text-brand-navy)', fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -261,7 +262,7 @@ function TripTab({ trip, tripIsEditable, settlingKeys, onSettle, onManualSettle 
                                                 <span style={{ marginLeft: '6px', padding: '1px 6px', borderRadius: '6px', background: 'rgba(0,0,0,0.06)', color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase' }}>removed</span>
                                             ) : null}
                                         </div>
-                                        <div style={{ fontWeight: 800, color: isCredit ? '#1a6b3c' : isDebt ? '#a30000' : 'var(--text-secondary)', fontSize: '1rem', textAlign: 'right' }}>
+                                        <div style={{ fontWeight: 800, color: isCredit ? 'var(--stl-green)' : isDebt ? 'var(--stl-red)' : 'var(--text-secondary)', fontSize: '1rem', textAlign: 'right' }}>
                                             {isCredit ? '+' : ''}{formatHome(bal, 'EUR')}
                                             <OriginalCurrencyHint primaryAmount={primaryCurrency ? byCurrency[primaryCurrency]?.[person] : undefined} primaryCurrency={primaryCurrency} />
                                         </div>
@@ -283,7 +284,7 @@ function TripTab({ trip, tripIsEditable, settlingKeys, onSettle, onManualSettle 
                         {curDebts.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: '40px 20px' }}>
                                 <div style={{ fontSize: '2.2rem', marginBottom: '8px' }}>🥂</div>
-                                <p style={{ margin: 0, fontWeight: 800, color: '#1a6b3c' }}>{t('settlement.allSettledTitle')}</p>
+                                <p style={{ margin: 0, fontWeight: 800, color: 'var(--stl-green)' }}>{t('settlement.allSettledTitle')}</p>
                                 <p style={{ margin: '6px 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{t('settlement.allSettledBody')}</p>
                             </div>
                         ) : (
@@ -413,29 +414,29 @@ function HistoryTab({ trip, tripIsEditable, onEditSettlement, onUnsettle }: {
                                     const showEdit = tripIsEditable;
                                     return (
                                         <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 14px', background: 'var(--card-bg)', border: '1px solid var(--border-subtle)', borderRadius: '14px' }}>
-                                            <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'rgba(52,199,89,0.12)', color: '#1a6b3c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.95rem', flexShrink: 0 }}>{fromInitial}</div>
+                                            <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'rgba(52,199,89,0.12)', color: 'var(--stl-green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.95rem', flexShrink: 0 }}>{fromInitial}</div>
                                             <div className="stl-flex-grow-truncate">
                                                 <div className="stl-flex-row-wrap-6">
                                                     <span className="stl-heading-3">{s.who}</span>
                                                     <span style={{ color: 'rgba(0,0,0,0.3)', fontWeight: 600 }}>→</span>
                                                     <span className="stl-heading-3">{s.to}</span>
-                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(52,199,89,0.12)', color: '#1a6b3c', padding: '1px 8px', borderRadius: '999px', fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('settlement.historyChipSettled')}</span>
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(52,199,89,0.12)', color: 'var(--stl-green)', padding: '1px 8px', borderRadius: '999px', fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('settlement.historyChipSettled')}</span>
                                                     {showMethod ? (
-                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(52,199,89,0.08)', color: '#0a7d3f', padding: '1px 8px', borderRadius: '999px', fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.method!.replace(/_/g, ' ')}</span>
+                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(52,199,89,0.08)', color: 'var(--stl-green-deep)', padding: '1px 8px', borderRadius: '999px', fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.method!.replace(/_/g, ' ')}</span>
                                                     ) : null}
                                                 </div>
                                                 {showNote ? (
                                                     <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '4px', fontStyle: 'italic' }}>&quot;{s.note}&quot;</div>
                                                 ) : null}
                                             </div>
-                                            <div style={{ fontSize: '1rem', fontWeight: 800, color: '#1a6b3c', flexShrink: 0 }}>{formatHome(s.euroValue || 0, 'EUR')}</div>
+                                            <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--stl-green)', flexShrink: 0 }}>{formatHome(s.euroValue || 0, 'EUR')}</div>
                                             {/* Undo + Edit both offered when editable. SETL-3: server
                                                 settlements edit via a guided undo + re-record (no PATCH
                                                 endpoint); legacy expense rows edit in place. */}
                                             {tripIsEditable ? (
                                                 <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                                                     {showEdit ? (
-                                                        <button className="edit-settlement-btn" type="button" onClick={() => onEditSettlement(s.id)} style={{ background: 'rgba(52,199,89,0.08)', border: '1px solid rgba(52,199,89,0.22)', color: '#0a7d3f', padding: '5px 12px', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer' }}>{t('settlement.historyEditBtn')}</button>
+                                                        <button className="edit-settlement-btn" type="button" onClick={() => onEditSettlement(s.id)} style={{ background: 'rgba(52,199,89,0.08)', border: '1px solid rgba(52,199,89,0.22)', color: 'var(--stl-green-deep)', padding: '5px 12px', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer' }}>{t('settlement.historyEditBtn')}</button>
                                                     ) : null}
                                                     <button className="unsettle-settlement-btn" type="button" onClick={() => onUnsettle(s.id, s.source)} style={{ background: 'rgba(255,59,48,0.08)', border: '1px solid rgba(255,59,48,0.22)', color: '#ff3b30', padding: '5px 12px', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer' }}>{t('settlement.historyUnsettleBtn')}</button>
                                                 </div>
@@ -484,9 +485,9 @@ function GlobalTab() {
                         const pct = hasBalances ? Math.min((Math.abs(bal) / maxAbs) * 100, 100) : 0;
                         const isCredit = bal > 0.01;
                         const isDebt = bal < -0.01;
-                        const color = isCredit ? '#1a6b3c' : isDebt ? '#a30000' : 'var(--text-secondary)';
+                        const color = isCredit ? 'var(--stl-green)' : isDebt ? 'var(--stl-red)' : 'var(--text-secondary)';
                         const avatarBg = isCredit ? 'rgba(52,199,89,0.12)' : isDebt ? 'rgba(255,59,48,0.1)' : 'var(--surface-subtle)';
-                        const avatarColor = isCredit ? '#1a6b3c' : isDebt ? '#a30000' : 'var(--text-secondary)';
+                        const avatarColor = isCredit ? 'var(--stl-green)' : isDebt ? 'var(--stl-red)' : 'var(--text-secondary)';
                         return (
                             <div key={person} style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px 14px', background: 'var(--card-bg)', border: '1px solid var(--border-subtle)', borderRadius: '14px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>

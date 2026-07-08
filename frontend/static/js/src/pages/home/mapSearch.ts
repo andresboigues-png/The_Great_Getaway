@@ -80,6 +80,10 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
     const autocomplete = new google.maps.places.AutocompleteService();
     let searchMarker: google.maps.Marker | null = null;
     let typingTimer: ReturnType<typeof setTimeout> | null = null;
+    // C5-B1: handle for showSearchError's 3s auto-hide so a fresh repaint
+    // (paintResults) or an explicit hideResults can cancel a still-pending
+    // timer — otherwise an orphan timer collapses a newly-typed result panel.
+    let errorHideTimer: ReturnType<typeof setTimeout> | null = null;
     // DSGN-006: index of the keyboard-highlighted option (-1 = none).
     let activeIndex = -1;
     const OPTION_ID_PREFIX = 'homeMapSearchOpt';
@@ -98,6 +102,9 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
     };
 
     const hideResults = () => {
+        // C5-B1: cancel a pending error auto-hide so it can't later fire
+        // hideResults() against a panel the user has since repopulated.
+        if (errorHideTimer) { clearTimeout(errorHideTimer); errorHideTimer = null; }
         resultsEl.style.display = 'none';
         resultsEl.innerHTML = '';
         // DSGN-006: collapse the combobox + drop any active-option link.
@@ -351,6 +358,9 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
 
     /** Paint the unified panel from the two cached halves. */
     const paintResults = () => {
+        // C5-B1: a fresh render supersedes any error still counting down to
+        // auto-hide — cancel it so it can't wipe these results mid-read.
+        if (errorHideTimer) { clearTimeout(errorHideTimer); errorHideTimer = null; }
         // DSGN-006: each (re)render resets the active option + opens the combobox.
         activeIndex = -1;
         searchInput.setAttribute('aria-expanded', 'true');
@@ -403,7 +413,11 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         resultsEl.style.display = 'block';
         resultsEl.innerHTML = `<div style="padding:14px 18px; color:var(--danger-color,#d32f2f); font-size:0.85rem;">${esc(msg)}</div>`;
         if (statusEl) statusEl.textContent = msg;
-        setTimeout(() => hideResults(), 3000);
+        // C5-B1: track the auto-hide handle (clearing any prior one) so a later
+        // repaint/hide can cancel it — an untracked timer would fire hideResults()
+        // ~3s later and collapse a panel the user had since refilled.
+        if (errorHideTimer) clearTimeout(errorHideTimer);
+        errorHideTimer = setTimeout(() => { errorHideTimer = null; hideResults(); }, 3000);
     };
 
     /** Make-or-update the marker that represents the user's current

@@ -424,6 +424,23 @@ export function EditTripModal({ trip, close }: { trip: Trip; close: () => void }
                     STATE.tripDays = (STATE.tripDays || []).filter(
                         d => !doomedIds.has(d.id),
                     );
+                    // A3-B1: prune the trip-level media arrays of any item
+                    // scoped to a doomed day BEFORE finalizeAndClose upserts
+                    // the trip. finalizeAndClose → upsertTrip → persistTripMedia
+                    // POSTs trip.photos/documents/markedPlaces as-is; without
+                    // this prune those arrays still carry the deleted days'
+                    // items. That POST can land after the server-side day
+                    // delete has already cascaded the media away — 409 → the
+                    // add-only merge re-adds them as orphaned media. Dropping
+                    // them from the LOCAL arrays here means the reconcile base
+                    // reads them as our own deletes and honours them. Only
+                    // items whose dayId is a doomed (dayNumber > 0) day are
+                    // touched; trip-wide + surviving-day media is left intact.
+                    const prunes = (item: { dayId?: string | null }) =>
+                        !(item.dayId != null && doomedIds.has(item.dayId));
+                    if (Array.isArray(trip.photos)) trip.photos = trip.photos.filter(prunes);
+                    if (Array.isArray(trip.documents)) trip.documents = trip.documents.filter(prunes);
+                    if (Array.isArray(trip.markedPlaces)) trip.markedPlaces = trip.markedPlaces.filter(prunes);
                     // Then fire delete-on-server for each (idempotent + outbox-replayable).
                     daysToDelete.forEach((d) => { void deleteDayOnServer(d.id); });
                     void finalizeAndClose();

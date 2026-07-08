@@ -18,13 +18,12 @@
 import { STATE } from '../../state.js';
 import { showLiquidAlert } from '../../utils.js';
 import { esc } from '../../utils/dom-helpers.js';
-import { shareTripToFeed } from '../../api.js';
+import { shareTripToFeed, fetchShareStatus } from '../../api.js';
 import { openShareChooserModal } from '../../modals.js';
 import { openShareToFeedModal } from '../home/shareModal.js';
 import { t } from '../../i18n.js';
 import { countryCodeToFlag } from '../../utils/place-names.js';
 import type { Trip } from '../../types';
-
 
 /** §4.3 multi-country: full list of unique country codes for the
  *  trip, in display order (primary first). Falls back to the single
@@ -47,13 +46,11 @@ function tripCountryCodes(trip: Trip): string[] {
     return out;
 }
 
-
 export interface HomeHeaderProps {
     activeTrip: Trip;
     poiPillsVisible: boolean;
     onTogglePoiPills: () => void;
 }
-
 
 export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: HomeHeaderProps) {
     // Trip expense + day counts drive the "fresh trip" greeting path
@@ -77,30 +74,43 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
     const onShareClick = () => {
         openShareChooserModal({
             trip: activeTrip,
-            onShareToFeed: () => {
-                openShareToFeedModal(activeTrip, async (caption: string) => {
-                    const result = await shareTripToFeed(activeTrip.id, caption);
-                    if (result?.ok) {
-                        showLiquidAlert(t('share.sharedToFeedSuccess'), 'success');
-                        return 'feed'; // success → close + jump to the feed
-                    }
-                    if (result?.status === 409) {
-                        showLiquidAlert(t('share.sharedToFeedDuplicate'), 'info');
-                        return 'feed'; // already shared — go to the feed to see it
-                    }
-                    // Real error — surface the status + body and KEEP the modal
-                    // open so the user stays on this page to fix + retry.
-                    const status = result?.status ?? 'no-response';
-                    const errMsg = result?.body?.error || '';
-                    showLiquidAlert(
-                        `Share failed — HTTP ${status}` +
-                        (errMsg ? ` · ${errMsg}` : '') +
-                        (status === 401 ? ' (you may be logged out — try refreshing)' : ''),
+            onShareToFeed: () =>
+                void (async () => {
+                    // E3-B1: seed the modal with the caption already stored on
+                    // this trip's existing share. Re-sharing sends whatever is
+                    // in the box back to /api/feed/share, and the server treats
+                    // an empty caption as an explicit clear (caption_provided →
+                    // caption=NULL). Prefilling means an unchanged re-share
+                    // re-sends the stored text instead of silently wiping it.
+                    const shareStatus = await fetchShareStatus(activeTrip.id);
+                    const seedCaption = typeof shareStatus?.caption === 'string' ? shareStatus.caption : '';
+                    openShareToFeedModal(
+                        activeTrip,
+                        async (caption: string) => {
+                            const result = await shareTripToFeed(activeTrip.id, caption);
+                            if (result?.ok) {
+                                showLiquidAlert(t('share.sharedToFeedSuccess'), 'success');
+                                return 'feed'; // success → close + jump to the feed
+                            }
+                            if (result?.status === 409) {
+                                showLiquidAlert(t('share.sharedToFeedDuplicate'), 'info');
+                                return 'feed'; // already shared — go to the feed to see it
+                            }
+                            // Real error — surface the status + body and KEEP the modal
+                            // open so the user stays on this page to fix + retry.
+                            const status = result?.status ?? 'no-response';
+                            const errMsg = result?.body?.error || '';
+                            showLiquidAlert(
+                                `Share failed — HTTP ${status}` +
+                                    (errMsg ? ` · ${errMsg}` : '') +
+                                    (status === 401 ? ' (you may be logged out — try refreshing)' : '')
+                            );
+                            console.error('[share] failed', { status, body: result?.body });
+                            return false; // keep the modal open + stay on this page
+                        },
+                        seedCaption
                     );
-                    console.error('[share] failed', { status, body: result?.body });
-                    return false; // keep the modal open + stay on this page
-                });
-            },
+                })(),
         });
     };
 
@@ -116,9 +126,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
     return (
         <>
             <div className="ai-page-header text-center">
-                <h1
-                    className="inline-block [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
-                >
+                <h1 className="inline-block [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text">
                     {activeTrip.name}
                 </h1>
                 {showFlagStrip ? (

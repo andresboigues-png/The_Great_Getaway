@@ -158,8 +158,16 @@ export function NewTripModal({
                 showLiquidAlert(t('errors.placePickNeedsCountry'));
                 return;
             }
+            // Trim before validating + persisting: native `required` only
+            // rejects a truly-empty field and the backend's `if not name`
+            // treats a spaces-only string as truthy, so an untrimmed
+            // whitespace name would create a visually blank trip.
+            const name = (nameInputRef.current?.value ?? '').trim();
+            if (!name) {
+                showLiquidAlert(t('modals.newTripValidationName'));
+                return;
+            }
             const id = generateId();
-            const name = nameInputRef.current?.value ?? '';
 
             // `country` is kept populated with the human-readable place name so
             // every legacy display site (collections card, expense default, AI

@@ -1828,6 +1828,9 @@ export const es: Translations = {
         toastUpdated: '¡Itinerario actualizado!',
     },
     tripMedia: {
+        addDocValidationInvalidUrl: "Ese enlace no es compatible. Usa una URL http(s):// o sube el archivo.",
+        photoUploadPartialReason: "{added} añadida(s), {failed} no se pudieron subir — {reason}",
+        photoUploadPartial: "{added} añadida(s), {failed} no se pudieron subir.",
         docsTitle: 'Documentos',
         docsAddBtn: '➕ Añadir documento',
         docsSearchGmailBtn: '📧 Buscar reservas en Gmail',
@@ -1912,6 +1915,7 @@ export const es: Translations = {
         dayBucketDay: 'Día {n}',
     },
     modals: {
+        newTripValidationName: "Dale un nombre a tu viaje.",
         newTripTitle: 'Nuevo Viaje',
         newTripLabelName: 'Nombre de la Aventura',
         newTripPlaceholderName: 'p. ej. Verano en la Toscana',

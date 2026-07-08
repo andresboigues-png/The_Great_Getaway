@@ -17,6 +17,34 @@
  * settlement mount chunk so it lazy-loads with the page.
  */
 
+/* ── Settlement colour vocabulary (F6-B1) ────────────────────────
+ * The page uses three "text-tone" colours as inline `color:` values
+ * for balances, chips, avatars and headings that sit on --card-bg
+ * cards: a settled-green (#1a6b3c), a slightly deeper action-green
+ * (#0a7d3f) and an owes-red (#a30000). These are tuned for light
+ * mode; on the dark card-bg (#1c1c1e) #1a6b3c drops to ~1.5:1 and
+ * reads dark-on-dark. Unlike the #34c759 / #ff3b30 FILL accents
+ * (which the global dark block deliberately leaves alone because
+ * they're used as backgrounds, not text), these are foreground text
+ * and need a dark-mode lift. Exposed as tokens so every inline site
+ * can share ONE source of truth and the dark override lives in one
+ * place. Values match the light-mode hexes exactly, so light mode is
+ * pixel-identical. */
+:root {
+    --stl-green: #1a6b3c;
+    --stl-green-deep: #0a7d3f;
+    --stl-red: #a30000;
+}
+:root[data-theme="dark"] {
+    /* Lifted to legible shades on --card-bg (#1c1c1e): the green
+       reaches ~9:1 and the red ~5:1, following the app's habit of
+       brightening accents in dark mode (cf. --accent-purple /
+       --accent-blue-deep). */
+    --stl-green: #5ed68a;
+    --stl-green-deep: #5ed68a;
+    --stl-red: #ff6b60;
+}
+
 /* ── Card chrome ─────────────────────────────────────────────────
  * Two card sizes used throughout the page. Major cards are the
  * top-level section containers (Trip-Settle hero, leaderboard,

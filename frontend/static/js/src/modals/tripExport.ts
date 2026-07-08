@@ -115,9 +115,11 @@ export const openDownloadChooserModal = (trip: Trip): void => {
     }
 };
 
-// Reject obviously-too-big uploads before the round trip (the server caps at
-// 512 MB; this is a friendlier early bail for an accidental wrong file).
-const MAX_IMPORT_BYTES = 256 * 1024 * 1024;
+// Reject too-big uploads before the round trip. Must match the server's body
+// cap (IMPORT_MAX_CONTENT_LENGTH = 64 MB); a larger client gate would let the
+// file upload only to get a terse Werkzeug 413 during multipart parse instead
+// of the friendly importTripTooLarge message below.
+const MAX_IMPORT_BYTES = 64 * 1024 * 1024;
 
 /** POST a `.ggtrip.zip` to the import endpoint, then refresh state and select
  *  the new trip. The caller (New-Trip modal) owns the loading UI and the

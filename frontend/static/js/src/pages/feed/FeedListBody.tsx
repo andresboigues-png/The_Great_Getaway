@@ -138,23 +138,26 @@ export function FeedListBody(props: FeedListBodyProps) {
     }
 
     if (renderedItems.length === 0) {
-        // R9-F1.1: when the bookmark filter strips every event in the
-        // current loaded batch but the server says there's more, we
-        // need to keep paginating to find bookmarks deeper in the
-        // feed. Pre-fix the EmptyState rendered here with no sentinel
-        // — so a user with 1 bookmark sitting at page-3 would just
-        // see "no bookmarks" forever, since loadMore never fired.
-        // Now: if hasMore + bookmarkedOnly, render the sentinel
-        // explicitly so the IntersectionObserver fires and walks
-        // deeper. EmptyState still wins when nextCursor is null
-        // (genuinely no bookmarks anywhere) or when the filter is
-        // off (the empty feed is the real signal).
+        // R9-F1.1: the server paginates a UNIFIED stream while the
+        // client filters per-tab (Posts vs Actions) and, when the Saved
+        // filter is on, by bookmark. So a loaded batch can be non-empty
+        // yet contain zero events of the active tab's type — leaving
+        // `renderedItems` empty even though there's more to fetch.
+        // E2-B1: previously the sentinel was only mounted for
+        // `bookmarkedOnly`, so on the default Posts/Actions tab a
+        // page-1 batch of e.g. 30 Actions-only events rendered
+        // EmptyState with NO sentinel — loadMore never fired and posts
+        // deeper in the stream were permanently unreachable. Now: while
+        // the server says there's more (`hasMore`), always mount the
+        // sentinel so the IntersectionObserver keeps walking deeper for
+        // ANY tab. EmptyState still wins once nextCursor is null
+        // (genuinely nothing of this type anywhere).
         //
         // MK4 SOC-4: also show the spinner while the dedicated
         // /api/feed/bookmarks fetch is in flight (savedLoading) so we
         // don't flash "no saved items" before the persistent saved set
         // has merged in — even when the live feed has no more pages.
-        if ((hasMore && bookmarkedOnly) || (bookmarkedOnly && savedLoading)) {
+        if (hasMore || (bookmarkedOnly && savedLoading)) {
             return (
                 <div
                     ref={sentinelRef}
@@ -176,7 +179,13 @@ export function FeedListBody(props: FeedListBodyProps) {
                     <div
                         className="text-secondary text-[0.85rem] font-semibold"
                     >
-                        {t('feed.searchingBookmarks')}
+                        {/* E2-B1: bookmark-searching copy only when the
+                            Saved filter is on; otherwise this branch is
+                            just paginating the unified stream to reach
+                            events of the active tab's type deeper down. */}
+                        {bookmarkedOnly
+                            ? t('feed.searchingBookmarks')
+                            : t('feed.loading')}
                     </div>
                 </div>
             );

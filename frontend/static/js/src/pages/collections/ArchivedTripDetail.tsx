@@ -40,6 +40,16 @@ const HERO_SECONDARY = 'rgba(255,255,255,0.85)';
 const CHIP_BG = 'rgba(255,255,255,0.16)';
 const CHIP_BORDER = '1px solid rgba(255,255,255,0.25)';
 
+/** Wrap a (possibly foreign/attacker-supplied) photo URL for safe use in a
+ *  CSS `url(...)` value. Photo `src` is only scheme-validated, so an
+ *  unquoted `url(${src})` lets a crafted src break out and inject arbitrary
+ *  CSS (defacement / background-image beacons) when a victim opens a shared
+ *  or public trip. Emitting a double-quoted string with `"`, `\` and
+ *  newlines backslash-escaped closes that hole. */
+function cssUrl(src: string | null | undefined): string {
+    return `url("${String(src ?? '').replace(/[\\"\n\r]/g, (c) => '\\' + c)}")`;
+}
+
 // Icon + value only; the label (DAYS / SPENT / …) reveals as a tooltip on
 // hover (mouse). Keeps the hero compact — matches the home action buttons.
 function StatChip({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
@@ -116,7 +126,7 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
         }
     }
     const heroBg: React.CSSProperties = firstPhoto
-        ? { background: `linear-gradient(135deg, rgba(0,45,91,0.55), rgba(88,86,214,0.45)), url(${firstPhoto}) center/cover no-repeat` }
+        ? { background: `linear-gradient(135deg, rgba(0,45,91,0.55), rgba(88,86,214,0.45)), ${cssUrl(firstPhoto)} center/cover no-repeat` }
         : { background: 'linear-gradient(135deg, #007aff 0%, #5856d6 60%, #34c759 130%)' };
 
     // ── Day-chip helpers (shared by day grid + docs/photos sections). ──
@@ -426,7 +436,7 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                     const dayBadgeLabel = isStartingPoint ? t('archivedDetail.dayBadgeHub') : t('tripMedia.dayBucketDay', { n: day.dayNumber });
                     const dayTitleFallback = isStartingPoint ? t('archivedDetail.dayTitleHub') : t('tripMedia.dayBucketDay', { n: day.dayNumber });
                     const blockStyle: React.CSSProperties = hasBg
-                        ? { background: `linear-gradient(180deg, rgba(0,45,91,0.15) 0%, rgba(0,45,91,0.78) 100%), url(${photoBg}) center/cover no-repeat`, border: '1px solid rgba(0,0,0,0.08)', color: 'white' }
+                        ? { background: `linear-gradient(180deg, rgba(0,45,91,0.15) 0%, rgba(0,45,91,0.78) 100%), ${cssUrl(photoBg)} center/cover no-repeat`, border: '1px solid rgba(0,0,0,0.08)', color: 'white' }
                         : { background: 'white', border: '1.5px solid rgba(0,113,227,0.18)', color: '#002d5b' };
                     const onDayActivate = () => { const d = (trip.tripDays || []).find((x) => x.id === day.id); if (d) openDayView(d); };
                     return (
@@ -497,7 +507,7 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                             );
                             if (isImage(p.src)) {
                                 return (
-                                    <a key={p._key} href={p.src} target="_blank" rel="noreferrer" style={{ position: 'relative', aspectRatio: '1', borderRadius: '14px', overflow: 'hidden', backgroundImage: `url(${p.src})`, backgroundSize: 'cover', backgroundPosition: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)', display: 'block' }}>{chip}</a>
+                                    <a key={p._key} href={p.src} target="_blank" rel="noreferrer" style={{ position: 'relative', aspectRatio: '1', borderRadius: '14px', overflow: 'hidden', backgroundImage: cssUrl(p.src), backgroundSize: 'cover', backgroundPosition: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)', display: 'block' }}>{chip}</a>
                                 );
                             }
                             return (

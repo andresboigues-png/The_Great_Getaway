@@ -15,9 +15,11 @@ import type { ReactNode } from 'react';
 import { t } from '../../i18n.js';
 
 /** Split one line into plain-text + **bold** / _italic_ / ~underline~ runs.
- *  Non-greedy, no nesting — a stray unmatched marker is left as literal
- *  text. `_`/`~` (not `*`) for italic/underline so they never collide with
- *  the `* ` bullet syntax. */
+ *  Non-greedy; each run's inner text is parsed recursively so nested markers
+ *  (e.g. bold-then-italic serialises to `**_word_**`) resolve to nested tags
+ *  instead of leaking literal markers. A stray unmatched marker is left as
+ *  literal text. `_`/`~` (not `*`) for italic/underline so they never collide
+ *  with the `* ` bullet syntax. */
 function inlineRuns(line: string): ReactNode[] {
     const out: ReactNode[] = [];
     const re = /\*\*(.+?)\*\*|_(.+?)_|~(.+?)~/g;
@@ -26,9 +28,9 @@ function inlineRuns(line: string): ReactNode[] {
     let m: RegExpExecArray | null;
     while ((m = re.exec(line)) !== null) {
         if (m.index > last) out.push(line.slice(last, m.index));
-        if (m[1] !== undefined) out.push(<strong key={`b-${key++}`}>{m[1]}</strong>);
-        else if (m[2] !== undefined) out.push(<em key={`i-${key++}`}>{m[2]}</em>);
-        else out.push(<u key={`u-${key++}`}>{m[3]}</u>);
+        if (m[1] !== undefined) out.push(<strong key={`b-${key++}`}>{inlineRuns(m[1])}</strong>);
+        else if (m[2] !== undefined) out.push(<em key={`i-${key++}`}>{inlineRuns(m[2])}</em>);
+        else out.push(<u key={`u-${key++}`}>{inlineRuns(m[3] as string)}</u>);
         last = m.index + m[0].length;
     }
     if (last < line.length) out.push(line.slice(last));

@@ -8,8 +8,7 @@
 // `import { ... } from './api.js'` keeps resolving for every consumer.
 
 import { STATE, emit } from './state.js';
-import { navigate } from './router.js';
-import { EVENTS, PAGES, type PageName } from './constants.js';
+import { EVENTS } from './constants.js';
 import { validateServerData } from './schemas.js';
 import { normalizeTripCompanions } from './companions.js';
 import { showLiquidAlert } from './utils.js';
@@ -337,25 +336,17 @@ export async function pullFromServer() {
 
         await fetchNotifications(); // already emits 'notifications:changed'
 
-        // FIXING_ROADMAP §1.8 — re-render only when it's actually safe.
-        // Pre-fix this unconditionally fired `navigate(current)` at the
-        // end of every pull, which re-mounted the page (including any
-        // open modals — those got their inputs cleared, focus lost,
-        // sometimes closed entirely if they were anchored to the
-        // remount target). With state:changed already emitted above,
-        // most React components re-render via their store subscribers
-        // without a full re-mount. The remaining cases that genuinely
-        // need a navigate (the legacy template-literal pages that
-        // don't subscribe to STATE) are still served — we just skip
-        // when a modal is open OR when the document is hidden (the
-        // user isn't even looking at the page).
-        const modalOpen = !!document.querySelector('.modal-overlay');
-        if (!modalOpen && !document.hidden) {
-            const known: readonly string[] = Object.values(PAGES);
-            const hash = window.location.hash.replace('#', '');
-            const current: PageName = (known.includes(hash) ? hash : PAGES.HOME) as PageName;
-            navigate(current);
-        }
+        // F3-B2 — the poll no longer re-mounts the current page. The
+        // `emit(EVENTS.STATE_CHANGED)` above already drives every page to
+        // re-render via its store subscriber (useStore / useSyncExternalStore),
+        // so the visible tree reflects the fresh pull WITHOUT a React root
+        // teardown + remount. Pre-fix this ended with `navigate(current)`,
+        // which unconditionally ran clearReactMount + innerHTML='' + mount()
+        // even for the SAME page — discarding in-progress inline edits, open
+        // <details>, focus, half-scrolled reels, and re-running restoreScrollTo
+        // every 15s. Every page mounts through mountReact and subscribes to
+        // state:changed, so there are no longer any legacy template-literal
+        // pages that would need a navigate() to pick up the new data.
     } catch (e) {
         // AbortError fires when the user navigated mid-pull. Not a
         // bug — the new page's mount handles its own data load.

@@ -607,6 +607,17 @@ export function computeGlobalBalances(): Record<string, number> {
             const tag = key.startsWith('user:') ? key.slice(5, 9) : String(seen + 1);
             label = `${base} (${tag})`;
         }
+        // B6-B1: the short 4-char id tag is NOT guaranteed unique — two
+        // distinct linked identities whose subs share a 4-char prefix (or a
+        // name key that happens to equal an id-tagged label) yield the SAME
+        // `label`, so the write below silently overwrote one balance and
+        // dropped that person from simplifyDebts. Guarantee a collision-free
+        // key by appending an ordinal until the slot is free.
+        if (label in globalBalances) {
+            let n = 2;
+            while (`${label} #${n}` in globalBalances) n += 1;
+            label = `${label} #${n}`;
+        }
         globalBalances[label] = byIdentity[key]!;
     }
 

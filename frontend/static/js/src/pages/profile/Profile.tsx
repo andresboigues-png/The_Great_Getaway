@@ -38,7 +38,8 @@ import { useStore } from '../../react/store.js';
 import { STATE, emit } from '../../state.js';
 import { apiFetch, uploadMedia, blockUser } from '../../api.js';
 import { showLiquidAlert, getHomeCurrency, showConfirmModal } from '../../utils.js';
-import { CONVERSION_RATES, CURRENCY_SYMBOLS } from '../../constants.js';
+import { CURRENCY_SYMBOLS } from '../../constants.js';
+import { getSupportedCurrencies } from '../../utils/currency.js';
 import { navigate } from '../../router.js';
 import { clearAllManualFx } from '../../utils/manualRates.js';
 import { clearAllFxOverrides } from '../../utils/fxOverrides.js';
@@ -2055,11 +2056,21 @@ function BioBlock({
     // Currency tile → searchable picker (symbol + code rows). Picking
     // auto-saves immediately (see applyHomeCurrency).
     const openCurrencyPicker = () => {
-        const items: StatListItem[] = Object.keys(CONVERSION_RATES).map((code) => ({
-            primary: code,
-            avatarInitial: CURRENCY_SYMBOLS[code] || code.slice(0, 1),
-            onClick: () => void applyHomeCurrency(code),
-        }));
+        // E7-B1: union of rate-backed currencies (EUR + static table + live FX
+        // cache) with every symbol-known = server-allowed code, matching the
+        // expense / budget / rates pickers. Pre-fix this listed only the 17
+        // keys of CONVERSION_RATES, so a user already on SEK/NOK/DKK/THB/… had
+        // no row for their own currency and tapping any of the 17 silently
+        // downgraded them.
+        const items: StatListItem[] = Array.from(
+            new Set([...getSupportedCurrencies(), ...Object.keys(CURRENCY_SYMBOLS)]),
+        )
+            .sort((a, b) => (a === 'EUR' ? -1 : b === 'EUR' ? 1 : a.localeCompare(b)))
+            .map((code) => ({
+                primary: code,
+                avatarInitial: CURRENCY_SYMBOLS[code] || code.slice(0, 1),
+                onClick: () => void applyHomeCurrency(code),
+            }));
         openStatListModal({ title: t('profile.homeCurrencyAria'), items });
     };
 

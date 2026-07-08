@@ -63,7 +63,11 @@ export function AddTripDocumentModal({ trip, close }: { trip: Trip; close: () =>
             setStatusText(t('tripMedia.addDocValidationRequired'));
             return;
         }
-        addTripDocument(trip, { name, url, dayId: dayRef.current?.value || null });
+        const added = addTripDocument(trip, { name, url, dayId: dayRef.current?.value || null });
+        if (!added) {
+            setStatusText(t('tripMedia.addDocValidationInvalidUrl'));
+            return;
+        }
         emit('state:changed');
         await upsertTrip(trip);
         close();

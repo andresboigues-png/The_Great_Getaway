@@ -2255,6 +2255,9 @@ export const en = {
     // Five popups share these keys: documents list, photos grid, add
     // doc, edit doc, add-photo-by-link.
     tripMedia: {
+        addDocValidationInvalidUrl: "That link isn't supported. Use an http(s):// URL, or upload the file instead.",
+        photoUploadPartialReason: "{added} added, {failed} couldn't be uploaded — {reason}",
+        photoUploadPartial: "{added} added, {failed} couldn't be uploaded.",
         // ── Documents list modal ──
         docsTitle: 'Documents',
         docsAddBtn: '➕ Add document',
@@ -2351,6 +2354,7 @@ export const en = {
     // add day, trip invite. Companions + share modals have their own
     // sections (`companions:` / `share:`).
     modals: {
+        newTripValidationName: "Give your trip a name.",
         // ── New trip modal ──
         newTripTitle: 'New Trip',
         newTripLabelName: 'Adventure Name',

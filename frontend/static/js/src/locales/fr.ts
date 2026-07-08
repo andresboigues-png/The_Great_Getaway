@@ -1833,6 +1833,9 @@ export const fr: Translations = {
         toastUpdated: 'Itinéraire mis à jour !',
     },
     tripMedia: {
+        addDocValidationInvalidUrl: "Ce lien n'est pas pris en charge. Utilisez une URL http(s):// ou importez le fichier.",
+        photoUploadPartialReason: "{added} ajoutée(s), {failed} n'ont pas pu être importées — {reason}",
+        photoUploadPartial: "{added} ajoutée(s), {failed} n'ont pas pu être importées.",
         docsTitle: 'Documents',
         docsAddBtn: '➕ Ajouter un document',
         docsSearchGmailBtn: '📧 Rechercher des réservations dans Gmail',
@@ -1917,6 +1920,7 @@ export const fr: Translations = {
         dayBucketDay: 'Jour {n}',
     },
     modals: {
+        newTripValidationName: "Donne un nom à ton voyage.",
         newTripTitle: 'Nouveau Voyage',
         newTripLabelName: "Nom de l'Aventure",
         newTripPlaceholderName: 'p. ex. Été en Toscane',

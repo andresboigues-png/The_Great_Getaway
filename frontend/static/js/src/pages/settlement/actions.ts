@@ -472,6 +472,21 @@ function _pairwiseOwed(trip: Trip | undefined, from: string, to: string, currenc
     return edge ? edge.amount : 0;
 }
 
+/** B5-B1: guarantee a settlement's recorded party name survives in the
+ *  edit modal's <select>, even after that companion was removed from the
+ *  trip roster. getTripCompanionNames only returns CURRENT companions, so a
+ *  removed party's snapshot name has no matching <option> — the browser
+ *  then silently selects the FIRST option, and an unrelated tweak + Update
+ *  re-records the settlement to the wrong person. Append the missing name
+ *  (case-insensitive, mirroring findTripCompanion's matching) so it stays a
+ *  selectable, pre-selected option. */
+function _peopleWith(names: string[], required: string | undefined): string[] {
+    if (!required) return names;
+    const lower = required.toLocaleLowerCase();
+    if (names.some((n) => (n || '').toLocaleLowerCase() === lower)) return names;
+    return [...names, required];
+}
+
 /** Edit a recorded settlement. Routes by which store the id lives in:
  *
  *    - legacy isSettlement EXPENSE row → the in-place edit below (mutates
@@ -496,11 +511,14 @@ export function openEditSettlementModal(id: string): void {
     const s = expenseRow;
     const trip = STATE.trips.find((tr) => tr.id === s.tripId);
     const peopleSource = getTripCompanionNames(trip);
-    const fromOpts = peopleSource
+    const toPerson = Object.keys(s.splits || {})[0];
+    // B5-B1: keep the recorded payer/recipient selectable even if their
+    // companion row was removed from the trip, so Update can't reassign the
+    // row to the first roster name.
+    const fromOpts = _peopleWith(peopleSource, s.who)
         .map((p) => `<option value="${esc(p)}" ${s.who === p ? 'selected' : ''}>${esc(p)}</option>`)
         .join('');
-    const toPerson = Object.keys(s.splits || {})[0];
-    const toOpts = peopleSource
+    const toOpts = _peopleWith(peopleSource, toPerson)
         .map((p) => `<option value="${esc(p)}" ${toPerson === p ? 'selected' : ''}>${esc(p)}</option>`)
         .join('');
     const home = getHomeCurrency();
@@ -597,10 +615,15 @@ function openEditServerSettlementModal(s: Settlement): void {
         || s.fromName || '';
     const defaultTo = findTripCompanionByLinkedUser(trip, s.toUserId)?.name
         || s.toName || '';
-    const fromOpts = peopleSource
+    // B5-B1: when a party was removed from the roster its snapshot name is
+    // absent from getTripCompanionNames, so no <option> matches and the
+    // select falls back to its first entry — an unrelated tweak + Update
+    // then silently re-records the settlement to the wrong person. Keep the
+    // recorded name as a selectable, pre-selected option.
+    const fromOpts = _peopleWith(peopleSource, defaultFrom)
         .map((p) => `<option value="${esc(p)}" ${p === defaultFrom ? 'selected' : ''}>${esc(p)}</option>`)
         .join('');
-    const toOpts = peopleSource
+    const toOpts = _peopleWith(peopleSource, defaultTo)
         .map((p) => `<option value="${esc(p)}" ${p === defaultTo ? 'selected' : ''}>${esc(p)}</option>`)
         .join('');
     const cur = (s.currency || 'EUR').toUpperCase();
@@ -656,6 +679,16 @@ function openEditServerSettlementModal(s: Settlement): void {
             message: t('settlement.editServerConfirmBody'),
             confirmText: t('settlement.updateBtn'),
             onConfirm: () => { void (async () => {
+                // B5-B2: refuse the whole edit up front when offline. This is a
+                // DELETE-then-re-record with no atomicity: settleDebt's own
+                // offline guard returns silently, so if we delete first and the
+                // re-record is skipped the settlement is permanently lost and
+                // the cleared debt reappears. Gate the destructive delete on
+                // connectivity so we never destroy the row we can't replace.
+                if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+                    showLiquidAlert(t('errors.offline'), 'info');
+                    return;
+                }
                 // MK6 P1: work out the euroValue the re-record needs BEFORE we
                 // delete anything. For a no-rate currency settleDebt refuses
                 // without an explicit euroValue, so the old delete-then-record
