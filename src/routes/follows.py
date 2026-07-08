@@ -75,6 +75,78 @@ def is_following(cursor, follower_id: str, followee_id: str) -> bool:
     return cursor.fetchone() is not None
 
 
+def create_follow(cursor, follower_id: str, followee_id: str, source: str = "followed_you") -> str:
+    """E1-I1: the ONE place a follow edge is created. Both the canonical
+    POST /api/follows/<id> (follow_user, source='followed_you') and the
+    legacy Friends façades (routes/friends.py add_friend / accept_friend,
+    source='friend_request' / 'accepted_request') delegate here so the
+    block-gate, per-account daily cap, first-ever-notify rule, and quota
+    metering are written ONCE and can never drift between the two entry
+    points again. Pre-unification the Friends path gated the cap
+    UNCONDITIONALLY — even a no-op re-follow at the cap 429'd — while
+    follow_user (E1-B4) correctly let idempotent re-follows through; that
+    divergence is now impossible.
+
+    Does NOT commit and does NOT resolve the target's existence — callers
+    own the transaction + their own `ensure_user_exists` 404. Returns a
+    status string so each caller renders its own response shape:
+      - "blocked" — a block edge exists in EITHER direction; no follow made.
+      - "capped"  — a genuinely-new follow would exceed today's per-account
+                    cap; no follow made. (An idempotent re-follow of an
+                    already-followed target is NEVER capped — E1-B4.)
+      - "created" — a brand-new follow row was inserted (first-ever notify
+                    fired unless the pair was already notified).
+      - "exists"  — idempotent no-op; the follow already existed.
+
+    `source` becomes the notification `type` (legacy Friends clients still
+    render 'friend_request' / 'accepted_request' icons); the first-ever
+    check spans ALL follow-ish notification types so re-follow cycles — or
+    a follow that arrives after a legacy friend_request — never re-notify.
+    """
+    from routes.blocks import is_blocked
+
+    if is_blocked(cursor, follower_id, followee_id) or is_blocked(cursor, followee_id, follower_id):
+        return "blocked"
+    # E1-B4: skip the cap for a follow that already exists — an idempotent
+    # re-call must stay free even when the bucket is spent. Only genuinely-new,
+    # notification-generating follows are metered (incremented below).
+    already_follows = is_following(cursor, follower_id, followee_id)
+    if not already_follows and user_daily_count("follow", follower_id) >= _FOLLOW_DAILY_CAP:
+        return "capped"
+
+    cursor.execute(
+        "INSERT OR IGNORE INTO follows (follower_id, followee_id) VALUES (?, ?)",
+        (follower_id, followee_id),
+    )
+    is_new = cursor.rowcount > 0
+    if is_new:
+        # First-ever follow → notification. Suppress if this pair already has
+        # ANY follow-type notification (survives follow → unfollow → re-follow
+        # and the legacy friend_request → follow upgrade without re-notifying).
+        cursor.execute(
+            "SELECT 1 FROM notifications "
+            "WHERE user_id = ? AND type IN ('followed_you', 'friend_request', 'accepted_request') "
+            "AND related_id = ? LIMIT 1",
+            (followee_id, follower_id),
+        )
+        if cursor.fetchone() is None:
+            cursor.execute("SELECT name FROM users WHERE id = ?", (follower_id,))
+            row = cursor.fetchone()
+            actor_name = (row["name"] if row else None) or "Someone"
+            insert_notification(
+                cursor,
+                user_id=followee_id,
+                kind=source,
+                title='New follower' if source == 'followed_you' else 'Friend Request',
+                related_id=follower_id,
+                message=f"{actor_name} started following you.",
+            )
+            # Meter this genuinely-new, notifying follow AFTER the notification
+            # is queued so a failed insert can't burn quota. In-memory bucket.
+            user_daily_increment("follow", follower_id)
+    return "created" if is_new else "exists"
+
+
 @bp.route("/api/follows/<user_id>", methods=["POST"])
 @require_auth
 @limiter.limit("60/minute")
@@ -100,31 +172,17 @@ def follow_user(user_id):
             # 404 (not 403) so a probing client can't enumerate
             # which user_ids exist — same posture as /api/public-trip.
             return jsonify({"error": "Not found"}), 404
-        # Audit fix (2026-05-26): block-gate. If the target user has
-        # blocked the caller, the follow silently fails — 404 not
-        # 403 so the block isn't broadcast back to the blocked user.
-        # Symmetric: if the caller has blocked the target (e.g. UI
-        # didn't catch up after a previous block), the follow also
-        # fails (you can't follow someone you've blocked; the block
-        # endpoint already tears down both directions).
-        from routes.blocks import is_blocked
 
-        if is_blocked(cursor, user_id, caller_id) or is_blocked(cursor, caller_id, user_id):
+        # E1-I1: block-gate, daily cap, INSERT, first-ever notify + quota
+        # metering all live in the shared create_follow primitive so this
+        # canonical route and the legacy Friends façades can't drift.
+        status = create_follow(cursor, caller_id, user_id, source='followed_you')
+        # Block → 404 (not 403) so the block isn't broadcast back to the
+        # blocked user; symmetric — a caller who blocked the target also
+        # can't follow. Same posture the route used pre-unification.
+        if status == "blocked":
             return jsonify({"error": "Not found"}), 404
-
-        # BUG-079: per-account daily follow cap. Counts only NEW first-time
-        # follows (incremented below), so unfollow/refollow toggling and
-        # idempotent re-POSTs don't burn quota — only genuinely-new
-        # notification-generating follows do.
-        #
-        # E1-B4: gate ONLY genuinely-new follows. A pure no-op re-POST for
-        # someone the caller already follows must never 429 — the docstring
-        # promises idempotent re-POSTs are free, and a user who legitimately
-        # made 100 follows today must still be able to re-POST an existing
-        # follow (e.g. the UI repainting stale state). So skip the cap when
-        # the follow already exists.
-        already_follows = is_following(cursor, caller_id, user_id)
-        if not already_follows and user_daily_count("follow", caller_id) >= _FOLLOW_DAILY_CAP:
+        if status == "capped":
             return jsonify(
                 {
                     "error": "You've hit today's follow limit. Try again tomorrow.",
@@ -132,42 +190,7 @@ def follow_user(user_id):
                 }
             ), 429
 
-        cursor.execute(
-            "INSERT OR IGNORE INTO follows (follower_id, followee_id) VALUES (?, ?)",
-            (caller_id, user_id),
-        )
-        was_new = cursor.rowcount > 0
-
-        # First-ever follow → notification. The "first-ever" check
-        # is: do we ALREADY have a `followed_you` notification for
-        # this (recipient, actor) pair? If so, skip. This survives
-        # follow → unfollow → re-follow without re-notifying.
-        if was_new:
-            cursor.execute(
-                "SELECT 1 FROM notifications "
-                "WHERE user_id = ? AND type = 'followed_you' AND related_id = ? "
-                "LIMIT 1",
-                (user_id, caller_id),
-            )
-            already_notified = cursor.fetchone() is not None
-            if not already_notified:
-                cursor.execute("SELECT name FROM users WHERE id = ?", (caller_id,))
-                row = cursor.fetchone()
-                actor_name = (row["name"] if row else "Someone") or "Someone"
-                insert_notification(
-                    cursor,
-                    user_id=user_id,
-                    kind='followed_you',
-                    title='New follower',
-                    related_id=caller_id,
-                    message=f"{actor_name} started following you.",
-                )
-                # BUG-079: meter this genuinely-new (first-ever, notifying)
-                # follow against the daily cap — after the notification is
-                # queued so a failed insert can't burn quota. In-memory
-                # bucket; no DB write.
-                user_daily_increment("follow", caller_id)
-
+        was_new = status == "created"
         conn.commit()
         counts = follower_counts(cursor, user_id)
 

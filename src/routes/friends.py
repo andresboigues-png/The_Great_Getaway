@@ -37,13 +37,9 @@ from database import get_db, retry_on_lock
 from extensions import limiter
 from helpers import (
     ensure_user_exists,
-    insert_notification,
     json_body,
-    user_daily_count,
-    user_daily_increment,
 )
-from routes.blocks import is_blocked
-from routes.follows import _FOLLOW_DAILY_CAP
+from routes.follows import create_follow
 from social import mutuals_of
 
 bp = Blueprint("friends", __name__)
@@ -79,7 +75,7 @@ def search_friends():
     # search results. Pre-fix, a blocked user could prefix-search the
     # blocker's email, see them in results with id + masked email, and
     # use that id to call the legacy /api/friends/add endpoint (which
-    # used to bypass the block — now also fixed in _follow). Defense
+    # used to bypass the block — now also fixed in create_follow). Defense
     # in depth: even if /api/friends/add were ever to regress, the
     # search itself doesn't hand the blocker's id to the blocked user.
     # The blocker can still see THEMSELVES via search; we only filter
@@ -135,86 +131,6 @@ def _mask_email(email: str | None) -> str:
     return f"{local[0]}{'*' * (len(local) - 2)}{local[-1]}@{domain}"
 
 
-def _follow(cursor, follower_id: str, followee_id: str, source: str) -> str:
-    """Shared implementation of "follow this user" used by both
-    /api/friends/add and /api/friends/accept (which under Model B are
-    just two phrasings of the same action).
-
-    Returns a status string so callers can render an honest response:
-      - "blocked"  — a block edge exists in EITHER direction; no follow
-                     was created (see the block-gate note below).
-      - "capped"   — the caller has hit today's per-account follow cap;
-                     no follow was created (see E1-B1 note below).
-      - "created"  — a genuinely-new follow row was inserted.
-      - "exists"   — idempotent re-call; the follow already existed.
-
-    Mirrors the routes/follows.py POST handler's notification rule:
-    fire `followed_you` only on the FIRST-EVER follow for the pair,
-    skip on re-follow cycles so a petty actor can't bell-spam someone
-    by toggling. `source` is the legacy event-type ('friend_request'
-    / 'accepted_request') we used to fire — kept as the notification
-    `type` value so existing client-side dropdown rendering still
-    shows the right icon/copy until the frontend migrates to the
-    `followed_you` type from §4.7.
-
-    Audit fix (R2): block-symmetry gate, mirroring routes/follows.py.
-    Pre-fix the legacy /api/friends/add + /api/friends/accept routes
-    skipped the block check entirely (the new /api/follows/<id> POST
-    had it, but the legacy façades didn't). That meant a blocked user
-    could re-establish a follow via the legacy endpoint and entirely
-    defeat the block primitive. Returns "blocked" when either party
-    blocks the other, NOT an error — matches the silent no-op semantics
-    the rest of the route surface uses for blocks.
-
-    E1-B1: per-account daily follow cap. The 100/day gate lived only in
-    routes/follows.py::follow_user; the Friends-page follow / "Follow
-    back" go through here and bypassed it entirely. Reuse the SAME
-    `_FOLLOW_DAILY_CAP` + `user_daily_count`/`user_daily_increment`
-    bucket so both entry points share one quota — the cap fires BEFORE
-    the insert (so even an idempotent re-follow at the cap is refused,
-    matching follow_user) and only a genuinely-new, notifying follow
-    increments the bucket (so unfollow/refollow toggling and no-op
-    re-calls don't burn quota)."""
-    if is_blocked(cursor, follower_id, followee_id) or is_blocked(cursor, followee_id, follower_id):
-        return "blocked"
-    # E1-B1: same per-account daily cap as routes/follows.py::follow_user.
-    # Gate before the insert so a capped account can't slip a follow
-    # through the legacy façade.
-    if user_daily_count("follow", follower_id) >= _FOLLOW_DAILY_CAP:
-        return "capped"
-    cursor.execute(
-        "INSERT OR IGNORE INTO follows (follower_id, followee_id) VALUES (?, ?)",
-        (follower_id, followee_id),
-    )
-    is_new = cursor.rowcount > 0
-    if is_new:
-        # First-ever notification check — same pattern as routes/follows.py.
-        cursor.execute(
-            "SELECT 1 FROM notifications "
-            "WHERE user_id = ? AND type IN ('followed_you', 'friend_request', 'accepted_request') "
-            "AND related_id = ? LIMIT 1",
-            (followee_id, follower_id),
-        )
-        already_notified = cursor.fetchone() is not None
-        if not already_notified:
-            cursor.execute("SELECT name FROM users WHERE id = ?", (follower_id,))
-            row = cursor.fetchone()
-            actor_name = (row["name"] if row else None) or "Someone"
-            insert_notification(
-                cursor,
-                user_id=followee_id,
-                kind=source,
-                title='New follower' if source == 'followed_you' else 'Friend Request',
-                related_id=follower_id,
-                message=f"{actor_name} started following you.",
-            )
-            # E1-B1: meter this genuinely-new, notifying follow against the
-            # daily bucket — after the notification is queued so a failed
-            # insert can't burn quota. Mirrors follow_user exactly.
-            user_daily_increment("follow", follower_id)
-    return "created" if is_new else "exists"
-
-
 @bp.route("/api/friends/add", methods=["POST"])
 @limiter.limit("30 per minute")
 @require_auth
@@ -237,14 +153,14 @@ def add_friend():
         if not ensure_user_exists(cursor, friend_id):
             return jsonify({"error": "Friend not found"}), 404
         # DSGN-039 + E1-B2: surface a distinct 'blocked' status when a block
-        # edge exists in EITHER direction. _follow() no-ops silently on a
-        # block edge (returns "blocked"), so without honouring that the
+        # edge exists in EITHER direction. create_follow() no-ops silently on
+        # a block edge (returns "blocked"), so without honouring that the
         # endpoint always returned 'success' and the UI showed 'Request
         # sent!' for a follow that was never created — a phantom follow.
         # Pre-fix only the caller-blocked-target direction was caught here;
-        # if the TARGET had blocked the caller, _follow() still no-op'd but
-        # the route reported success. Now both directions report 'blocked'.
-        status = _follow(cursor, user_id, friend_id, source='friend_request')
+        # if the TARGET had blocked the caller, create_follow() still no-op'd
+        # but the route reported success. Now both directions report 'blocked'.
+        status = create_follow(cursor, user_id, friend_id, source='friend_request')
         if status == "blocked":
             return jsonify({"status": "blocked"})
         # E1-B1: honour the shared per-account daily follow cap (same gate as
@@ -292,7 +208,7 @@ def accept_friend():
         cursor = conn.cursor()
         if not ensure_user_exists(cursor, friend_id):
             return jsonify({"error": "User not found"}), 404
-        status = _follow(cursor, user_id, friend_id, source='accepted_request')
+        status = create_follow(cursor, user_id, friend_id, source='accepted_request')
         # E1-B1: "Follow back" is a follow — honour the same daily cap so a
         # capped account can't slip an extra follow through the accept
         # façade (and so the caller sees an honest 429, not a phantom

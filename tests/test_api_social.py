@@ -2412,16 +2412,19 @@ def test_friends_add_meters_and_caps_like_follow_user(
 ):
     """E1-B1: the 100/day per-account follow cap lived only in
     routes/follows.py::follow_user. The Friends-page follow / "Follow back"
-    go through /api/friends/add → _follow, which pre-fix never checked or
-    metered the cap — a scripted account could fan out unlimited first-ever
-    follows (each bell-spams the target) through the legacy façade.
+    go through /api/friends/add → create_follow, which pre-fix never checked
+    or metered the cap — a scripted account could fan out unlimited
+    first-ever follows (each bell-spams the target) through the legacy façade.
 
-    Now /api/friends/add shares the SAME `follow` bucket: a genuinely-new
-    follow bumps it by exactly 1, and once the bucket is at the cap the
-    endpoint 429s with followCapHit (same shape /api/follows/<id> returns)."""
+    Now /api/friends/add shares the SAME `follow` bucket AND the SAME shared
+    create_follow primitive as /api/follows/<id>: a genuinely-new follow
+    bumps the bucket by exactly 1, a genuinely-new follow at the cap 429s
+    with followCapHit, and — per E1-B4 — an idempotent re-add of an ALREADY-
+    followed target stays free even at the cap (it isn't a new follow)."""
     from datetime import date
 
     import helpers
+    from database import get_db
     from routes.follows import _FOLLOW_DAILY_CAP
 
     # A genuinely-new follow through the Friends façade meters one unit
@@ -2440,14 +2443,33 @@ def test_friends_add_meters_and_caps_like_follow_user(
     assert again.status_code == 200
     assert helpers.user_daily_count("follow", seed_user) == 1
 
-    # At the cap, the next /api/friends/add is refused (the gate fires
-    # before the insert, mirroring follow_user's 429 + followCapHit).
+    # Pin the bucket at the cap.
     helpers._USER_DAILY_BUCKETS.setdefault("follow", {})[seed_user] = (
         _FOLLOW_DAILY_CAP,
         date.today().toordinal(),
     )
-    capped = client.post(
+
+    # E1-B4: an idempotent re-add of the ALREADY-followed target must NOT
+    # 429 even at the cap — it isn't a genuinely-new follow. This is exactly
+    # follow_user's behaviour, which is what "caps_like_follow_user" means.
+    noop = client.post(
         "/api/friends/add", headers=auth_headers, json={"friend_id": seed_other_user}
+    )
+    assert noop.status_code == 200, (
+        f"idempotent re-add at the cap must not 429 (E1-B4); got {noop.status_code}"
+    )
+
+    # A genuinely-NEW follow at the cap IS refused (gate fires before the
+    # insert), mirroring follow_user's 429 + followCapHit. Exercise it on a
+    # FRESH target so the cap — not the idempotency skip — is what refuses it.
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            ("test-friends-cap-target", "fcapt@example.com", "Friends Cap Target"),
+        )
+        conn.commit()
+    capped = client.post(
+        "/api/friends/add", headers=auth_headers, json={"friend_id": "test-friends-cap-target"}
     )
     assert capped.status_code == 429, (
         f"/api/friends/add must honour the daily follow cap (E1-B1); got {capped.status_code}"
