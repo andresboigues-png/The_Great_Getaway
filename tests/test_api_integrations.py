@@ -292,6 +292,52 @@ def test_generate_itinerary_new_signals_and_schema(
     assert '"date":' not in prompt
 
 
+def test_generate_itinerary_falls_back_when_schema_rejected(
+    client,
+    seed_user,
+    auth_headers,
+    monkeypatch,
+):
+    """Safety net: if Gemini ever rejects the responseSchema (an
+    INVALID_ARGUMENT), the handler re-runs the pool WITHOUT the schema
+    instead of hard-failing every generation. Verify a schema-carrying
+    attempt that 400s is followed by a successful no-schema attempt."""
+    monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_MAPS_SERVER_KEY", raising=False)
+    calls = []
+
+    def fake_post(url, headers=None, json=None, timeout=None, **kwargs):
+        calls.append(json)
+        if "responseSchema" in json["generationConfig"]:
+            return _FakeGeminiResponse(
+                400,
+                json_body={
+                    "error": {
+                        "status": "INVALID_ARGUMENT",
+                        "message": "Invalid JSON payload: Unknown name responseSchema.",
+                    }
+                },
+            )
+        return _FakeGeminiResponse(
+            200,
+            json_body={"candidates": [{"content": {"parts": [{"text": "[]"}]}}]},
+        )
+
+    import routes.integrations
+
+    monkeypatch.setattr(routes.integrations.requests, "post", fake_post)
+
+    res = client.post(
+        "/api/generate_itinerary",
+        headers=auth_headers,
+        json={"destination": "Spain", "numDays": 2, "gemini_key": "byo-key"},
+    )
+    assert res.status_code == 200
+    # The schema attempt(s) were rejected, then a no-schema attempt succeeded.
+    assert any("responseSchema" in c["generationConfig"] for c in calls)
+    assert any("responseSchema" not in c["generationConfig"] for c in calls)
+
+
 def test_generate_itinerary_includes_bio_personalization(
     client,
     seed_user,

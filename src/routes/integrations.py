@@ -172,6 +172,17 @@ def _looks_like_quota_error(err_msg: str) -> bool:
     )
 
 
+def _looks_like_schema_rejection(err_msg: str) -> bool:
+    """True when Gemini rejects the request specifically over the
+    responseSchema (an INVALID_ARGUMENT naming schema/response_schema).
+    Drives a one-time fallback that re-runs the whole pool WITHOUT the
+    schema, so a subtle schema-format issue degrades to the prior
+    (responseMimeType-only) behaviour instead of hard-failing every
+    generation."""
+    s = err_msg.lower()
+    return "schema" in s and ("invalid" in s or "400" in s or "bad request" in s)
+
+
 @bp.route("/api/gemini/host-keys/status", methods=["GET"])
 @require_auth
 @limiter.limit("30/minute")
@@ -1033,8 +1044,14 @@ def generate_itinerary():
     models = ["gemini-flash-latest", "gemini-2.5-flash"]
     result_text = None
     last_error = None
+    # Structural-output safety: use the responseSchema first, but if Gemini
+    # ever rejects it (a subtle schema-format issue would otherwise hard-fail
+    # EVERY generation across all keys/models), fall back to a second full
+    # pass without the schema — the prior responseMimeType-only behaviour.
+    use_schema = True
 
-    # Nested loop: outer = key rotation, inner = model fallback.
+    # Nested loop: outer = key rotation, inner = model fallback. Wrapped in a
+    # schema-fallback pass (see use_schema above).
     #
     # For each candidate key we try every model in order. On a quota
     # error we mark the slot cooled (BYO slot 0 is exempt — that key
@@ -1042,125 +1059,140 @@ def generate_itinerary():
     # latency on the other models. On any other error we still try
     # the next model on the same key, then fall through to the next
     # key after exhausting model options.
-    for slot, api_key in keys_to_try:
-        for model in models:
-            try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-                headers = {"Content-Type": "application/json"}
-                payload = {
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {
+    for _schema_pass in range(2):
+        for slot, api_key in keys_to_try:
+            for model in models:
+                try:
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+                    headers = {"Content-Type": "application/json"}
+                    gen_config = {
                         # Lowered from 0.7 → 0.35: this is a factual, structured
                         # task where hallucinated names break Places enrichment;
                         # variety comes from the vibe/prefs, not sampling noise.
                         "temperature": 0.35,
                         "responseMimeType": "application/json",
-                        "responseSchema": response_schema,
                         "maxOutputTokens": max_output_tokens,
-                    },
-                }
+                    }
+                    if use_schema:
+                        gen_config["responseSchema"] = response_schema
+                    payload = {
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": gen_config,
+                    }
 
-                # 2026-05-20: `with` ensures the socket is released on
-                # exit so Gemini's long generations don't pile up FDs.
-                # SEC-4 (MK4): pin allow_redirects=False — generateContent never
-                # legitimately redirects, so refusing to follow removes any
-                # theoretical key-egress-on-redirect path for the key in this
-                # request (defense-in-depth; consistent with the Places calls).
-                with requests.post(
-                    url,
-                    headers=headers,
-                    json=payload,
-                    timeout=30,
-                    allow_redirects=False,
-                ) as resp:
-                    # Capture Google's error body before raising — a bare HTTPError
-                    # message ("503 Server Error") hides the actual reason.
-                    #
-                    # R3-Fix #14: scrub `?key=...` from the response body
-                    # before interpolating into the RuntimeError. Google's
-                    # Generative Language API echoes the request URL in
-                    # several error response shapes (INVALID_ARGUMENT,
-                    # PERMISSION_DENIED), which means the host API key (or
-                    # worse, the user's BYO key) flowed into:
-                    #   - the RuntimeError string,
-                    #   - `last_error` below,
-                    #   - the 502 response body returned to the client
-                    #     ("AI generation failed. Last error: …"),
-                    #   - every logger.warning call.
-                    # `scrub_key` lives in validators.py — shared with pdf.py's
-                    # Static Maps error path.
-                    if not resp.ok:
-                        try:
-                            err_body = resp.json().get("error", {})
-                            msg = err_body.get('message', resp.text[:200])
-                            raise RuntimeError(
-                                f"{err_body.get('status', resp.status_code)}: {scrub_key(msg)}"
-                            )
-                        except ValueError:
-                            raise RuntimeError(
-                                f"HTTP {resp.status_code}: {scrub_key(resp.text[:200])}"
-                            ) from None
+                    # 2026-05-20: `with` ensures the socket is released on
+                    # exit so Gemini's long generations don't pile up FDs.
+                    # SEC-4 (MK4): pin allow_redirects=False — generateContent never
+                    # legitimately redirects, so refusing to follow removes any
+                    # theoretical key-egress-on-redirect path for the key in this
+                    # request (defense-in-depth; consistent with the Places calls).
+                    with requests.post(
+                        url,
+                        headers=headers,
+                        json=payload,
+                        timeout=30,
+                        allow_redirects=False,
+                    ) as resp:
+                        # Capture Google's error body before raising — a bare HTTPError
+                        # message ("503 Server Error") hides the actual reason.
+                        #
+                        # R3-Fix #14: scrub `?key=...` from the response body
+                        # before interpolating into the RuntimeError. Google's
+                        # Generative Language API echoes the request URL in
+                        # several error response shapes (INVALID_ARGUMENT,
+                        # PERMISSION_DENIED), which means the host API key (or
+                        # worse, the user's BYO key) flowed into:
+                        #   - the RuntimeError string,
+                        #   - `last_error` below,
+                        #   - the 502 response body returned to the client
+                        #     ("AI generation failed. Last error: …"),
+                        #   - every logger.warning call.
+                        # `scrub_key` lives in validators.py — shared with pdf.py's
+                        # Static Maps error path.
+                        if not resp.ok:
+                            try:
+                                err_body = resp.json().get("error", {})
+                                msg = err_body.get('message', resp.text[:200])
+                                raise RuntimeError(
+                                    f"{err_body.get('status', resp.status_code)}: {scrub_key(msg)}"
+                                )
+                            except ValueError:
+                                raise RuntimeError(
+                                    f"HTTP {resp.status_code}: {scrub_key(resp.text[:200])}"
+                                ) from None
 
-                    result = resp.json()
-                # MK6 P2: default to "" (falsy), NOT "[]". Gemini can answer
-                # HTTP 200 with candidates=[{"finishReason":"SAFETY"}] and no
-                # parts; the old "[]" default was truthy, so `if result_text:
-                # break` treated a blocked/empty generation as SUCCESS — the AI
-                # page rendered a blank plan with no error AND the user's daily
-                # quota was still incremented. Extract defensively, and on an
-                # empty result record the finishReason and fall through to the
-                # next model/key instead of breaking.
-                _cand = (result.get("candidates") or [{}])[0] or {}
-                _parts = (_cand.get("content", {}) or {}).get("parts") or [{}]
-                result_text = (_parts[0] or {}).get("text") or ""
-                if result_text:
-                    break
-                _finish = _cand.get("finishReason") or "no candidate text"
-                last_error = f"Gemini returned no content (finishReason={scrub_key(str(_finish))})"
-                logger.warning(
-                    "Gemini slot %d model %s: empty/blocked 200 response (%s)",
-                    slot,
-                    model,
-                    last_error,
-                )
-                continue
-            except Exception as e:
-                # R3-Fix #14: scrub the exception string before storing
-                # / logging. `str(e)` may still contain the response
-                # body for paths that bypassed the RuntimeError builder
-                # above (network errors carrying URLs with embedded
-                # keys, etc.).
-                last_error = scrub_key(str(e))
-                # Quota / rate-limit errors → the key is cooked for
-                # the day. Mark it (unless BYO) and bail out of the
-                # model loop — the other model on the same key will
-                # hit the same quota wall.
-                if _looks_like_quota_error(last_error):
-                    if slot != 0:
-                        # Per-minute RPM bursts recover in ~a minute; only a
-                        # genuine per-day exhaustion warrants the long cooldown.
-                        _mark_key_exhausted(
-                            slot,
-                            _KEY_COOLDOWN_DAILY_SECONDS
-                            if _is_per_day_quota_error(last_error)
-                            else _KEY_COOLDOWN_SECONDS,
-                        )
+                        result = resp.json()
+                    # MK6 P2: default to "" (falsy), NOT "[]". Gemini can answer
+                    # HTTP 200 with candidates=[{"finishReason":"SAFETY"}] and no
+                    # parts; the old "[]" default was truthy, so `if result_text:
+                    # break` treated a blocked/empty generation as SUCCESS — the AI
+                    # page rendered a blank plan with no error AND the user's daily
+                    # quota was still incremented. Extract defensively, and on an
+                    # empty result record the finishReason and fall through to the
+                    # next model/key instead of breaking.
+                    _cand = (result.get("candidates") or [{}])[0] or {}
+                    _parts = (_cand.get("content", {}) or {}).get("parts") or [{}]
+                    result_text = (_parts[0] or {}).get("text") or ""
+                    if result_text:
+                        break
+                    _finish = _cand.get("finishReason") or "no candidate text"
+                    last_error = (
+                        f"Gemini returned no content (finishReason={scrub_key(str(_finish))})"
+                    )
                     logger.warning(
-                        "Gemini slot %d quota hit on model %s: %s",
+                        "Gemini slot %d model %s: empty/blocked 200 response (%s)",
                         slot,
                         model,
                         last_error,
                     )
-                    break
-                logger.warning(
-                    "Gemini model %s on slot %d failed: %s",
-                    model,
-                    slot,
-                    last_error,
-                )
-                continue
-        if result_text:
+                    continue
+                except Exception as e:
+                    # R3-Fix #14: scrub the exception string before storing
+                    # / logging. `str(e)` may still contain the response
+                    # body for paths that bypassed the RuntimeError builder
+                    # above (network errors carrying URLs with embedded
+                    # keys, etc.).
+                    last_error = scrub_key(str(e))
+                    # Quota / rate-limit errors → the key is cooked for
+                    # the day. Mark it (unless BYO) and bail out of the
+                    # model loop — the other model on the same key will
+                    # hit the same quota wall.
+                    if _looks_like_quota_error(last_error):
+                        if slot != 0:
+                            # Per-minute RPM bursts recover in ~a minute; only a
+                            # genuine per-day exhaustion warrants the long cooldown.
+                            _mark_key_exhausted(
+                                slot,
+                                _KEY_COOLDOWN_DAILY_SECONDS
+                                if _is_per_day_quota_error(last_error)
+                                else _KEY_COOLDOWN_SECONDS,
+                            )
+                        logger.warning(
+                            "Gemini slot %d quota hit on model %s: %s",
+                            slot,
+                            model,
+                            last_error,
+                        )
+                        break
+                    logger.warning(
+                        "Gemini model %s on slot %d failed: %s",
+                        model,
+                        slot,
+                        last_error,
+                    )
+                    continue
+            if result_text:
+                break
+        # End of the key/model rotation for this schema pass. Break out unless
+        # the ONLY failure was Gemini rejecting the responseSchema — in that
+        # case flip it off and run the whole pool once more without it.
+        if result_text or not (use_schema and _looks_like_schema_rejection(last_error or "")):
             break
+        use_schema = False
+        logger.warning(
+            "Gemini rejected responseSchema; retrying the pool without it: %s",
+            scrub_key(last_error or ""),
+        )
 
     if not result_text:
         # If every host slot is now cooled the user can't recover
