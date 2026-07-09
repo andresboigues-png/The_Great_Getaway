@@ -399,9 +399,12 @@
     box-shadow: 0 12px 34px rgba(0, 0, 0, 0.35);
 }
 
-/* Section header — small, uppercase, tracked-out accent caps. No emoji. */
+/* Section header — small, uppercase, tracked-out accent caps. No emoji.
+   The 24px bottom margin sits deliberately ABOVE the 18px inter-field gap
+   so the heading reads as a title with clear air, not glued to the first
+   field. Both toggled cards use it, so the heading never jumps position. */
 .ai-form-heading {
-    margin: 0;
+    margin: 0 0 24px;
     font-size: 0.72rem;
     font-weight: 800;
     letter-spacing: 0.1em;

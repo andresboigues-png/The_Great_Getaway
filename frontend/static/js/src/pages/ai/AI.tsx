@@ -248,7 +248,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         className="ai-form-card flex-auto min-h-0"
                         style={{ display: planSection === 'info' ? undefined : 'none' }}
                     >
-                        <h2 className="ai-form-heading mb-3.5">
+                        <h2 className="ai-form-heading">
                             {t('ai.sectionTravelDates')}
                         </h2>
                         <div className="flex flex-col gap-3.5">
@@ -297,7 +297,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         className="ai-form-card flex-auto min-h-0"
                         style={{ display: planSection === 'requisitos' ? undefined : 'none' }}
                     >
-                        <h2 className="ai-form-heading mb-4">
+                        <h2 className="ai-form-heading">
                             {t('ai.sectionRequirements')}
                         </h2>
                         <div className="flex flex-col gap-[18px]">
