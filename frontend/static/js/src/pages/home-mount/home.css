@@ -38,10 +38,11 @@
 .trip-tabnav {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    /* Bumped up so the Path / Trip-Hub / Companions switch reads as the page's
-       MAIN selector, not a small utility toggle (user request). */
-    padding: 7px;
+    gap: 5px;
+    /* Sized so the Path / Trip-Hub / Companions switch reads as the page's
+       MAIN selector, not a small utility toggle — then trimmed a touch back
+       from the first pass per user feedback. */
+    padding: 6px;
     background: rgba(255, 255, 255, 0.78);
     backdrop-filter: blur(14px) saturate(160%);
     -webkit-backdrop-filter: blur(14px) saturate(160%);
@@ -56,8 +57,8 @@
     gap: 8px;
     /* Icon-only tabs: the text label is a hover-reveal tooltip
        (.trip-tabnav__label), so the pill hugs the icon — sized big for a
-       primary-control feel. */
-    padding: 15px 28px;
+       primary-control feel (trimmed a touch from the first pass). */
+    padding: 13px 24px;
     border: 0;
     background: transparent;
     border-radius: 999px;
@@ -101,8 +102,8 @@
     flex-shrink: 0;
     /* Override the inline width/height=14 in TripBody.tsx — bigger glyphs so
        the icon-only pills carry the main-selector weight. */
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     opacity: 0.75;
     transition: opacity 0.2s ease, transform 0.2s ease;
 }

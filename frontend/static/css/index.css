@@ -2351,9 +2351,12 @@ body.is-signed-out .trip-controls-popover {
    Clone/Cloning (and Back/Share/Restore) affordance would rest on aria-label
    alone. On coarse pointers, render the label as honest inline text beside the
    icon instead of a transient tooltip — the host is inline-flex with a gap, so
-   the pill simply grows to fit. */
+   the pill simply grows to fit.
+   SCOPED to the `--corner` variant ONLY (the archived-trip hero buttons this
+   was for). The GENERIC `.hover-reveal-label` is used by intentionally
+   icon-only controls — the home Discover-nearby / Maps / Share buttons — which
+   must STAY icon-only on touch, not sprout text. */
 @media (hover: none), (pointer: coarse) {
-    .hover-reveal-host .hover-reveal-label,
     .hover-reveal-host .hover-reveal-label--corner {
         position: static;
         top: auto;

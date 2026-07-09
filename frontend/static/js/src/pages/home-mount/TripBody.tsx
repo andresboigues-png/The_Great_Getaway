@@ -481,8 +481,8 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                         aria-selected={activeTab === 'hub'}
                         onClick={() => switchTab('hub')}
                     >
-                        {/* Trip Hub mark — a clean ring (replaced the house
-                            icon per design feedback). Hub is the left-most tab. */}
+                        {/* Trip Hub mark — a clean triangle (per design
+                            feedback). Hub is the left-most tab. */}
                         <svg
                             width="14"
                             height="14"
@@ -494,7 +494,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                             strokeLinejoin="round"
                             aria-hidden="true"
                         >
-                            <circle cx="12" cy="12" r="9" />
+                            <polygon points="12 4 20 19 4 19" />
                         </svg>
                         <span className="trip-tabnav__label">{t('home.tabHub')}</span>
                     </button>
@@ -540,10 +540,10 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                             strokeLinejoin="round"
                             aria-hidden="true"
                         >
-                            {/* Companions mark — a clean triangle (per design
-                                feedback), matching the Hub ring + Path trail as
-                                a set of simple geometric glyphs. */}
-                            <polygon points="12 4 20 19 4 19"></polygon>
+                            {/* Companions mark — a clean circle (per design
+                                feedback), matching the Hub triangle + Path trail
+                                as a set of simple geometric glyphs. */}
+                            <circle cx="12" cy="12" r="9"></circle>
                         </svg>
                         <span className="trip-tabnav__label">{t('home.tabCompanions')}</span>
                     </button>
