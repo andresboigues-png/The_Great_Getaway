@@ -822,3 +822,45 @@ def test_pdf_plan_blocks_render_bold_and_place_cards():
             if action.get("/URI"):
                 uris.append(str(action["/URI"]))
     assert any("place_id:p_belem" in u for u in uris), "place name must link to Google Maps"
+
+
+def test_pdf_day_map_distance_caption(monkeypatch):
+    """User request 2026-07-09: the per-day map must state HOW FAR the day's
+    stops are (a distance + walking-time caption) — the map alone doesn't
+    convey scale. Needs a real map image, so stub the fetcher to a PNG."""
+    from PIL import Image
+
+    def _png_bytes():
+        buf = io.BytesIO()
+        Image.new("RGB", (800, 320), (210, 210, 210)).save(buf, format="PNG")
+        return buf.getvalue()
+
+    monkeypatch.setattr(pdfmod, "_fetch_day_pin_map", lambda *a, **k: _png_bytes())
+    # Two Lisbon stops ~2 km apart.
+    marked = [
+        {"placeId": "pa", "name": "PlaceA", "verifiedName": "PlaceA", "lat": 38.710, "lng": -9.140},
+        {"placeId": "pb", "name": "PlaceB", "verifiedName": "PlaceB", "lat": 38.700, "lng": -9.160},
+    ]
+    blocks = {
+        "morning": [
+            {"type": "place", "placeId": "pa"},
+            {"type": "place", "placeId": "pb"},
+        ]
+    }
+    t = _base_trip(
+        marked_places_json=json.dumps(marked),
+        days=[
+            {
+                "id": "d1",
+                "day_number": 1,
+                "date": "2026-04-01",
+                "name": "DayOne",
+                "lat": 38.7,
+                "lng": -9.15,
+                "plan_blocks_json": json.dumps(blocks),
+            }
+        ],
+    )
+    txt = _pdf_text(_build_trip_pdf(t, {"includeDays": True, "includeDayPins": True}))
+    assert "min on foot" in txt, "the day map needs a distance/walking caption"
+    assert "km" in txt, "the ~2 km spread should read in km"

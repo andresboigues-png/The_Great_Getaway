@@ -768,6 +768,15 @@ def _sec_days(b: _PdfBuild) -> None:
                 if _got:
                     day_place_photos[_pid] = _got[0]
                     _place_photos_left -= 1
+            # The day's stop coords — used to AUTO-FIT the map AND to compute
+            # the "how far apart" caption under it.
+            _pins = [
+                (_pl.get("lat"), _pl.get("lng"))
+                for _pid, _pl in day_places
+                if isinstance(_pl.get("lat"), (int, float))
+                and isinstance(_pl.get("lng"), (int, float))
+                and (_pl.get("lat") or _pl.get("lng"))
+            ]
             # Per-day mini-map (opt-in), bounded per export.
             day_map_png = None
             if day_pins_on and _day_maps_left > 0:
@@ -779,15 +788,6 @@ def _sec_days(b: _PdfBuild) -> None:
                 # the anchor had coords rendered 30 identical trip-centre
                 # mini-maps (and burned 30 Static Maps calls). Skip them.
                 if d_lat is not None and d_lng is not None:
-                    # Pass the day's place coords so the map AUTO-FITS to them
-                    # (tight framing on exactly this day's stops).
-                    _pins = [
-                        (_pl.get("lat"), _pl.get("lng"))
-                        for _pid, _pl in day_places
-                        if isinstance(_pl.get("lat"), (int, float))
-                        and isinstance(_pl.get("lng"), (int, float))
-                        and (_pl.get("lat") or _pl.get("lng"))
-                    ]
                     day_map_png = _fetch_day_pin_map(d_lat, d_lng, _pins or None)
                     _day_maps_left -= 1
             # PDF-4: per-day inline photos (opt-in, off by default), bounded
@@ -816,6 +816,7 @@ def _sec_days(b: _PdfBuild) -> None:
                     day_photos=day_photos,
                     marked_by_id=marked_by_id,
                     place_photos=day_place_photos,
+                    place_pins=_pins,
                 )
             )
 

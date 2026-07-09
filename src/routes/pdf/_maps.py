@@ -333,33 +333,40 @@ def _fetch_day_pin_map(
     lat, lng = _safe_latlng(lat, lng)
     if not key or lat is None or lng is None:
         return None
-    # Audit fix (2026-05-26): Google Static Maps marker labels MUST
-    # be a single alphanumeric char (A-Z, 0-9). The pre-fix value
-    # `•` was rejected — the entire URL 400'd and the per-day map
-    # silently failed for every PDF that opted into includeDayPins.
-    # Drop the label entirely (no label = default marker pin, which
-    # is what we want for a single-pin anchor map).
-    markers = [f"color:0x0071e3|{lat},{lng}"]
-    for plat_raw, plng_raw in (extra_pins or [])[:8]:  # cap the URL size
+    # Validate the day's actual place pins (its stops). Marker labels MUST be
+    # a single alphanumeric char, so we use plain (label-less) pins.
+    pins: list[tuple[float, float]] = []
+    for plat_raw, plng_raw in (extra_pins or [])[:12]:  # cap the URL size
         plat, plng = _safe_latlng(plat_raw, plng_raw)
         if plat is None or plng is None:
             continue  # R2 fix: skip injection-shaped coords
-        markers.append(f"color:0x9b59b6|size:small|{plat},{plng}")
+        pins.append((plat, plng))
     try:
+        # Declutter: hide the busy POI + transit layers so the map shows only
+        # the day's PINS + street context — "just the info around the pins".
         params = [
             ("size", "800x320"),
             ("scale", "2"),
             ("maptype", "roadmap"),
+            ("style", "feature:poi|visibility:off"),
+            ("style", "feature:transit|visibility:off"),
             ("key", key),
         ]
-        # AUTO-FIT: when the day has real place pins (more than just the
-        # anchor), OMIT center+zoom so Google Static Maps frames ALL of them
-        # tightly — the map hugs exactly the day's places. With only the
-        # anchor pin, keep a fixed tight zoom (14) so a lone pin isn't shown
-        # at world scale (auto-fit on a single point picks an ugly max zoom).
-        if len(markers) <= 1:
+        if len(pins) >= 2:
+            # Fit to the day's STOPS ONLY (no separate day-anchor marker, no
+            # center/zoom) so Google frames exactly them — a distant anchor no
+            # longer drags the view wide and stacks nearby pins together.
+            markers = [f"color:0x0071e3|{p[0]},{p[1]}" for p in pins]
+        elif len(pins) == 1:
+            # One stop → centre on it, zoom in tight.
+            params.insert(0, ("center", f"{pins[0][0]},{pins[0][1]}"))
+            params.insert(1, ("zoom", "15"))
+            markers = [f"color:0x0071e3|{pins[0][0]},{pins[0][1]}"]
+        else:
+            # No stop coords → fall back to the day anchor at a tight zoom.
             params.insert(0, ("center", f"{lat},{lng}"))
             params.insert(1, ("zoom", "14"))
+            markers = [f"color:0x0071e3|{lat},{lng}"]
         for m in markers:
             params.append(("markers", m))
         # R3-Round 4 fix: same content-hash cache as the other two

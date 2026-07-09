@@ -280,6 +280,18 @@ def _styles(rl):
             spaceBefore=0,
             spaceAfter=2,
         ),
+        # Centred italic caption under the per-day map (the distance/walk line).
+        "mapCaption": rl.ParagraphStyle(
+            "GGMapCaption",
+            parent=base["BodyText"],
+            fontName=_font(oblique=True),
+            fontSize=9,
+            leading=12,
+            textColor=_TEXT_SECONDARY,
+            alignment=1,
+            spaceBefore=3,
+            spaceAfter=0,
+        ),
         "tip": rl.ParagraphStyle(
             "GGTip",
             parent=base["BodyText"],
@@ -351,6 +363,28 @@ def _styles(rl):
 
 _WHY_RE = None  # lazily-compiled regex set inside _parse_day_slot
 _FACT_RE = None
+
+
+def _pins_span_km(pins: list) -> float:
+    """Max pairwise great-circle distance (km) among the day's stop coords —
+    i.e. how far apart the day's places are ('how far it is'). 0 for <2 pins."""
+    import math
+
+    pts = [
+        (float(la), float(lo))
+        for la, lo in (pins or [])
+        if isinstance(la, (int, float)) and isinstance(lo, (int, float))
+    ]
+    best = 0.0
+    for i in range(len(pts)):
+        for j in range(i + 1, len(pts)):
+            la1, lo1 = math.radians(pts[i][0]), math.radians(pts[i][1])
+            la2, lo2 = math.radians(pts[j][0]), math.radians(pts[j][1])
+            dla, dlo = la2 - la1, lo2 - lo1
+            a = math.sin(dla / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin(dlo / 2) ** 2
+            km = 2 * 6371.0 * math.asin(min(1.0, math.sqrt(a)))
+            best = max(best, km)
+    return best
 
 
 def _md_inline(text: Any) -> str:
@@ -1241,6 +1275,7 @@ def _day_card(
     day_photos: list[bytes] | None = None,
     marked_by_id: dict | None = None,
     place_photos: dict | None = None,
+    place_pins: list | None = None,
 ):
     """Render one day as a flat list of flowables (PDF-1 fix).
 
@@ -1345,6 +1380,26 @@ def _day_card(
                     height=full_w / day_aspect,
                 )
             )
+            # "How far it is": caption the map with the spread of the day's
+            # stops + a rough walking time (the map alone doesn't convey scale).
+            span_km = _pins_span_km(place_pins) if place_pins else 0.0
+            if span_km > 0.03:  # > ~30 m apart is worth stating
+                walk_min = max(1, round(span_km / 5.0 * 60))  # ~5 km/h on foot
+                dist_txt = (
+                    f"{int(round(span_km * 1000 / 50)) * 50} m"
+                    if span_km < 1
+                    else f"{span_km:.1f} km"
+                )
+                body.append(
+                    rl.Paragraph(
+                        _esc(
+                            tr("day_map_walk")
+                            .replace("{dist}", dist_txt)
+                            .replace("{min}", str(walk_min))
+                        ),
+                        styles["mapCaption"],
+                    )
+                )
             body.append(rl.Spacer(1, 0.25 * rl.cm))
         except Exception:
             # R12-B1: reportlab silently refuses bad image bytes; log
