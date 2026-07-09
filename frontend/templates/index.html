@@ -331,9 +331,24 @@
         <!-- Trip controls — desktop only. On mobile these move into the
              top of the burger drawer (#newTripBtnSidebar etc.). -->
         <div class="nav-trips nav-trips--desktop-only" style="display: flex; align-items: center; gap: 8px;">
-            <select id="tripSelector" class="btn-primary-pill--inverse" aria-label="Select active trip" style="min-width: 160px;">
-                <option value="">Select a Trip...</option>
-            </select>
+            <!-- Fancy active-trip picker (2026-07). A styled trigger opens a
+                 liquid-glass dropdown of trips (#tripPickerMenu), populated by
+                 updateTripSelector. The native <select> below stays as a
+                 visually-hidden source of truth — accessible, no-JS friendly,
+                 and the surface the e2e suite drives (selectOption/toHaveValue).
+                 Row clicks + the native select both flow through selectActiveTrip. -->
+            <div class="trip-picker" id="tripPicker">
+                <button type="button" class="trip-picker__trigger" id="tripPickerTrigger"
+                        aria-haspopup="listbox" aria-expanded="false" aria-controls="tripPickerMenu"
+                        aria-label="Select active trip">
+                    <span class="trip-picker__label" id="tripPickerLabel">Select a Trip...</span>
+                    <span class="trip-picker__chevron" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+                </button>
+                <div class="trip-picker__menu" id="tripPickerMenu" role="listbox" aria-label="Your trips" style="display: none;"></div>
+                <select id="tripSelector" class="trip-native-mirror" aria-hidden="true" tabindex="-1" aria-label="Select active trip">
+                    <option value="">Select a Trip...</option>
+                </select>
+            </div>
             <!-- Desktop trip menu: this single "+" opens the SAME #tripControlsPopover
                  as mobile (New Trip · Edit · Download · Silence · Complete · Delete).
                  The popover's own trip selector is hidden on desktop (the selector
@@ -371,7 +386,12 @@
                  the bottom. IDs are unchanged so the nav-chrome.ts wiring +
                  updateTripSelector gating still apply; updateTripSelector
                  also swaps the Silence row's icon + label by state. -->
-            <select id="tripSelectorSidebar" class="sidebar-trip-controls__selector" aria-label="Select active trip">
+            <!-- Fancy trip switcher (2026-07): a scrollable list of trip rows
+                 replaces the OS-native <select>. The native select stays as a
+                 visually-hidden source of truth (a11y + no-JS); both it and the
+                 rows flow through selectActiveTrip. Populated by updateTripSelector. -->
+            <div class="trip-switch-list" id="tripSwitchList" role="listbox" aria-label="Select active trip"></div>
+            <select id="tripSelectorSidebar" class="trip-native-mirror" aria-hidden="true" tabindex="-1" aria-label="Select active trip">
                 <option value="">Select a Trip...</option>
             </select>
             <div class="trip-menu-group">

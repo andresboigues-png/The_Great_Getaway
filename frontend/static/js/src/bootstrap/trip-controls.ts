@@ -20,6 +20,42 @@ const BELL_SVG =
 const BELL_OFF_SVG =
     '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"></path><path d="M18.63 13A17.89 17.89 0 0 1 18 8"></path><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"></path><path d="M18 8a6 6 0 0 0-9.33-5"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
 
+// Check glyph for the currently-active trip row in the fancy pickers.
+const CHECK_SVG =
+    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"></path></svg>';
+
+/** One selectable trip row, shared by the desktop dropdown (#tripPickerMenu)
+ *  and the mobile popover list (#tripSwitchList). The active trip carries a
+ *  check + `is-active`. `data-trip-id` is the click hook (nav-chrome delegates
+ *  to selectActiveTrip). */
+function tripRowsHtml(activeId: string | null): string {
+    return STATE.trips
+        .map((tr) => {
+            const active = tr.id === activeId;
+            return `<button type="button" class="trip-switch-row${active ? ' is-active' : ''}" role="option" aria-selected="${active ? 'true' : 'false'}" data-trip-id="${esc(tr.id)}"><span class="trip-switch-row__name">${esc(tr.name)}</span><span class="trip-switch-row__check" aria-hidden="true">${active ? CHECK_SVG : ''}</span></button>`;
+        })
+        .join('');
+}
+
+/**
+ * Switch the active trip. The single source of truth for a trip change — the
+ * native <select> onchange, the fancy trip rows, and any future surface all
+ * route here so the behaviour (activate + hydrate media + go Home) stays
+ * identical. Kept separate from the DOM wiring so callers don't duplicate it.
+ */
+export function selectActiveTrip(tripId: string): void {
+    if (!tripId) return;
+    STATE.activeTripId = tripId;
+    emit(EVENTS.STATE_CHANGED); // saveState + updateTripSelector re-syncs every surface
+    // R12-B4 Phase 2: hydrate the newly-selected trip's media immediately so
+    // its Photos/Docs/Checklist/Marked surfaces aren't empty until the next
+    // 15s poll. Dedupe-guarded.
+    fetchTripMedia(tripId).catch(() => {
+        /* best-effort */
+    });
+    navigate(PAGES.HOME);
+}
+
 export function updateTripSelector() {
     // Two trip selectors live in the DOM: #tripSelector in the desktop
     // top navbar, #tripSelectorSidebar in the mobile burger drawer. Only
@@ -46,6 +82,12 @@ export function updateTripSelector() {
         document.getElementById('deleteTripBtnSidebar'),
     ].filter((el): el is HTMLElement => el !== null);
 
+    // Fancy visible surfaces layered over the native selects: the desktop
+    // dropdown list, the mobile popover list, and the desktop trigger label.
+    const pickerMenu = document.getElementById('tripPickerMenu');
+    const switchList = document.getElementById('tripSwitchList');
+    const pickerLabel = document.getElementById('tripPickerLabel');
+
     if (selectors.length === 0) return;
 
     // Mobile top-banner trip-change control (Instagram "For you ▾").
@@ -64,6 +106,9 @@ export function updateTripSelector() {
 
     if (STATE.trips.length === 0) {
         for (const sel of selectors) sel.innerHTML = `<option value="">${esc(t('common.noActiveTrips'))}</option>`;
+        if (pickerMenu) pickerMenu.innerHTML = '';
+        if (switchList) switchList.innerHTML = '';
+        if (pickerLabel) pickerLabel.textContent = t('common.noActiveTrips');
         for (const btn of completeBtns) btn.style.display = 'none';
         for (const btn of deleteBtns) btn.style.display = 'none';
         for (const btn of [editBtn, downloadBtn, silenceBtn]) if (btn) btn.style.display = 'none';
@@ -75,6 +120,15 @@ export function updateTripSelector() {
         <option value="${esc(t.id)}" ${t.id === STATE.activeTripId ? 'selected' : ''}>${esc(t.name)}</option>
     `).join('');
     for (const sel of selectors) sel.innerHTML = optionsHtml;
+
+    // Paint the fancy surfaces from the same trip list + active id.
+    const rows = tripRowsHtml(STATE.activeTripId);
+    if (pickerMenu) pickerMenu.innerHTML = rows;
+    if (switchList) switchList.innerHTML = rows;
+    if (pickerLabel) {
+        const active = STATE.trips.find((tr) => tr.id === STATE.activeTripId);
+        pickerLabel.textContent = active ? active.name : t('common.noActiveTrips');
+    }
 
     // Show/hide management buttons. Archive (Complete) is per-user — any
     // member, including Relaxers, can hide their own copy. Delete is the
@@ -112,17 +166,13 @@ export function updateTripSelector() {
         if (label) label.textContent = silenced ? t('tripActions.rowUnsilence') : t('tripActions.rowSilence');
     }
 
+    // The native <select> (kept as the accessible / e2e-driven source of
+    // truth) routes through the same selectActiveTrip the fancy rows use.
     for (const sel of selectors) {
         sel.onchange = (e) => {
             const target = e.target as HTMLSelectElement | null;
-            if (!target) return;
-            STATE.activeTripId = target.value;
-            emit(EVENTS.STATE_CHANGED);          // saveState + updateTripSelector via subscriber (re-syncs the sibling selector)
-            // R12-B4 Phase 2: hydrate the newly-selected trip's media
-            // immediately so its Photos/Docs/Checklist/Marked surfaces
-            // aren't empty until the next 15s poll. Dedupe-guarded.
-            fetchTripMedia(target.value).catch(() => { /* best-effort */ });
-            navigate(PAGES.HOME);
+            if (!target || !target.value) return;
+            selectActiveTrip(target.value);
         };
     }
 }

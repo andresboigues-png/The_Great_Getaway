@@ -1305,6 +1305,54 @@ test.describe('Critical flows — UI-driven', () => {
         await page.locator('#countryDropdownList .dropdown-item', { hasText: 'France' }).first().click();
         await expect(currency).toHaveValue('USD');
     });
+
+    test('desktop fancy trip picker opens + switches the active trip', async ({ page }) => {
+        // The active-trip selector is a custom dropdown (#tripPicker): a
+        // styled trigger that drops #tripPickerMenu of trip rows. Selecting a
+        // row routes through selectActiveTrip (the same path the sr-only native
+        // <select> uses). Seed two trips, activate the first, pick the second.
+        const userId = uniqueId('user');
+        const auth = await getAuthForApi(page, userId);
+        const tripA = await createTripViaApi(page, auth.headers, {
+            id: uniqueId('trip-a'),
+            name: 'Alpha Trip',
+            country: 'Portugal',
+        });
+        const tripB = await createTripViaApi(page, auth.headers, {
+            id: uniqueId('trip-b'),
+            name: 'Bravo Trip',
+            country: 'Spain',
+        });
+        await openFreshApp(page, userId);
+        await page.evaluate((id) => {
+            try {
+                const raw = localStorage.getItem('theGreatEscapeState');
+                const parsed = raw ? JSON.parse(raw) : {};
+                parsed.activeTripId = id;
+                localStorage.setItem('theGreatEscapeState', JSON.stringify(parsed));
+            } catch (_) {
+                /* ignore */
+            }
+        }, tripA);
+        await page.goto('/');
+
+        const trigger = page.locator('#tripPickerTrigger');
+        const menu = page.locator('#tripPickerMenu');
+        await expect(trigger).toBeVisible({ timeout: 8000 });
+        await expect(page.locator('#tripPickerLabel')).toHaveText('Alpha Trip');
+        await expect(menu).toBeHidden();
+
+        // Open the drop, then pick the other trip.
+        await trigger.click();
+        await expect(menu).toBeVisible();
+        await menu.locator(`[data-trip-id="${tripB}"]`).click();
+
+        await expect(page).toHaveURL(/#home$/);
+        await expect(menu).toBeHidden();
+        await expect(page.locator('#tripPickerLabel')).toHaveText('Bravo Trip');
+        // The sr-only native mirror stays in sync (a11y + e2e contract).
+        await expect(page.locator('#tripSelector')).toHaveValue(tripB);
+    });
 });
 
 // Mobile-only flows. The "Critical flows — UI-driven" describe above
@@ -1368,5 +1416,42 @@ test.describe('Critical flows — UI-driven (mobile)', () => {
         // popover — the R6-B5 dialog contract).
         await page.keyboard.press('Escape');
         await expect(popover).toBeHidden();
+    });
+
+    test('mobile back button closes the trip-controls popover (no navigation)', async ({ page }) => {
+        // nav-chrome.ts pushes a same-URL history sentinel when the popover
+        // opens on mobile, so hardware/browser Back closes the popover instead
+        // of navigating the SPA away. Regression for the requested behaviour.
+        const userId = uniqueId('user');
+        const auth = await getAuthForApi(page, userId);
+        const tripId = await createTripViaApi(page, auth.headers, {
+            id: uniqueId('trip-back'),
+            name: 'Back Trip',
+            country: 'Portugal',
+        });
+        await openFreshApp(page, userId);
+        await page.evaluate((id) => {
+            try {
+                const raw = localStorage.getItem('theGreatEscapeState');
+                const parsed = raw ? JSON.parse(raw) : {};
+                parsed.activeTripId = id;
+                localStorage.setItem('theGreatEscapeState', JSON.stringify(parsed));
+            } catch (_) {
+                /* ignore */
+            }
+        }, tripId);
+        await page.goto('/');
+
+        const switcher = page.locator('#navTripChange');
+        const popover = page.locator('#tripControlsPopover');
+        await switcher.waitFor({ state: 'visible', timeout: 8000 });
+        await switcher.click({ timeout: 5000 });
+        await expect(popover).toBeVisible();
+
+        // Hardware/browser Back → popover closes, and we stay on Home (the
+        // switcher is still there) rather than navigating away.
+        await page.goBack();
+        await expect(popover).toBeHidden();
+        await expect(switcher).toBeVisible();
     });
 });

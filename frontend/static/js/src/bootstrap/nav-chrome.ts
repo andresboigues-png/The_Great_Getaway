@@ -31,7 +31,7 @@ const openDownloadChooserModal = async (trip: unknown) =>
 import { initMobileSwipe } from '../mobileSwipe.js';
 import { initRailScrubber } from './railScrubber.js';
 import { renderNotificationDropdown, handleNotificationClick } from './notifications.js';
-import { archiveActiveTrip, deleteActiveTrip, toggleActiveTripSilence } from './trip-controls.js';
+import { archiveActiveTrip, deleteActiveTrip, toggleActiveTripSilence, selectActiveTrip } from './trip-controls.js';
 import { wireRoleButtonKeys } from '../components/Keyboard.js';
 
 /**
@@ -347,18 +347,24 @@ export function wireNavChrome(): void {
                 return;
             }
         }
+        // Desktop fancy trip picker closes first if it's the open surface.
+        const pickerMenuEl = document.getElementById('tripPickerMenu');
+        if (pickerMenuEl && pickerMenuEl.style.display === 'block') {
+            e.preventDefault();
+            closeTripPicker();
+            document.getElementById('tripPickerTrigger')?.focus();
+            return;
+        }
         const tcp = document.getElementById('tripControlsPopover');
         if (tcp && tcp.style.display && tcp.style.display !== 'none') {
             e.preventDefault();
-            tcp.style.display = 'none';
-            const compass = document.getElementById('tripControlsBtn');
-            const banner = document.getElementById('navTripChange');
-            compass?.setAttribute('aria-expanded', 'false');
-            banner?.setAttribute('aria-expanded', 'false');
             // Return focus to whichever trigger is actually on screen —
             // the compass is desktop-only, the banner control mobile-only,
             // so focus never lands on a display:none element.
+            const compass = document.getElementById('tripControlsBtn');
+            const banner = document.getElementById('navTripChange');
             const visibleTrigger = banner && banner.offsetParent !== null ? banner : compass;
+            closeTripPopover(); // clears aria + pops the mobile back-sentinel
             visibleTrigger?.focus();
         }
     });
@@ -373,41 +379,101 @@ export function wireNavChrome(): void {
     // #navTripChange control (trip name + ▾). It's static markup in
     // index.html, but the click is still handled via document-level
     // delegation (below) to match the rest of the popover wiring.
+    // ── Desktop fancy trip picker (#tripPicker) ──
+    // The active-trip selector is a styled trigger + a liquid-glass dropdown
+    // list (populated by updateTripSelector). Opens like the "+" popover;
+    // closes on outside-click / Escape / selection.
+    const tripPickerTrigger = document.getElementById('tripPickerTrigger');
+    const tripPickerMenu = document.getElementById('tripPickerMenu');
+    const closeTripPicker = () => {
+        if (tripPickerMenu) tripPickerMenu.style.display = 'none';
+        tripPickerTrigger?.setAttribute('aria-expanded', 'false');
+    };
+    const toggleTripPicker = (e: Event) => {
+        e.stopPropagation();
+        if (!tripPickerMenu) return;
+        const isHidden = tripPickerMenu.style.display === 'none' || !tripPickerMenu.style.display;
+        if (isHidden) {
+            // Only one navbar popover at a time.
+            closeOtherDropdowns();
+            closeTripPopover();
+            tripPickerMenu.style.display = 'block';
+            tripPickerTrigger?.setAttribute('aria-expanded', 'true');
+        } else {
+            closeTripPicker();
+        }
+    };
+    tripPickerTrigger?.addEventListener('click', toggleTripPicker);
+
+    // ── Back-button sentinel (mobile): pressing hardware/browser Back closes
+    // the trip-controls popover instead of navigating the SPA. Mirrors the
+    // Modal.ts pattern but scoped to this one popover: on a mobile open we push
+    // a same-URL history entry; a genuine popstate while the popover is open
+    // closes it; a programmatic close pops our sentinel back off. Desktop
+    // (popover opens from the "+") keeps Back = navigate, so the sentinel is
+    // only pushed under the mobile breakpoint.
+    let tripPopoverSentinel = false;
+    const setPopoverAria = (open: boolean) => {
+        tripControlsBtn?.setAttribute('aria-expanded', open ? 'true' : 'false');
+        document.getElementById('navTripChange')?.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    const openTripPopover = () => {
+        if (!tripControlsPopover) return;
+        tripControlsPopover.style.display = 'block';
+        setPopoverAria(true);
+        // Only one navbar popover visible at a time.
+        closeOtherDropdowns();
+        closeTripPicker();
+        // Push the mobile back-sentinel.
+        if (!tripPopoverSentinel && window.matchMedia?.('(max-width: 720px)').matches) {
+            try {
+                window.history.pushState({ ggTripPopover: true }, '', window.location.href);
+                tripPopoverSentinel = true;
+            } catch {
+                /* private mode can throw; degrade to no back-close */
+            }
+        }
+        // R10-B6b M1: move focus into the popover on open (keyboard users).
+        // preventScroll so opening it off-Home (which navigates Home first,
+        // scrolling to top) isn't yanked by focus alignment.
+        queueMicrotask(() => {
+            const first = tripControlsPopover.querySelector<HTMLElement>(
+                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+            );
+            first?.focus({ preventScroll: true });
+        });
+    };
+    const closeTripPopover = () => {
+        if (!tripControlsPopover) return;
+        tripControlsPopover.style.display = 'none';
+        setPopoverAria(false);
+        if (tripPopoverSentinel) {
+            // Clear the flag BEFORE history.back so the echoed popstate is a
+            // no-op (guarded on the flag + open state below).
+            tripPopoverSentinel = false;
+            try {
+                window.history.back();
+            } catch {
+                /* ignore */
+            }
+        }
+    };
     const togglePopover = (e: Event) => {
         e.stopPropagation();
         if (!tripControlsPopover) return;
         const isHidden = tripControlsPopover.style.display === 'none' || !tripControlsPopover.style.display;
-        tripControlsPopover.style.display = isHidden ? 'block' : 'none';
-        tripControlsBtn?.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
-        // Mobile top-banner trigger (round 7) shares this popover.
-        document.getElementById('navTripChange')?.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
-        if (isHidden) {
-            // Close any open notification dropdown — only one navbar
-            // popover can be visible at a time. Both copies handled.
-            closeOtherDropdowns();
-            // R10-B6b M1: move focus into the popover on open so
-            // keyboard users land on actionable content. The sister
-            // notification dropdown (handled by closeOtherDropdowns)
-            // already does this; tripControlsPopover was the lone
-            // sibling that opened with focus stuck on the trigger.
-            // queueMicrotask gives the browser one tick to compute
-            // the `display: block` layout — focusing before that
-            // throws on Chrome if the element is still display:none.
-            queueMicrotask(() => {
-                const first = tripControlsPopover.querySelector<HTMLElement>(
-                    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-                );
-                // preventScroll: the first focusable is the trip <select>.
-                // When "Your trip" is tapped OFF Home, the handler navigates
-                // Home (which scrolls to the top) and opens this popover in the
-                // same tick. A plain .focus() on a native <select> makes mobile
-                // browsers scroll the page to align it — overriding that
-                // scroll-to-top and dropping the user mid-page. preventScroll
-                // keeps the focus (a11y) without yanking the scroll.
-                first?.focus({ preventScroll: true });
-            });
-        }
+        if (isHidden) openTripPopover();
+        else closeTripPopover();
     };
+    // Genuine hardware/gesture Back while the popover is open → close it. The
+    // Back already popped our sentinel, so we don't pop again here.
+    window.addEventListener('popstate', () => {
+        if (tripPopoverSentinel && tripControlsPopover?.style.display === 'block') {
+            tripPopoverSentinel = false;
+            tripControlsPopover.style.display = 'none';
+            setPopoverAria(false);
+        }
+    });
     tripControlsBtn?.addEventListener('click', togglePopover);
     // Delegated handler for the mobile top-banner trip-change control.
     document.addEventListener('click', (e) => {
@@ -467,11 +533,8 @@ export function wireNavChrome(): void {
     // the user lands back on the page (not a stale open popover) when the
     // modal dismisses. Silence toggles in place, so it leaves the popover
     // open and lets updateTripSelector repaint the button's on/off state.
-    const closeTripControlsPopover = () => {
-        if (tripControlsPopover) tripControlsPopover.style.display = 'none';
-        tripControlsBtn?.setAttribute('aria-expanded', 'false');
-        document.getElementById('navTripChange')?.setAttribute('aria-expanded', 'false');
-    };
+    // Delegates to closeTripPopover so the mobile back-sentinel is popped too.
+    const closeTripControlsPopover = () => closeTripPopover();
     document.getElementById('editTripBtnSidebar')?.addEventListener('click', () => {
         const tr = STATE.trips.find((x) => x.id === STATE.activeTripId);
         if (!tr) return;
@@ -522,6 +585,21 @@ export function wireNavChrome(): void {
             return;
         }
 
+        // Trip selected from a fancy picker (desktop dropdown or mobile popover
+        // list). Route through selectActiveTrip, then close whichever surface it
+        // came from. Handled before the outside-click closers so the same click
+        // doesn't also trip an "outside" close mid-selection.
+        const tripRow = target?.closest('[data-trip-id]') as HTMLElement | null;
+        if (tripRow) {
+            const id = tripRow.getAttribute('data-trip-id');
+            if (id) {
+                selectActiveTrip(id);
+                closeTripPicker();
+                closeTripPopover();
+            }
+            return;
+        }
+
         // Close any open notification dropdown if clicking outside.
         // Both copies handled — outside means "outside this dropdown
         // AND not on this dropdown's bell". A click on the OTHER bell
@@ -561,9 +639,16 @@ export function wireNavChrome(): void {
             && !onTripChangeTrigger
             && !onDesktopTripMenu
         ) {
-            tripControlsPopover.style.display = 'none';
-            if (tripControlsBtn) tripControlsBtn.setAttribute('aria-expanded', 'false');
-            document.getElementById('navTripChange')?.setAttribute('aria-expanded', 'false');
+            closeTripPopover();
+        }
+        // Outside-click close for the desktop fancy trip picker (clicks on the
+        // trigger toggle it via toggleTripPicker; a row click is handled above).
+        if (tripPickerMenu
+            && tripPickerMenu.style.display === 'block'
+            && target
+            && !document.getElementById('tripPicker')?.contains(target)
+        ) {
+            closeTripPicker();
         }
 
         // Navigation listener (delegated)
