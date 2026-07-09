@@ -1257,7 +1257,8 @@ export const en = {
         resetPrompt: 'Reset prompt',
         // Vibe presets — quick mood setters for the whole plan. The "Vibe"
         // heading is hard-coded in AI.tsx (same word in every locale); only
-        // the option labels below are translated.
+        // the dropdown placeholder + option labels below are translated.
+        vibePlaceholder: 'Choose a vibe',
         vibeParty: 'Party with friends',
         vibeFamily: 'Family-friendly',
         vibeAdventure: 'Adventure & trekking',

@@ -49,7 +49,7 @@ import { ItineraryOutput, GenerationErrorCard } from './ItineraryOutput.js';
 import { TodoListPanel } from './TodoListPanel.js';
 import { AiMap } from './AiMap.js';
 import { useAiPlan } from './useAiPlan.js';
-import { VIBES } from './vibes.js';
+import { VibeSelect } from './VibeSelect.js';
 import { useAiMap } from './useAiMap.js';
 import { navigate } from '../../router.js';
 import { setActiveHomeTab } from '../home-mount/handlers.js';
@@ -301,30 +301,17 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                             {t('ai.sectionRequirements')}
                         </h2>
                         <div className="flex flex-col gap-[18px]">
-                            {/* Vibe — one tap steers the whole plan (places, pace,
-                                food, ordering). Multi-select; persists per-trip.
-                                Label is intentionally the literal word "Vibe" in
-                                every language (per request), and options are
-                                text-only (no emoji). */}
+                            {/* Vibe — steers the whole plan (places, pace, food,
+                                ordering). Multi-select fancy dropdown; persists
+                                per-trip. The label is intentionally the literal
+                                word "Vibe" in every language (per request). */}
                             <div className="ai-field">
                                 <span className="ai-field__label">Vibe</span>
-                                <div className="ai-vibe-grid">
-                                    {VIBES.map((v) => {
-                                        const on = plan.vibe.includes(v.id);
-                                        return (
-                                            <button
-                                                key={v.id}
-                                                type="button"
-                                                aria-pressed={on}
-                                                disabled={!tripIsEditable}
-                                                onClick={() => plan.toggleVibe(v.id)}
-                                                className={`ai-vibe-option${on ? ' ai-vibe-option--on' : ''}`}
-                                            >
-                                                {t(v.labelKey as Parameters<typeof t>[0])}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                                <VibeSelect
+                                    selected={plan.vibe}
+                                    onToggle={plan.toggleVibe}
+                                    disabled={!tripIsEditable}
+                                />
                             </div>
                             <div className="ai-field">
                                 <label htmlFor="aiFoodContext" className="ai-field__label">

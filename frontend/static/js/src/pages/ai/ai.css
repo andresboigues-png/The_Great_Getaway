@@ -478,56 +478,133 @@ textarea.ai-input { resize: none; min-height: 74px; line-height: 1.5; }
 }
 .ai-reset-prompt:hover { color: var(--accent-blue-deep); }
 
-/* ── Vibe selector — modern multi-select. Text-only (no emoji): a wrap
-   grid of tappable options; selected = solid accent fill. ── */
-.ai-vibe-grid {
+/* ── Vibe selector — a fancy multi-select dropdown. The trigger shows the
+   current selection as inline tags; opening reveals a card-styled floating
+   menu of options (emoji + label + check). Multi-select: tapping an option
+   toggles it and keeps the menu open. ── */
+.ai-vibe-select { position: relative; }
+
+.ai-vibe-select__trigger {
+    width: 100%;
+    box-sizing: border-box;
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
-}
-.ai-vibe-option {
-    appearance: none;
-    border: 1px solid rgba(0, 45, 91, 0.14);
+    min-height: 44px;
+    padding: 9px 12px;
+    border: 1px solid rgba(0, 45, 91, 0.12);
+    border-radius: var(--radius-md);
     background: rgba(0, 45, 91, 0.03);
     color: var(--text-primary);
-    border-radius: var(--radius-pill);
-    padding: 8px 15px;
     font-family: inherit;
-    font-size: 0.82rem;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    line-height: 1;
+    font-size: 0.9rem;
+    text-align: left;
     cursor: pointer;
-    white-space: nowrap;
     transition: border-color 0.15s var(--easing-smooth),
         background 0.15s var(--easing-smooth),
-        color 0.15s var(--easing-smooth),
-        box-shadow 0.15s var(--easing-smooth),
-        transform 0.12s var(--easing-smooth);
+        box-shadow 0.15s var(--easing-smooth);
 }
-.ai-vibe-option:hover:not(:disabled) {
+.ai-vibe-select__trigger:hover:not(:disabled) {
     border-color: rgba(0, 113, 227, 0.4);
-    background: rgba(0, 113, 227, 0.06);
 }
-.ai-vibe-option:active:not(:disabled) { transform: scale(0.97); }
-.ai-vibe-option:focus-visible {
-    outline: 2px solid var(--accent-blue);
-    outline-offset: 2px;
+.ai-vibe-select.is-open .ai-vibe-select__trigger,
+.ai-vibe-select__trigger:focus-visible {
+    outline: none;
+    border-color: var(--accent-blue);
+    background: var(--card-bg);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.14);
 }
-.ai-vibe-option--on {
-    border-color: transparent;
-    background: var(--accent-blue);
-    color: #fff;
-    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.28);
+.ai-vibe-select__trigger:disabled { opacity: 0.5; cursor: default; }
+
+/* Selected-summary — chosen vibes as inline tags, faded out on the right
+   if they overflow the trigger. */
+.ai-vibe-select__value {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    gap: 8px;
+    overflow: hidden;
+    white-space: nowrap;
+    -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent);
+    mask-image: linear-gradient(90deg, #000 88%, transparent);
 }
-.ai-vibe-option--on:hover:not(:disabled) {
-    background: var(--accent-blue-hover);
-    border-color: transparent;
+.ai-vibe-select__placeholder { color: var(--text-secondary); opacity: 0.8; }
+.ai-vibe-tag {
+    flex: none;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-brand-navy);
 }
-.ai-vibe-option:disabled { opacity: 0.5; cursor: default; }
-:root[data-theme='dark'] .ai-vibe-option {
+
+.ai-vibe-select__chevron {
+    flex: none;
+    color: var(--accent-blue-deep);
+    transition: transform 0.2s var(--easing-smooth);
+}
+.ai-vibe-select.is-open .ai-vibe-select__chevron { transform: rotate(180deg); }
+
+/* Floating menu. */
+.ai-vibe-select__menu {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    max-height: 288px;
+    overflow-y: auto;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--card-bg);
+    border: 1px solid rgba(0, 45, 91, 0.1);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 18px 44px rgba(0, 45, 91, 0.16);
+    animation: aiVibeMenuIn 0.16s var(--easing-smooth);
+}
+@keyframes aiVibeMenuIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.ai-vibe-select__option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 10px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.12s var(--easing-smooth),
+        color 0.12s var(--easing-smooth);
+}
+.ai-vibe-select__option:hover { background: rgba(0, 113, 227, 0.08); }
+.ai-vibe-select__option.is-on {
+    background: rgba(0, 113, 227, 0.12);
+    color: var(--accent-blue-deep);
+}
+.ai-vibe-select__emoji { flex: none; font-size: 1.05rem; line-height: 1; }
+.ai-vibe-select__label { flex: 1; min-width: 0; }
+.ai-vibe-select__check { flex: none; color: var(--accent-blue); opacity: 0; }
+.ai-vibe-select__option.is-on .ai-vibe-select__check { opacity: 1; }
+
+:root[data-theme='dark'] .ai-vibe-select__trigger {
     background: rgba(255, 255, 255, 0.05);
     border-color: rgba(255, 255, 255, 0.14);
+}
+:root[data-theme='dark'] .ai-vibe-tag { color: var(--text-primary); }
+:root[data-theme='dark'] .ai-vibe-select__menu {
+    background: rgba(28, 28, 30, 0.96);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
 }
 
 /* Accommodation nudge banner — links to the Trip Hub accommodation
