@@ -45,7 +45,7 @@ import {
     type AiDayPlan,
 } from './slots.js';
 import { parseVibeIds, vibePrompt } from './vibes.js';
-import { t } from '../../i18n.js';
+import { t, getLocale } from '../../i18n.js';
 import type { Trip, TripDay, PlanBlock } from '../../types';
 
 
@@ -356,41 +356,30 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
             Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1),
         );
 
-        // Build to-do suffix from forAI && forManual marked places.
+        // Marked to-do places → a first-class `mustInclude` array (was buried
+        // as a prose suffix on the sightseeing text, where the model could
+        // quietly drop them). The backend turns this into an emphatic
+        // "EVERY one MUST appear" block and slots restaurants vs sights itself.
         const markedForAI = getMarkedPlaces(activeTrip).filter(
             (p) => p.forAI && p.forManual,
         );
-        let markedSuffix = '';
-        if (markedForAI.length > 0) {
-            const sortedTripDays = (STATE.tripDays || []).filter(
-                (d) => d.tripId === activeTrip.id && d.dayNumber > 0,
-            );
-            const dayNumberOf = (id: string) =>
-                sortedTripDays.find((d) => d.id === id)?.dayNumber;
-            const lines = markedForAI
-                .map((p) => {
-                    const d = p.dayId ? dayNumberOf(p.dayId) : null;
-                    const dayPart = d ? `, on Day ${d}` : '';
-                    // Prefer the user's specific hour (a finer signal) over
-                    // the coarse morning/afternoon/evening slot. 24h "HH:00"
-                    // is unambiguous for the model regardless of UI locale.
-                    const timePart = p.preferredHour != null
-                        ? `, around ${String(p.preferredHour).padStart(2, '0')}:00`
-                        : (p.timeOfDay ? `, ${p.timeOfDay}` : '');
-                    const addrPart = p.address ? ` (${p.address})` : '';
-                    return `- ${p.name}${addrPart}${dayPart}${timePart}`;
-                })
-                .join('\n');
-            markedSuffix = `\n\nThe user has marked these specific places to include in the itinerary. Please incorporate them where they fit, respecting any day/time assignments where given:\n${lines}`;
-        }
-        // The "marked places" suffix carries the user's to-do list as
-        // hints into the prompt. It applies to BOTH food + sightseeing
-        // (a to-do entry can be either) so we append it to the sights
-        // context — the LLM treats the suffix as places to incorporate
-        // where they fit. Sticking to sights avoids the awkwardness of
-        // having a marked restaurant suddenly land in the sightseeing
-        // section AND the breakfast slot.
-        const sightsContextWithMarked = sightseeingContext + markedSuffix;
+        const sortedTripDays = (STATE.tripDays || []).filter(
+            (d) => d.tripId === activeTrip.id && d.dayNumber > 0,
+        );
+        const dayNumberOf = (id: string) =>
+            sortedTripDays.find((d) => d.id === id)?.dayNumber;
+        const mustInclude = markedForAI.map((p) => ({
+            name: p.name,
+            address: p.address || '',
+            // day number (if the user pinned it to a day), else null.
+            day: (p.dayId ? dayNumberOf(p.dayId) : null) ?? null,
+            // Prefer the specific hour ("HH:00", locale-agnostic) over the
+            // coarse morning/afternoon/evening slot.
+            time:
+                p.preferredHour != null
+                    ? `${String(p.preferredHour).padStart(2, '0')}:00`
+                    : p.timeOfDay || '',
+        }));
         // Wave 2: per-day accommodations the user has set. Passed to the
         // AI as spatial anchors so each day's food/sights suggestions
         // cluster near where they're actually sleeping that night (a Day-3
@@ -439,8 +428,16 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                     dateFrom,
                     dateTo,
                     foodContext,
-                    sightseeingContext: sightsContextWithMarked,
+                    sightseeingContext,
                     vibe: vibePrompt(vibe),
+                    // Marked to-do places as a first-class must-include list.
+                    mustInclude,
+                    // App locale → why/fact/title come back in the user's
+                    // language (place names stay local for geocoding).
+                    language: getLocale(),
+                    // Trip title (occasion/intent hint) + group size.
+                    tripName: (activeTrip.name || '').trim(),
+                    travelers: (activeTrip.companions?.length || 0) + 1,
                     accommodations,
                     // The traveller's profile bio — the planner weaves in any
                     // travel-relevant, destination-feasible tastes (and ignores

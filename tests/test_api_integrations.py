@@ -225,6 +225,73 @@ def test_generate_itinerary_no_accommodation_block_when_empty(
     assert "Pre-booked accommodation" not in prompt
 
 
+def test_generate_itinerary_new_signals_and_schema(
+    client,
+    seed_user,
+    auth_headers,
+    monkeypatch,
+):
+    """2026-07 prompt overhaul: the payload carries a formal responseSchema +
+    lowered temperature, and the prompt folds in the new signals — must-include
+    places (first-class, not the old prose blob), output language, group size,
+    trip title, and an EXACTLY-N-days instruction. The dead per-day `date`
+    field is gone."""
+    monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_MAPS_SERVER_KEY", raising=False)
+    captured = {}
+    fake_resp_body = {"candidates": [{"content": {"parts": [{"text": "[]"}]}}]}
+
+    def fake_post(url, headers=None, json=None, timeout=None, **kwargs):
+        captured["body"] = json
+        return _FakeGeminiResponse(200, json_body=fake_resp_body)
+
+    import routes.integrations
+
+    monkeypatch.setattr(routes.integrations.requests, "post", fake_post)
+
+    res = client.post(
+        "/api/generate_itinerary",
+        headers=auth_headers,
+        json={
+            "destination": "Portugal",
+            "numDays": 4,
+            "gemini_key": "byo-key",
+            "language": "pt",
+            "tripName": "Anniversary in Lisbon",
+            "travelers": 3,
+            "mustInclude": [
+                {
+                    "name": "Time Out Market",
+                    "address": "Av. 24 de Julho, Lisboa",
+                    "day": 2,
+                    "time": "13:00",
+                },
+            ],
+        },
+    )
+    assert res.status_code == 200
+    body = captured["body"]
+    prompt = body["contents"][0]["parts"][0]["text"]
+    gen = body["generationConfig"]
+
+    # Formal structured-output enforcement + lowered temperature.
+    assert gen["temperature"] == 0.35
+    assert gen["responseSchema"]["type"] == "ARRAY"
+    assert "maxOutputTokens" in gen
+
+    # Must-include is first-class + emphatic, and carries the pin.
+    assert "MUST-INCLUDE PLACES" in prompt
+    assert "Time Out Market" in prompt
+    assert "[Day 2]" in prompt
+    # Output language, group size, trip title, exact day count.
+    assert "Portuguese" in prompt
+    assert "3 travellers" in prompt
+    assert "Anniversary in Lisbon" in prompt
+    assert "EXACTLY 4" in prompt
+    # The dead per-day `date` field is no longer requested in the prose.
+    assert '"date":' not in prompt
+
+
 def test_generate_itinerary_includes_bio_personalization(
     client,
     seed_user,
