@@ -80,7 +80,13 @@ def test_small_upload_skips_variants_and_size_falls_back(
     assert client.get(url + "?size=huge", headers=auth_headers).status_code == 200
 
 
-def test_animated_gif_gets_no_variants(client, seed_user, auth_headers, tmp_path, monkeypatch):
+def test_animated_gif_gets_static_thumb_but_no_display(
+    client, seed_user, auth_headers, tmp_path, monkeypatch
+):
+    """D1-I4: an animated GIF/WebP gets a STATIC frame-0 `thumb` (so the
+    grid stops downloading the whole animation to paint a tile) but NO
+    `display` variant — the lightbox requests ?size=display, which falls
+    back to the original animated file, so the animation still plays."""
     _use_tmp_uploads(monkeypatch, tmp_path)
     frames = [Image.new("RGB", (900, 900), c) for c in ((255, 0, 0), (0, 0, 255))]
     buf = io.BytesIO()
@@ -89,7 +95,19 @@ def test_animated_gif_gets_no_variants(client, seed_user, auth_headers, tmp_path
     url = _upload(client, auth_headers, "anim.gif", buf)
     name = url.rsplit("/", 1)[-1]
     vdir = tmp_path / "test-user-1" / "_variants"
-    assert not (vdir / f"{name}.thumb.gif").exists(), "animated images must keep the original only"
+    # A static, downscaled thumb exists...
+    assert (vdir / f"{name}.thumb.gif").is_file()
+    with Image.open(vdir / f"{name}.thumb.gif") as im:
+        assert max(im.size) <= 320
+        assert not getattr(im, "is_animated", False), "thumb must be a single static frame"
+    # ...but the display variant is deliberately absent so the lightbox
+    # keeps the animation (it falls back to the original animated file).
+    assert not (vdir / f"{name}.display.gif").exists()
+    display = client.get(url + "?size=display", headers=auth_headers)
+    original = client.get(url, headers=auth_headers)
+    assert display.data == original.data, "?size=display on an animated image serves the original"
+    with Image.open(io.BytesIO(display.data)) as im:
+        assert getattr(im, "is_animated", False), "lightbox still gets the animation"
 
 
 def test_delete_upload_files_removes_variants(
