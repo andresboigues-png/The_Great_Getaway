@@ -243,7 +243,7 @@ export function EventCard(props: EventCardProps) {
 
             {/* Action row. */}
             <div
-                className="feed-actions flex items-center gap-2.5 mt-2.5 pt-2.5 border-t border-[rgba(0,45,91,0.06)]"
+                className="feed-actions flex items-center gap-2.5 mt-2.5 pt-2.5 border-t border-[color:var(--border-subtle)]"
             >
                 {isPost ? (
                     <>
@@ -292,7 +292,7 @@ export function EventCard(props: EventCardProps) {
             {/* Comment thread — only rendered when threadOpen. */}
             {isPost && threadOpen ? (
                 <div
-                    className="feed-thread block mt-2.5 pt-2.5 border-t border-[rgba(0,45,91,0.06)]"
+                    className="feed-thread block mt-2.5 pt-2.5 border-t border-[color:var(--border-subtle)]"
                     data-event-id={ev.id}
                 >
                     {threadLoading ? (

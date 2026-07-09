@@ -382,7 +382,7 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                     <div className="ad-journey-head" style={{ display: 'flex', alignItems: 'baseline', gap: '12px', margin: '8px 4px 14px' }}>
                         <h2 className="ad-hero-title">{t('archivedDetail.notesTitle')}</h2>
                     </div>
-                    <p style={{ margin: '0 4px 30px', whiteSpace: 'pre-wrap', lineHeight: 1.65, color: '#33475b', fontSize: '1rem' }}>{trip.notes}</p>
+                    <p style={{ margin: '0 4px 30px', whiteSpace: 'pre-wrap', lineHeight: 1.65, color: 'var(--text-primary)', fontSize: '1rem' }}>{trip.notes}</p>
                 </>
             ) : null}
 
@@ -415,13 +415,13 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                                 aria-label={t('archivedDetail.mediaCardTitle')}
                                 onClick={scrollToMedia}
                                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); scrollToMedia(); } }}
-                                style={{ position: 'relative', cursor: 'pointer', minHeight: '170px', borderRadius: '24px', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: 'white', border: '1.5px solid rgba(0,113,227,0.18)', color: '#002d5b', boxShadow: '0 10px 30px rgba(0,0,0,0.06)' }}
+                                style={{ position: 'relative', cursor: 'pointer', minHeight: '170px', borderRadius: '24px', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: 'var(--card-bg)', border: '1.5px solid rgba(0,113,227,0.18)', color: 'var(--text-primary)', boxShadow: '0 10px 30px rgba(0,0,0,0.06)' }}
                             >
                                 <div className="flex items-center gap-2">
                                     <span style={{ background: 'rgba(52,199,89,0.95)', color: 'white', padding: '4px 12px', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t('archivedDetail.mediaCardBadge')}</span>
                                 </div>
                                 <div>
-                                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#002d5b', lineHeight: 1.15 }}>{t('archivedDetail.mediaCardTitle')}</h3>
+                                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)', lineHeight: 1.15 }}>{t('archivedDetail.mediaCardTitle')}</h3>
                                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }}>
                                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(88,86,214,0.08)', color: '#5856d6', padding: '3px 10px', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 700 }}><Icon name="document" size={12} />{totalDocs}</span>
                                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(0,113,227,0.08)', color: 'var(--accent-blue)', padding: '3px 10px', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 700 }}><Icon name="photo" size={12} />{totalPhotos}</span>
@@ -439,7 +439,7 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                     const dayTitleFallback = isStartingPoint ? t('archivedDetail.dayTitleHub') : t('tripMedia.dayBucketDay', { n: day.dayNumber });
                     const blockStyle: React.CSSProperties = hasBg
                         ? { background: `linear-gradient(180deg, rgba(0,45,91,0.15) 0%, rgba(0,45,91,0.78) 100%), ${cssUrl(photoBg)} center/cover no-repeat`, border: '1px solid rgba(0,0,0,0.08)', color: 'white' }
-                        : { background: 'white', border: '1.5px solid rgba(0,113,227,0.18)', color: '#002d5b' };
+                        : { background: 'var(--card-bg)', border: '1.5px solid rgba(0,113,227,0.18)', color: 'var(--text-primary)' };
                     const onDayActivate = () => { const d = (trip.tripDays || []).find((x) => x.id === day.id); if (d) openDayView(d); };
                     return (
                         <div
@@ -456,7 +456,7 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                                 <span style={{ background: isStartingPoint ? 'rgba(52,199,89,0.95)' : 'rgba(0,113,227,0.95)', color: 'white', padding: '4px 12px', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{dayBadgeLabel}</span>
                             </div>
                             <div>
-                                <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, letterSpacing: '-0.02em', color: hasBg ? '#ffffff' : '#002d5b', lineHeight: 1.15, ...(hasBg ? { textShadow: '0 2px 12px rgba(0,0,0,0.4)' } : {}) }}>{day.name || dayTitleFallback}</h3>
+                                <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, letterSpacing: '-0.02em', color: hasBg ? '#ffffff' : 'var(--text-primary)', lineHeight: 1.15, ...(hasBg ? { textShadow: '0 2px 12px rgba(0,0,0,0.4)' } : {}) }}>{day.name || dayTitleFallback}</h3>
                                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }}>
                                     {totalDayPhotos > 0 ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(0,113,227,0.08)', color: hasBg ? '#ffffff' : 'var(--accent-blue)', padding: '3px 10px', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 700 }}><Icon name="photo" size={12} />{totalDayPhotos}</span> : null}
                                     {totalDayDocs > 0 ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(88,86,214,0.08)', color: hasBg ? '#ffffff' : '#5856d6', padding: '3px 10px', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 700 }}><Icon name="document" size={12} />{totalDayDocs}</span> : null}
@@ -478,7 +478,7 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px' }}>
                         {allDocs.map((d) => (
-                            <a key={d._key} href={d.url || '#'} target="_blank" rel="noreferrer" onClick={(e) => onDocClick(e, d.url, d.name)} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'white', border: '1px solid rgba(0,0,0,0.07)', borderRadius: '14px', padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,45,91,0.04)', textDecoration: 'none', color: '#002d5b' }}>
+                            <a key={d._key} href={d.url || '#'} target="_blank" rel="noreferrer" onClick={(e) => onDocClick(e, d.url, d.name)} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--card-bg)', border: '1px solid var(--border-subtle)', borderRadius: '14px', padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,45,91,0.04)', textDecoration: 'none', color: 'var(--text-primary)' }}>
                                 <span style={{ lineHeight: 1, flexShrink: 0, display: 'inline-flex', color: '#5856d6' }}><Icon name="document" size={20} /></span>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div className="flex items-center gap-2">

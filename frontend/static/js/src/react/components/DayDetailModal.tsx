@@ -143,7 +143,7 @@ function DayEditSubModal({
     };
     return (
         <>
-            <h3 style={{ margin: '0 0 18px', fontSize: '1.3rem', fontWeight: 800, color: '#002d5b', letterSpacing: '-0.02em' }}>
+            <h3 style={{ margin: '0 0 18px', fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-brand-navy)', letterSpacing: '-0.02em' }}>
                 {t('dayDetail.editDayTitle')}
             </h3>
             <label style={labelStyle}>{t('dayDetail.editDayNameLabel')}</label>
@@ -897,7 +897,7 @@ export function DayDetailModal({
         openReactModal({
             ariaLabel: t('dayDetail.editDayTitle'),
             cardClass: 'card glass',
-            cardStyle: 'width: min(420px, calc(100vw - 32px)); padding: var(--space-8); border-radius: 24px; background: white;',
+            cardStyle: 'width: min(420px, calc(100vw - 32px)); padding: var(--space-8); border-radius: 24px; background: var(--card-bg);',
             render: (ec) => (
                 <DayEditSubModal
                     day={day}
@@ -1361,14 +1361,14 @@ export function DayDetailModal({
         const mapsUrl = p.mapsUrl
             || (p.placeId ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(p.placeId)}` : null);
         const nameStyle: CSSProperties = {
-            fontWeight: 700, color: '#002d5b', fontSize: '0.9rem', lineHeight: 1.2,
+            fontWeight: 700, color: 'var(--text-brand-navy)', fontSize: '0.9rem', lineHeight: 1.2,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         };
         return (
             <div key={p.placeId || p.id || p.name} className="day-shortlist-row" data-place-id={p.placeId || ''}
                 style={{
                     display: rowMatches(p) ? 'flex' : 'none', alignItems: 'center', gap: 10, padding: '10px 12px',
-                    background: 'white', border: `1px solid ${p.color}40`, borderLeft: `3px solid ${p.color}`, borderRadius: 10,
+                    background: 'var(--card-bg)', border: `1px solid ${p.color}40`, borderLeft: `3px solid ${p.color}`, borderRadius: 10,
                 }}>
                 <span style={{ fontSize: '1.2rem', lineHeight: 1, flexShrink: 0 }}>{p.icon}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -1416,7 +1416,7 @@ export function DayDetailModal({
                     <input type="search" id="dayShortlistFilter" placeholder={t('dayDetail.shortlistFilterPlaceholder')}
                         autoComplete="off" value={filterQuery}
                         onChange={(ev) => setFilterQuery(ev.currentTarget.value)}
-                        style={{ marginLeft: 'auto', maxWidth: 200, padding: '6px 12px', border: '1px solid rgba(155,89,182,0.25)', background: 'white', borderRadius: 999, fontSize: '0.78rem', color: '#002d5b', outline: 'none', fontFamily: 'inherit' }} />
+                        style={{ marginLeft: 'auto', maxWidth: 200, padding: '6px 12px', border: '1px solid rgba(155,89,182,0.25)', background: 'var(--card-bg)', borderRadius: 999, fontSize: '0.78rem', color: 'var(--text-brand-navy)', outline: 'none', fontFamily: 'inherit' }} />
                 )}
             </div>
             {shortlistIcons.length > 1 && (
@@ -1434,9 +1434,9 @@ export function DayDetailModal({
                                 onClick={() => toggleCategoryFilter(icon)}
                                 style={{
                                     display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 999,
-                                    border: `1.5px solid ${isActive ? 'var(--accent-blue)' : 'rgba(0,45,91,0.12)'}`,
-                                    background: isActive ? 'var(--accent-blue)' : 'white',
-                                    color: isActive ? 'white' : '#002d5b',
+                                    border: `1.5px solid ${isActive ? 'var(--accent-blue)' : 'var(--border-subtle)'}`,
+                                    background: isActive ? 'var(--accent-blue)' : 'var(--card-bg)',
+                                    color: isActive ? 'white' : 'var(--text-brand-navy)',
                                     fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
                                 }}>
                                 <span style={{ fontSize: '0.95rem', lineHeight: 1 }}>{icon}</span>
@@ -1489,7 +1489,7 @@ export function DayDetailModal({
                     onSubmit={(e) => { e.preventDefault(); onAddChecklistItem(); }}>
                     <input ref={checklistAddRef} type="text" maxLength={200} autoComplete="off"
                         placeholder={t('dayDetail.checklistAddPlaceholder')}
-                        style={{ flex: 1, minWidth: 0, padding: '8px 12px', border: '1px solid rgba(212,160,23,0.28)', borderRadius: 999, fontSize: '0.85rem', fontFamily: 'inherit', background: 'white', color: '#002d5b' }} />
+                        style={{ flex: 1, minWidth: 0, padding: '8px 12px', border: '1px solid rgba(212,160,23,0.28)', borderRadius: 999, fontSize: '0.85rem', fontFamily: 'inherit', background: 'var(--card-bg)', color: 'var(--text-brand-navy)' }} />
                     <button type="submit" className="btn-primary" style={{ padding: '8px 16px', borderRadius: 999, fontSize: '0.8rem' }}>
                         {t('dayDetail.checklistAddBtn')}
                     </button>
@@ -1510,7 +1510,7 @@ export function DayDetailModal({
                     onSubmit={(e) => { e.preventDefault(); onAddChecklistItem(); }}>
                     <input ref={checklistAddRef} type="text" maxLength={200} autoComplete="off"
                         placeholder={t('dayDetail.checklistAddPlaceholder')}
-                        style={{ flex: 1, minWidth: 0, padding: '8px 12px', border: '1px solid rgba(212,160,23,0.28)', borderRadius: 999, fontSize: '0.85rem', fontFamily: 'inherit', background: 'white', color: '#002d5b' }} />
+                        style={{ flex: 1, minWidth: 0, padding: '8px 12px', border: '1px solid rgba(212,160,23,0.28)', borderRadius: 999, fontSize: '0.85rem', fontFamily: 'inherit', background: 'var(--card-bg)', color: 'var(--text-brand-navy)' }} />
                     <button type="submit" className="btn-primary" style={{ padding: '8px 16px', borderRadius: 999, fontSize: '0.8rem' }}>
                         {t('dayDetail.checklistAddBtn')}
                     </button>
@@ -1529,14 +1529,14 @@ export function DayDetailModal({
                                 style={{
                                     flexShrink: 0, width: 20, height: 20, borderRadius: '50%',
                                     border: `2px solid ${done ? '#8b6e0c' : 'rgba(0,113,227,0.3)'}`,
-                                    background: done ? 'var(--gradient-anchor-deep)' : 'white',
+                                    background: done ? 'var(--gradient-anchor-deep)' : 'var(--card-bg)',
                                     color: 'white', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0,
                                 }}>
                                 {done ? CHECK_SVG : null}
                             </button>
                             <span style={{
                                 flex: 1, minWidth: 0, fontSize: '0.88rem', lineHeight: 1.4,
-                                color: done ? 'rgba(0,45,91,0.4)' : '#002d5b',
+                                color: done ? 'var(--text-secondary)' : 'var(--text-brand-navy)',
                                 textDecoration: done ? 'line-through' : undefined,
                             }}>
                                 {item.body || ''}
@@ -1732,7 +1732,7 @@ export function DayDetailModal({
             {/* Footer — single Done button + autosave status, full modal
                 width. Reads as "I'm done with this day" rather than yet
                 another right-column item. */}
-            <div style={{ marginTop: 'var(--space-10)', paddingTop: 'var(--space-8)', borderTop: '1px solid rgba(0,45,91,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <div style={{ marginTop: 'var(--space-10)', paddingTop: 'var(--space-8)', borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                 <button id="saveDetailBtn" className="btn-primary"
                     style={{ minWidth: 220, padding: 'var(--space-5) var(--space-10)', borderRadius: 'var(--radius-xl)', fontSize: 'var(--font-lg)', fontWeight: 800, letterSpacing: '-0.01em' }}
                     onClick={onDoneClick}>

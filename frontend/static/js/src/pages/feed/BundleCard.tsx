@@ -85,7 +85,7 @@ export function BundleCard({ bundle, isExpanded, onToggleExpand, onBookmark }: B
                 </div>
                 <button
                     type="button"
-                    className="feed-bundle-toggle bg-transparent border-0 text-[#005bb8] cursor-pointer py-1 px-2.5 text-[0.78rem] font-extrabold shrink-0"
+                    className="feed-bundle-toggle bg-transparent border-0 text-[color:var(--text-brand-navy)] cursor-pointer py-1 px-2.5 text-[0.78rem] font-extrabold shrink-0"
                     onClick={() => onToggleExpand(bundle.id)}
                 >
                     {isExpanded ? t('feed.bundleCollapse') : t('feed.bundleViewAll')}

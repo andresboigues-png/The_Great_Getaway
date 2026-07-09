@@ -8017,3 +8017,143 @@ main#app-container.nav-anim-backward {
         display: none !important;
     }
 }
+
+/* ─────────────────────────────────────────────────────────────────
+   DARK-MODE CONTRAST SWEEP (2026-07)
+   Many shared primitives hardcoded light-mode colours (white pills,
+   navy #002d5b text, faint light-alpha borders) with NO dark override,
+   so they went near-invisible on the dark theme. These restore
+   legibility across every page that reuses them.
+   ───────────────────────────────────────────────────────────────── */
+
+/* Segmented control (Insights tabs, AI plan toggle, day-plan slots, …):
+   keep the white "selected" lens but force the ACTIVE label dark so it's
+   not white-on-white (beats the per-consumer inline colour with !important),
+   and lift the track off the black page. */
+:root[data-theme='dark'] .seg-control {
+    background: rgba(255, 255, 255, 0.09);
+}
+:root[data-theme='dark'] .seg-btn[data-active='true'],
+:root[data-theme='dark'] .seg-btn[aria-selected='true'] {
+    color: #1d1d1f !important;
+}
+
+/* Collections / trips filter dropdowns (navy text on light box → invisible). */
+:root[data-theme='dark'] .brand-select {
+    color: #4aa3ff;
+    background: rgba(10, 132, 255, 0.16);
+    border-color: rgba(10, 132, 255, 0.3);
+}
+:root[data-theme='dark'] .brand-select:hover,
+:root[data-theme='dark'] .brand-select:active,
+:root[data-theme='dark'] .brand-select:focus-visible {
+    background: rgba(10, 132, 255, 0.24);
+}
+:root[data-theme='dark'] .brand-select-chevron {
+    color: #4aa3ff;
+}
+:root[data-theme='dark'] .collections-chip {
+    color: var(--text-primary);
+    background-color: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.14);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23c4c4cc' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+}
+:root[data-theme='dark'] .collections-controls {
+    background: var(--glass-bg);
+    border-color: var(--glass-border);
+}
+
+/* Member chips + rows (companions roster): white pill + navy text → invisible. */
+:root[data-theme='dark'] .member-chip {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: var(--text-primary);
+}
+:root[data-theme='dark'] .member-chip:hover,
+:root[data-theme='dark'] .member-chip:active,
+:root[data-theme='dark'] .member-chip:focus-visible {
+    background: rgba(255, 255, 255, 0.13);
+}
+:root[data-theme='dark'] .member-chip__name {
+    color: var(--text-primary);
+}
+:root[data-theme='dark'] .member-chip__avatar {
+    background: rgba(255, 255, 255, 0.1);
+}
+:root[data-theme='dark'] .user-row--neutral {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+:root[data-theme='dark'] .user-row--neutral:hover,
+:root[data-theme='dark'] .user-row--neutral:active,
+:root[data-theme='dark'] .user-row--neutral:focus-visible {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* Light glass button + near-opaque white modal card. */
+:root[data-theme='dark'] .btn-glass-light {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.08);
+}
+:root[data-theme='dark'] .btn-glass-light:hover,
+:root[data-theme='dark'] .btn-glass-light:active,
+:root[data-theme='dark'] .btn-glass-light:focus-visible {
+    background: rgba(255, 255, 255, 0.15);
+}
+:root[data-theme='dark'] .btn-neutral {
+    color: var(--text-primary);
+}
+:root[data-theme='dark'] .card-glass-modal-light {
+    background: rgba(28, 28, 30, 0.95);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Day-detail modal + its contents: the modal hardcoded a WHITE background
+   while the text uses theme tokens (light in dark mode), so text went
+   light-on-white = invisible. Flip the modal + cards dark so the light
+   text reads. */
+:root[data-theme='dark'] .day-detail-modal {
+    background: var(--card-bg);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+:root[data-theme='dark'] .day-detail-header__title {
+    color: var(--text-primary);
+}
+:root[data-theme='dark'] .day-detail-header__act {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: var(--text-primary);
+}
+:root[data-theme='dark'] .day-plan-tabnav {
+    background: rgba(255, 255, 255, 0.1);
+}
+:root[data-theme='dark'] .ai-place-card {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+:root[data-theme='dark'] .ai-place-card:hover,
+:root[data-theme='dark'] .ai-place-card:focus-visible {
+    background: rgba(10, 132, 255, 0.14);
+    border-color: rgba(10, 132, 255, 0.32);
+}
+:root[data-theme='dark'] .ai-place-card__photo,
+:root[data-theme='dark'] .day-media__thumb {
+    background: rgba(255, 255, 255, 0.08);
+}
+:root[data-theme='dark'] .day-media__doc {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+:root[data-theme='dark'] .day-media__doc a {
+    color: var(--accent-blue);
+}
+:root[data-theme='dark'] .day-plan-place-remove {
+    background: rgba(255, 255, 255, 0.12);
+}
+:root[data-theme='dark'] .companion-row {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+:root[data-theme='dark'] .companion-row__name {
+    color: var(--text-primary);
+}

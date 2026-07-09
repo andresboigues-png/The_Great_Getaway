@@ -55,10 +55,15 @@ interface UserCardProps {
     rowClass?: string;
 }
 function UserCard({ user, variant = 'neutral', onClick, rightSide, rowClass = '' }: UserCardProps) {
-    const bg = variant === 'search' ? 'rgba(0,113,227,0.04)' : 'white';
+    // Dark-mode: use theme tokens, not hard-coded white / near-black
+    // borders — the neutral row rendered white-on-white (light navy name
+    // text on a white card is fine in light mode, but --text-brand-navy
+    // flips to #f5f5f7 in dark, so a hard-coded white card left the name
+    // near-invisible).
+    const bg = variant === 'search' ? 'rgba(0,113,227,0.06)' : 'var(--card-bg)';
     const border = variant === 'search'
         ? '1px solid rgba(0,113,227,0.16)'
-        : '1px solid rgba(0,0,0,0.06)';
+        : '1px solid var(--border-subtle)';
     const clickable = !!onClick;
     // D3 a11y: when rightSide has its own interactive controls (e.g.
     // the "remove friend" button), making the whole row role="button"

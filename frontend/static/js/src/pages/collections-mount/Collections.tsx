@@ -330,7 +330,7 @@ export function Collections() {
                             height="14"
                             viewBox="0 0 24 24"
                             fill="none"
-                            stroke="rgba(0,0,0,0.45)"
+                            stroke="var(--text-secondary)"
                             strokeWidth="2.4"
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -345,7 +345,7 @@ export function Collections() {
                             placeholder={t('collections.searchPlaceholder')}
                             value={searchInputValue}
                             onChange={(e) => setSearchInputValue(e.target.value)}
-                            className="w-full box-border pt-2 pr-3 pb-2 pl-[34px] border border-[rgba(0,0,0,0.08)] rounded-full text-[0.85rem] bg-white font-semibold text-brand-navy outline-0"
+                            className="w-full box-border pt-2 pr-3 pb-2 pl-[34px] border border-[color:var(--border-subtle)] rounded-full text-[0.85rem] bg-[color:var(--card-bg)] font-semibold text-[color:var(--text-primary)] outline-0"
                         />
                     </div>
 
