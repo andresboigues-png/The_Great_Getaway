@@ -310,6 +310,28 @@ export function Budgets() {
                                       ? t('budgets.statusNearLimit')
                                       : t('budgets.statusOnTrack')}
                             </div>
+                            {/* B4-I6: the blended Overall tier and the per-budget
+                                over count are each correct but can look like they
+                                disagree ("On track" headline + "2 over budget"
+                                below). When the overall is NOT over yet some cards
+                                ARE, add one caption reconciling them so it doesn't
+                                read as a contradiction. */}
+                            {overallTier !== 'over' && overBudgetCount > 0 && (
+                                <div
+                                    style={{
+                                        fontSize: '0.62rem',
+                                        color: 'var(--text-secondary)',
+                                        fontWeight: 700,
+                                        letterSpacing: '0.01em',
+                                        marginTop: '4px',
+                                        maxWidth: '20ch',
+                                        marginLeft: 'auto',
+                                        lineHeight: 1.3,
+                                    }}
+                                >
+                                    {tn('budgets.overallReconcile', overBudgetCount)}
+                                </div>
+                            )}
                             {/* BUD-8 (MK4): per-budget over-budget count —
                                 surfaces how many individual cards are over,
                                 which the single blended tier above hides. */}
@@ -497,7 +519,7 @@ export function Budgets() {
                                         </span>
                                     </div>
                                     <div
-                                        className="h-2 bg-[var(--surface-subtle)] rounded-full overflow-hidden"
+                                        className="relative h-2 bg-[var(--surface-subtle)] rounded-full overflow-hidden"
                                     >
                                         <div
                                             style={{
@@ -518,6 +540,28 @@ export function Budgets() {
                                                 boxShadow: `0 0 8px ${status.color}`,
                                             }}
                                         />
+                                        {/* B4-I2: the fill is capped at 100%, so a
+                                            450%-used budget looks identical to a
+                                            100% one. Add a bright overshoot cap
+                                            pinned to the right edge whenever spend
+                                            breaks the ceiling — an unmissable "over
+                                            the top" marker that the '% used' text
+                                            alone doesn't convey at a glance. */}
+                                        {status.tier === 'over' && (
+                                            <div
+                                                aria-hidden="true"
+                                                title={t('budgets.cardPctUsed', { pct: Math.round(status.pct) })}
+                                                style={{
+                                                    position: 'absolute',
+                                                    top: 0,
+                                                    right: 0,
+                                                    height: '100%',
+                                                    width: '5px',
+                                                    background: '#fff',
+                                                    boxShadow: `0 0 6px 1px ${status.color}`,
+                                                }}
+                                            />
+                                        )}
                                     </div>
                                     <div
                                         className="flex justify-between items-center mt-1.5 text-[0.7rem] text-secondary font-bold"

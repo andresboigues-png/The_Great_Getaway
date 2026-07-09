@@ -198,7 +198,9 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
             await pullFromServer();
             STATE.activeTripId = newTripId; // belt-and-braces re-stamp post-pull
             emit('state:changed');
-            showLiquidAlert(t('archivedDetail.cloneSuccess'), 'success');
+            // A4-I3: clarify what copied vs. what started fresh so the
+            // silent drop of expenses/companions/photos is not a surprise.
+            showLiquidAlert(t('errors.cloneSuccessV2'), 'success');
             navigate('home');
         } catch (err) {
             console.error('Clone failed:', err);

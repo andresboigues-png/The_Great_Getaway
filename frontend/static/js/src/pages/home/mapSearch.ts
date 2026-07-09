@@ -136,7 +136,10 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
     // `lastInternal` cache the two halves so a Show-all toggle or a late
     // Places response can repaint without re-querying. Places rows pin on
     // the map (existing flow); internal rows navigate.
-    const INTERNAL_LIMIT = 4;
+    // C5-I1: match the legacy Search page's VISIBLE_LIMIT (8) so both
+    // surfaces — which share searchInternal — show the same number of rows
+    // before their Show-all toggle, rather than the home bar capping at 4.
+    const INTERNAL_LIMIT = 8;
     const internalShowAll = { trips: false, days: false, expenses: false };
     let lastInternal: InternalSearchResults | null = null;
     // null = Places request still in flight (group omitted for now);
@@ -197,9 +200,21 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         return 2 * R * Math.asin(Math.sqrt(a));
     };
 
+    /** C5-I5: does the active trip carry a REAL geo anchor? `typeof lat ===
+     *  'number'` is true for 0, so a legacy trip whose lat/lng defaulted to
+     *  (0,0) would render distance chips measured from the Gulf of Guinea and
+     *  bias predictions to the equator. Treat exactly-(0,0) as "no geo" — the
+     *  same sentinel the default represents — so those trips suppress the chip
+     *  and skip the origin bias instead of pointing at open ocean. */
+    const hasRealGeo = (trip: Trip | null | undefined): trip is Trip & { lat: number; lng: number } =>
+        !!trip
+        && typeof trip.lat === 'number' && isFinite(trip.lat)
+        && typeof trip.lng === 'number' && isFinite(trip.lng)
+        && !(trip.lat === 0 && trip.lng === 0);
+
     const fromResult = (r: google.maps.places.PlaceResult): PlaceRow => {
         const loc = r.geometry?.location;
-        const dist = loc && activeTrip && typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number'
+        const dist = loc && hasRealGeo(activeTrip)
             ? haversine(activeTrip.lat, activeTrip.lng, loc.lat(), loc.lng())
             : null;
         return { placeId: r.place_id || '', title: r.name || '', subtitle: r.formatted_address || r.vicinity || '', distanceMeters: dist };
@@ -582,7 +597,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
             // the right. Skipped when the trip has no geo (legacy
             // text-only trips); predictions still work, just
             // without the distance chip.
-            if (activeTrip && typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
+            if (hasRealGeo(activeTrip)) {
                 req.origin = { lat: activeTrip.lat, lng: activeTrip.lng };
             }
             // The real SDK types getPlacePredictions as promise-returning (it

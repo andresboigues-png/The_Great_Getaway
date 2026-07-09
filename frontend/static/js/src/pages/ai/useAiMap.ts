@@ -11,7 +11,7 @@
 // teardown + orphaned-geocoder-callback cancellation) is preserved
 // exactly.
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavSettled } from '../../react/useNavSettled.js';
 import { STATE, emit } from '../../state.js';
 import { applyMapTheme } from '../../theme.js';
@@ -23,6 +23,12 @@ export interface UseAiMapResult {
     mapContainerRef: React.MutableRefObject<HTMLDivElement | null>;
     dayRowsRef: React.MutableRefObject<HTMLDivElement[]>;
     onResetZoom: () => void;
+    /** C2-I4: true while the staggered per-day geocoder callbacks are
+     *  still filling in `day.lat`/`day.lon`. `onAcceptPlan` reads those
+     *  coords at click time, so accepting before they resolve would
+     *  persist days with null coordinates (no map pins). The accept
+     *  button watches this to defer + show a "locating places…" cue. */
+    geocodingPending: boolean;
 }
 
 export function useAiMap(
@@ -35,6 +41,13 @@ export function useAiMap(
     const googleMapRef = useRef<google.maps.Map | null>(null);
     const mapMarkersRef = useRef<google.maps.Marker[]>([]);
     const dayRowsRef = useRef<HTMLDivElement[]>([]);
+    // C2-I4: how many day-geocode callbacks are still outstanding for the
+    // CURRENT itinerary, plus the boolean the accept button reads. The
+    // markers effect stagger-geocodes each day and writes day.lat/lon back
+    // onto the shared itinerary objects; onAcceptPlan reads those coords at
+    // click time, so we must tell the UI when they're still resolving.
+    const pendingGeocodesRef = useRef(0);
+    const [geocodingPending, setGeocodingPending] = useState(false);
     // Defer map setup until the nav slide settles (smooth transition into AI);
     // the markers effect below re-runs once the map exists via this same dep.
     const navSettled = useNavSettled();
@@ -102,6 +115,12 @@ export function useAiMap(
     // ── Repaint map markers when itinerary changes ──────────────
     useEffect(() => {
         if (!googleMapRef.current || !itinerary) return;
+        // C2-I4: one callback is pending per day until its geocode resolves
+        // (or fails). Seed the counter up-front so the accept button can
+        // block/defer while coords are still landing; each callback below
+        // decrements it and clears `geocodingPending` when it hits zero.
+        pendingGeocodesRef.current = itinerary.length;
+        setGeocodingPending(itinerary.length > 0);
         // 2026-05-18 audit fix: the previous loop scheduled N setTimeouts
         // with no unmount guard, so switching trips or regenerating the
         // itinerary left orphan geocoder callbacks mutating discarded
@@ -138,6 +157,12 @@ export function useAiMap(
                         // itinerary regen) — don't mutate the day or
                         // create a stranded marker.
                         if (cancelled) return;
+                        // C2-I4: this day's geocode has now resolved (OK or
+                        // not) — one fewer outstanding. Decrement BEFORE the
+                        // status branch so a day that fails to geocode still
+                        // clears the pending flag (never strands the button).
+                        pendingGeocodesRef.current -= 1;
+                        if (pendingGeocodesRef.current <= 0) setGeocodingPending(false);
                         if (status === 'OK' && results && results[0]) {
                             const pos = results[0].geometry.location;
                             day.lat = pos.lat();
@@ -196,7 +221,7 @@ export function useAiMap(
         }
     };
 
-    return { mapContainerRef, dayRowsRef, onResetZoom };
+    return { mapContainerRef, dayRowsRef, onResetZoom, geocodingPending };
 }
 
 

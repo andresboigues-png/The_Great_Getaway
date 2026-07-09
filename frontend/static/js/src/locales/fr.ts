@@ -58,6 +58,7 @@ export const fr: Translations = {
         shortenConfirmBody: 'Cela supprimera {count} jour(s) en dehors de la nouvelle plage de dates. Les notes, photos et données de ces jours seront perdues. Continuer ?',
     },
     confirmModal: {
+        deleteToken: 'SUPPRIMER',
         defaultTitle: 'Es-tu sûr ?',
         defaultMessage: 'Cette action est irréversible.',
         defaultConfirm: 'Supprimer',
@@ -95,6 +96,7 @@ export const fr: Translations = {
         skipToContent: 'Aller au contenu',
     },
     notifications: {
+        dismiss: 'Ignorer',
         unread: "Non lu.",
         titleNewFollower: 'Nouvel abonné',
         titleTripCompleted: 'Voyage terminé',
@@ -120,6 +122,9 @@ export const fr: Translations = {
         msgSettledUp: '{from} a réglé {amount} {currency} avec toi pour {trip}.',
     },
     errors: {
+        cloneSuccessV2: 'Voyage cloné ! Le plan, les lieux et la couverture ont été copiés — dépenses, compagnons et photos repartent de zéro. Modifie ton brouillon sur l\'Accueil.',
+        completeTripBodyV2: 'Il rejoint tes Collections comme un souvenir terminé, uniquement pour toi — les autres membres gardent leur propre copie active. Tu peux le revoir à tout moment et le rouvrir plus tard si besoin.',
+        cloneFailedFromShare: 'Impossible de cloner ce voyage. Rouvre le lien ou réessaie.',
         tripSaveFailed: "Impossible d'enregistrer vos modifications — veuillez réessayer.",
         mediaTooLarge: "C'est trop volumineux pour être enregistré — essaie de retirer une photo ou de raccourcir une note, puis ajoute-le à nouveau.",
         backOnline: 'De retour en ligne — tes modifications sont enregistrées.',
@@ -230,6 +235,7 @@ export const fr: Translations = {
         feature3Body: 'Invite des proches à planifier avec toi.',
     },
     settings: {
+        themePickerSubtitleV2: 'Choisis un thème. <strong>Système</strong> suit le réglage d\'apparence de ton appareil et se met à jour en direct quand il change. Ceci s\'applique uniquement à cet appareil — cela ne suivra pas ton compte sur un autre appareil.',
         resetScopeServer: "Définitif · supprime du serveur, irréversible",
         resetScopeLocal: "Réversible · rétablit les valeurs par défaut, conserve tes données",
         formatNameRequired: "Donne un nom à ce format avant d'enregistrer.",
@@ -709,6 +715,13 @@ export const fr: Translations = {
         overpayConfirmBtn: 'Régler quand même',
     },
     budgets: {
+        createAmtIgnored: 'Non utilisé pour {curr} — saisissez l\'objectif en EUR ci-dessous',
+        deleteConfirmMessageTail: 'Les dépenses elles-mêmes restent ; seul l\'objectif du budget est supprimé.',
+        deleteConfirmTargetLabel: 'Objectif',
+        deleteConfirmPersonLabel: 'Personne',
+        deleteConfirmCategoryLabel: 'Catégorie',
+        deleteConfirmTripLabel: 'Voyage',
+        overallReconcile: { one: '1 budget dépasse son propre plafond, mais votre dépense totale reste dans la limite.', other: '{count} budgets dépassent leur propre plafond, mais votre dépense totale reste dans la limite.' },
         createFxNote: "Suivi en EUR au taux actuel — {curr} est converti à l'enregistrement et comparé aux dépenses en euros.",
         title: 'Budgets',
         subtitle: 'Fixe des plafonds de dépenses et suis-les sur tous tes voyages.',
@@ -961,6 +974,7 @@ export const fr: Translations = {
         openInMapsTitle: 'Ouvrir {place} dans Google Maps',
     },
     ai: {
+        acceptPlanBtnLocating: 'Localisation des lieux…',
         acceptSummary: "Plan appliqué — {updated} mis à jour, {added} ajoutés, {cleared} vidés. Vos notes et photos ont été conservées.",
         acceptChangeCleared: "ancien plan effacé des jours {range}",
         acceptChangeAdded: "jours {range} ajoutés",
@@ -1086,6 +1100,7 @@ export const fr: Translations = {
         unverifiedChipLabel: 'non vérifié',
     },
     collections: {
+        hintMoreTrips: '+{count} de plus',
         title: 'Collections',
         subtitle: 'Tes souvenirs de voyage et photos terminés.',
         groupByLabel: 'Grouper',
@@ -1151,6 +1166,7 @@ export const fr: Translations = {
         publicViewsTitle: 'Vues du lien public',
     },
     friends: {
+        searchMinChars: 'Saisis au moins 3 caractères pour rechercher.',
         title: 'Ton réseau',
         subtitle: 'Suis d\'autres voyageurs pour remplir ton fil. Les abonnements mutuels deviennent des amis — partage des voyages, divise les dépenses et planifie ensemble.',
         findFriendsTitle: '🔍 Trouver des utilisateurs',
@@ -1194,6 +1210,9 @@ export const fr: Translations = {
         networkFilterAria: 'Filtre de réseau',
     },
     expenses: {
+        paidTag: '(a payé)',
+        splitEvenly: 'Partager également',
+        splitWithEveryone: 'Partager avec tout le monde',
         splitTotalOver: "Total : {total} % — {delta} % en trop",
         splitTotalShort: "Total : {total} % — il manque {delta} %",
         splitTotalOk: "Total : {total} %",
@@ -1289,6 +1308,9 @@ export const fr: Translations = {
         addSplitPersonAria: "Ajouter une personne pour diviser la dépense",
     },
     feed: {
+        toastRepostConfirmBtn: 'Republier',
+        toastRepostConfirmMessage: 'Cela partage le voyage avec tous vos abonnés.',
+        toastRepostConfirmTitle: 'Republier sur votre fil ?',
         commentModerateAria: "Supprimer le commentaire",
         commentModerateTitle: "Supprimer ce commentaire",
         commentCharsLeft: "{n} caractères restants",
@@ -1423,6 +1445,16 @@ export const fr: Translations = {
         searchLoadError: "Impossible de charger ce lieu.",
     },
     templates: {
+        startDatePromptV2: 'Les modèles ont un nombre de jours défini — choisis ton premier jour et nous daterons le reste. Seuls le plan et les lieux enregistrés sont repris ; les dépenses, les compagnons et les photos ne sont pas copiés.',
+        previewMorePlaces: '+{n} de plus',
+        previewMoreDays: '+{n} jours de plus',
+        previewDayN: 'Jour {n}',
+        previewPlaces: 'Lieux',
+        previewItinerary: 'Itinéraire',
+        previewError: 'Impossible de charger cet aperçu. Vous pouvez tout de même utiliser le modèle.',
+        previewLoading: 'Chargement de l\'aperçu…',
+        previewClose: 'Fermer l\'aperçu',
+        preview: 'Aperçu',
         startDateSkip: "Décider plus tard",
         title: 'Modèles',
         subtitle: "Partez d'un voyage qu'un créateur a déjà préparé.",
@@ -1488,6 +1520,8 @@ export const fr: Translations = {
         btnAccommodation: "Gérer l'hébergement",
     },
     home: {
+        unshareBtnLabel: 'Partagé',
+        unshareBtnTitle: 'Ne plus partager ce voyage',
         mapUnavailable: 'Carte indisponible',
         emptyHeroTitle: 'Partons en voyage.',
         emptyHeroBody: 'Ta prochaine grande aventure t\'attend. Crée un voyage pour commencer à suivre tes dépenses et planifier tes journées.',
@@ -1613,6 +1647,10 @@ export const fr: Translations = {
         markNotDone: 'Marquer comme non fait',
     },
     companions: {
+        cancelInviteConfirm: 'Annuler l\'invitation',
+        cancelInviteBody: 'L\'invitation en attente pour {name} sera retirée, mais son nom reste sur le voyage pour que vous puissiez le réinviter plus tard.',
+        cancelInviteTitle: 'Annuler cette invitation ?',
+        rowCancelInviteBtn: 'Annuler l\'invitation',
         addDuplicate: "{name} est déjà sur ce voyage.",
         // R11-B4 UX-1: confirmer avant de retirer un compagnon lié.
         removeConfirmTitle: 'Retirer ce compagnon ?',
@@ -1979,6 +2017,9 @@ export const fr: Translations = {
         dayBucketDay: 'Jour {n}',
     },
     modals: {
+        pdfOptOffByDefault: 'Désactivé par défaut',
+        countryFallbackLabel: 'Maps est indisponible — choisissez le pays de destination pour continuer',
+        downloadZipOptionBodyV2: 'Tout ce voyage — y compris toutes les photos et tous les fichiers — réimportable plus tard. Peut être volumineux.',
         importConfirmBtn: "Importer",
         importConfirmWrongExt: "{file} n'est pas une sauvegarde .ggtrip.zip — l'import pourrait échouer. Continuer quand même ?",
         importConfirmMessage: "Un nouveau voyage sera ajouté à votre compte depuis {file}.",

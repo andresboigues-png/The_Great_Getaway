@@ -1301,6 +1301,11 @@ function QuotesSection({
     // Common trips (shared between the viewer and this profile's owner),
     // fetched lazily the first time the trip picker opens.
     const commonTripsRef = useRef<Array<{ id: string; name: string; countryCode: string | null }> | null>(null);
+    // F4-I4: mounted flag so a late-landing load() (invoked from post() /
+    // setVisibility() / remove(), not just the mount effect) can't flip the
+    // view to the error state or overwrite quotes after unmount — mirroring
+    // ForeignProfileView's `let alive` guard.
+    const aliveRef = useRef(true);
 
     // Trip picker — link the memory to a trip you BOTH took. Opens a
     // searchable modal of only your shared trips.
@@ -1350,21 +1355,33 @@ function QuotesSection({
         setFailed(false);
         try {
             const res = await apiFetch(`/api/quotes/${encodeURIComponent(profileUserId)}`);
+            if (!aliveRef.current) return;
             if (!res.ok) {
                 setFailed(true);
                 setQuotes([]);
                 return;
             }
             const data = await res.json();
+            if (!aliveRef.current) return;
             setQuotes(Array.isArray(data.quotes) ? data.quotes : []);
         } catch {
+            if (!aliveRef.current) return;
             setFailed(true);
             setQuotes([]);
         }
     }, [profileUserId]);
 
     useEffect(() => {
+        aliveRef.current = true;
+        // F4-I3: the shared-trips list is cached per component instance; if this
+        // section is reused across a profile navigation, invalidate the cache so
+        // a previous profile's trips never appear or cause a 400 on POST. The
+        // list re-fetches lazily the next time the trip picker opens.
+        commonTripsRef.current = null;
         void load();
+        return () => {
+            aliveRef.current = false;
+        };
     }, [load]);
 
     const post = async () => {
@@ -1925,7 +1942,11 @@ function MemoryCanvas({
                                         <span className="pf-mem-card__tags">
                                             {m.trip ? (
                                                 <span className="pf-mem-chip">
-                                                    {m.trip.countryCode ? (
+                                                    {/* F4-I5: only render the flag when flagUrl()
+                                                        resolves to a real path — a malformed /
+                                                        3-letter stored country_code returns '' and
+                                                        would otherwise paint a broken-image glyph. */}
+                                                    {flagUrl(m.trip.countryCode) ? (
                                                         <img
                                                             className="pf-mem-chip__flag"
                                                             src={flagUrl(m.trip.countryCode)}
@@ -2185,17 +2206,21 @@ function BioBlock({
 
     if (!isOwnProfile) {
         // Foreign profile — status pill + read-only bio.
-        const statusLabel = (() => {
-            if (!user.status) return t('profile.statusDefault');
-            const lookup: Record<string, string> = {
-                'Deliberating next trip': t('profile.statusDeliberating'),
-                'Preparing a trip right now': t('profile.statusPreparing'),
-                'Exploring the world': t('profile.statusExploring'),
-                'Resting at home base': t('profile.statusResting'),
-                'Hunting for flight deals': t('profile.statusHunting'),
-            };
-            return lookup[user.status] || user.status;
-        })();
+        // E7-I2: status is free text authored in the viewer's own language and
+        // shown verbatim — it is NOT localized per-viewer. The only special case
+        // is a legacy row that stored one of the five English preset strings
+        // before free-text; translate those so old presets still read in the
+        // viewer's locale, otherwise display the stored text as-is.
+        const _legacyPresetLabels: Record<string, string> = {
+            'Deliberating next trip': t('profile.statusDeliberating'),
+            'Preparing a trip right now': t('profile.statusPreparing'),
+            'Exploring the world': t('profile.statusExploring'),
+            'Resting at home base': t('profile.statusResting'),
+            'Hunting for flight deals': t('profile.statusHunting'),
+        };
+        const statusLabel = !user.status
+            ? t('profile.statusDefault')
+            : _legacyPresetLabels[user.status] || user.status;
         return (
             <div className="profile-bio-block">
                 <div className="flex justify-center mb-3">
@@ -2301,7 +2326,11 @@ function BioBlock({
                         aria-label={t('profile.homeCurrencyAria')}
                     >
                         <span className="pf-tile__coin" aria-hidden="true">
-                            {CURRENCY_SYMBOLS[homeCurrency] || homeCurrency}
+                            {/* E7-I4: fall back to a single character (not the
+                                bare 3-letter code) so a symbol-less currency
+                                never overflows the circular coin — matches the
+                                currency-picker rows. */}
+                            {CURRENCY_SYMBOLS[homeCurrency] || homeCurrency.slice(0, 1)}
                         </span>
                         <span className="pf-tile__label">{homeCurrency}</span>
                     </button>

@@ -216,14 +216,26 @@ export function _wirePlacePicker(
         // New trip: a country <select> so the typed destination still resolves
         // a real countryCode and Create can enable.
         const countrySel = document.createElement('select');
+        const countrySelId = generateId();
+        countrySel.id = countrySelId;
         countrySel.className = 'glass-input-modal';
-        countrySel.style.marginTop = '8px';
         const opts = getCountryOptions()
             .map((c) => `<option value="${esc(c.code)}">${esc(c.name)}</option>`)
             .join('');
         countrySel.innerHTML =
             `<option value="">${esc(t('modals.countryFallback'))}</option>${opts}`;
+        // A clear, always-visible label (not just the warn-toned hint) makes the
+        // degraded free-text path discoverable: the user knows the select IS the
+        // way to give their trip a country when Maps can't resolve one.
+        const countryLabel = document.createElement('label');
+        countryLabel.htmlFor = countrySelId;
+        countryLabel.className = 'form-hint';
+        countryLabel.style.display = 'block';
+        countryLabel.style.marginTop = '8px';
+        countryLabel.textContent = t('modals.countryFallbackLabel');
+        countrySel.style.marginTop = '4px';
         placeInput.insertAdjacentElement('afterend', countrySel);
+        countrySel.insertAdjacentElement('beforebegin', countryLabel);
         const recompute = () => {
             const val = placeInput.value.trim();
             const code = countrySel.value;

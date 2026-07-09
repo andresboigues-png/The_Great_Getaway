@@ -812,9 +812,13 @@ function GeneralAppearanceSection() {
             {/* themePickerSubtitle contains a literal <strong> tag for
                 emphasis on "System" — render as HTML, not as a text
                 node, so the tag does NOT appear as visible markup. */}
+            {/* F6-I2: theme is device-local (localStorage only; no backend
+                route reads/writes it), so the copy adds an "applies to this
+                device" note so a Dark pick reverting on another device or
+                after clearing site data is expected, not a bug. */}
             <p
                 className="st-paragraph-mb-24"
-                dangerouslySetInnerHTML={{ __html: t('settings.themePickerSubtitle') }}
+                dangerouslySetInnerHTML={{ __html: t('settings.themePickerSubtitleV2') }}
             />
 
             <div className="theme-options">

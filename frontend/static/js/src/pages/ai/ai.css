@@ -265,8 +265,15 @@
       reading order).
    The `!important` flags defeat the inline styles set by AI.tsx
    (which writes the desktop grid template inline on the day-card
-   template). */
-@media (max-width: 520px) {
+   template).
+
+   Breakpoint is 720px to match the design system's standard mobile
+   breakpoint (settings/expenses/home/feed/profile + mobileSwipe.ts).
+   Below the earlier 520px value, the .ai-day-slots 3-column meal grid
+   (Morning/Afternoon/Evening, from `grid-cols-3`) stayed intact on
+   521-720px phones/small tablets, cramming each restaurant into a
+   ~third-width column. Collapsing at 720px stacks them full-width. */
+@media (max-width: 720px) {
     .ai-day-row {
         flex-direction: column !important;
     }

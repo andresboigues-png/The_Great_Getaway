@@ -288,6 +288,14 @@ export function ManualTab() {
 
     // ── split editor handlers ────────────────────────────────────
     const [addSplitChoice, setAddSplitChoice] = useState('');
+    // B2-I3: track who-paid so the split editor can flag the payer's row with a
+    // "(paid)" cue. The `who` <select> stays uncontrolled (defaultValue+ref) to
+    // avoid per-keystroke re-renders of the whole form; this lightweight state
+    // only re-renders on the (rare) payer change. Seeded from the draft or the
+    // first payer option (what the browser selects when defaultValue is '').
+    const [selPayer, setSelPayer] = useState<string>(
+        () => STATE.draftExpense?.who || payerNames[0] || '',
+    );
     const onAddSplit = () => {
         if (addSplitChoice && !splitters.includes(addSplitChoice)) {
             setSplitters([...splitters, addSplitChoice]);
@@ -297,12 +305,37 @@ export function ManualTab() {
     const onRemoveSplit = (person: string) => {
         setSplitters(splitters.filter((p) => p !== person));
     };
+    // B2-I3: one-tap "split with everyone" — add every trip companion as a
+    // splitter at once instead of picking them one by one. splitDefaults then
+    // paints an equal split across the new row set (the [splitters] effect
+    // recomputes the total). No-op if everyone is already in.
+    const onAddEveryone = () => {
+        if (tripCompanionNames.length === 0) return;
+        setSplitters(tripCompanionNames);
+        setAddSplitChoice('');
+    };
+    // B2-I2: one-tap "split evenly" after manual edits — redistribute 100%
+    // equally across the CURRENT splitters (last row absorbs the rounding
+    // remainder, matching splitDefaults) by writing straight into the
+    // uncontrolled DOM inputs, then recompute the running total.
+    const onSplitEvenly = () => {
+        const inputs = splitRowsRef.current?.querySelectorAll<HTMLInputElement>('.split-input');
+        if (!inputs || inputs.length === 0) return;
+        const n = inputs.length;
+        const base = Math.floor(10000 / n) / 100;
+        inputs.forEach((input, i) => {
+            input.value = i === n - 1
+                ? String(Math.round((100 - base * (n - 1)) * 100) / 100)
+                : String(base);
+        });
+        recomputeSplitTotal();
+    };
     // B2-I1: after a row is added/removed the surviving inputs keep their DOM
     // values and the new row mounts with its equal-split default, so re-read the
     // live total off the DOM once React has painted the new row set.
     useEffect(() => {
         recomputeSplitTotal();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [splitters]);
 
     // ── receipt picker handlers ──────────────────────────────────
@@ -538,6 +571,13 @@ export function ManualTab() {
         // needsManualEuro stays true and the stale manual-EUR field + "no
         // rate for X" help text keep rendering for the next expense.
         setSelCurrency('EUR');
+        // B1-I3: countryValue is separate React state that neither
+        // formEl.reset() (the input is controlled by countryValue, not a
+        // defaultValue) nor the draft reset above clears — so after saving a
+        // Japan expense the next blank form still showed Japan and re-submitted
+        // it. Clear it here, mirroring the currency reset, so a fresh form opens
+        // with an empty country. (countryVal is captured above for THIS save.)
+        setCountryValue('');
 
         // FE-2 (MK4): honest save — await the write and reflect the truth.
         // Pre-fix this flashed green "Saved ✓" unconditionally, lying on a
@@ -558,6 +598,13 @@ export function ManualTab() {
                 text: isEdit ? t('expenses.updatedToast') : t('expenses.savedToast'),
                 color: '#1a6b3c',
             });
+            // B1-I4: the optimistic push above used the client's static-table
+            // euroValue estimate; _upsertWithUpdatedAt then reconciled the
+            // server-FROZEN euro_value back onto this same STATE row (in place)
+            // but did NOT re-emit — so History/balances kept showing the client
+            // estimate until some unrelated re-render. Emit once here, after the
+            // write resolves, so the server-frozen value paints immediately.
+            emit('state:changed');
         }
         setTimeout(() => setSaveStatus(null), 4000);
         // MK3-13: release the lock after a short window (the form stays open
@@ -606,7 +653,7 @@ export function ManualTab() {
                             className="glass-input-light"
                             required
                             defaultValue={STATE.draftExpense?.who || ''}
-                            onChange={(e) => draft('who', e.target.value)}
+                            onChange={(e) => { draft('who', e.target.value); setSelPayer(e.target.value); }}
                         >
                             {payerNames.map((p) => (
                                 <option key={p} value={p}>
@@ -939,6 +986,18 @@ export function ManualTab() {
                                 {t('expenses.addPersonBtn')}
                             </button>
                         </div>
+                        {/* B2-I3: one-tap "split with everyone" — add all trip
+                            companions at once. Hidden when there are no companions
+                            or everyone is already a splitter (nothing to add). */}
+                        {hasTripCompanions && splitters.length < tripCompanionNames.length ? (
+                            <button
+                                type="button"
+                                className="btn-ghost w-full mb-5 py-2.5 text-[0.85rem] font-bold text-brand-navy bg-[rgba(0,0,0,0.04)] border border-[rgba(0,0,0,0.08)] rounded-[16px]"
+                                onClick={onAddEveryone}
+                            >
+                                {t('expenses.splitWithEveryone')}
+                            </button>
+                        ) : null}
                         <div className="flex flex-col gap-3" ref={splitRowsRef}>
                             {splitters.length === 0 ? (
                                 <p
@@ -960,7 +1019,16 @@ export function ManualTab() {
                                     // its typed value); only the added row mounts
                                     // fresh with its equal-split default.
                                     <div key={p} className="splitter-row">
-                                        <span className="font-medium">{p}</span>
+                                        {/* B2-I3: flag the payer's row so the payer-vs-
+                                            split relationship is legible at a glance. */}
+                                        <span className="font-medium">
+                                            {p}
+                                            {p === selPayer ? (
+                                                <span className="text-secondary font-semibold ml-1.5 text-[0.8rem]">
+                                                    {t('expenses.paidTag')}
+                                                </span>
+                                            ) : null}
+                                        </span>
                                         <div className="flex items-center gap-2">
                                             <input
                                                 type="number"
@@ -990,6 +1058,18 @@ export function ManualTab() {
                                 ))
                             )}
                         </div>
+                        {/* B2-I2: one-tap "split evenly" — redistribute 100% equally
+                            across the current splitters after manual edits, without
+                            add/removing rows. Only shown once there are splitters. */}
+                        {splitters.length > 0 ? (
+                            <button
+                                type="button"
+                                className="btn-ghost w-full mt-4 py-2.5 text-[0.85rem] font-bold text-brand-navy bg-[rgba(0,0,0,0.04)] border border-[rgba(0,0,0,0.08)] rounded-[16px]"
+                                onClick={onSplitEvenly}
+                            >
+                                {t('expenses.splitEvenly')}
+                            </button>
+                        ) : null}
                         {/* B2-I1: live running total. Pre-fix the only "doesn't add
                             to 100" signal was a blocking alert AFTER Save; this hint
                             lets the user tune the split before submitting. Delta is

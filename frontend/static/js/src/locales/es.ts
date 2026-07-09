@@ -53,6 +53,7 @@ export const es: Translations = {
         shortenConfirmBody: 'Esto eliminará {count} día(s) que quedan fuera del nuevo rango de fechas. Se perderán las notas, fotos y datos de esos días. ¿Continuar?',
     },
     confirmModal: {
+        deleteToken: 'BORRAR',
         defaultTitle: '¿Estás seguro?',
         defaultMessage: 'Esta acción no se puede deshacer.',
         defaultConfirm: 'Eliminar',
@@ -90,6 +91,7 @@ export const es: Translations = {
         skipToContent: 'Ir al contenido',
     },
     notifications: {
+        dismiss: 'Descartar',
         unread: "No leída.",
         titleNewFollower: 'Nuevo seguidor',
         titleTripCompleted: 'Viaje completado',
@@ -115,6 +117,9 @@ export const es: Translations = {
         msgSettledUp: '{from} saldó {amount} {currency} contigo por {trip}.',
     },
     errors: {
+        cloneSuccessV2: '¡Viaje clonado! El plan, los lugares y la portada se copiaron; los gastos, los compañeros y las fotos empiezan de cero. Edita tu borrador en Inicio.',
+        completeTripBodyV2: 'Pasa a tus Colecciones como un recuerdo completado, solo para ti: los demás miembros conservan su propia copia activa. Puedes volver a verla cuando quieras y reabrirla más tarde si lo necesitas.',
+        cloneFailedFromShare: 'No se pudo clonar ese viaje. Vuelve a abrir el enlace o inténtalo de nuevo.',
         tripSaveFailed: "No se pudieron guardar los cambios: inténtalo de nuevo.",
         mediaTooLarge: "Es demasiado grande para guardar — prueba a quitar una foto o acortar una nota y añádelo de nuevo.",
         backOnline: 'De vuelta en línea — tus cambios se han guardado.',
@@ -225,6 +230,7 @@ export const es: Translations = {
         feature3Body: 'Invita a personas para planificar contigo.',
     },
     settings: {
+        themePickerSubtitleV2: 'Elige un tema. <strong>Sistema</strong> sigue la configuración de apariencia de tu dispositivo y se actualiza al instante cuando cambia. Esto se aplica solo a este dispositivo: no acompañará a tu cuenta en otro dispositivo.',
         resetScopeServer: "Permanente · elimina del servidor, no se puede deshacer",
         resetScopeLocal: "Reversible · restablece los valores predeterminados, conserva tus datos",
         formatNameRequired: "Dale un nombre a este formato antes de guardar.",
@@ -704,6 +710,13 @@ export const es: Translations = {
         overpayConfirmBtn: 'Saldar igualmente',
     },
     budgets: {
+        createAmtIgnored: 'No se usa para {curr} — introduce el objetivo en EUR abajo',
+        deleteConfirmMessageTail: 'Los gastos en sí se mantienen; solo se elimina el objetivo del presupuesto.',
+        deleteConfirmTargetLabel: 'Objetivo',
+        deleteConfirmPersonLabel: 'Persona',
+        deleteConfirmCategoryLabel: 'Categoría',
+        deleteConfirmTripLabel: 'Viaje',
+        overallReconcile: { one: '1 presupuesto supera su propio límite, pero tu gasto combinado sigue dentro del total.', other: '{count} presupuestos superan sus propios límites, pero tu gasto combinado sigue dentro del total.' },
         createFxNote: "Se controla en EUR al tipo de cambio actual — {curr} se convierte al guardar y se compara con el gasto en euros.",
         title: 'Presupuestos',
         subtitle: 'Establece límites de gasto y síguelos en todos tus viajes.',
@@ -956,6 +969,7 @@ export const es: Translations = {
         openInMapsTitle: 'Abrir {place} en Google Maps',
     },
     ai: {
+        acceptPlanBtnLocating: 'Ubicando lugares…',
         acceptSummary: "Plan aplicado — {updated} actualizados, {added} añadidos, {cleared} vaciados. Tus notas y fotos se conservaron.",
         acceptChangeCleared: "plan anterior eliminado de los días {range}",
         acceptChangeAdded: "días {range} añadidos",
@@ -1081,6 +1095,7 @@ export const es: Translations = {
         unverifiedChipLabel: 'no verificado',
     },
     collections: {
+        hintMoreTrips: '+{count} más',
         title: 'Colecciones',
         subtitle: 'Tus recuerdos de viaje y fotos completados.',
         groupByLabel: 'Agrupar',
@@ -1146,6 +1161,7 @@ export const es: Translations = {
         publicViewsTitle: 'Vistas del enlace público',
     },
     friends: {
+        searchMinChars: 'Escribe al menos 3 caracteres para buscar.',
         title: 'Tu red',
         subtitle: 'Sigue a otros viajeros para llenar tu feed. Los seguidores mutuos se vuelven amigos — comparte viajes, divide gastos y planifica juntos.',
         findFriendsTitle: '🔍 Buscar usuarios',
@@ -1189,6 +1205,9 @@ export const es: Translations = {
         networkFilterAria: 'Filtro de red',
     },
     expenses: {
+        paidTag: '(pagó)',
+        splitEvenly: 'Dividir por igual',
+        splitWithEveryone: 'Dividir entre todos',
         splitTotalOver: "Total: {total}% — {delta}% de más",
         splitTotalShort: "Total: {total}% — faltan {delta}%",
         splitTotalOk: "Total: {total}%",
@@ -1284,6 +1303,9 @@ export const es: Translations = {
         addSplitPersonAria: 'Añadir una persona para dividir el gasto',
     },
     feed: {
+        toastRepostConfirmBtn: 'Republicar',
+        toastRepostConfirmMessage: 'Esto comparte el viaje con todos tus seguidores.',
+        toastRepostConfirmTitle: '¿Republicar en tu feed?',
         commentModerateAria: "Eliminar comentario",
         commentModerateTitle: "Eliminar este comentario",
         commentCharsLeft: "Quedan {n} caracteres",
@@ -1418,6 +1440,16 @@ export const es: Translations = {
         searchLoadError: 'No se pudo cargar este lugar.',
     },
     templates: {
+        startDatePromptV2: 'Las plantillas vienen con un número fijo de días: elige tu primer día y nosotros fechamos el resto. Solo se copian el plan y los lugares guardados; los gastos, los compañeros y las fotos no se copian.',
+        previewMorePlaces: '+{n} más',
+        previewMoreDays: '+{n} días más',
+        previewDayN: 'Día {n}',
+        previewPlaces: 'Lugares',
+        previewItinerary: 'Itinerario',
+        previewError: 'No se pudo cargar esta vista previa. Aún puedes usar la plantilla.',
+        previewLoading: 'Cargando vista previa…',
+        previewClose: 'Cerrar vista previa',
+        preview: 'Vista previa',
         startDateSkip: "Decidir más tarde",
         title: 'Plantillas',
         subtitle: 'Empieza desde un viaje que un creador ya ha planificado.',
@@ -1483,6 +1515,8 @@ export const es: Translations = {
         btnAccommodation: 'Gestionar alojamiento',
     },
     home: {
+        unshareBtnLabel: 'Compartido',
+        unshareBtnTitle: 'Dejar de compartir este viaje',
         mapUnavailable: 'Mapa no disponible',
         emptyHeroTitle: 'Vamos a viajar.',
         emptyHeroBody: 'Tu próxima gran aventura te espera. Crea un viaje para empezar a registrar gastos y planificar días.',
@@ -1608,6 +1642,10 @@ export const es: Translations = {
         markNotDone: 'Marcar como no hecho',
     },
     companions: {
+        cancelInviteConfirm: 'Cancelar invitación',
+        cancelInviteBody: 'Se retirará la invitación pendiente a {name}, pero su nombre permanece en el viaje para que puedas volver a invitarlo más tarde.',
+        cancelInviteTitle: '¿Cancelar esta invitación?',
+        rowCancelInviteBtn: 'Cancelar invitación',
         addDuplicate: "{name} ya está en este viaje.",
         // R11-B4 UX-1: confirmar antes de eliminar a un compañero vinculado.
         removeConfirmTitle: '¿Quitar a este compañero?',
@@ -1974,6 +2012,9 @@ export const es: Translations = {
         dayBucketDay: 'Día {n}',
     },
     modals: {
+        pdfOptOffByDefault: 'Desactivado por defecto',
+        countryFallbackLabel: 'Mapas no está disponible: elige el país de destino para continuar',
+        downloadZipOptionBodyV2: 'Todo lo de este viaje, incluidas todas las fotos y archivos, reimportable más tarde. Puede ser grande.',
         importConfirmBtn: "Importar",
         importConfirmWrongExt: "{file} no es una copia .ggtrip.zip — puede que no se importe. ¿Continuar de todos modos?",
         importConfirmMessage: "Se añadirá un nuevo viaje a tu cuenta desde {file}.",

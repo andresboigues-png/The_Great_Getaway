@@ -516,7 +516,16 @@ export function upsertTrip(trip: Trip) {
     // upsertTrip contexts (it's the active trip being edited), so the
     // media POST always carries real arrays, never an empty placeholder.
     const metaResult = _upsertWithUpdatedAt('/api/trips', 'trip', trip);
-    void persistTripMedia(trip);
+    // Journeys audit A3-I4: skip the media write for an ARCHIVED trip. The
+    // server's update_trip_media 409s on any archived trip that has no live
+    // `current` snapshot, and persistTripMedia then PARKS the rejected
+    // snapshot in _pendingMedia where it can never flush — pure server noise
+    // + a useless pending entry. The only upsertTrip that hits an archived
+    // trip is toggleTripPrivacy (privacy is editable from Collections); that
+    // change still persists via the /api/trips metadata write above, so the
+    // toggle is unaffected. Archiving itself flows through archiveTripOnServer,
+    // not upsertTrip, so this guard doesn't touch the completion path.
+    if (!trip.isArchived) void persistTripMedia(trip);
     return metaResult;
 }
 

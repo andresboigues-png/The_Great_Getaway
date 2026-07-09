@@ -88,7 +88,7 @@ export const openDownloadChooserModal = (trip: Trip): void => {
             <p style="margin:0 0 16px; color:#6b7280; font-size:0.82rem; font-weight:500;">${t('modals.downloadChooserSubtitle')}</p>
             <div style="display:flex; flex-direction:column; gap:10px;">
                 ${chooserOption('chooserPdfBtn', '52,199,89', PDF_ICON, t('modals.downloadPdfOption'), t('modals.downloadPdfOptionBody'))}
-                ${chooserOption('chooserZipBtn', '0,113,227', ZIP_ICON, t('modals.downloadZipOption'), t('modals.downloadZipOptionBody'))}
+                ${chooserOption('chooserZipBtn', '0,113,227', ZIP_ICON, t('modals.downloadZipOption'), t('modals.downloadZipOptionBodyV2'))}
             </div>
             <button type="button" id="chooserCancelBtn" style="width:100%; margin-top:14px; font-weight:700; color:#1d1d1f; background:rgba(0,0,0,0.05); border:0; padding:11px 18px; border-radius:12px; cursor:pointer; font-size:0.88rem;">${t('modals.downloadChooserCancel')}</button>
         </div>`;
@@ -110,7 +110,7 @@ export const openDownloadChooserModal = (trip: Trip): void => {
             // Failure: re-enable so the user can retry or pick PDF.
             zipBtn.disabled = false;
             if (pdfBtn) pdfBtn.disabled = false;
-            if (sub) sub.textContent = t('modals.downloadZipOptionBody');
+            if (sub) sub.textContent = t('modals.downloadZipOptionBodyV2');
         };
     }
 };

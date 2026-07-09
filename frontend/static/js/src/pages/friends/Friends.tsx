@@ -31,6 +31,7 @@ interface FriendRow {
 type SearchStatus =
     | { kind: 'idle' }
     | { kind: 'loading' }
+    | { kind: 'min_chars' }
     | { kind: 'empty' }
     | { kind: 'all_known' }
     | { kind: 'results'; users: FriendRow[] }
@@ -147,6 +148,12 @@ export function Friends() {
     const [followers, setFollowers] = useState<FriendRow[]>([]);
     const [following, setFollowing] = useState<FriendRow[]>([]);
     const [mutuals, setMutuals] = useState<FriendRow[]>([]);
+    // E1-I6: gate the empty-then-populated count flash on FIRST load
+    // only. Stays true until the initial /api/follows fetch resolves;
+    // later refreshes (after a follow/unfollow) keep the last counts
+    // (optimistic updates already cover those) so the chips never blink
+    // back to a placeholder mid-session.
+    const [networkLoading, setNetworkLoading] = useState(true);
 
     // 2026-05-19: segmented tab bar replaces the three stacked
     // <NetworkSection> cards. Persisted to localStorage so the user's
@@ -162,6 +169,16 @@ export function Friends() {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchStatus, setSearchStatus] = useState<SearchStatus>({ kind: 'idle' });
 
+    // E1-I5: the green 'Now following' banner used to sit forever with no
+    // timeout or dismiss, drifting out of context. Auto-revert to idle a
+    // few seconds after it appears; the cleanup clears the timer if the
+    // status changes first (e.g. the user starts a new search).
+    useEffect(() => {
+        if (searchStatus.kind !== 'sent') return;
+        const id = window.setTimeout(() => setSearchStatus({ kind: 'idle' }), 4000);
+        return () => window.clearTimeout(id);
+    }, [searchStatus]);
+
     const updateNetwork = async () => {
         if (!user) return;
         try {
@@ -174,6 +191,8 @@ export function Friends() {
             setMutuals(data.mutuals || []);
         } catch (e) {
             console.error('Error loading network:', e);
+        } finally {
+            setNetworkLoading(false);
         }
     };
 
@@ -189,6 +208,14 @@ export function Friends() {
         const query = searchQuery.trim();
         if (!query) {
             setSearchStatus({ kind: 'idle' });
+            return;
+        }
+        // E1-I3: the server returns [] for any query under 3 chars, which
+        // the UI would otherwise map to 'No user found' — telling the user
+        // the person doesn't exist when they've simply not typed enough.
+        // Show a 'keep typing' hint instead of firing a doomed request.
+        if (query.length < 3) {
+            setSearchStatus({ kind: 'min_chars' });
             return;
         }
         setSearchStatus({ kind: 'loading' });
@@ -264,13 +291,13 @@ export function Friends() {
      *  Friends, breaking my-side of the mutual demotes the pair to
      *  "they still follow me" (i.e. the other party moves from the
      *  Friends section into Followers). */
-    const unfollowUser = (targetId: string, displayName: string) => {
+    const unfollowUser = (targetId: string, displayName: string, isMutual = false) => {
         if (!user || !targetId) return;
-        showConfirmModal({
-            title: t('friends.toastRemoveConfirmTitle'),
-            message: t('friends.toastRemoveConfirmMessage', { name: displayName }),
-            confirmText: t('friends.toastRemoveConfirmBtn'),
-            onConfirm: () => { void (async () => {
+        // E1-I4: unfollowing a one-way 'Following' entry is low-consequence
+        // and reversible (a single tap re-follows), so skip the confirm
+        // there. Reserve the modal for demoting a MUTUAL friend, where the
+        // action visibly changes the relationship (they drop to Followers).
+        const runUnfollow = () => { void (async () => {
                 // Optimistic: drop my follow. If they were a friend (mutual)
                 // they still follow ME, so demote them into followers rather
                 // than making them vanish; updateNetwork() reconciles below.
@@ -297,8 +324,17 @@ export function Friends() {
                     showLiquidAlert(t('friends.toastRemoveFailedNetwork'));
                 }
                 void updateNetwork();
-            })(); },
-        });
+            })(); };
+        if (isMutual) {
+            showConfirmModal({
+                title: t('friends.toastRemoveConfirmTitle'),
+                message: t('friends.toastRemoveConfirmMessage', { name: displayName }),
+                confirmText: t('friends.toastRemoveConfirmBtn'),
+                onConfirm: runUnfollow,
+            });
+        } else {
+            runUnfollow();
+        }
     };
 
     // Friends (mutuals) are BOTH a follower and a followee, so they belong in
@@ -361,7 +397,17 @@ export function Friends() {
                             id="friendSearchInput"
                             autoComplete="off"
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                // E1-I5: clear the 'Now following' banner (or a
+                                // stale min-chars/empty hint) the moment the user
+                                // starts typing a new query, so it never reads as
+                                // the result of what they're currently doing.
+                                setSearchStatus((s) =>
+                                    s.kind === 'idle' || s.kind === 'loading' || s.kind === 'results'
+                                        ? s
+                                        : { kind: 'idle' });
+                            }}
                             onKeyUp={(e) => {
                                 if (e.key === 'Enter') void searchForUsers();
                             }}
@@ -383,6 +429,13 @@ export function Friends() {
                             className="text-center p-3.5 text-[0.85rem] text-secondary font-semibold"
                         >
                             {t('friends.searching')}
+                        </p>
+                    )}
+                    {searchStatus.kind === 'min_chars' && (
+                        <p
+                            className="text-center p-3.5 text-[0.85rem] text-secondary font-semibold"
+                        >
+                            {t('friends.searchMinChars')}
                         </p>
                     )}
                     {searchStatus.kind === 'empty' && (
@@ -467,9 +520,14 @@ export function Friends() {
                                 style={{
                                     background: networkTab === tab.id ? 'rgba(255,255,255,0.22)' : 'rgba(0,113,227,0.10)',
                                     color: networkTab === tab.id ? 'white' : 'var(--accent-blue)',
+                                    // E1-I6: on first load show a calm em-dash
+                                    // placeholder instead of a hard 0 that jumps
+                                    // to the real count once the fetch resolves.
+                                    opacity: networkLoading ? 0.55 : 1,
+                                    transition: 'opacity 0.2s',
                                 }}
                             >
-                                {tab.count}
+                                {networkLoading ? '—' : tab.count}
                             </span>
                         </button>
                     ))}
@@ -494,7 +552,7 @@ export function Friends() {
                         // → Unfollow; one I don't follow back → Follow back.
                         mutualIds.has(u.id) ? (
                             <UnfollowButton
-                                onClick={() => unfollowUser(u.id, u.name || u.email || 'this user')}
+                                onClick={() => unfollowUser(u.id, u.name || u.email || 'this user', true)}
                             />
                         ) : (
                             <button
@@ -528,6 +586,8 @@ export function Friends() {
                     )}
                 />
             )}
+            {/* Following tab: one-way follows → unfollowUser with isMutual
+                left false (E1-I4), so these are a single optimistic tap. */}
 
             {networkTab === 'friends' && (
                 <NetworkSection
@@ -541,7 +601,7 @@ export function Friends() {
                     onRowClick={(u) => navigate('profile', { userId: u.id })}
                     renderRowAction={(u) => (
                         <UnfollowButton
-                            onClick={() => unfollowUser(u.id, u.name || u.email || 'this friend')}
+                            onClick={() => unfollowUser(u.id, u.name || u.email || 'this friend', true)}
                         />
                     )}
                 />

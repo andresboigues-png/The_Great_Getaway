@@ -81,7 +81,7 @@ function promptTemplateStartDate(): Promise<StartDateChoice | null> {
             onClose: () => finish(null),
             innerHTML: `
                 <h2 class="card-title mdl-title-hero">${esc(t('templates.startDateTitle'))}</h2>
-                <p class="form-hint" style="margin: 8px 0 16px;">${esc(t('templates.startDatePrompt'))}</p>
+                <p class="form-hint" style="margin: 8px 0 16px;">${esc(t('templates.startDatePromptV2'))}</p>
                 <input type="date" id="tmplStartDate" class="glass-input-modal" min="${minIso}" max="${maxIso}" aria-label="${esc(t('templates.startDateTitle'))}" style="margin-bottom: 18px;">
                 <div class="mdl-btn-row">
                     <button type="button" id="tmplStartConfirm" class="btn-primary flex-[2]" disabled>${esc(t('templates.startDateConfirm'))}</button>

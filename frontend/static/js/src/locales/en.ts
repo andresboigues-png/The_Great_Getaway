@@ -67,6 +67,7 @@ export const en = {
     // defaults were hardcoded English literals, so any code path that
     // forgot to pass them leaked English into es/fr/pt UIs.
     confirmModal: {
+        deleteToken: 'DELETE',
         defaultTitle: 'Are you sure?',
         defaultMessage: 'This action cannot be undone.',
         defaultConfirm: 'Delete',
@@ -112,6 +113,7 @@ export const en = {
     // Server sometimes ships a row without a title; previously the
     // frontend swapped in hardcoded English. Now i18n.
     notifications: {
+        dismiss: 'Dismiss',
         unread: "Unread.",
         titleNewFollower: 'New follower',
         titleTripCompleted: 'Trip Completed',
@@ -151,6 +153,9 @@ export const en = {
     // online → server-unreachable transitions, and login / clone /
     // delete / map-load failures across the app.
     errors: {
+        cloneSuccessV2: 'Trip cloned! The plan, places, and cover copied over — expenses, companions, and photos start fresh. Edit your draft on Home.',
+        completeTripBodyV2: 'It moves into your Collections as a completed memory, only for you — other members keep their own copy active. You can revisit it anytime, and reopen it later if you need to.',
+        cloneFailedFromShare: 'Couldn\'t clone that trip. Re-open the link or try again.',
         tripSaveFailed: "Couldn't save your changes — please try again.",
         mediaTooLarge: "That's too big to save — try removing a photo or shortening a note, then add it again.",
         backOnline: 'Back online — your changes are saved.',
@@ -300,6 +305,7 @@ export const en = {
         feature3Body: 'Invite people to plan along with you.',
     },
     settings: {
+        themePickerSubtitleV2: 'Pick a theme. <strong>System</strong> follows your device\'s appearance setting and updates live when it changes. This applies to this device only — it won\'t follow your account to another device.',
         resetScopeServer: "Permanent · deletes from the server, cannot be undone",
         resetScopeLocal: "Reversible · restores defaults, keeps your data",
         formatNameRequired: "Give this format a name before saving.",
@@ -859,6 +865,13 @@ export const en = {
         overpayConfirmBtn: 'Settle anyway',
     },
     budgets: {
+        createAmtIgnored: 'Not used for {curr} — enter the target in EUR below',
+        deleteConfirmMessageTail: 'The expenses themselves stay; only the budget target is removed.',
+        deleteConfirmTargetLabel: 'Target',
+        deleteConfirmPersonLabel: 'Person',
+        deleteConfirmCategoryLabel: 'Category',
+        deleteConfirmTripLabel: 'Trip',
+        overallReconcile: { one: '1 budget is over its own cap, but your combined spend is still within the total.', other: '{count} budgets are over their own caps, but your combined spend is still within the total.' },
         createFxNote: "Tracked in EUR at current rates — {curr} is converted on save and compared to spend in euros.",
         // Page header.
         title: 'Budgets',
@@ -1165,6 +1178,7 @@ export const en = {
         openInMapsTitle: 'Open {place} on Google Maps',
     },
     ai: {
+        acceptPlanBtnLocating: 'Locating places…',
         acceptSummary: "Plan applied — {updated} updated, {added} added, {cleared} cleared. Your notes & photos were kept.",
         acceptChangeCleared: "cleared old plan from Days {range}",
         acceptChangeAdded: "added Days {range}",
@@ -1319,6 +1333,7 @@ export const en = {
         unverifiedChipLabel: 'unverified',
     },
     collections: {
+        hintMoreTrips: '+{count} more',
         // Page header.
         title: 'Collections',
         subtitle: 'Your completed travel memories and trip photos.',
@@ -1395,6 +1410,7 @@ export const en = {
         publicViewsTitle: 'Public-link views',
     },
     friends: {
+        searchMinChars: 'Type at least 3 characters to search.',
         // Page header — Model B rebrand. "Friends" used to be a
         // distinct social tier; under Model B "friend" = mutual
         // follow, and the page surfaces THREE relationships
@@ -1458,6 +1474,9 @@ export const en = {
         networkFilterAria: 'Network filter',
     },
     expenses: {
+        paidTag: '(paid)',
+        splitEvenly: 'Split evenly',
+        splitWithEveryone: 'Split with everyone',
         splitTotalOver: "Total: {total}% — {delta}% over",
         splitTotalShort: "Total: {total}% — {delta}% short",
         splitTotalOk: "Total: {total}%",
@@ -1569,6 +1588,9 @@ export const en = {
         addSplitPersonAria: 'Add a person to split the expense between',
     },
     feed: {
+        toastRepostConfirmBtn: 'Repost',
+        toastRepostConfirmMessage: 'This shares the trip with all your followers.',
+        toastRepostConfirmTitle: 'Repost to your feed?',
         commentModerateAria: "Delete comment",
         commentModerateTitle: "Delete this comment",
         commentCharsLeft: "{n} characters left",
@@ -1751,6 +1773,16 @@ export const en = {
         searchLoadError: "Couldn't load this place.",
     },
     templates: {
+        startDatePromptV2: 'Templates come with a set number of days — pick your first day and we\'ll date the rest. Only the plan and saved places carry over; expenses, companions, and photos aren\'t copied.',
+        previewMorePlaces: '+{n} more',
+        previewMoreDays: '+{n} more days',
+        previewDayN: 'Day {n}',
+        previewPlaces: 'Places',
+        previewItinerary: 'Itinerary',
+        previewError: 'Couldn\'t load this preview. You can still use the template.',
+        previewLoading: 'Loading preview…',
+        previewClose: 'Close preview',
+        preview: 'Preview',
         startDateSkip: "Decide later",
         title: 'Templates',
         subtitle: 'Start from a trip a creator has already mapped out.',
@@ -1816,6 +1848,8 @@ export const en = {
         btnAccommodation: 'Manage accommodation',
     },
     home: {
+        unshareBtnLabel: 'Shared',
+        unshareBtnTitle: 'Unshare this trip',
         // Pre-trip empty-state hero (welcomeCard.ts buildEmptyStateHtml).
         mapUnavailable: 'Map unavailable',
         emptyHeroTitle: "Let's travel.",
@@ -1974,6 +2008,10 @@ export const en = {
     },
     // Trip-companions roster (modals/companions.ts).
     companions: {
+        cancelInviteConfirm: 'Cancel invite',
+        cancelInviteBody: 'The pending invite to {name} will be withdrawn, but their name stays on the trip so you can re-invite them later.',
+        cancelInviteTitle: 'Cancel this invite?',
+        rowCancelInviteBtn: 'Cancel invite',
         addDuplicate: "{name} is already on this trip.",
         // R11-B4 UX-1: confirm shown when removing a linked companion
         // (kicks them off the trip). Unlinked companions skip the
@@ -2414,6 +2452,9 @@ export const en = {
     // add day, trip invite. Companions + share modals have their own
     // sections (`companions:` / `share:`).
     modals: {
+        pdfOptOffByDefault: 'Off by default',
+        countryFallbackLabel: 'Maps is unavailable — choose your destination country to continue',
+        downloadZipOptionBodyV2: 'Everything in this trip — including all photos and files — re-importable later. Can be large.',
         importConfirmBtn: "Import",
         importConfirmWrongExt: "{file} isn't a .ggtrip.zip backup — it may not import. Continue anyway?",
         importConfirmMessage: "A new trip will be added to your account from {file}.",

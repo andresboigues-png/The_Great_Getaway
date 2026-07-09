@@ -180,7 +180,10 @@ export function archiveActiveTrip() {
     // (#34c759) instead of the default destructive red.
     showConfirmModal({
         title: t('errors.completeTripTitle'),
-        message: t('errors.completeTripBody'),
+        // A3-I3: completing flips only the caller's is_archived, so the
+        // copy now spells out that this affects only your view and that
+        // other members keep their own copy active.
+        message: t('errors.completeTripBodyV2'),
         confirmText: t('errors.completeTripConfirmBtn'),
         confirmColor: "#34c759",
         onConfirm: () => { void (async () => {
@@ -260,6 +263,12 @@ export function deleteActiveTrip(): void {
         title: t('errors.permaDeleteTitle'),
         message: t('errors.permaDeleteBody', { name: trip.name }),
         confirmText: t('errors.permaDeleteConfirmBtn'),
+        // A3-I2: this delete triggers a permanent cascade wiping
+        // expenses/days/settlements/budgets/feed/notifications/uploads for
+        // EVERY member. Match the severity with a type-the-word gate — the
+        // confirm button stays disabled until the user types the (localized)
+        // token. Uses the existing ConfirmModal safety-input infrastructure.
+        requireInput: t('confirmModal.deleteToken'),
         onConfirm: () => { void (async () => {
             // Audit MK5 BUG-066 (honest-save): attempt the server delete FIRST
             // and only purge local state once we know it wasn't rejected. The

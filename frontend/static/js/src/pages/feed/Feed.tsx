@@ -655,7 +655,23 @@ export function Feed({ highlightPostId }: { highlightPostId?: string | undefined
         });
     };
 
-    const onRepost = async (postId: number, btn: HTMLButtonElement) => {
+    // E4-I5: repost is a publish-to-all-followers action, so guard it
+    // behind a lightweight confirm (same posture as onUnshare /
+    // onCommentDelete) instead of firing on the first tap. Pre-fix a
+    // single accidental tap instantly amplified a post to every
+    // follower with no undo. The confirm uses a neutral (non-red)
+    // accent because repost is constructive, not destructive.
+    const onRepost = (postId: number, btn: HTMLButtonElement) => {
+        showConfirmModal({
+            title: t('feed.toastRepostConfirmTitle'),
+            message: t('feed.toastRepostConfirmMessage'),
+            confirmText: t('feed.toastRepostConfirmBtn'),
+            confirmColor: '#0a84ff',
+            onConfirm: () => { void performRepost(postId, btn); },
+        });
+    };
+
+    const performRepost = async (postId: number, btn: HTMLButtonElement) => {
         const result = await repostFeedPost(postId);
         if (result.ok && result.body?.status !== 'same_user') {
             const wasAlready = result.body?.status === 'already_reposted';

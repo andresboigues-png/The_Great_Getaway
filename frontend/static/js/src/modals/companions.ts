@@ -140,6 +140,13 @@ export const openCompanionPickerModal = (tripId: string) => {
             linkAction = `<button type="button" class="btn-link-action picker-link-btn" data-name="${esc(c.name)}">${esc(t('companions.rowLinkBtn'))}</button>`;
         } else if (isSelf) {
             linkAction = `<button type="button" class="btn-link-action picker-unlink-btn" data-name="${esc(c.name)}">${esc(t('companions.rowUnlinkBtn'))}</button>`;
+        } else if (!member) {
+            // A2-I2: a still-PENDING friend-linked row (linked user, not
+            // self, invite not yet accepted) had no inline action — the only
+            // way to undo the invite was the ✕, which also dropped the name.
+            // Offer "Cancel invite": it deletes the pending trip_members row
+            // but keeps the companion as a de-linked ghost (re-invite / history).
+            linkAction = `<button type="button" class="btn-link-action picker-cancel-invite-btn" data-name="${esc(c.name)}">${esc(t('companions.rowCancelInviteBtn'))}</button>`;
         }
 
         // A2-B1: the self-linked "You" row is the owner themselves — the
@@ -218,7 +225,7 @@ export const openCompanionPickerModal = (tripId: string) => {
                         <div class="companion-picker-add-path__hint">${esc(t('companions.addPathNameHint'))}</div>
                     </div>
                     <form id="companionPickerAddForm" class="companion-picker-add-form" style="margin-bottom: 0;">
-                        <input type="text" id="companionPickerAddInput" class="companion-picker-add-form__input" placeholder="${esc(t('companions.addInputPlaceholder'))}" autocomplete="off">
+                        <input type="text" id="companionPickerAddInput" class="companion-picker-add-form__input" placeholder="${esc(t('companions.addInputPlaceholder'))}" autocomplete="off" maxlength="200">
                         <button type="submit" class="companion-picker-add-form__btn">${esc(t('companions.addBtn'))}</button>
                     </form>
                 </div>
@@ -425,6 +432,34 @@ export const openCompanionPickerModal = (tripId: string) => {
             emit('state:changed');
             void upsertTrip(trip);
             refreshList();
+            return;
+        }
+
+        // A2-I2: cancel a still-PENDING friend invite WITHOUT losing the name.
+        // The existing ✕ on a linked row calls removeTripCompanion (drops the
+        // name) + removeTripMember (kicks). This action calls only
+        // removeTripMember — which deletes the pending trip_members row and,
+        // server-side, unlink_companion_user_from_trip keeps the companion as a
+        // ghost — then clears the local linkedUserId so the row falls back to an
+        // unlinked "No account" entry the owner can re-invite later.
+        const cancelInviteBtn = (target.closest('.picker-cancel-invite-btn') as HTMLElement | null);
+        if (cancelInviteBtn?.dataset.name) {
+            const name = cancelInviteBtn.dataset.name;
+            const c = findTripCompanion(trip, name);
+            if (!c || !c.linkedUserId || c.linkedUserId === myId) return;
+            const targetUserId = c.linkedUserId;
+            showConfirmModal({
+                title: t('companions.cancelInviteTitle'),
+                message: t('companions.cancelInviteBody', { name }),
+                confirmText: t('companions.cancelInviteConfirm'),
+                onConfirm: () => {
+                    delete c.linkedUserId;
+                    emit('state:changed');
+                    void upsertTrip(trip);
+                    void removeTripMember(trip.id, targetUserId);
+                    refreshList();
+                },
+            });
             return;
         }
 

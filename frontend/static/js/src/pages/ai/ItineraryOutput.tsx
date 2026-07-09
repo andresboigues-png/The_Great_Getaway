@@ -74,6 +74,11 @@ interface ItineraryOutputProps {
     country: string;
     tripIsEditable: boolean;
     dayRowsRef: React.MutableRefObject<HTMLDivElement[]>;
+    // C2-I4: the day coords are filled asynchronously by the map hook's
+    // staggered geocoder. onAccept reads those coords at click time, so
+    // while this is true we defer accept (and show a "locating places…"
+    // cue) rather than silently persist days with null coordinates.
+    geocodingPending: boolean;
     onAccept: () => { updatedDays: number; addedDays: number; clearedDays: number };
 }
 
@@ -83,6 +88,7 @@ export function ItineraryOutput({
     country,
     tripIsEditable,
     dayRowsRef,
+    geocodingPending,
     onAccept,
 }: ItineraryOutputProps) {
     const [accepted, setAccepted] = useState(false);
@@ -247,7 +253,13 @@ export function ItineraryOutput({
                         type="button"
                         className="btn"
                         onClick={handleAccept}
-                        disabled={accepted}
+                        // C2-I4: block accept while day coords are still being
+                        // geocoded — onAccept reads day.lat/lon at click time,
+                        // so accepting now would persist days with null coords
+                        // (missing map pins until a later geocode). The label
+                        // below tells the user why the button is briefly held.
+                        disabled={accepted || geocodingPending}
+                        aria-busy={geocodingPending && !accepted}
                         style={{
                             flex: 2,
                             background: accepted ? '#34c759' : 'var(--accent-blue)',
@@ -257,12 +269,15 @@ export function ItineraryOutput({
                             borderRadius: 16,
                             fontWeight: 700,
                             boxShadow: '0 10px 20px rgba(0,122,255,0.2)',
-                            cursor: accepted ? 'default' : 'pointer',
+                            cursor: accepted || geocodingPending ? 'default' : 'pointer',
+                            opacity: geocodingPending && !accepted ? 0.75 : 1,
                         }}
                     >
                         {accepted
                             ? t('ai.acceptPlanBtnAccepted')
-                            : t('ai.acceptPlanBtn')}
+                            : geocodingPending
+                                ? t('ai.acceptPlanBtnLocating')
+                                : t('ai.acceptPlanBtn')}
                     </button>
                 </div>
             ) : null}

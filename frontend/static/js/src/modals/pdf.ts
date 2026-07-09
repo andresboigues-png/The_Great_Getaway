@@ -110,12 +110,25 @@ export const openPdfExportModal = (trip: Trip) => {
         // "this is a GG box" brand signal. `checked` defaults to true so
         // the existing always-on sections stay ticked; the MK4 opt-in
         // sections (expenses / settle-up / photos) pass false.
+        //
+        // A6-I2: the three default-OFF sections (checked === false) were
+        // visually identical to the always-on ones, so a user couldn't
+        // tell which start unticked. Give opt-in cards a muted surface +
+        // a small "Off by default" pill next to the label so the state is
+        // explicit without adding chrome to the always-on options.
+        const isOptIn = !checked;
+        const cardStyle = isOptIn
+            ? 'background:rgba(0,45,91,0.03); border:1px dashed rgba(0,45,91,0.16);'
+            : 'background:rgba(0,113,227,0.04); border:1px solid rgba(0,113,227,0.10);';
+        const optInPill = isOptIn
+            ? `<span style="display:inline-block; margin-left:6px; padding:1px 6px; border-radius:999px; background:rgba(0,45,91,0.06); color:#4a5568; font-size:0.62rem; font-weight:700; letter-spacing:0.01em; vertical-align:middle; white-space:nowrap;">${esc(t('modals.pdfOptOffByDefault'))}</span>`
+            : '';
         return `
-            <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; padding:10px 12px; border-radius:12px; transition: background 0.15s, border-color 0.15s; background:rgba(0,113,227,0.04); border:1px solid rgba(0,113,227,0.10);">
+            <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; padding:10px 12px; border-radius:12px; transition: background 0.15s, border-color 0.15s; ${cardStyle}">
                 <input type="checkbox" name="${key}" ${checked ? 'checked' : ''}
                        style="margin-top:2px; width:16px; height:16px; accent-color:var(--accent-blue); flex-shrink:0;">
                 <span style="min-width:0; flex:1;">
-                    <span style="display:block; font-weight:700; color:#002d5b; font-size:0.86rem; line-height:1.2;">${esc(label)}</span>
+                    <span style="display:block; font-weight:700; color:#002d5b; font-size:0.86rem; line-height:1.2;">${esc(label)}${optInPill}</span>
                     <span style="display:block; color:#4a5568; font-size:0.74rem; line-height:1.35; margin-top:2px;">${esc(sub)}</span>
                 </span>
             </label>

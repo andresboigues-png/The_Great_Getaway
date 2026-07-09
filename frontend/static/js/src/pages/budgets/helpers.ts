@@ -204,24 +204,30 @@ export function budgetStatus(budget: Budget) {
     return { tier: 'ok' as const, color: '#34c759', label: t('budgets.statusLabelOk'), spent, target, pct };
 }
 
-/** Build a human-readable title for a budget's combination of filters.
- *  Always shows all three dimensions (trip, category, person). */
-export function budgetTitle(b: Budget, includeTrip = true): string {
-    const parts: string[] = [];
-    // Insights shows budgets for the CURRENT trip only, so it passes
+/** Resolve a budget's three scope dimensions to display labels.
+ *  Shared by budgetTitle (which joins them with ' · ') and the delete
+ *  confirm (which renders them on distinct lines). `trip` is null when
+ *  includeTrip=false so callers can omit that dimension entirely. */
+export function budgetScopeParts(
+    b: Budget,
+    includeTrip = true,
+): { trip: string | null; category: string; person: string } {
+    // Trip. Insights shows budgets for the CURRENT trip only, so it passes
     // includeTrip=false — the trip name would be identical on every row.
+    let trip: string | null = null;
     if (includeTrip) {
         if (b.tripId && b.tripId !== 'all') {
-            // Renamed local from `t` to `trip` to avoid shadowing the
+            // Renamed local from `t` to `tr` to avoid shadowing the
             // imported `t` (i18n lookup function).
-            const trip = (STATE.trips || []).find((tr) => tr.id === b.tripId);
-            const archived = (STATE.archivedTrips || []).find((tr) => tr.id === b.tripId);
-            const name = trip?.name || archived?.name;
-            if (name) parts.push(name);
+            const tr = (STATE.trips || []).find((x) => x.id === b.tripId);
+            const archived = (STATE.archivedTrips || []).find((x) => x.id === b.tripId);
+            trip = tr?.name || archived?.name || t('budgets.titleAllTrips');
         } else {
-            parts.push(t('budgets.titleAllTrips'));
+            trip = t('budgets.titleAllTrips');
         }
     }
+    // Category.
+    let category: string;
     if (b.categoryId && b.categoryId !== 'all') {
         // Resolve by id, then fall back to a case-insensitive NAME match so
         // name-string categoryIds ('food') from imports/legacy/seed data still
@@ -230,23 +236,27 @@ export function budgetTitle(b: Budget, includeTrip = true): string {
         const cat = (STATE.categories || []).find((c) => c.id === b.categoryId)
             || (STATE.categories || []).find((c) => c.name.toLowerCase() === String(b.categoryId).toLowerCase());
         if (cat) {
-            parts.push(`${cat.icon ? cat.icon + ' ' : ''}${cat.name}`);
+            category = `${cat.icon ? cat.icon + ' ' : ''}${cat.name}`;
         } else {
             // T3-1: show the raw category key (prettified) instead of dropping
             // it, so a budget scoped to an import/legacy/seed slug still reads
             // right (matches the Insights by-category synthetic fallback).
             const raw = String(b.categoryId).trim();
-            if (raw) parts.push(raw.charAt(0).toUpperCase() + raw.slice(1));
+            category = raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : t('budgets.titleAllCategories');
         }
     } else {
-        parts.push(t('budgets.titleAllCategories'));
+        category = t('budgets.titleAllCategories');
     }
-    if (b.user && b.user !== 'all') {
-        parts.push(b.user);
-    } else {
-        parts.push(t('budgets.titleEveryone'));
-    }
-    return parts.join(' · ');
+    // Person.
+    const person = b.user && b.user !== 'all' ? b.user : t('budgets.titleEveryone');
+    return { trip, category, person };
+}
+
+/** Build a human-readable title for a budget's combination of filters.
+ *  Always shows all three dimensions (trip, category, person). */
+export function budgetTitle(b: Budget, includeTrip = true): string {
+    const { trip, category, person } = budgetScopeParts(b, includeTrip);
+    return [trip, category, person].filter((p): p is string => !!p).join(' · ');
 }
 
 /** Optimistically delete a budget after a confirm, fire the server
@@ -255,12 +265,27 @@ export function budgetTitle(b: Budget, includeTrip = true): string {
 export const deleteBudget = (id: string) => {
     const b = (STATE.budgets || []).find((x) => x.id === id);
     if (!b) return;
+    // B4-I5: a structured scope block (trip / category / person on distinct,
+    // labelled lines) instead of one dotted string, so look-alike per-person
+    // budgets across trips are distinguishable at a glance before deleting.
+    // showConfirmModal interpolates `message` as HTML, so we build the block
+    // here; every dynamic value is esc()'d.
+    const scope = budgetScopeParts(b);
+    const scopeRow = (label: string, value: string) =>
+        `<span style="display:flex; gap:8px; justify-content:center; align-items:baseline;">` +
+        `<span style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em; opacity:0.5;">${esc(label)}</span>` +
+        `<span style="font-weight:700; color:#fff;">${esc(value)}</span></span>`;
+    const scopeBlock =
+        `<span style="display:flex; flex-direction:column; gap:4px; margin:10px 0;">` +
+        (scope.trip ? scopeRow(t('budgets.deleteConfirmTripLabel'), scope.trip) : '') +
+        scopeRow(t('budgets.deleteConfirmCategoryLabel'), scope.category) +
+        scopeRow(t('budgets.deleteConfirmPersonLabel'), scope.person) +
+        scopeRow(t('budgets.deleteConfirmTargetLabel'), formatHome(b.amount, 'EUR')) +
+        `</span>` +
+        `<span style="opacity:0.65;">${t('budgets.deleteConfirmMessageTail')}</span>`;
     showConfirmModal({
         title: t('budgets.deleteConfirmTitle'),
-        message: t('budgets.deleteConfirmMessage', {
-            title: budgetTitle(b),
-            amount: formatHome(b.amount, 'EUR'),
-        }),
+        message: scopeBlock,
         confirmText: t('budgets.deleteConfirmBtn'),
         onConfirm: () => {
             STATE.budgets = STATE.budgets.filter((x) => x.id !== id);
@@ -388,9 +413,21 @@ export const openCreateBudgetModal = (existing?: Budget) => {
     const eurHint = q(root, '#newBudEurHint') as HTMLElement;
     const fxNote = q(root, '#newBudFxNote') as HTMLElement;
     const currSel = q(root, '#newBudCurr') as HTMLSelectElement;
+    // B4-I4: the top amount input. When a no-rate currency is picked it's
+    // ignored for conversion (only the manual EUR box below is saved), so we
+    // dim + disable it and swap its placeholder to say so — otherwise a user
+    // types '5000000 VND' up top yet the small EUR figure is what saves.
+    const amtInput = q(root, '#newBudAmt') as HTMLInputElement;
+    const amtPlaceholderDefault = amtInput.placeholder;
     const syncEurRow = () => {
         const needsEur = !!currSel.value && !hasRate(currSel.value);
         eurRow.style.display = needsEur ? 'flex' : 'none';
+        // B4-I4: dim/disable + relabel the top amount when it's ignored.
+        amtInput.disabled = needsEur;
+        amtInput.style.opacity = needsEur ? '0.4' : '';
+        amtInput.placeholder = needsEur
+            ? t('budgets.createAmtIgnored', { curr: currSel.value })
+            : amtPlaceholderDefault;
         if (needsEur) eurHint.textContent = t('budgets.createEurHint', { curr: currSel.value });
         // B4-I3: for a rate-backed non-EUR target, disclose that it's stored and
         // tracked in EUR at the current rate (the no-rate case already explains

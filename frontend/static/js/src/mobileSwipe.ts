@@ -15,10 +15,12 @@
  *   nothing past Expenses and we don't want to surprise the user with
  *   an unexpected modal.
  * - On non-bottom-tab pages (Feed, Collections, Profile, Settings,
- *   etc.) swipes are no-ops — there's no meaningful "next/previous"
- *   when the user is off the main bottom-tab axis. They navigate to
- *   one of the four bottom-tab pages first to re-enter the swipe
- *   surface.
+ *   Insights, etc.) the user is off the main bottom-tab axis, so there
+ *   is no meaningful "next/previous" tab. To avoid a silent dead-end,
+ *   BOTH swipe directions stay actionable: a swipe-RIGHT slides the rail
+ *   nav island out; a swipe-LEFT returns to the tab axis at Home (the
+ *   leftmost bottom tab). That guarantees the user can always swipe back
+ *   into the swipe surface instead of hitting an unresponsive edge.
  *
  * Why a custom touch handler instead of a library:
  * - No deps — keeps the bundle lean (the entry already lazy-loads page
@@ -268,8 +270,19 @@ export function initMobileSwipe(): void {
             const page = currentPage();
             if (!page) {
                 // Non-tab page (Collections, Budgets, Settings, Insights, …):
-                // no prev/next tab, so a swipe-RIGHT just opens the rail.
-                if (dx > 0) openIsland();
+                // off the bottom-tab axis, so there's no prev/next tab. Keep
+                // BOTH directions actionable so the user never hits a silent
+                // dead-end (F3-I5): a swipe-RIGHT opens the rail island; a
+                // swipe-LEFT returns to the tab axis at Home (the leftmost
+                // tab). 'forward' slides Home in from the right, matching the
+                // finger — same animation as the left-swipe tab-advance below.
+                // fromNavClick lets Home restore its remembered scroll, as the
+                // tap path does.
+                if (dx > 0) {
+                    openIsland();
+                } else {
+                    navigate(PAGES.HOME, { fromNavClick: true }, false, 'forward');
+                }
                 return;
             }
             const idx = SWIPE_ORDER.indexOf(page);

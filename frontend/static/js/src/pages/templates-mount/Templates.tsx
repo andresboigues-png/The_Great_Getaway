@@ -15,7 +15,12 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { t, tn } from '../../i18n.js';
 import { esc } from '../../utils.js';
 import { iconSvg } from '../../icons.js';
-import { listPublicTemplates, type PublicTemplate } from '../../api/templates.js';
+import {
+    listPublicTemplates,
+    fetchTemplatePreview,
+    type PublicTemplate,
+    type TemplatePreview,
+} from '../../api/templates.js';
 import { createFromTemplateAndOpen } from '../../bootstrap/template-intent.js';
 import { countryCodeToFlag } from '../../utils/place-names.js';
 import { CONTINENT_SILHOUETTES, CONTINENT_VIEWBOX } from '../../utils/continentSilhouettes.js';
@@ -288,6 +293,19 @@ function TemplateCard({ tpl, busy, onUse }: TemplateCardProps) {
     const flag = countryCodeToFlag(tpl.countryCode);
     const dest = templateDestination(tpl);
     const creatorName = tpl.creator?.name || t('templates.unknownCreator');
+    // Lazy preview: fetched only when the user taps "Preview", so browsing
+    // the feed stays cheap. null = idle/closed; loading tracks the fetch.
+    const [preview, setPreview] = useState<TemplatePreview | null>(null);
+    const [previewOpen, setPreviewOpen] = useState(false);
+    const [previewLoading, setPreviewLoading] = useState(false);
+    const openPreview = (): void => {
+        setPreviewOpen(true);
+        if (preview || previewLoading) return;
+        setPreviewLoading(true);
+        void fetchTemplatePreview(tpl.code)
+            .then((p) => setPreview(p))
+            .finally(() => setPreviewLoading(false));
+    };
     return (
         <div className="card glass templates-card">
             <div className="templates-card__banner">
@@ -305,14 +323,195 @@ function TemplateCard({ tpl, busy, onUse }: TemplateCardProps) {
                 )}
                 <span dangerouslySetInnerHTML={{ __html: esc(creatorName) }} />
             </div>
-            <button
-                type="button"
-                className="btn-primary templates-card__use"
-                disabled={busy}
-                onClick={() => onUse(tpl.code)}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
+                <button
+                    type="button"
+                    className="btn-ghost"
+                    onClick={openPreview}
+                    style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}
+                >
+                    {t('templates.preview')}
+                </button>
+                <button
+                    type="button"
+                    className="btn-primary templates-card__use"
+                    disabled={busy}
+                    onClick={() => onUse(tpl.code)}
+                    style={{ flex: 1 }}
+                >
+                    {t('templates.useThis')}
+                </button>
+            </div>
+            {previewOpen && (
+                <TemplatePreviewModal
+                    tpl={tpl}
+                    preview={preview}
+                    loading={previewLoading}
+                    busy={busy}
+                    flag={flag || '🗺️'}
+                    dest={dest}
+                    onUse={() => onUse(tpl.code)}
+                    onClose={() => setPreviewOpen(false)}
+                />
+            )}
+        </div>
+    );
+}
+
+// ── Lightweight template preview modal ─────────────────────────────────
+// Read-only browse surface shown before committing to a new trip: day
+// count + a short itinerary snippet + place highlights, straight from the
+// public preview payload. "Use this" here is the same commit as the card.
+interface TemplatePreviewModalProps {
+    tpl: PublicTemplate;
+    preview: TemplatePreview | null;
+    loading: boolean;
+    busy: boolean;
+    flag: string;
+    dest: string;
+    onUse: () => void;
+    onClose: () => void;
+}
+function TemplatePreviewModal({
+    tpl, preview, loading, busy, flag, dest, onUse, onClose,
+}: TemplatePreviewModalProps) {
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [onClose]);
+
+    const planSnippet = (d: TemplatePreview['days'][number]): string => {
+        const p = d.plan || {};
+        const parts = [p.morning, p.afternoon, p.evening]
+            .map((s) => (s || '').trim())
+            .filter(Boolean);
+        return parts.join(' \u00B7 ');
+    };
+    const days = (preview?.days || []).slice(0, 4);
+    const places = (preview?.places || []).filter((p) => (p.name || '').trim()).slice(0, 8);
+    const moreDays = preview ? Math.max(0, preview.dayCount - days.length) : 0;
+    const morePlaces = preview ? Math.max(0, preview.placeCount - places.length) : 0;
+
+    return (
+        <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={tpl.name}
+            onClick={onClose}
+            style={{
+                position: 'fixed', inset: 0, zIndex: 1000,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '20px', background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
+            }}
+        >
+            <div
+                className="card glass"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                    width: '100%', maxWidth: '460px', maxHeight: '84vh', overflowY: 'auto',
+                    padding: '22px', textAlign: 'left',
+                }}
             >
-                {t('templates.useThis')}
-            </button>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    <span style={{ fontSize: '1.6rem', lineHeight: 1 }}>{flag}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <h3 style={{ margin: 0 }} dangerouslySetInnerHTML={{ __html: esc(tpl.name) }} />
+                        {dest && (
+                            <p className="text-muted" style={{ margin: '2px 0 0', fontSize: '0.85rem' }}
+                               dangerouslySetInnerHTML={{ __html: esc(dest) }} />
+                        )}
+                    </div>
+                    <button
+                        type="button"
+                        aria-label={t('templates.previewClose')}
+                        onClick={onClose}
+                        style={{ flex: '0 0 auto', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.2rem', lineHeight: 1, color: 'var(--text-secondary)', padding: '2px 4px' }}
+                    >
+                        ✕
+                    </button>
+                </div>
+
+                {loading ? (
+                    <p className="text-muted" style={{ margin: '18px 0', textAlign: 'center' }}>
+                        {t('templates.previewLoading')}
+                    </p>
+                ) : !preview ? (
+                    <p className="text-muted" style={{ margin: '18px 0', textAlign: 'center' }}>
+                        {t('templates.previewError')}
+                    </p>
+                ) : (
+                    <>
+                        <p className="text-muted" style={{ margin: '12px 0 0', fontSize: '0.85rem' }}>
+                            {[
+                                tn('templates.dayCount', preview.dayCount, { count: preview.dayCount }),
+                                tn('templates.placeCount', preview.placeCount, { count: preview.placeCount }),
+                            ].join(' \u00B7 ')}
+                        </p>
+
+                        {days.length > 0 && (
+                            <div style={{ marginTop: '14px' }}>
+                                <h4 style={{ margin: '0 0 6px', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)' }}>
+                                    {t('templates.previewItinerary')}
+                                </h4>
+                                <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {days.map((d, i) => {
+                                        const snippet = planSnippet(d);
+                                        return (
+                                            <li key={i} style={{ fontSize: '0.85rem' }}>
+                                                <span style={{ fontWeight: 600 }}>
+                                                    {d.name && d.name.trim()
+                                                        ? esc(d.name)
+                                                        : t('templates.previewDayN').replace('{n}', String(d.dayNumber ?? i + 1))}
+                                                </span>
+                                                {snippet && (
+                                                    <span className="text-muted" style={{ display: 'block', marginTop: '2px' }}
+                                                          dangerouslySetInnerHTML={{ __html: esc(snippet) }} />
+                                                )}
+                                            </li>
+                                        );
+                                    })}
+                                </ol>
+                                {moreDays > 0 && (
+                                    <p className="text-muted" style={{ margin: '6px 0 0', fontSize: '0.8rem' }}>
+                                        {t('templates.previewMoreDays').replace('{n}', String(moreDays))}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
+                        {places.length > 0 && (
+                            <div style={{ marginTop: '14px' }}>
+                                <h4 style={{ margin: '0 0 6px', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)' }}>
+                                    {t('templates.previewPlaces')}
+                                </h4>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                    {places.map((p, i) => (
+                                        <span key={i} className="text-muted"
+                                              style={{ fontSize: '0.8rem', padding: '3px 9px', borderRadius: '999px', background: 'rgba(0,0,0,0.05)' }}
+                                              dangerouslySetInnerHTML={{ __html: esc(p.name || '') }} />
+                                    ))}
+                                    {morePlaces > 0 && (
+                                        <span className="text-muted" style={{ fontSize: '0.8rem', padding: '3px 9px' }}>
+                                            {t('templates.previewMorePlaces').replace('{n}', String(morePlaces))}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </>
+                )}
+
+                <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={busy}
+                    onClick={onUse}
+                    style={{ width: '100%', marginTop: '20px' }}
+                >
+                    {t('templates.useThis')}
+                </button>
+            </div>
         </div>
     );
 }

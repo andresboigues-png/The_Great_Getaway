@@ -160,7 +160,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
     // Google Map + per-day markers. Repaints markers when the
     // itinerary changes; exposes the container ref + day-row refs the
     // map's click-to-scroll wiring needs.
-    const { mapContainerRef, dayRowsRef, onResetZoom } = useAiMap(
+    const { mapContainerRef, dayRowsRef, onResetZoom, geocodingPending } = useAiMap(
         activeTrip,
         tripCountry,
         plan.itinerary,
@@ -422,6 +422,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         country={tripCountry}
                         tripIsEditable={tripIsEditable}
                         dayRowsRef={dayRowsRef}
+                        geocodingPending={geocodingPending}
                         onAccept={plan.onAcceptPlan}
                     />
                 ) : null}

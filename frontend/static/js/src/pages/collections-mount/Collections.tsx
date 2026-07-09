@@ -111,6 +111,12 @@ export function Collections() {
             return false;
         }
     });
+    // Cap how many active-trip chips the hint shows by default. A user
+    // juggling 10-20+ concurrent trips would otherwise get a wall of
+    // pills dominating the page on every visit. Show the first few and
+    // let the rest expand inline via a "+N more" toggle — no dead-end,
+    // no extra chrome, and power-users can still reach every trip.
+    const [hintExpanded, setHintExpanded] = useState<boolean>(false);
     const dismissHint = () => {
         setHintDismissed(true);
         try {
@@ -258,7 +264,7 @@ export function Collections() {
                             {activeTrips.length === 1
                                 ? t('collections.hintBodyOne')
                                 : t('collections.hintBodyMany', { count: activeTrips.length })}{' '}
-                            {activeTrips.map((trip) => (
+                            {(hintExpanded ? activeTrips : activeTrips.slice(0, MAX_HINT_CHIPS)).map((trip) => (
                                 <button
                                     key={trip.id}
                                     type="button"
@@ -268,6 +274,15 @@ export function Collections() {
                                     {trip.name}
                                 </button>
                             ))}
+                            {!hintExpanded && activeTrips.length > MAX_HINT_CHIPS && (
+                                <button
+                                    type="button"
+                                    onClick={() => setHintExpanded(true)}
+                                    className="bg-transparent border border-[rgba(0,113,227,0.2)] text-[#005bb8] py-0.5 px-2.5 rounded-full text-xs font-bold mt-0 mr-1 mb-1 ml-0 cursor-pointer"
+                                >
+                                    {t('collections.hintMoreTrips', { count: activeTrips.length - MAX_HINT_CHIPS })}
+                                </button>
+                            )}
                             {/* hintBodyOpen contains an inline <strong>
                                 tag wrapping "Mark Complete" — render via
                                 dangerouslySetInnerHTML on a wrapper span
@@ -955,3 +970,6 @@ function AlbumStack(
 // a module-level const so multiple selects share it without copy-paste.
 // localStorage flag so the per-user-archive explainer stays dismissed.
 const HINT_DISMISS_KEY = 'gg_collections_hint_dismissed';
+// Cap active-trip chips shown in the hint before a "+N more" toggle so a
+// user with many concurrent trips isn't buried under a wall of pills.
+const MAX_HINT_CHIPS = 4;

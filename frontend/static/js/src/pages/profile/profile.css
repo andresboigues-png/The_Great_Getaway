@@ -908,7 +908,7 @@
     right: 7px;
     display: flex;
     gap: 4px;
-    opacity: 0;
+    opacity: 0.22;
     transition: opacity 0.15s ease;
 }
 .pf-mem-card:hover .pf-mem-card__ctrl {

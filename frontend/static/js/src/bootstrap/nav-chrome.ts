@@ -12,7 +12,7 @@
 
 import { STATE } from '../state.js';
 import { navigate, preloadBottomTabChunks, type NavAnimDir } from '../router.js';
-import { markNotificationsRead } from '../api.js';
+import { markNotificationsRead, markNotificationRead } from '../api.js';
 import { PAGES, type PageName } from '../constants.js';
 // MK1 Wave F (T2-6/PERF-4): the modal openers used to come from the
 // '../modals.js' BARREL as static imports — which dragged every modal
@@ -466,6 +466,19 @@ export function wireNavChrome(): void {
         // §2.13: look up by stable id, not array index — protects
         // against a polling race that could reorder the list between
         // render and click.
+        // E6-I3: per-row dismiss — marks a single notification read in
+        // place (no navigation) so the user can triage a full list from
+        // the dropdown. Checked BEFORE the row-route branch below because
+        // the dismiss button lives inside the [data-notification-id] row;
+        // without this guard the click would bubble to the row and route.
+        const dismissBtn = target?.closest('[data-notification-dismiss]') as HTMLElement | null;
+        if (dismissBtn) {
+            e.stopPropagation();
+            const dismissId = dismissBtn.getAttribute('data-notification-dismiss') ?? '';
+            if (dismissId) void markNotificationRead(dismissId);
+            return;
+        }
+
         const notifItem = target?.closest('[data-notification-id]') as HTMLElement | null;
         if (notifItem) {
             const id = notifItem.getAttribute('data-notification-id') ?? '';

@@ -183,6 +183,7 @@ export function wipeUserState(): void {
     STATE.activities = [];
     STATE.photos = [];
     STATE.notificationsTotalUnread = 0;
+    STATE.notifications = [];
     STATE.savedFormats = [];
     STATE.categories = [];
     try { clearOutbox(); } catch { /* best-effort */ }
@@ -331,12 +332,15 @@ export async function apiFetch(path: string, options: RequestInit = {}, timeoutM
         // the outbox + media-tracking maps.
         wipeUserState();
         emit(EVENTS.STATE_CHANGED);
-        // R2 audit fix: navigate to HOME so the router lands the
-        // user on the login wall. Pre-fix the current page stayed
-        // mounted and any component that read STATE.user.id
-        // without optional-chaining crashed inside an ErrorBoundary.
+        // R2 audit fix: navigate to the login wall so the current page
+        // doesn't stay mounted and crash inside an ErrorBoundary when a
+        // component reads STATE.user.id without optional-chaining.
+        // Journeys F1-I5: land on PAGES.PROFILE — the SAME canonical
+        // signed-out hash the deliberate logout() uses — so a deep link /
+        // back button behaves identically whether the session ended by
+        // logout or by expiry. Both hashes render the same LoginWall.
         try {
-            navigate(PAGES.HOME);
+            navigate(PAGES.PROFILE);
         } catch { /* router may not be ready on initial boot */ }
     } else if (!res.ok) {
         // Log 4xx/5xx so a user reporting "X doesn't work" can share

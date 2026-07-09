@@ -7,7 +7,8 @@
 // the whole main.ts import graph.
 
 import { STATE, emit } from '../state.js';
-import { t, getIntlLocale } from '../i18n.js';
+import { t } from '../i18n.js';
+import { relativeTime } from '../pages/feed/render.js';
 import { navigate } from '../router.js';
 import { PAGES } from '../constants.js';
 import { esc } from '../utils.js';
@@ -18,23 +19,6 @@ const openTripInviteResponseModal = async (n: unknown) =>
         n as Parameters<typeof import('../modals/share.js').openTripInviteResponseModal>[0]
     );
 import { markNotificationRead } from '../api.js';
-
-/**
- * R3-Round 2 fix: server emits SQLite-naive UTC timestamps
- * (`YYYY-MM-DD HH:MM:SS`, no timezone). ECMAScript's `new Date(...)`
- * parses that shape as LOCAL time, so a Tokyo (UTC+9) user reading
- * a notification recorded at 23:00 UTC sees it 9 hours later in
- * "today" semantics — and crucially the displayed date can flip
- * around midnight UTC. `feed/render.ts:relativeTime` already does
- * this normalisation; mirroring it here keeps the dropdown timestamp
- * honest.
- */
-function _normaliseServerIso(s: string | null | undefined): string {
-    if (!s) return '';
-    return (typeof s === 'string' && s.includes(' ') && !s.includes('T'))
-        ? s.replace(' ', 'T') + 'Z'
-        : s;
-}
 
 export function updateNotificationUI() {
     // Two badges live in the DOM: #notificationBadge in the mobile
@@ -254,14 +238,23 @@ export function renderNotificationDropdown() {
         const message = localizeNotificationMessage(n.type, n.message);
         const unreadPrefix = n.is_read ? '' : `${t('notifications.unread')} `;
         const ariaLabel = `${unreadPrefix}${title}. ${message}`;
+        // E6-I3: unread rows get an in-place dismiss control that marks
+        // the row read without navigating away, so a user with dozens
+        // can triage without clicking each one through to another page.
+        // Read rows have nothing to dismiss, so the button is omitted —
+        // it only appears where it's actionable (keeps the row minimal).
+        const dismissBtn = n.is_read ? '' : `
+                <button type="button" class="notification-item__dismiss" data-notification-dismiss="${esc(String(n.id))}" aria-label="${esc(t('notifications.dismiss'))}" title="${esc(t('notifications.dismiss'))}">
+                    <span aria-hidden="true">\u00d7</span>
+                </button>`;
         return `
-            <div class="notification-item ${n.is_read ? '' : 'unread'}" data-notification-id="${esc(String(n.id))}" role="button" tabindex="0" aria-label="${esc(ariaLabel)}">
+            <div class="notification-item ${n.is_read ? '' : 'unread'}" data-notification-id="${esc(String(n.id))}" role="button" tabindex="0" aria-label="${esc(ariaLabel)}">${dismissBtn}
                 <div class="notification-item__title" style="--accent: ${notificationAccent(n.type)};">
                     <span class="notification-item__dot" aria-hidden="true"></span>
                     ${esc(title)}
                 </div>
                 <div class="notification-item__message">${esc(message)}</div>
-                <div class="notification-item__time">${new Date(_normaliseServerIso(n.created_at)).toLocaleDateString(getIntlLocale(), { month: 'short', day: 'numeric' })}</div>
+                <div class="notification-item__time">${esc(relativeTime(n.created_at))}</div>
             </div>
         `;
     }).join('');

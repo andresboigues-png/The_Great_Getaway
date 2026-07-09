@@ -131,6 +131,21 @@ export async function deleteTemplate(id: string): Promise<boolean> {
     }
 }
 
+/** Public, read-only preview of a template by code (day/place/checklist
+ *  counts + a light itinerary snippet + place highlights). Returns null on
+ *  a bad/dead code or any error, so callers can render a graceful fallback.
+ *  Lets Discover offer browse-then-choose before committing to a new trip. */
+export async function fetchTemplatePreview(code: string): Promise<TemplatePreview | null> {
+    try {
+        const res = await apiFetch(`/api/templates/preview/${encodeURIComponent(code)}`);
+        if (!res.ok) return null;
+        const body = await res.json();
+        return body && typeof body.code === 'string' ? (body as TemplatePreview) : null;
+    } catch {
+        return null;
+    }
+}
+
 /** Instantiate a template into a new owned trip. Returns the new trip id
  *  on success; `status` lets the caller distinguish 404 (bad code) from
  *  other failures. */

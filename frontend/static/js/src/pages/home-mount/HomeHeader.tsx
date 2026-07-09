@@ -15,10 +15,11 @@
 // openShareChooserModal(trip, onShareToFeed) where the inner share
 // dispatches shareTripToFeed.
 
+import { useState, useEffect } from 'react';
 import { STATE } from '../../state.js';
-import { showLiquidAlert } from '../../utils.js';
+import { showLiquidAlert, showConfirmModal } from '../../utils.js';
 import { esc } from '../../utils/dom-helpers.js';
-import { shareTripToFeed, fetchShareStatus } from '../../api.js';
+import { shareTripToFeed, fetchShareStatus, unshareFeedPost } from '../../api.js';
 import { openShareChooserModal } from '../../modals.js';
 import { openShareToFeedModal } from '../home/shareModal.js';
 import { t } from '../../i18n.js';
@@ -59,6 +60,28 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
     // re-render boundary.
     const tripExpenses = (STATE.expenses || []).filter((e) => e && e.tripId === activeTrip.id);
 
+    // E3-I2: give Home's Share button the same "already shared" awareness
+    // ArchivedTripDetail has. Bootstrap share state on mount so the button
+    // renders purple + routes a second tap to an unshare confirm, instead of
+    // always re-opening a fresh empty-caption modal. This keeps the two
+    // primary share surfaces (Home + Collections) behaving consistently.
+    const [shared, setShared] = useState(false);
+    const [sharePostId, setSharePostId] = useState<number | null>(null);
+    useEffect(() => {
+        let alive = true;
+        void fetchShareStatus(activeTrip.id).then((status) => {
+            if (alive && status?.shared) {
+                setShared(true);
+                setSharePostId(
+                    typeof status.post_id === 'number' ? status.post_id : Number(status.post_id) || null
+                );
+            }
+        });
+        return () => {
+            alive = false;
+        };
+    }, [activeTrip.id]);
+
     // Maps href — exact same resolution logic the legacy
     // trip-header version used. Falls through place_id → lat/lng
     // → country name.
@@ -74,7 +97,31 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
     const onShareClick = () => {
         openShareChooserModal({
             trip: activeTrip,
-            onShareToFeed: () =>
+            onShareToFeed: () => {
+                // E3-I2: already-shared → route a second tap to an unshare
+                // confirmation (like Collections) rather than re-opening the
+                // caption modal. Reuses the archivedDetail.unshare* copy.
+                if (shared) {
+                    if (!sharePostId) return;
+                    showConfirmModal({
+                        title: t('archivedDetail.unshareConfirmTitle'),
+                        message: t('archivedDetail.unshareConfirmBody'),
+                        confirmText: t('archivedDetail.unshareConfirmBtn'),
+                        onConfirm: () => {
+                            void (async () => {
+                                const result = await unshareFeedPost(sharePostId);
+                                if (!result || !result.ok) {
+                                    showLiquidAlert(t('archivedDetail.unshareError'));
+                                    return;
+                                }
+                                setShared(false);
+                                setSharePostId(null);
+                                showLiquidAlert(t('archivedDetail.unshareSuccess'), 'success');
+                            })();
+                        },
+                    });
+                    return;
+                }
                 void (async () => {
                     // E3-B1: seed the modal with the caption already stored on
                     // this trip's existing share. Re-sharing sends whatever is
@@ -89,6 +136,14 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                         async (caption: string) => {
                             const result = await shareTripToFeed(activeTrip.id, caption);
                             if (result?.ok) {
+                                // E3-I2: flip the button to its "shared" visual
+                                // once the post exists so a re-render (and the
+                                // next tap) knows to offer unshare.
+                                const postId = Number(result.body?.post_id) || 0;
+                                if (postId) {
+                                    setShared(true);
+                                    setSharePostId(postId);
+                                }
                                 // E3-B2: re-sharing an already-shared trip returns
                                 // HTTP 200 { status: 'already_shared' } (never 409),
                                 // so a plain result.ok check told the user they made
@@ -116,7 +171,8 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                         },
                         seedCaption
                     );
-                })(),
+                })();
+            },
         });
     };
 
@@ -275,10 +331,12 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                 <button
                     type="button"
                     id="homeShareTripBtn"
-                    title={t('home.shareBtnTitle')}
-                    aria-label={t('home.shareBtnTitle')}
+                    title={shared ? t('home.unshareBtnTitle') : t('home.shareBtnTitle')}
+                    aria-label={shared ? t('home.unshareBtnTitle') : t('home.shareBtnTitle')}
                     onClick={onShareClick}
-                    className="hover-reveal-host relative inline-flex items-center justify-center p-2.5 rounded-full bg-[#0071e3] border-0 text-white cursor-pointer shadow-[0_4px_12px_rgba(0,113,227,0.30)]"
+                    // E3-I2: purple = "already shared" (matches Collections'
+                    // #5856d6 shared state); default blue = not yet shared.
+                    className={`hover-reveal-host relative inline-flex items-center justify-center p-2.5 rounded-full border-0 text-white cursor-pointer ${shared ? 'bg-[#5856d6] shadow-[0_4px_12px_rgba(88,86,214,0.30)]' : 'bg-[#0071e3] shadow-[0_4px_12px_rgba(0,113,227,0.30)]'}`}
                 >
                     <svg
                         width="14"
@@ -297,7 +355,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                         <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
                         <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                     </svg>
-                    <span className="hover-reveal-label">{t('home.shareBtnLabel')}</span>
+                    <span className="hover-reveal-label">{shared ? t('home.unshareBtnLabel') : t('home.shareBtnLabel')}</span>
                 </button>
             </div>
         </>

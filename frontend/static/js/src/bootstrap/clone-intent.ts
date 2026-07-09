@@ -48,7 +48,10 @@ export async function attemptPendingClone(): Promise<void> {
             // Keep the intent in sessionStorage on failure so a refresh
             // or retry can re-fire — a transient error must stay
             // recoverable. It's only consumed once the clone succeeds.
-            showLiquidAlert(t('errors.cloneFailedFromCollections'));
+            // A4-I1: this path is only reached via the /share/<token>
+            // intent, so a cold share-link visitor has never seen
+            // Collections — give them share-appropriate guidance.
+            showLiquidAlert(t('errors.cloneFailedFromShare'));
             return;
         }
         try { sessionStorage.removeItem(CLONE_INTENT_KEY); } catch { /* ignored */ }
@@ -61,14 +64,16 @@ export async function attemptPendingClone(): Promise<void> {
         await pullFromServer();
         STATE.activeTripId = newTripId;
         emit(EVENTS.STATE_CHANGED);
-        showLiquidAlert(t('errors.cloneSuccess'), 'success');
+        // A4-I3: clone drops expenses/companions/photos/documents and
+        // starts them fresh — say what carried over vs. started fresh.
+        showLiquidAlert(t('errors.cloneSuccessV2'), 'success');
         navigate(PAGES.HOME);
     } catch (e) {
         console.error('Pending clone failed:', e);
-        // R11-B7: reuse the existing key from errors namespace —
-        // identical copy already used by the inline Collections clone
-        // path, so the FR/ES/PT translation is already maintained.
-        showLiquidAlert(t('errors.cloneFailedFromCollections'));
+        // A4-I1: this catch only fires inside the share-link clone
+        // flow, so route to the share-specific message — a cold
+        // share visitor has no Collections context to "try again" in.
+        showLiquidAlert(t('errors.cloneFailedFromShare'));
         try { sessionStorage.removeItem(CLONE_INTENT_KEY); } catch { /* ignored */ }
     }
 }

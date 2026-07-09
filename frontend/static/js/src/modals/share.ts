@@ -7,6 +7,7 @@ import {
     respondTripInvite,
     pullFromServer,
     apiFetch,
+    markNotificationRead,
 } from '../api.js';
 import { navigate } from '../router.js';
 import { showModal } from '../components/Modal.js';
@@ -20,9 +21,24 @@ import type { Trip } from '../types';
  *  /api/data poll after acceptance), so the message body is the only
  *  source of context about which trip / role.
  *  @param {{ related_id?: string | number; message?: string; title?: string }} notification */
-export const openTripInviteResponseModal = (notification: { related_id?: string | number; message?: string; title?: string }) => {
+export const openTripInviteResponseModal = (notification: { id?: string | number; related_id?: string | number; message?: string; title?: string }) => {
     const tripId = notification.related_id ? String(notification.related_id) : '';
     if (!tripId) return;
+
+    // E6-I5: handleNotificationClick deliberately SKIPS mark-read for
+    // trip_invite (so swiping back to "think about it" doesn't vanish the
+    // invite before a decision), and the server only deletes the invite
+    // row on accept/decline. Result pre-fix: a user who opened the invite
+    // and just closed the modal left the bell badge lit forever with no
+    // explanation. We track whether a real decision was made; if the modal
+    // is dismissed WITHOUT one (X / Esc / backdrop / hardware-back), we
+    // mark the notification read so the badge reflects the acknowledgment.
+    // The row itself stays in the dropdown (only accept/decline delete it),
+    // so the user can still act on it later — they just aren't nagged by a
+    // stuck badge. Accept/decline set actionTaken=true and already remove
+    // the row server-side, so onClose becomes a no-op on those paths.
+    let actionTaken = false;
+    const notifId = notification.id;
 
     // The notification.message arrives PRE-FORMATTED from the server with
     // trip + role names already filled in. We pipe it through the shared
@@ -33,6 +49,12 @@ export const openTripInviteResponseModal = (notification: { related_id?: string 
     const { root, close } = showModal({
         variant: 'glass-light',
         cardStyle: 'width: 440px;',
+        onClose: () => {
+            if (actionTaken) return;
+            if (notifId !== undefined && notifId !== null) {
+                void markNotificationRead(notifId);
+            }
+        },
         innerHTML: `
             <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">${esc(t('modals.inviteTitle'))}</h2>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.6); line-height: 1.5;">
@@ -50,6 +72,9 @@ export const openTripInviteResponseModal = (notification: { related_id?: string 
     });
 
     (q(root, '#tripInviteAcceptBtn') as HTMLButtonElement).onclick = async () => {
+        // A real decision — accept/decline delete the notification
+        // server-side, so suppress onClose's dismissal mark-read.
+        actionTaken = true;
         const result = await respondTripInvite(tripId, true);
         if (!result || !result.ok) {
             showLiquidAlert(t('modals.inviteErrorInvalid'));
@@ -73,6 +98,7 @@ export const openTripInviteResponseModal = (notification: { related_id?: string 
         navigate('home');
     };
     (q(root, '#tripInviteDeclineBtn') as HTMLButtonElement).onclick = async () => {
+        actionTaken = true;
         const result = await respondTripInvite(tripId, false);
         if (!result || !result.ok) {
             showLiquidAlert(t('modals.inviteErrorNotActive'));

@@ -324,6 +324,10 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
         };
 
         const addPins = async () => {
+            // Clusters that already carry stored coords render instantly
+            // with no API call — pin them all up front so the map isn't
+            // held hostage by the legacy geocode path below.
+            const needGeocode: Array<[string, Trip[]]> = [];
             for (const [countryKey, tps] of Object.entries(tripsByCountry)) {
                 // Prefer stored coords on any trip in the cluster.
                 // Falls back to Geocoder for legacy trips that were
@@ -338,16 +342,36 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
                     placeMarker({ lat: withCoords.lat!, lng: withCoords.lng! }, countryKey, tps);
                     continue; // no API call, no throttle needed
                 }
-                // Promise-returning in the SDK types; callback form used, promise ignored.
-                void geocoder.geocode(
-                    { address: countryKey },
-                    (results, status) => {
-                        if (status === 'OK' && results && results[0]) {
-                            placeMarker(results[0].geometry.location, countryKey, tps);
+                needGeocode.push([countryKey, tps]);
+            }
+
+            // Legacy clusters lacking coords must be geocoded. The old
+            // code awaited 800ms between EVERY cluster, so a user with N
+            // legacy countries watched pins trickle in over N*800ms. We
+            // instead fire each batch's geocode calls in parallel via
+            // Promise.all and throttle only BETWEEN batches — Google's
+            // Geocoder tolerates ~50 QPS, so a batch of 10 with a short
+            // inter-batch gap stays well under the limit while pins for
+            // a typical handful of countries all appear at once.
+            const BATCH_SIZE = 10;
+            for (let i = 0; i < needGeocode.length; i += BATCH_SIZE) {
+                const batch = needGeocode.slice(i, i + BATCH_SIZE);
+                await Promise.all(
+                    batch.map(async ([countryKey, tps]) => {
+                        try {
+                            const resp = await geocoder.geocode({ address: countryKey });
+                            const first = resp?.results?.[0];
+                            if (first) placeMarker(first.geometry.location, countryKey, tps);
+                        } catch (_) {
+                            // OVER_QUERY_LIMIT / ZERO_RESULTS / network — skip
+                            // this cluster's pin rather than reject the batch.
                         }
-                    },
+                    }),
                 );
-                await new Promise((r) => setTimeout(r, 800));
+                // Only pause if another batch follows, to respect QPS.
+                if (i + BATCH_SIZE < needGeocode.length) {
+                    await new Promise((r) => setTimeout(r, 800));
+                }
             }
         };
         void addPins();
@@ -358,7 +382,7 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
         return undefined;
         // mapRetryTick re-runs the effect once the async Maps SDK
         // finishes loading on cold landings.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [mapRetryTick]);
 
     return (
