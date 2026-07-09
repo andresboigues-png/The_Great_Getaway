@@ -481,8 +481,10 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                         aria-selected={activeTab === 'hub'}
                         onClick={() => switchTab('hub')}
                     >
-                        {/* Trip Hub mark — a clean triangle (per design
-                            feedback). Hub is the left-most tab. */}
+                        {/* Trip Hub mark — a clean square (per design
+                            feedback), matching the Path trail + Companions
+                            circle as a set of simple geometric glyphs. Hub is
+                            the left-most tab. */}
                         <svg
                             width="14"
                             height="14"
@@ -494,7 +496,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                             strokeLinejoin="round"
                             aria-hidden="true"
                         >
-                            <polygon points="12 4 20 19 4 19" />
+                            <rect x="4.5" y="4.5" width="15" height="15" rx="2.5" />
                         </svg>
                         <span className="trip-tabnav__label">{t('home.tabHub')}</span>
                     </button>
@@ -560,19 +562,32 @@ export function TripBody({ activeTrip }: TripBodyProps) {
             />
 
             <div
-                className={`home-tab-content${activeTab === 'days' ? ' is-active' : ''} flex flex-col gap-1`}
+                className={`home-tab-content${activeTab === 'days' ? ' is-active' : ''}`}
                 data-home-tab="days"
             >
-                {/* Round 11: "N days of adventure" lives here now, under the
-                    Path tab, as a header for the day list (it used to sit in
-                    the trip header above the tab nav). */}
-                <p className="text-[0.95rem] text-secondary mt-0 mx-0 mb-1 font-medium text-center">
-                    {(() => {
-                        const plannedDayCount = tripDays.filter((d: TripDay) => (d.dayNumber || 0) > 0).length;
-                        return <span>{tn('home.daysOfAdventure', plannedDayCount, { count: plannedDayCount })}</span>;
-                    })()}
-                </p>
-                <div ref={pathTabInnerRef} id="pathTabInner" />
+                {/* Path now shares the blue-ribbon card + centered header with
+                    Trip Hub + Companions, so all three tabs read as one set.
+                    The "N days of adventure" line becomes the header subtitle. */}
+                <div className="trip-companions-card trip-companions-card--path">
+                    <div className="trip-companions-card__header">
+                        <div className="trip-companions-card__heading">
+                            <h3 className="trip-companions-card__title">{t('home.tabPath')}</h3>
+                            <p className="trip-companions-card__subtitle">
+                                {(() => {
+                                    const plannedDayCount = tripDays.filter(
+                                        (d: TripDay) => (d.dayNumber || 0) > 0,
+                                    ).length;
+                                    return tn('home.daysOfAdventure', plannedDayCount, {
+                                        count: plannedDayCount,
+                                    });
+                                })()}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="trip-path-card__body">
+                        <div ref={pathTabInnerRef} id="pathTabInner" />
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -679,24 +694,6 @@ function CompanionsCard({ activeTrip, tripIsManageable, isActive, onRoster }: Co
         >
             <div className="trip-companions-card">
                 <div className="trip-companions-card__header">
-                    <div className="trip-companions-card__icon">
-                        <svg
-                            width="22"
-                            height="22"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                        >
-                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="9" cy="7" r="4"></circle>
-                            <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                        </svg>
-                    </div>
                     <div className="trip-companions-card__heading">
                         <h3 className="trip-companions-card__title">{t('companions.cardTitle')}</h3>
                         <p className="trip-companions-card__subtitle">
@@ -705,7 +702,6 @@ function CompanionsCard({ activeTrip, tripIsManageable, isActive, onRoster }: Co
                                 : t('companions.cardSubtitleOther', { count: companionCount })}
                         </p>
                     </div>
-                    <span className="trip-companions-card__count">{companionCount}</span>
                 </div>
 
                 <MemberChipsPanel activeTrip={activeTrip} tripIsManageable={tripIsManageable} onClick={onRoster} />

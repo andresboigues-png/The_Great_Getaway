@@ -1887,7 +1887,7 @@ export const en = {
         statDays: 'Days',
         statCountries: 'Countries',
         statSpent: 'Spent',
-        notesLabel: 'Notes',
+        notesLabel: 'Trip notes',
         notesPlaceholder: 'Trip-wide notes, reminders, links…',
         notesEmptyViewer: 'No notes yet.',
         btnChecklist: 'Checklist',

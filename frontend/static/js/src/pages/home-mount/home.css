@@ -153,30 +153,22 @@
     flex-direction: column;
 }
 .trip-companions-card__header {
+    /* Centered, icon-free "blue ribbon" — one consistent header for all three
+       tabs (Trip Hub · Path · Companions). Per design feedback the glyph badge
+       + count were dropped so the title reads clean and centred. */
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 14px;
-    padding: 18px 22px;
+    justify-content: center;
+    text-align: center;
+    gap: 2px;
+    padding: 16px 22px;
     background: linear-gradient(135deg, var(--accent-blue) 0%, #5856d6 100%);
     color: white;
 }
-.trip-companions-card__icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.18);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.28);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    flex-shrink: 0;
-}
 .trip-companions-card__heading {
-    flex: 1;
     min-width: 0;
+    text-align: center;
 }
 .trip-companions-card__title {
     margin: 0;
@@ -2278,4 +2270,30 @@
    AFTER any inline flex declarations, but inline beats class — so we
    force `display: none !important` for inactive). */
 .home-tab-content { display: none !important; }
-.home-tab-content.is-active { display: flex !important; }
+.home-tab-content.is-active {
+    display: flex !important;
+    /* Stable height across tabs — reserve a consistent floor so switching
+       Trip Hub ⇄ Path ⇄ Companions doesn't reflow the whole page. Content
+       taller than this (e.g. Path with many days) still grows; only the
+       Getting-Started guide below is meant to change the page height. */
+    min-height: 440px;
+    flex-direction: column;
+}
+@media (max-width: 720px) {
+    .home-tab-content.is-active { min-height: 400px; }
+}
+
+/* Path tab wrapped in the same blue-ribbon card as the other two tabs.
+   overflow: visible (unlike the base card) so the selected day-chip's
+   scale-up animation isn't clipped by the card edge; the chips row keeps
+   its own horizontal scroll. */
+.trip-companions-card--path {
+    overflow: visible;
+    width: 100%;
+}
+.trip-path-card__body {
+    padding: 20px 22px 22px;
+}
+@media (max-width: 720px) {
+    .trip-path-card__body { padding: 16px 14px 18px; }
+}

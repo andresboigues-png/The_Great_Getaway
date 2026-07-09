@@ -1551,7 +1551,7 @@ export const es: Translations = {
         statDays: 'Días',
         statCountries: 'Países',
         statSpent: 'Gastado',
-        notesLabel: 'Notas',
+        notesLabel: 'Notas del viaje',
         notesPlaceholder: 'Notas del viaje, recordatorios, enlaces…',
         notesEmptyViewer: 'Aún no hay notas.',
         btnChecklist: 'Lista',

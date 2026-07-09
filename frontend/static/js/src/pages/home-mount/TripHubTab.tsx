@@ -105,26 +105,10 @@ export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
             data-home-tab="hub"
         >
             <div className="trip-companions-card">
-                {/* Header — home-base icon + title + destination, mirroring
-                    the Companions card header shape. (The old gold star was
-                    retired per design feedback.) */}
+                {/* Header — centered, icon-free "blue ribbon" title, matching
+                    the Path + Companions tabs (glyph badge retired per design
+                    feedback). */}
                 <div className="trip-companions-card__header">
-                    <div className="trip-companions-card__icon">
-                        <svg
-                            width="22"
-                            height="22"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="white"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                        >
-                            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                            <polyline points="9 22 9 12 15 12 15 22" />
-                        </svg>
-                    </div>
                     <div className="trip-companions-card__heading">
                         <h3 className="trip-companions-card__title">{t('tripHub.cardTitle')}</h3>
                         <p className="trip-companions-card__subtitle">
