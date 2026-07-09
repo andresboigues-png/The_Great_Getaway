@@ -65,6 +65,19 @@ export function toItineraryDays(x: unknown): AiDayPlan[] | null {
     return null;
 }
 
+/** ISO date `offset` days after `baseIso` (UTC), or '' if `baseIso` is empty /
+ *  invalid. Used to derive each generated day's calendar date from the trip
+ *  start (the model no longer returns a per-day `date`). Undated when the trip
+ *  has no start date — deliberately NOT today, which made every day read as
+ *  "today" (all path chips turned orange). */
+export function addDaysIso(baseIso: string, offset: number): string {
+    if (!baseIso) return '';
+    const base = new Date(baseIso + 'T00:00:00Z');
+    if (isNaN(base.getTime())) return '';
+    base.setUTCDate(base.getUTCDate() + offset);
+    return base.toISOString().split('T')[0]!;
+}
+
 
 // ── Initial-date derivation ────────────────────────────────────
 export function deriveInitialDates(activeTrip: Trip): { from: string; to: string } {
@@ -473,6 +486,12 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
             // becomes null → friendly retry instead of a page crash.
             const generated = toItineraryDays(d.itinerary);
             if (generated != null) {
+                // Stamp each day's calendar date from the trip start (day N →
+                // dateFrom + N-1). The model no longer returns a `date` field,
+                // so the preview + accept both read it from here.
+                generated.forEach((day, i) => {
+                    day.date = addDaysIso(dateFrom, i);
+                });
                 // `aiPlan` is declared `string` in types.d.ts but in practice
                 // holds the normalised day-array (the renderer + toItineraryDays
                 // both read it back as AiDayPlan[]). Cast through `unknown`
@@ -562,10 +581,13 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
         let clearedDays = 0;
 
         itinerary.forEach((dayInfo: AiDayPlan, idx: number) => {
-            // `toISOString()` is RFC-guaranteed to contain a 'T', so the
-            // split always yields index 0 — the `!` is sound and type-only
-            // (satisfies noUncheckedIndexedAccess without a runtime branch).
-            const dayDate: string = dayInfo.date || new Date().toISOString().split('T')[0]!;
+            // Each accepted day's date = the trip start + its offset (day N →
+            // dateFrom + N-1), computed fresh from the CURRENT dateFrom so a
+            // date edited between generate + accept is honoured. Undated when
+            // the trip has no start date — NOT today (the old `|| today`
+            // fallback made every day read as "today" once the model stopped
+            // returning a per-day `date`).
+            const dayDate: string = addDaysIso(dateFrom, idx);
             // Schema fork: the new food/sights split stores each meal (one
             // restaurant) as the morning/afternoon/evening plan text, and the
             // day's sights INLINE in those same slots (round-robin), so each
