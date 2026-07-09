@@ -87,6 +87,7 @@ export function updateTripSelector() {
     const pickerMenu = document.getElementById('tripPickerMenu');
     const switchList = document.getElementById('tripSwitchList');
     const pickerLabel = document.getElementById('tripPickerLabel');
+    const switchLabel = document.getElementById('tripSwitchLabel');
 
     if (selectors.length === 0) return;
 
@@ -109,6 +110,7 @@ export function updateTripSelector() {
         if (pickerMenu) pickerMenu.innerHTML = '';
         if (switchList) switchList.innerHTML = '';
         if (pickerLabel) pickerLabel.textContent = t('common.noActiveTrips');
+        if (switchLabel) switchLabel.textContent = t('common.noActiveTrips');
         for (const btn of completeBtns) btn.style.display = 'none';
         for (const btn of deleteBtns) btn.style.display = 'none';
         for (const btn of [editBtn, downloadBtn, silenceBtn]) if (btn) btn.style.display = 'none';
@@ -125,10 +127,10 @@ export function updateTripSelector() {
     const rows = tripRowsHtml(STATE.activeTripId);
     if (pickerMenu) pickerMenu.innerHTML = rows;
     if (switchList) switchList.innerHTML = rows;
-    if (pickerLabel) {
-        const active = STATE.trips.find((tr) => tr.id === STATE.activeTripId);
-        pickerLabel.textContent = active ? active.name : t('common.noActiveTrips');
-    }
+    const activeName =
+        STATE.trips.find((tr) => tr.id === STATE.activeTripId)?.name ?? t('common.noActiveTrips');
+    if (pickerLabel) pickerLabel.textContent = activeName;
+    if (switchLabel) switchLabel.textContent = activeName;
 
     // Show/hide management buttons. Archive (Complete) is per-user — any
     // member, including Relaxers, can hide their own copy. Delete is the

@@ -1454,4 +1454,53 @@ test.describe('Critical flows — UI-driven (mobile)', () => {
         await expect(popover).toBeHidden();
         await expect(switcher).toBeVisible();
     });
+
+    test('mobile trip switcher is condensed, expands to a list, and switches', async ({ page }) => {
+        // The in-popover switcher shows only the ACTIVE trip by default; tapping
+        // its trigger expands the (scrollable) list, and picking a trip switches
+        // + closes the popover. Restores the condensed-then-expand mechanic.
+        const userId = uniqueId('user');
+        const auth = await getAuthForApi(page, userId);
+        const tripA = await createTripViaApi(page, auth.headers, {
+            id: uniqueId('trip-a'),
+            name: 'Alpha Trip',
+            country: 'Portugal',
+        });
+        const tripB = await createTripViaApi(page, auth.headers, {
+            id: uniqueId('trip-b'),
+            name: 'Bravo Trip',
+            country: 'Spain',
+        });
+        await openFreshApp(page, userId);
+        await page.evaluate((id) => {
+            try {
+                const raw = localStorage.getItem('theGreatEscapeState');
+                const parsed = raw ? JSON.parse(raw) : {};
+                parsed.activeTripId = id;
+                localStorage.setItem('theGreatEscapeState', JSON.stringify(parsed));
+            } catch (_) {
+                /* ignore */
+            }
+        }, tripA);
+        await page.goto('/');
+
+        const switcher = page.locator('#navTripChange');
+        const popover = page.locator('#tripControlsPopover');
+        const trigger = page.locator('#tripSwitchTrigger');
+        const list = page.locator('#tripSwitchList');
+        await switcher.waitFor({ state: 'visible', timeout: 8000 });
+        await switcher.click({ timeout: 5000 });
+        await expect(popover).toBeVisible();
+
+        // Condensed: the trigger shows the active trip; the list is collapsed.
+        await expect(trigger).toHaveText(/Alpha Trip/);
+        await expect(list).toBeHidden();
+
+        // Expand + pick the other trip → switches and closes the popover.
+        await trigger.click();
+        await expect(list).toBeVisible();
+        await list.locator(`[data-trip-id="${tripB}"]`).click();
+        await expect(popover).toBeHidden();
+        await expect(page.locator('#tripSelector')).toHaveValue(tripB);
+    });
 });

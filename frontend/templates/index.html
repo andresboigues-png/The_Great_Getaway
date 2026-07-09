@@ -386,11 +386,21 @@
                  the bottom. IDs are unchanged so the nav-chrome.ts wiring +
                  updateTripSelector gating still apply; updateTripSelector
                  also swaps the Silence row's icon + label by state. -->
-            <!-- Fancy trip switcher (2026-07): a scrollable list of trip rows
-                 replaces the OS-native <select>. The native select stays as a
-                 visually-hidden source of truth (a11y + no-JS); both it and the
-                 rows flow through selectActiveTrip. Populated by updateTripSelector. -->
-            <div class="trip-switch-list" id="tripSwitchList" role="listbox" aria-label="Select active trip"></div>
+            <!-- Fancy trip switcher (2026-07): condensed by default — the
+                 trigger shows the ACTIVE trip; tapping it drops a scrollable
+                 list of the (non-archived) trips (same mechanic as the OS
+                 <select> it replaces, matching the desktop picker's design).
+                 The native <select> stays as a visually-hidden source of truth
+                 (a11y + no-JS); both it and the rows flow through
+                 selectActiveTrip. Populated by updateTripSelector. -->
+            <div class="trip-picker trip-picker--in-popover" id="tripSwitchPicker">
+                <button type="button" class="trip-picker__trigger" id="tripSwitchTrigger"
+                        aria-haspopup="listbox" aria-expanded="false" aria-controls="tripSwitchList">
+                    <span class="trip-picker__label" id="tripSwitchLabel">Select a Trip...</span>
+                    <span class="trip-picker__chevron" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+                </button>
+                <div class="trip-switch-list" id="tripSwitchList" role="listbox" aria-label="Select active trip" style="display: none;"></div>
+            </div>
             <select id="tripSelectorSidebar" class="trip-native-mirror" aria-hidden="true" tabindex="-1" aria-label="Select active trip">
                 <option value="">Select a Trip...</option>
             </select>

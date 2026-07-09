@@ -1475,6 +1475,11 @@ body.is-signed-out .rail-peek {
     left: 12px;
     right: 12px;
     z-index: 1000;
+    /* Safety net: if the expanded trip list + action rows are taller than the
+       screen, the whole popover scrolls (the trip list also scrolls on its
+       own). Keeps every action reachable on small phones. */
+    max-height: calc(100dvh - 68px);
+    overflow-y: auto;
     border-radius: 18px;
     /* Round 14 — Liquid Glass (matches the nav islands): luminous
        translucent gradient + bright specular top rim + vibrancy. Kept a
@@ -1602,7 +1607,7 @@ body.is-signed-out .rail-peek {
         max-width: 320px;
     }
     .trip-controls-popover #tripSelectorSidebar,
-    .trip-controls-popover #tripSwitchList {
+    .trip-controls-popover #tripSwitchPicker {
         display: none;
     }
 }
@@ -4990,14 +4995,46 @@ body.is-signed-out #sidebarOverlay {
     animation: tripPopoverIn 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Mobile trip-row list inside the popover. */
+/* Mobile in-popover picker: a full-width condensed trigger (matching the
+   old <select>'s footprint) that expands the scrollable list below it. */
+.trip-picker--in-popover {
+    display: block;
+    margin-bottom: 12px;
+}
+.trip-picker--in-popover .trip-picker__trigger {
+    width: 100%;
+    max-width: none;
+    min-height: 48px;
+    padding: 12px 16px;
+    background: rgba(120, 120, 128, 0.08);
+    color: var(--text-primary);
+    border: 1px solid rgba(120, 120, 128, 0.22);
+    border-radius: 13px;
+    box-shadow: none;
+    font-size: 0.98rem;
+}
+.trip-picker--in-popover .trip-picker__trigger:hover,
+.trip-picker--in-popover .trip-picker__trigger:active,
+.trip-picker--in-popover .trip-picker__trigger:focus-visible {
+    background: rgba(120, 120, 128, 0.14);
+    transform: none;
+    box-shadow: none;
+}
+.trip-picker--in-popover .trip-picker__chevron {
+    color: var(--text-secondary);
+}
+
+/* The expandable trip-row list (shared row style below). Scrolls when there
+   are many trips. In the popover it drops in-flow under the trigger. */
 .trip-switch-list {
     display: flex;
     flex-direction: column;
     gap: 2px;
     max-height: 42vh;
     overflow-y: auto;
-    margin-bottom: 12px;
+}
+.trip-picker--in-popover .trip-switch-list {
+    margin-top: 8px;
 }
 
 /* Shared selectable trip row (desktop menu + mobile list). */

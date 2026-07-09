@@ -405,6 +405,24 @@ export function wireNavChrome(): void {
     };
     tripPickerTrigger?.addEventListener('click', toggleTripPicker);
 
+    // ── Mobile in-popover trip switcher (#tripSwitchPicker) ──
+    // Condensed by default: the trigger shows the active trip; tapping it
+    // expands the scrollable #tripSwitchList. Same drop mechanic as desktop,
+    // but in-flow inside the popover. Reset to collapsed on every popover open.
+    const tripSwitchTrigger = document.getElementById('tripSwitchTrigger');
+    const tripSwitchList = document.getElementById('tripSwitchList');
+    const closeTripSwitchList = () => {
+        if (tripSwitchList) tripSwitchList.style.display = 'none';
+        tripSwitchTrigger?.setAttribute('aria-expanded', 'false');
+    };
+    tripSwitchTrigger?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!tripSwitchList) return;
+        const isHidden = tripSwitchList.style.display === 'none' || !tripSwitchList.style.display;
+        tripSwitchList.style.display = isHidden ? 'block' : 'none';
+        tripSwitchTrigger.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+    });
+
     // ── Back-button sentinel (mobile): pressing hardware/browser Back closes
     // the trip-controls popover instead of navigating the SPA. Mirrors the
     // Modal.ts pattern but scoped to this one popover: on a mobile open we push
@@ -421,6 +439,8 @@ export function wireNavChrome(): void {
         if (!tripControlsPopover) return;
         tripControlsPopover.style.display = 'block';
         setPopoverAria(true);
+        // Start the mobile trip switcher condensed (active trip only).
+        closeTripSwitchList();
         // Only one navbar popover visible at a time.
         closeOtherDropdowns();
         closeTripPicker();
@@ -447,6 +467,7 @@ export function wireNavChrome(): void {
         if (!tripControlsPopover) return;
         tripControlsPopover.style.display = 'none';
         setPopoverAria(false);
+        closeTripSwitchList();
         if (tripPopoverSentinel) {
             // Clear the flag BEFORE history.back so the echoed popstate is a
             // no-op (guarded on the flag + open state below).
@@ -595,6 +616,7 @@ export function wireNavChrome(): void {
             if (id) {
                 selectActiveTrip(id);
                 closeTripPicker();
+                closeTripSwitchList();
                 closeTripPopover();
             }
             return;
