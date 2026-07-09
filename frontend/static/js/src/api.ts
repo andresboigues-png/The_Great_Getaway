@@ -189,6 +189,7 @@ export async function pullFromServer() {
             if (tt.aiPlan === undefined) tt.aiPlan = existing?.aiPlan;
             if (tt.aiFoodContext === undefined) tt.aiFoodContext = existing?.aiFoodContext;
             if (tt.aiSightseeingContext === undefined) tt.aiSightseeingContext = existing?.aiSightseeingContext;
+            if (tt.aiVibe === undefined) tt.aiVibe = existing?.aiVibe;
             if (tt.aiContext === undefined) tt.aiContext = existing?.aiContext;
             if (tt.aiNumDays === undefined) tt.aiNumDays = existing?.aiNumDays;
         }

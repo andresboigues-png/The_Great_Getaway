@@ -1255,6 +1255,18 @@ export const en = {
         generatingBtn: '⌛ Generating…',
         // Clear the persisted per-trip prompt.
         resetPrompt: 'Reset prompt',
+        // Vibe presets — quick mood setters for the whole plan.
+        vibeLabel: 'Vibe',
+        vibeParty: 'Party with friends',
+        vibeFamily: 'Family-friendly',
+        vibeAdventure: 'Adventure & trekking',
+        vibeFoodie: 'Foodie galore',
+        vibeRomantic: 'Romantic',
+        vibeRelax: 'Relax & recharge',
+        vibeCulture: 'Culture & history',
+        vibeNightlife: 'Nightlife',
+        vibeBudget: 'Budget / backpacker',
+        vibeLuxury: 'Luxury',
         // Loading state.
         loadingTitle: 'Consulting Gemini AI…',
         loadingBody: 'This usually takes 5-15 seconds. Maps lookups for each place add a few more.',

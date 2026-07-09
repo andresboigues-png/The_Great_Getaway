@@ -49,6 +49,7 @@ import { ItineraryOutput, GenerationErrorCard } from './ItineraryOutput.js';
 import { TodoListPanel } from './TodoListPanel.js';
 import { AiMap } from './AiMap.js';
 import { useAiPlan } from './useAiPlan.js';
+import { VIBES } from './vibes.js';
 import { useAiMap } from './useAiMap.js';
 import { navigate } from '../../router.js';
 import { setActiveHomeTab } from '../home-mount/handlers.js';
@@ -312,6 +313,31 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         >
                             {t('ai.sectionRequirements')}
                         </h2>
+                        {/* Vibe presets — one tap steers the whole plan (places,
+                            pace, food, ordering). Multi-select; persists per-trip. */}
+                        <div className="ai-col-gap-6">
+                            <label className="text-[0.72rem] font-extrabold uppercase tracking-[0.08em] text-secondary">
+                                🎭 {t('ai.vibeLabel')}
+                            </label>
+                            <div className="flex flex-wrap gap-[7px]">
+                                {VIBES.map((v) => {
+                                    const on = plan.vibe.includes(v.id);
+                                    return (
+                                        <button
+                                            key={v.id}
+                                            type="button"
+                                            aria-pressed={on}
+                                            disabled={!tripIsEditable}
+                                            onClick={() => plan.toggleVibe(v.id)}
+                                            className={`ai-vibe-chip${on ? ' ai-vibe-chip--on' : ''}`}
+                                        >
+                                            <span aria-hidden="true">{v.emoji}</span>{' '}
+                                            {t(v.labelKey as Parameters<typeof t>[0])}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
                         <div className="ai-col-gap-6">
                             <label
                                 htmlFor="aiFoodContext"

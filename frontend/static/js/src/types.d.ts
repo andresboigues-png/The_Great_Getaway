@@ -103,6 +103,8 @@ export interface Trip {
     aiFoodContext?: string;
     /** Sightseeing-only context the user types in for the AI planner. */
     aiSightseeingContext?: string;
+    /** Selected AI-planner "vibe" preset ids, comma-joined (party,foodie,…). */
+    aiVibe?: string;
     /** How many days the AI was asked to plan for. */
     aiNumDays?: number | string;
     /** Last-used Excel-import format mapping for this trip (id ref). */

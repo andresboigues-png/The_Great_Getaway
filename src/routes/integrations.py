@@ -647,6 +647,10 @@ def generate_itinerary():
     # distinct clusters per day instead of mixed-bag items[].
     food_context = str(data.get("foodContext", ""))[:500]
     sights_context = str(data.get("sightseeingContext", ""))[:500]
+    # Quick "vibe" preset(s) — an English steer composed client-side from a
+    # fixed registry (party / foodie / family / …). Not free-text from the
+    # user, but capped + scrubbed + tagged like every other injected field.
+    vibe_context = str(data.get("vibe", ""))[:500]
     legacy_context = str(data.get("context", ""))[:500]
     # The traveller's persistent profile bio (their account self-description),
     # sent so the planner can personalize to their tastes. Same 500-char cap +
@@ -682,6 +686,7 @@ def generate_itinerary():
     date_to = _scrub(date_to).strip()
     food_context = _scrub(food_context).strip()
     sights_context = _scrub(sights_context).strip()
+    vibe_context = _scrub(vibe_context).strip()
     legacy_context = _scrub(legacy_context).strip()
     bio_context = _scrub(bio_context).strip()
 
@@ -811,9 +816,20 @@ def generate_itinerary():
     destination_tagged = _tagged(destination)
     food_tagged = _tagged(food_context)
     sights_tagged = _tagged(sights_context)
+    vibe_tagged = _tagged(vibe_context)
     legacy_tagged = _tagged(legacy_context)
     bio_tagged = _tagged(bio_context)
     context_lines: list[str] = []
+    # Vibe first: it is the overall steer the specific preferences refine.
+    if vibe_context:
+        context_lines.append(
+            "TRIP VIBE — shape the ENTIRE plan around this: which places you "
+            "pick, their order, the daily pace, and the food + activity style "
+            "should all express this vibe. It takes priority over generic "
+            "defaults, while still respecting the food / sightseeing "
+            "preferences and accommodation anchors below: "
+            f"<user-data>{vibe_tagged}</user-data>"
+        )
     if food_context:
         context_lines.append(f"Food preferences: <user-data>{food_tagged}</user-data>")
     if sights_context:

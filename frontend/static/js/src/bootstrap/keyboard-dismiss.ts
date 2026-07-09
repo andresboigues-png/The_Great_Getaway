@@ -24,9 +24,18 @@ function isTextEntry(el: Element | null): boolean {
 }
 
 export function wireKeyboardDismiss(): void {
-    // Coarse pointer ≈ has a soft keyboard. On mouse/desktop the pill is
-    // pointless (Esc / click-away already work) and would be noise.
-    if (typeof window === 'undefined' || !window.matchMedia?.('(pointer: coarse)').matches) return;
+    // Coarse pointer ≈ has a soft keyboard, AND a phone-width viewport. On
+    // desktop / wide touch screens (touch laptops, iPad landscape) the pill is
+    // pointless (Esc / click-away work) AND it collides with the top navbar —
+    // a floating top-centre "Done" landed right over the nav. Gate it to the
+    // mobile layout so it only appears where the keyboard genuinely traps the
+    // user (e.g. iPhone day-notes) with no top nav in the way.
+    if (
+        typeof window === 'undefined' ||
+        !window.matchMedia?.('(pointer: coarse) and (max-width: 820px)').matches
+    ) {
+        return;
+    }
 
     let pill: HTMLButtonElement | null = null;
     let hideTimer: number | undefined;

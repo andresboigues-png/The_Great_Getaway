@@ -44,6 +44,7 @@ import {
     type AiPlanItem,
     type AiDayPlan,
 } from './slots.js';
+import { parseVibeIds, vibePrompt } from './vibes.js';
 import { t } from '../../i18n.js';
 import type { Trip, TripDay, PlanBlock } from '../../types';
 
@@ -99,10 +100,14 @@ export interface UseAiPlanResult {
     sightseeingContext: string;
     onFoodContextChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
     onSightseeingContextChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-    /** Clear both prompt textareas + the trip's stored prompt (the only way
-     *  the prompt is emptied — it otherwise persists per-trip). */
+    /** Selected "vibe" preset ids (party / foodie / …) — steer the whole plan. */
+    vibe: string[];
+    /** Toggle a vibe preset on/off (multi-select). */
+    toggleVibe: (id: string) => void;
+    /** Clear both prompt textareas + the vibe + the trip's stored prompt (the
+     *  only way the prompt is emptied — it otherwise persists per-trip). */
     onResetPrompt: () => void;
-    /** True when either prompt field has content (drives the Reset button). */
+    /** True when either prompt field or a vibe is set (drives the Reset button). */
     hasPrompt: boolean;
     // BYO key.
     geminiKey: string;
@@ -147,6 +152,9 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
     const [sightseeingContext, setSightseeingContext] = useState<string>(
         () => activeTrip.aiSightseeingContext ?? '',
     );
+    // Selected vibe preset ids (party / foodie / …), persisted per-trip on
+    // activeTrip.aiVibe (comma-joined) like the food/sights context.
+    const [vibe, setVibe] = useState<string[]>(() => parseVibeIds(activeTrip.aiVibe));
     const [geminiKey, setGeminiKey] = useState<string>(STATE.geminiApiKey || '');
     const [showKey, setShowKey] = useState(false);
     const [generating, setGenerating] = useState(false);
@@ -208,6 +216,16 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
         activeTrip.aiSightseeingContext = v;
         emit('state:changed');
     };
+    // Multi-select vibe toggle. Persisted (comma-joined ids) on activeTrip.aiVibe
+    // exactly like the food/sights context, so it survives re-mounts + polls.
+    const toggleVibe = (id: string) => {
+        setVibe((prev) => {
+            const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+            activeTrip.aiVibe = next.join(',');
+            emit('state:changed');
+            return next;
+        });
+    };
 
     // ── Clear the prompt (the ONLY thing that empties it) ────────
     // The prompt otherwise persists per-trip forever (input handlers write
@@ -216,12 +234,14 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
     const onResetPrompt = () => {
         setFoodContext('');
         setSightseeingContext('');
+        setVibe([]);
         activeTrip.aiFoodContext = '';
         activeTrip.aiSightseeingContext = '';
         activeTrip.aiContext = '';
+        activeTrip.aiVibe = '';
         emit('state:changed');
     };
-    const hasPrompt = Boolean(foodContext.trim() || sightseeingContext.trim());
+    const hasPrompt = Boolean(foodContext.trim() || sightseeingContext.trim() || vibe.length);
 
     // ── Re-sync inputs when the ACTIVE TRIP changes ──────────────
     // useState initialisers run once on mount, so a trip switch that reuses
@@ -236,6 +256,7 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
     useEffect(() => {
         setFoodContext(activeTrip.aiFoodContext ?? activeTrip.aiContext ?? '');
         setSightseeingContext(activeTrip.aiSightseeingContext ?? '');
+        setVibe(parseVibeIds(activeTrip.aiVibe));
         setItinerary(toItineraryDays(activeTrip.aiPlan));
         const d = deriveInitialDates(activeTrip);
         setDateFrom(d.from);
@@ -385,6 +406,7 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
             }));
         activeTrip.aiFoodContext = foodContext;
         activeTrip.aiSightseeingContext = sightseeingContext;
+        activeTrip.aiVibe = vibe.join(',');
         activeTrip.aiNumDays = numDays;
         emit('state:changed');
 
@@ -418,6 +440,7 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                     dateTo,
                     foodContext,
                     sightseeingContext: sightsContextWithMarked,
+                    vibe: vibePrompt(vibe),
                     accommodations,
                     // The traveller's profile bio — the planner weaves in any
                     // travel-relevant, destination-feasible tastes (and ignores
@@ -787,6 +810,8 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
         sightseeingContext,
         onFoodContextChange,
         onSightseeingContextChange,
+        vibe,
+        toggleVibe,
         onResetPrompt,
         hasPrompt,
         geminiKey,

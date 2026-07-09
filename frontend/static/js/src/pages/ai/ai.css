@@ -413,3 +413,34 @@
     font-weight: 800;
     color: #5856d6;
 }
+
+/* Vibe preset chips — one-tap mood setters for the whole plan. Multi-select;
+   the active state uses the brand indigo→blue wash to read as "on". */
+.ai-vibe-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border: 1px solid rgba(88, 86, 214, 0.28);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.55);
+    color: var(--text-brand-navy);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: transform 0.12s ease, border-color 0.12s ease,
+        background 0.12s ease, box-shadow 0.12s ease;
+}
+.ai-vibe-chip:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: rgba(88, 86, 214, 0.5);
+}
+.ai-vibe-chip--on {
+    border-color: transparent;
+    background: linear-gradient(135deg, #5856d6, #0071e3);
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(88, 86, 214, 0.28);
+}
+.ai-vibe-chip:disabled { opacity: 0.5; cursor: default; }
