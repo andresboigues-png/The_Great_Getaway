@@ -1244,8 +1244,8 @@ export const en = {
         subtitlePlanning: 'Planning your trip to <strong>{country}</strong>',
         accommodationBanner: "Already know where you'll be staying? Set it up for a more tailored plan.",
         // Section labels.
-        sectionTravelDates: '📅 Travel Dates',
-        sectionRequirements: '📝 Requirements',
+        sectionTravelDates: 'Travel Dates',
+        sectionRequirements: 'Requirements',
         planToggleInfo: 'Trip info',
         planToggleReqs: 'Requirements',
         planToggleAria: 'Plan section',
