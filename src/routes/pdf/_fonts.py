@@ -107,6 +107,20 @@ def _try_register_unicode_font() -> None:
             _UNICODE_FONT = name
             _UNICODE_FONT_BOLD = f"{name}-Bold" if os.path.isfile(bold_path) else name
             _UNICODE_FONT_OBLIQUE = f"{name}-Oblique" if os.path.isfile(oblique_path) else name
+            # Register the FAMILY so reportlab's inline <b>/<i>/<u> tags switch
+            # to the right variant. Without this the custom TTF has no
+            # bold/italic mapping, so <b> (and therefore markdown-bold notes)
+            # renders as plain regular text — the "no bold in the PDF" bug.
+            try:
+                pdfmetrics.registerFontFamily(
+                    name,
+                    normal=name,
+                    bold=_UNICODE_FONT_BOLD,
+                    italic=_UNICODE_FONT_OBLIQUE,
+                    boldItalic=_UNICODE_FONT_BOLD,
+                )
+            except Exception:
+                pass
             logger.info("PDF unicode font registered: %s", name)
             return
         except Exception as e:

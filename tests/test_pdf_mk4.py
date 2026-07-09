@@ -803,7 +803,8 @@ def test_pdf_plan_blocks_render_bold_and_place_cards():
             }
         ],
     )
-    txt = _pdf_text(_build_trip_pdf(t, {"includeDays": True}))
+    pdf_bytes = _build_trip_pdf(t, {"includeDays": True})
+    txt = _pdf_text(pdf_bytes)
     # Bold markdown is RENDERED, not printed literally.
     assert "BreakfastHdr" in txt, "note header must render"
     assert "**" not in txt, "markdown ** must become bold, not literal asterisks"
@@ -813,3 +814,11 @@ def test_pdf_plan_blocks_render_bold_and_place_cards():
     # The place block resolved to a card with the marked-place name + address.
     assert "BelemTower" in txt, "place block must resolve to a place card"
     assert "AvenidaLisboaCity" in txt, "place card shows the address"
+    # The place name links to Google Maps (a PDF URI link annotation).
+    uris = []
+    for page in pypdf.PdfReader(io.BytesIO(pdf_bytes)).pages:
+        for annot in page.get("/Annots") or []:
+            action = annot.get_object().get("/A") or {}
+            if action.get("/URI"):
+                uris.append(str(action["/URI"]))
+    assert any("place_id:p_belem" in u for u in uris), "place name must link to Google Maps"

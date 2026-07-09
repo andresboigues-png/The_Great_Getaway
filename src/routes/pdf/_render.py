@@ -40,6 +40,15 @@ _TEXT_PRIMARY = "#1d1d1f"
 _TEXT_SECONDARY = "#6b7280"
 _RULE_GREY = "#e5e7eb"
 
+# Per-time-of-day accent for the big MORNING/AFTERNOON/EVENING headings —
+# sunrise amber → daytime blue → dusk indigo, echoing the app's sun/sunset/moon
+# slot theme.
+_SLOT_COLORS = {
+    "morning": "#e08a0b",
+    "afternoon": "#0071e3",
+    "evening": "#5b4bd6",
+}
+
 
 # ── reportlab imports — kept local so the import cost only lands on
 # the (rare) PDF-export request, not on every Flask boot.
@@ -213,6 +222,30 @@ def _styles(rl):
             spaceBefore=6,
             spaceAfter=2,
         ),
+        # Top-of-hierarchy time-of-day heading (MORNING / AFTERNOON / EVENING).
+        # Big + bold; the per-slot colour is applied inline by the caller so a
+        # single style serves all three. Sits ABOVE the meal/sights headers.
+        "slotHeading": rl.ParagraphStyle(
+            "GGSlotHeading",
+            parent=base["BodyText"],
+            fontName=_font(bold=True),
+            fontSize=16,
+            leading=20,
+            spaceBefore=14,
+            spaceAfter=5,
+        ),
+        # Meal / Sightseeing sub-heading inside a slot — bold, mid-size navy,
+        # a clear step below slotHeading and above the body prose.
+        "planHeader": rl.ParagraphStyle(
+            "GGPlanHeader",
+            parent=base["BodyText"],
+            fontName=_font(bold=True),
+            fontSize=12.5,
+            leading=16,
+            textColor=_BRAND_NAVY,
+            spaceBefore=8,
+            spaceAfter=2,
+        ),
         # Item title inside a parsed slot (the restaurant / sight
         # name pulled out of the AI-generated content). Bold mid-size,
         # navy — sits between the slot LABEL and the body prose.
@@ -336,18 +369,24 @@ def _md_inline(text: Any) -> str:
 
 
 def _md_block_flowables(text: Any, rl, styles) -> list:
-    """Render a markdown-lite plan-block text as reportlab flowables: inline
-    bold/italic/underline honored, `- `/`* ` lines rendered as bullets, blank
-    lines dropped. Mirrors the block editor's rich-text rendering so the PDF
-    day plan reads the same as the on-screen one."""
+    """Render a markdown-lite plan-block text as reportlab flowables: a fully-
+    bold line (e.g. "🥐 **Breakfast**") becomes a prominent sub-heading
+    (planHeader); `- `/`* ` lines become bullets; everything else is body prose
+    with inline bold/italic/underline honored. Mirrors the block editor's
+    rich-text rendering so the PDF day plan reads the same as on screen."""
     flows: list = []
     if not text:
         return flows
     for line in str(text).split("\n"):
-        stripped = line.strip()
+        stripped = _strip_emoji(line).strip()
         if not stripped:
             continue
-        if stripped[:2] in ("- ", "* "):
+        # A line that is ENTIRELY bold is a section heading (Breakfast /
+        # Lunch / Dinner / Sightseeing) — render it big + bold, not body.
+        head_m = re.match(r"^\*\*(.+?)\*\*$", stripped)
+        if head_m:
+            flows.append(rl.Paragraph(_esc(head_m.group(1)), styles["planHeader"]))
+        elif stripped[:2] in ("- ", "* "):
             flows.append(rl.Paragraph(f"•&nbsp;&nbsp;{_md_inline(stripped[2:])}", styles["body"]))
         else:
             flows.append(rl.Paragraph(_md_inline(stripped), styles["body"]))
@@ -365,7 +404,18 @@ def _place_block_flowables(
     name = str(place.get("verifiedName") or place.get("name") or "").strip()
     if not name:
         return []
-    head = f"<b>{_esc(name)}</b>"
+    # Link the name to the place on Google Maps (PDF hyperlinks work in every
+    # reader). Prefer the stored mapsUrl; else build the canonical place_id URL.
+    place_id = str(place.get("placeId") or "").strip()
+    maps_url = str(place.get("mapsUrl") or "").strip()
+    href = maps_url or (
+        f"https://www.google.com/maps/place/?q=place_id:{place_id}" if place_id else ""
+    )
+    name_html = f"<b>{_esc(name)}</b>"
+    if href:
+        # Blue signals the clickable link; the underline comes for free.
+        name_html = f'<a href="{_esc(href)}" color="{_BRAND_BLUE}">{name_html}</a>'
+    head = name_html
     rating = place.get("rating")
     if isinstance(rating, (int, float)):
         head += f'&nbsp;&nbsp;<font color="{_BRAND_BLUE}">★ {rating:.1f}</font>'
@@ -1318,7 +1368,12 @@ def _day_card(
         blocks = plan_blocks.get(slot_name) if plan_blocks else None
         if isinstance(blocks, list) and blocks:
             any_slot = True
-            body.append(rl.Paragraph(slot_label, styles["slotLabel"]))
+            body.append(
+                rl.Paragraph(
+                    f'<font color="{_SLOT_COLORS.get(slot_name, _BRAND_BLUE)}">{_esc(slot_label)}</font>',
+                    styles["slotHeading"],
+                )
+            )
             for blk in blocks:
                 if not isinstance(blk, dict):
                     continue
@@ -1343,7 +1398,12 @@ def _day_card(
         if not (isinstance(val, str) and val.strip()):
             continue
         any_slot = True
-        body.append(rl.Paragraph(slot_label, styles["slotLabel"]))
+        body.append(
+            rl.Paragraph(
+                f'<font color="{_SLOT_COLORS.get(slot_name, _BRAND_BLUE)}">{_esc(slot_label)}</font>',
+                styles["slotHeading"],
+            )
+        )
         # Try the AI-format parser first. If it pulls out structured
         # items (name / why / fact), render each as its own editorial
         # block — bold name, body "why" prose, italic muted "fact"
