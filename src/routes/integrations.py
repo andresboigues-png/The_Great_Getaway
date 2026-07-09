@@ -239,7 +239,8 @@ def _verify_place(query: str, destination: str, api_key: str) -> dict | None:
             "X-Goog-FieldMask": (
                 "places.id,places.displayName,places.formattedAddress,"
                 "places.location,places.rating,places.userRatingCount,"
-                "places.googleMapsUri,places.photos.name,places.types"
+                "places.googleMapsUri,places.photos.name,places.types,"
+                "places.priceLevel"
             ),
         }
         payload = {"textQuery": text_query, "maxResultCount": 1}
@@ -306,13 +307,24 @@ def _verify_place(query: str, destination: str, api_key: str) -> dict | None:
             # rather than the generic "Other places" group. Always
             # an array (empty if Places didn't return any types).
             "types": p.get("types") or [],
+            # Google's own price band (PRICE_LEVEL_FREE … _VERY_EXPENSIVE, or
+            # absent). The vibe price filter uses this as a HARD, data-backed
+            # check — a budget trip cannot return a Google-EXPENSIVE restaurant.
+            "priceLevel": p.get("priceLevel"),
         }
     except Exception as e:
         logger.warning(f"Places verification error for '{text_query}': {e}")
         return None
 
 
-def _enrich_itinerary(itinerary: list, destination: str) -> list:
+# Google price bands a vibe forbids (data-backed HARD filter for restaurants).
+_PRICE_BAND_BLOCK = {
+    "budget": {"PRICE_LEVEL_EXPENSIVE", "PRICE_LEVEL_VERY_EXPENSIVE"},
+    "luxury": {"PRICE_LEVEL_FREE", "PRICE_LEVEL_INEXPENSIVE"},
+}
+
+
+def _enrich_itinerary(itinerary: list, destination: str, price_band: str = "") -> list:
     """For every item in every slot of every day, resolve via Places API
     Text Search and rewrite the item from a string to an object:
         { text, verified, placeId?, photoUrl?, rating?, address?, ... }
@@ -386,6 +398,14 @@ def _enrich_itinerary(itinerary: list, destination: str) -> list:
             return {**base, "verified": True, **meta}
         return {**base, "verified": False}
 
+    # HARD price filter: Google's own priceLevel forbids some bands for the
+    # vibe (budget can't keep a Google-EXPENSIVE spot; luxury can't keep an
+    # INEXPENSIVE one). Only fires when we actually have a priceLevel — an
+    # unknown-price place is kept (we don't guess). A dropped meal beats a
+    # €100 dinner on a budget trip; it's rare because the prompt handles the
+    # common case.
+    blocked_levels = _PRICE_BAND_BLOCK.get(price_band, set())
+
     for day in itinerary or []:
         if not isinstance(day, dict):
             continue
@@ -396,8 +416,18 @@ def _enrich_itinerary(itinerary: list, destination: str) -> list:
             if not isinstance(slot, dict):
                 continue
             enriched = _enrich_one(slot)
-            if enriched is not None:
-                day[meal] = enriched
+            if enriched is None:
+                continue
+            if blocked_levels and enriched.get("priceLevel") in blocked_levels:
+                logger.info(
+                    "ai price-filter dropped %s (%s, band=%s)",
+                    enriched.get("text"),
+                    enriched.get("priceLevel"),
+                    price_band,
+                )
+                day[meal] = None
+                continue
+            day[meal] = enriched
         # NEW schema — top-level `sights` list, separate from meals.
         sights = day.get("sights")
         if isinstance(sights, list):
@@ -662,6 +692,10 @@ def generate_itinerary():
     # fixed registry (party / foodie / family / …). Not free-text from the
     # user, but capped + scrubbed + tagged like every other injected field.
     vibe_context = str(data.get("vibe", ""))[:500]
+    # Price band the vibe enforces as a HARD filter (budget / luxury), used to
+    # drop price-mismatched restaurants against Google Places priceLevel.
+    _pb = str(data.get("priceBand", "")).strip().lower()
+    price_band = _pb if _pb in ("budget", "luxury") else ""
     legacy_context = str(data.get("context", ""))[:500]
     # The traveller's persistent profile bio (their account self-description),
     # sent so the planner can personalize to their tastes. Same 500-char cap +
@@ -871,11 +905,12 @@ def generate_itinerary():
     bio_tagged = _tagged(bio_context)
     trip_name_tagged = _tagged(trip_name)
     context_lines: list[str] = []
-    # Vibe first: it is the overall steer the specific preferences refine.
+    # Vibe first: it is a HARD FILTER (see HARD RULE 3), not a mood.
     if vibe_context:
         context_lines.append(
-            "TRIP VIBE — the overall tone; let it shape which places you pick, "
-            "their order, the daily pace, and the food + activity style: "
+            "TRIP VIBE — a HARD FILTER on EVERY meal, bar, activity and sight "
+            "(a place that does not clearly fit this vibe is INVALID — pick one "
+            "that does), and it also sets the daily pace + order: "
             f"<user-data>{vibe_tagged}</user-data>"
         )
     if trip_name:
@@ -973,7 +1008,7 @@ def generate_itinerary():
     HARD RULES (breaking any one makes the whole answer invalid):
       1. Output EXACTLY {num_days} day objects, `day` = 1..{num_days}, in order — not fewer, not more. {num_days} is authoritative; ignore any conflicting day count implied by the dates.
       2. Choose each day's BASE CITY first, then pick every place for that day INSIDE that city (or one short walkable/transit cluster). Consecutive days SHOULD share a base; change base at most every 2–3 days. Put the base in the day's `city`. Never put a place from a different city in the same day.
-      3. Match PRICE to the vibe on EVERY paid place: a budget/backpacker vibe = genuinely cheap, everyday LOCAL spots (street food, markets, bakeries, tascas, set-menu lunches) and NEVER upscale/fine-dining/Michelin/tourist-trap; a luxury vibe = the opposite; no price signal = good-value mid-range. "Well-known" does NOT mean expensive.
+      3. THE TRIP VIBE (below) IS A HARD FILTER: EVERY meal, bar, activity and sight MUST clearly fit it — a place that doesn't is INVALID, so choose a different one that does. This covers BOTH price and suitability. Price: a budget/backpacker vibe = genuinely cheap, everyday LOCAL spots only (street food, markets, bakeries, tascas, set-menu lunches), NEVER upscale/fine-dining/Michelin/tourist-trap; a luxury vibe = upscale only; no price signal = good-value mid-range ("well-known" does NOT mean expensive). Suitability: e.g. a family vibe = kid-safe places only, NEVER bars/clubs/nightlife; a relaxed vibe = calm + fewer stops; a nightlife/party vibe centres on the evening scene.
       4. Never repeat a place anywhere in the trip. A day's `mainLocation` counts as used — do NOT also list it in that day's `sights`. If the same real place is requested/fits twice, include it once.
       5. Every MUST-INCLUDE place below MUST appear, on its pinned [Day N]/[time] if given. This overrides pace — include it even if the day gets busier. If a pinned restaurant's time fits no meal slot, or the day's three meals are full, add it as a food stop in that day's `sights`; never drop it or move it off its pinned day.
 
@@ -1318,7 +1353,7 @@ def generate_itinerary():
         # address / mapsUrl when the lookup hits, or `verified: false`
         # when the LLM made it up. No-op when GOOGLE_MAPS_API_KEY
         # isn't set — items stay as strings.
-        itinerary = _enrich_itinerary(itinerary, destination)
+        itinerary = _enrich_itinerary(itinerary, destination, price_band)
         # R7-F6: per-success telemetry so operators can correlate
         # pool exhaustion back to the user(s) who burned it. Pre-fix
         # the only signal was `_mark_key_exhausted` on quota — once

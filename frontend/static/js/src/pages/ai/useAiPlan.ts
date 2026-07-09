@@ -44,7 +44,7 @@ import {
     type AiPlanItem,
     type AiDayPlan,
 } from './slots.js';
-import { parseVibeIds, vibePrompt } from './vibes.js';
+import { parseVibeIds, vibePrompt, vibePriceBand } from './vibes.js';
 import { t, getLocale } from '../../i18n.js';
 import type { Trip, TripDay, PlanBlock } from '../../types';
 
@@ -448,6 +448,10 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                     foodContext,
                     sightseeingContext,
                     vibe: vibePrompt(vibe),
+                    // Price band the vibe enforces as a HARD filter — the
+                    // server drops price-mismatched restaurants using Google
+                    // Places priceLevel (real data, not just the prompt).
+                    priceBand: vibePriceBand(vibe),
                     // Marked to-do places as a first-class must-include list.
                     mustInclude,
                     // App locale → why/fact/title come back in the user's
