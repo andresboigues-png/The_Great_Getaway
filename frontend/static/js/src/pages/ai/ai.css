@@ -361,13 +361,6 @@
     font-size: 1rem;
 }
 
-/* Compact column flex with 6px gap. */
-.ai-col-gap-6 {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
 /* Compact row flex with 10px gap and bottom margin (used for the
  * icon + label rows above each form field). */
 .ai-row-icon-label {
@@ -377,28 +370,191 @@
     margin-bottom: 6px;
 }
 
-/* Accommodation nudge banner (2026-06) — links the AI page to the Trip
-   Hub accommodation manager. The plan tailors to where you're staying. */
+/* ─────────────────────────────────────────────────────────────────
+   PLANNER FORM REVAMP (2026-07)
+   Brings the left controls column in line with the Profile/Settings
+   design north-star: hairline navy borders, soft diffuse shadows,
+   generous radii, uppercase-no-emoji section headers, stacked
+   label→input fields, and soft-wash inputs. The AI page no longer
+   overrides the site font (it inherits the body SF-Pro-Text stack),
+   so type finally matches the rest of the app.
+   ───────────────────────────────────────────────────────────────── */
+
+/* Card shell — the premium container all three planner cards share
+   (AI usage, Trip info/dates, Requisitos). Shell only: each card
+   controls its own internal spacing. */
+.ai-form-card {
+    background: var(--card-bg);
+    border: 1px solid rgba(0, 45, 91, 0.08);
+    border-radius: var(--radius-2xl);
+    box-shadow: 0 12px 34px rgba(0, 45, 91, 0.06);
+    padding: 20px 20px 22px;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+:root[data-theme='dark'] .ai-form-card {
+    background: rgba(28, 28, 30, 0.78);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.35);
+}
+
+/* Section header — small, uppercase, tracked-out accent caps. No emoji. */
+.ai-form-heading {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent-blue-deep);
+}
+
+/* Stacked field: label above control. */
+.ai-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.ai-field__label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+}
+.ai-field__hint {
+    margin: 0;
+    font-size: 0.74rem;
+    line-height: 1.45;
+    color: var(--text-secondary);
+}
+
+/* Input / textarea / date — soft navy wash, hairline border, blue focus
+   ring. Replaces .glass-input on this page (its white-on-white border
+   was near-invisible on the white cards). */
+.ai-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 11px 13px;
+    border: 1px solid rgba(0, 45, 91, 0.12);
+    border-radius: var(--radius-md);
+    background: rgba(0, 45, 91, 0.03);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.15s var(--easing-smooth),
+        background 0.15s var(--easing-smooth),
+        box-shadow 0.15s var(--easing-smooth);
+}
+.ai-input::placeholder { color: var(--text-secondary); opacity: 0.75; }
+.ai-input:focus {
+    border-color: var(--accent-blue);
+    background: var(--card-bg);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.14);
+}
+textarea.ai-input { resize: none; min-height: 74px; line-height: 1.5; }
+:root[data-theme='dark'] .ai-input {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.14);
+}
+:root[data-theme='dark'] .ai-input:focus {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--accent-blue);
+}
+
+/* Reset-prompt link — quiet text action, bottom-right of Requisitos. */
+.ai-reset-prompt {
+    align-self: flex-end;
+    background: none;
+    border: 0;
+    padding: 0;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: color 0.15s var(--easing-smooth);
+}
+.ai-reset-prompt:hover { color: var(--accent-blue-deep); }
+
+/* ── Vibe selector — modern multi-select. Text-only (no emoji): a wrap
+   grid of tappable options; selected = solid accent fill. ── */
+.ai-vibe-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.ai-vibe-option {
+    appearance: none;
+    border: 1px solid rgba(0, 45, 91, 0.14);
+    background: rgba(0, 45, 91, 0.03);
+    color: var(--text-primary);
+    border-radius: var(--radius-pill);
+    padding: 8px 15px;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s var(--easing-smooth),
+        background 0.15s var(--easing-smooth),
+        color 0.15s var(--easing-smooth),
+        box-shadow 0.15s var(--easing-smooth),
+        transform 0.12s var(--easing-smooth);
+}
+.ai-vibe-option:hover:not(:disabled) {
+    border-color: rgba(0, 113, 227, 0.4);
+    background: rgba(0, 113, 227, 0.06);
+}
+.ai-vibe-option:active:not(:disabled) { transform: scale(0.97); }
+.ai-vibe-option:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
+.ai-vibe-option--on {
+    border-color: transparent;
+    background: var(--accent-blue);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.28);
+}
+.ai-vibe-option--on:hover:not(:disabled) {
+    background: var(--accent-blue-hover);
+    border-color: transparent;
+}
+.ai-vibe-option:disabled { opacity: 0.5; cursor: default; }
+:root[data-theme='dark'] .ai-vibe-option {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* Accommodation nudge banner — links to the Trip Hub accommodation
+   manager. Revamped to the card language: hairline, soft shadow, no
+   emoji, quiet arrow affordance. */
 .ai-accommodation-banner {
     display: flex;
     align-items: center;
     gap: 12px;
     width: 100%;
     margin: 0 0 20px;
-    padding: 14px 18px;
-    border: 1px solid rgba(88, 86, 214, 0.22);
-    border-radius: 16px;
-    background: linear-gradient(135deg, rgba(88, 86, 214, 0.10), rgba(0, 113, 227, 0.06));
+    padding: 15px 18px;
+    border: 1px solid rgba(0, 45, 91, 0.1);
+    border-radius: var(--radius-xl);
+    background: var(--card-bg);
+    box-shadow: 0 8px 24px rgba(0, 45, 91, 0.05);
     cursor: pointer;
     text-align: left;
-    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    transition: transform 0.15s var(--easing-smooth),
+        box-shadow 0.15s var(--easing-smooth),
+        border-color 0.15s var(--easing-smooth);
 }
 .ai-accommodation-banner:hover {
     transform: translateY(-1px);
-    border-color: rgba(88, 86, 214, 0.4);
-    box-shadow: 0 8px 22px rgba(88, 86, 214, 0.14);
+    border-color: rgba(0, 113, 227, 0.28);
+    box-shadow: 0 12px 30px rgba(0, 45, 91, 0.09);
 }
-.ai-accommodation-banner__icon { font-size: 1.4rem; line-height: 1; flex-shrink: 0; }
 .ai-accommodation-banner__text {
     flex: 1;
     min-width: 0;
@@ -409,38 +565,12 @@
 }
 .ai-accommodation-banner__arrow {
     flex-shrink: 0;
-    font-size: 1.2rem;
-    font-weight: 800;
-    color: #5856d6;
-}
-
-/* Vibe preset chips — one-tap mood setters for the whole plan. Multi-select;
-   the active state uses the brand indigo→blue wash to read as "on". */
-.ai-vibe-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 12px;
-    border: 1px solid rgba(88, 86, 214, 0.28);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.55);
-    color: var(--text-brand-navy);
-    font-size: 0.78rem;
+    font-size: 1.1rem;
     font-weight: 700;
-    letter-spacing: -0.01em;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: transform 0.12s ease, border-color 0.12s ease,
-        background 0.12s ease, box-shadow 0.12s ease;
+    color: var(--accent-blue-deep);
 }
-.ai-vibe-chip:hover:not(:disabled) {
-    transform: translateY(-1px);
-    border-color: rgba(88, 86, 214, 0.5);
+:root[data-theme='dark'] .ai-accommodation-banner {
+    background: rgba(28, 28, 30, 0.78);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
-.ai-vibe-chip--on {
-    border-color: transparent;
-    background: linear-gradient(135deg, #5856d6, #0071e3);
-    color: #fff;
-    box-shadow: 0 6px 16px rgba(88, 86, 214, 0.28);
-}
-.ai-vibe-chip:disabled { opacity: 0.5; cursor: default; }

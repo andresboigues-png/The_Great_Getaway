@@ -1032,7 +1032,6 @@ export const es: Translations = {
         generateBtn: '✦ Generar mi itinerario',
         generatingBtn: '⌛ Generando…',
         resetPrompt: 'Borrar indicaciones',
-        vibeLabel: 'Ambiente',
         vibeParty: 'Fiesta con amigos',
         vibeFamily: 'Para la familia',
         vibeAdventure: 'Aventura y senderismo',

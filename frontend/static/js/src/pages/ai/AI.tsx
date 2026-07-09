@@ -167,11 +167,13 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
         plan.itinerary,
     );
 
-    const sf =
-        "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif";
-
+    // No font override here on purpose — the page inherits the site body
+    // stack (index.css `body`: SF Pro **Text** + Segoe/Roboto/Helvetica/Arial
+    // fallbacks). The old inline override forced SF Pro **Display** and
+    // dropped every non-Apple fallback, which is why the planner's type read
+    // differently from the rest of the app.
     return (
-        <div style={{ fontFamily: sf }}>
+        <div>
             {/* Header */}
             <div className="pt-8 px-0 pb-6">
                 <div className="flex items-center gap-3 mb-[6px]">
@@ -209,7 +211,6 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         navigate('home');
                     }}
                 >
-                    <span className="ai-accommodation-banner__icon" aria-hidden="true">🛏️</span>
                     <span className="ai-accommodation-banner__text">{t('ai.accommodationBanner')}</span>
                     <span className="ai-accommodation-banner__arrow" aria-hidden="true">→</span>
                 </button>
@@ -244,53 +245,41 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                     {/* Dates — hidden via inline display so the .flex class
                         can't override [hidden]; stays mounted to keep input. */}
                     <div
-                        className="card glass p-5 flex-auto flex flex-col min-h-0"
+                        className="ai-form-card flex-auto min-h-0"
                         style={{ display: planSection === 'info' ? undefined : 'none' }}
                     >
-                        <h2
-                            className="card-title text-[0.85rem] uppercase tracking-[0.07em] text-accent-blue-deep mb-3.5"
-                        >
+                        <h2 className="ai-form-heading mb-3.5">
                             {t('ai.sectionTravelDates')}
                         </h2>
-                        <div className="flex flex-col gap-3">
-                            <div>
-                                <label
-                                    htmlFor="aiDateFrom"
-                                    className="block text-xs font-semibold text-secondary uppercase tracking-[0.06em] mb-[5px]"
-                                >
+                        <div className="flex flex-col gap-3.5">
+                            <div className="ai-field">
+                                <label htmlFor="aiDateFrom" className="ai-field__label">
                                     {t('ai.dateFromLabel')}
                                 </label>
                                 <input
                                     id="aiDateFrom"
                                     type="date"
-                                    className="glass-input w-full box-border"
+                                    className="ai-input"
                                     value={plan.dateFrom}
                                     onChange={(e) => plan.setDateFrom(e.target.value)}
                                 />
                             </div>
-                            <div>
-                                <label
-                                    htmlFor="aiDateTo"
-                                    className="block text-xs font-semibold text-secondary uppercase tracking-[0.06em] mb-[5px]"
-                                >
+                            <div className="ai-field">
+                                <label htmlFor="aiDateTo" className="ai-field__label">
                                     {t('ai.dateToLabel')}
                                 </label>
                                 <input
                                     id="aiDateTo"
                                     type="date"
-                                    className="glass-input w-full box-border"
+                                    className="ai-input"
                                     value={plan.dateTo}
                                     onChange={(e) => plan.setDateTo(e.target.value)}
                                     min={plan.dateFrom}
                                 />
                             </div>
                             <p
-                                style={{
-                                    margin: 0,
-                                    fontSize: '0.74rem',
-                                    color: plan.dateValidityErr ? '#a82424' : 'var(--text-secondary)',
-                                    lineHeight: 1.45,
-                                }}
+                                className="ai-field__hint"
+                                style={plan.dateValidityErr ? { color: '#a82424' } : undefined}
                             >
                                 {plan.dateValidityErr || t('ai.dateHint')}
                             </p>
@@ -305,81 +294,75 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         prefs, and the sights list is built off the
                         sightseeing prefs separately. */}
                     <div
-                        className="card glass p-5 flex-auto flex flex-col min-h-0 gap-[14px]"
+                        className="ai-form-card flex-auto min-h-0"
                         style={{ display: planSection === 'requisitos' ? undefined : 'none' }}
                     >
-                        <h2
-                            className="card-title text-[0.85rem] uppercase text-accent-blue-deep mb-0 tracking-wider"
-                        >
+                        <h2 className="ai-form-heading mb-4">
                             {t('ai.sectionRequirements')}
                         </h2>
-                        {/* Vibe presets — one tap steers the whole plan (places,
-                            pace, food, ordering). Multi-select; persists per-trip. */}
-                        <div className="ai-col-gap-6">
-                            <label className="text-[0.72rem] font-extrabold uppercase tracking-[0.08em] text-secondary">
-                                🎭 {t('ai.vibeLabel')}
-                            </label>
-                            <div className="flex flex-wrap gap-[7px]">
-                                {VIBES.map((v) => {
-                                    const on = plan.vibe.includes(v.id);
-                                    return (
-                                        <button
-                                            key={v.id}
-                                            type="button"
-                                            aria-pressed={on}
-                                            disabled={!tripIsEditable}
-                                            onClick={() => plan.toggleVibe(v.id)}
-                                            className={`ai-vibe-chip${on ? ' ai-vibe-chip--on' : ''}`}
-                                        >
-                                            <span aria-hidden="true">{v.emoji}</span>{' '}
-                                            {t(v.labelKey as Parameters<typeof t>[0])}
-                                        </button>
-                                    );
-                                })}
+                        <div className="flex flex-col gap-[18px]">
+                            {/* Vibe — one tap steers the whole plan (places, pace,
+                                food, ordering). Multi-select; persists per-trip.
+                                Label is intentionally the literal word "Vibe" in
+                                every language (per request), and options are
+                                text-only (no emoji). */}
+                            <div className="ai-field">
+                                <span className="ai-field__label">Vibe</span>
+                                <div className="ai-vibe-grid">
+                                    {VIBES.map((v) => {
+                                        const on = plan.vibe.includes(v.id);
+                                        return (
+                                            <button
+                                                key={v.id}
+                                                type="button"
+                                                aria-pressed={on}
+                                                disabled={!tripIsEditable}
+                                                onClick={() => plan.toggleVibe(v.id)}
+                                                className={`ai-vibe-option${on ? ' ai-vibe-option--on' : ''}`}
+                                            >
+                                                {t(v.labelKey as Parameters<typeof t>[0])}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
+                            <div className="ai-field">
+                                <label htmlFor="aiFoodContext" className="ai-field__label">
+                                    {t('ai.foodReqLabel')}
+                                </label>
+                                <textarea
+                                    id="aiFoodContext"
+                                    className="ai-input"
+                                    value={plan.foodContext}
+                                    onChange={plan.onFoodContextChange}
+                                    placeholder={t('ai.foodReqPlaceholder')}
+                                />
+                            </div>
+                            <div className="ai-field">
+                                <label htmlFor="aiSightseeingContext" className="ai-field__label">
+                                    {t('ai.sightsReqLabel')}
+                                </label>
+                                <textarea
+                                    id="aiSightseeingContext"
+                                    className="ai-input"
+                                    value={plan.sightseeingContext}
+                                    onChange={plan.onSightseeingContextChange}
+                                    placeholder={t('ai.sightsReqPlaceholder')}
+                                />
+                            </div>
+                            {/* The prompt persists per-trip until cleared here, so
+                                users can iterate instead of retyping from scratch.
+                                Only shown when there's something to clear. */}
+                            {tripIsEditable && plan.hasPrompt ? (
+                                <button
+                                    type="button"
+                                    onClick={plan.onResetPrompt}
+                                    className="ai-reset-prompt"
+                                >
+                                    {t('ai.resetPrompt')}
+                                </button>
+                            ) : null}
                         </div>
-                        <div className="ai-col-gap-6">
-                            <label
-                                htmlFor="aiFoodContext"
-                                className="text-[0.72rem] font-extrabold uppercase tracking-[0.08em] text-secondary"
-                            >
-                                🍽️ {t('ai.foodReqLabel')}
-                            </label>
-                            <textarea
-                                id="aiFoodContext"
-                                className="glass-input w-full resize-none text-[0.9rem] box-border min-h-[72px]"
-                                value={plan.foodContext}
-                                onChange={plan.onFoodContextChange}
-                                placeholder={t('ai.foodReqPlaceholder')}
-                            />
-                        </div>
-                        <div className="ai-col-gap-6">
-                            <label
-                                htmlFor="aiSightseeingContext"
-                                className="text-[0.72rem] font-extrabold uppercase tracking-[0.08em] text-secondary"
-                            >
-                                🏛️ {t('ai.sightsReqLabel')}
-                            </label>
-                            <textarea
-                                id="aiSightseeingContext"
-                                className="glass-input w-full resize-none text-[0.9rem] box-border min-h-[72px]"
-                                value={plan.sightseeingContext}
-                                onChange={plan.onSightseeingContextChange}
-                                placeholder={t('ai.sightsReqPlaceholder')}
-                            />
-                        </div>
-                        {/* The prompt persists per-trip until cleared here, so
-                            users can iterate instead of retyping from scratch.
-                            Only shown when there's something to clear. */}
-                        {tripIsEditable && plan.hasPrompt ? (
-                            <button
-                                type="button"
-                                onClick={plan.onResetPrompt}
-                                className="self-end text-[0.72rem] font-bold uppercase tracking-[0.08em] text-secondary hover:text-accent-blue-deep transition-colors"
-                            >
-                                {t('ai.resetPrompt')}
-                            </button>
-                        ) : null}
                     </div>
 
                     {/* Generate button (or role notice) */}

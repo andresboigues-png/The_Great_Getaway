@@ -54,7 +54,7 @@ export function AIUsageCard({
 
     return (
         <div
-            className="card glass p-[18px] border-[rgba(155,89,182,0.3)] flex-none"
+            className="ai-form-card flex-none"
         >
             <div
                 className="flex items-center justify-between mb-2"
@@ -184,9 +184,21 @@ export function AIUsageCard({
                             title={showKey ? t('ai.keyToggleHide') : t('ai.keyToggleShow')}
                             aria-label={t('ai.keyToggleAriaLabel')}
                             onClick={onToggleShowKey}
-                            className="absolute right-1.5 top-[50%] translate-y-[-50%] bg-transparent border-0 cursor-pointer py-1 px-2 text-[rgba(0,0,0,0.5)] text-[0.95rem] leading-none"
+                            className="absolute right-1.5 top-[50%] translate-y-[-50%] bg-transparent border-0 cursor-pointer p-1.5 text-[rgba(0,0,0,0.45)] leading-none inline-flex items-center justify-center"
                         >
-                            {showKey ? '🙈' : '👁'}
+                            {showKey ? (
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M3 3l18 18" />
+                                    <path d="M10.6 10.6a3 3 0 0 0 4.2 4.2" />
+                                    <path d="M9.9 5.1A9.8 9.8 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.3 4.2" />
+                                    <path d="M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 3.9-.8" />
+                                </svg>
+                            ) : (
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                                    <circle cx="12" cy="12" r="3" />
+                                </svg>
+                            )}
                         </button>
                     </div>
                     <div

@@ -1255,8 +1255,9 @@ export const en = {
         generatingBtn: '⌛ Generating…',
         // Clear the persisted per-trip prompt.
         resetPrompt: 'Reset prompt',
-        // Vibe presets — quick mood setters for the whole plan.
-        vibeLabel: 'Vibe',
+        // Vibe presets — quick mood setters for the whole plan. The "Vibe"
+        // heading is hard-coded in AI.tsx (same word in every locale); only
+        // the option labels below are translated.
         vibeParty: 'Party with friends',
         vibeFamily: 'Family-friendly',
         vibeAdventure: 'Adventure & trekking',

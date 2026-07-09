@@ -4,27 +4,27 @@
 // "foodie + nightlife" trip is a valid combination.
 //
 // `prompt` is the ENGLISH descriptor sent to the model (stable regardless of UI
-// locale); `labelKey` is the localised chip label. Keep them in sync by id.
+// locale); `labelKey` is the localised option label. Keep them in sync by id.
+// Options render text-only (no emoji), per the sharp/minimal design north-star.
 
 export interface Vibe {
     id: string;
-    emoji: string;
     labelKey: string;
     /** English phrase injected into the Gemini prompt. */
     prompt: string;
 }
 
 export const VIBES: Vibe[] = [
-    { id: 'party', emoji: '🎉', labelKey: 'ai.vibeParty', prompt: 'partying and going out with friends — lively bars, group-friendly spots, high energy' },
-    { id: 'family', emoji: '👪', labelKey: 'ai.vibeFamily', prompt: 'family-friendly with children — safe, easy-going, kid-appropriate activities and food' },
-    { id: 'adventure', emoji: '🥾', labelKey: 'ai.vibeAdventure', prompt: 'adventure and trekking — hikes, nature and active outdoor experiences' },
-    { id: 'foodie', emoji: '🍽️', labelKey: 'ai.vibeFoodie', prompt: 'a foodie trip — standout local restaurants, markets and culinary experiences take priority' },
-    { id: 'romantic', emoji: '💗', labelKey: 'ai.vibeRomantic', prompt: 'romantic for a couple — intimate, scenic and special spots' },
-    { id: 'relax', emoji: '🌿', labelKey: 'ai.vibeRelax', prompt: 'relaxed and slow-paced — recharge, fewer stops, calm and restful' },
-    { id: 'culture', emoji: '🏛️', labelKey: 'ai.vibeCulture', prompt: 'culture and history — museums, monuments, heritage and local traditions' },
-    { id: 'nightlife', emoji: '🌙', labelKey: 'ai.vibeNightlife', prompt: 'nightlife-focused — late dinners, bars, clubs and evening scenes' },
-    { id: 'budget', emoji: '🎒', labelKey: 'ai.vibeBudget', prompt: 'budget / backpacker — cheap eats, free or low-cost activities, great value' },
-    { id: 'luxury', emoji: '✨', labelKey: 'ai.vibeLuxury', prompt: 'luxury — upscale dining, premium experiences and refined spots' },
+    { id: 'party', labelKey: 'ai.vibeParty', prompt: 'partying and going out with friends — lively bars, group-friendly spots, high energy' },
+    { id: 'family', labelKey: 'ai.vibeFamily', prompt: 'family-friendly with children — safe, easy-going, kid-appropriate activities and food' },
+    { id: 'adventure', labelKey: 'ai.vibeAdventure', prompt: 'adventure and trekking — hikes, nature and active outdoor experiences' },
+    { id: 'foodie', labelKey: 'ai.vibeFoodie', prompt: 'a foodie trip — standout local restaurants, markets and culinary experiences take priority' },
+    { id: 'romantic', labelKey: 'ai.vibeRomantic', prompt: 'romantic for a couple — intimate, scenic and special spots' },
+    { id: 'relax', labelKey: 'ai.vibeRelax', prompt: 'relaxed and slow-paced — recharge, fewer stops, calm and restful' },
+    { id: 'culture', labelKey: 'ai.vibeCulture', prompt: 'culture and history — museums, monuments, heritage and local traditions' },
+    { id: 'nightlife', labelKey: 'ai.vibeNightlife', prompt: 'nightlife-focused — late dinners, bars, clubs and evening scenes' },
+    { id: 'budget', labelKey: 'ai.vibeBudget', prompt: 'budget / backpacker — cheap eats, free or low-cost activities, great value' },
+    { id: 'luxury', labelKey: 'ai.vibeLuxury', prompt: 'luxury — upscale dining, premium experiences and refined spots' },
 ];
 
 const BY_ID = new Map(VIBES.map((v) => [v.id, v]));

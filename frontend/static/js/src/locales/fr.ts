@@ -1037,7 +1037,6 @@ export const fr: Translations = {
         generateBtn: '✦ Générer mon itinéraire',
         generatingBtn: '⌛ Génération…',
         resetPrompt: 'Réinitialiser',
-        vibeLabel: 'Ambiance',
         vibeParty: 'Fête entre amis',
         vibeFamily: 'En famille',
         vibeAdventure: 'Aventure et randonnée',
