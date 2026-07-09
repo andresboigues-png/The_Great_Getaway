@@ -1,2 +1,0 @@
-var e=new Map;function t(t,n){if(n())return Promise.resolve();let r=e.get(t);return r||(r=new Promise((n,r)=>{let i=document.createElement(`script`);i.src=t,i.async=!0,i.onload=()=>n(),i.onerror=()=>{e.delete(t),i.remove(),r(Error(`CDN script failed to load: ${t}`))},document.head.appendChild(i)}),e.set(t,r)),r}function n(){return t(`https://cdn.jsdelivr.net/npm/chart.js`,()=>window.Chart!==void 0)}function r(){return t(`https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js`,()=>window.XLSX!==void 0)}export{r as n,n as t};
-//# sourceMappingURL=lazyCdn-BSDkKTUV.js.map

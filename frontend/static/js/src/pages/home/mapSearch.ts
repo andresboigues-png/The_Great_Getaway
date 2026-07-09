@@ -24,12 +24,17 @@ import { POI_CATEGORIES, type PoiCategory } from './poiCategories.js';
 import { esc } from '../../utils.js';
 import { t, tn, getIntlLocale } from '../../i18n.js';
 import { STATE, emit } from '../../state.js';
-import { EVENTS } from '../../constants.js';
+import { EVENTS, PAGES } from '../../constants.js';
 import { navigate } from '../../router.js';
 import { setSelectedDay } from './pathSelection.js';
 import { iconSvg } from '../../icons.js';
 import { searchInternal, type InternalSearchResults } from '../search/searchInternal.js';
+import { searchFeatures, type FeatureDef } from '../search/searchFeatures.js';
 import type { Trip } from '../../types';
+
+/** t() wants a typed key; the feature registry stores plain-string keys, so
+ *  resolve through this narrow cast (the keys are all real search.* keys). */
+const tKey = (key: string): string => t(key as Parameters<typeof t>[0]);
 
 /** What the map-search wiring needs from home.ts to do its job.
  *  All four helpers are inline closures inside renderHome that
@@ -92,7 +97,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
     // toggles — otherwise a keyboard/AT user driving the input can never reach
     // them without Tab-ing out, which breaks the combobox contract. All four
     // selectors are role="option" with ids, so they share one activedescendant.
-    const OPTION_SELECTOR = '.map-search-row, .map-internal-row, .map-places-toggle, .map-internal-showall';
+    const OPTION_SELECTOR = '.map-feature-row, .map-search-row, .map-internal-row, .map-places-toggle, .map-internal-showall';
 
     /** Pick the best POI category match for a place — used so the
      *  InfoWindow matches the colour/icon of the relevant pill if
@@ -142,6 +147,9 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
     const INTERNAL_LIMIT = 8;
     const internalShowAll = { trips: false, days: false, expenses: false };
     let lastInternal: InternalSearchResults | null = null;
+    // Matching app features/actions for the query (Import, Export, Settle up …)
+    // — the "front door" group rendered first so users find any capability.
+    let lastFeatures: FeatureDef[] = [];
     // null = Places request still in flight (group omitted for now);
     // [] = resolved with no places; non-empty = render the Places group.
     let lastPreds: google.maps.places.AutocompletePrediction[] | null = null;
@@ -393,6 +401,73 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         return html;
     };
 
+    /** One feature/action row — a "→" affordance signals it navigates/opens.
+     *  data-feature-id is read by the delegated click handler → runFeature. */
+    const featureRowHtml = (f: FeatureDef, i: number): string => `
+        <button type="button" class="map-feature-row" role="option" id="${OPTION_ID_PREFIX}f${i}" aria-selected="false" data-feature-id="${esc(f.id)}"
+            style="width:100%; text-align:left; padding:11px 16px; background:transparent; border:0; border-bottom:1px solid rgba(0,0,0,0.05); display:flex; gap:10px; align-items:center; cursor:pointer;">
+            <span style="flex-shrink:0; color:var(--accent-blue); display:inline-flex; align-items:center;">${iconSvg(f.icon, { size: 19 })}</span>
+            <div style="flex:1; min-width:0;">
+                <div style="font-weight:700; color:var(--text-brand-navy); font-size:0.88rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(tKey(f.labelKey))}</div>
+            </div>
+            <span style="flex-shrink:0; color:var(--accent-blue); font-size:1rem; font-weight:800; margin-left:6px;">&#8594;</span>
+        </button>`;
+
+    /** The Features group — rendered FIRST so an app-capability match (Import,
+     *  Export, Settle up …) is the most prominent hit. Capped at 5 rows. */
+    const buildFeaturesGroupHtml = (): string => {
+        if (!lastFeatures.length) return '';
+        const rows = lastFeatures.slice(0, 5).map((f, i) => featureRowHtml(f, i)).join('');
+        return groupWrap(t('search.featuresLabel'), rows, '', lastFeatures.length);
+    };
+
+    /** Dispatch a feature id to its action — navigation or a lazily-imported
+     *  modal. Trip-only features resolve the active trip (guaranteed present
+     *  since searchFeatures already filtered them out when no trip is open). */
+    const runFeature = (id: string): void => {
+        hideResults();
+        const activeTrip = (STATE.trips || []).find((tr) => tr.id === STATE.activeTripId) || null;
+        switch (id) {
+            case 'import': {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.ggtrip.zip,application/zip,application/x-zip-compressed';
+                input.style.display = 'none';
+                input.addEventListener('change', () => {
+                    const file = input.files && input.files[0];
+                    if (file) void import('../../modals.js').then((m) => m.importTripFromFile(file));
+                    input.remove();
+                });
+                document.body.appendChild(input);
+                input.click();
+                return;
+            }
+            case 'newTrip': void import('../../modals.js').then((m) => m.openNewTripModal()); return;
+            case 'addDay': void import('../../modals.js').then((m) => m.openAddDayModal()); return;
+            case 'download': if (activeTrip) void import('../../modals.js').then((m) => m.openDownloadChooserModal(activeTrip)); return;
+            case 'companions': if (activeTrip) void import('../../modals.js').then((m) => m.openCompanionPickerModal(activeTrip.id)); return;
+            case 'share': if (activeTrip) void import('../../modals.js').then((m) => m.openShareTripModal(activeTrip)); return;
+            case 'addExpense':
+                navigate(PAGES.EXPENSES);
+                void import('../expenses/tabState.js').then((m) => {
+                    m.setActiveExpensesTab('upload');
+                    m.setUploadMode('manual');
+                });
+                return;
+            case 'ai': navigate(PAGES.AI); return;
+            case 'budgets': navigate(PAGES.BUDGETS); return;
+            case 'insights': navigate(PAGES.INSIGHTS); return;
+            case 'settlement': navigate(PAGES.SETTLEMENT); return;
+            case 'todo': navigate(PAGES.TODO); return;
+            case 'templates': navigate(PAGES.TEMPLATES); return;
+            case 'collections': navigate(PAGES.COLLECTIONS); return;
+            case 'feed': navigate(PAGES.FEED); return;
+            case 'friends': navigate(PAGES.FRIENDS); return;
+            case 'settings': navigate(PAGES.SETTINGS); return;
+            case 'personalization': navigate(PAGES.PERSONALIZATION); return;
+        }
+    };
+
     /** Paint the unified panel from the two cached halves. */
     const paintResults = () => {
         // C5-B1: a fresh render supersedes any error still counting down to
@@ -410,12 +485,13 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         activeIndex = -1;
         searchInput.setAttribute('aria-expanded', 'true');
         searchInput.removeAttribute('aria-activedescendant');
+        const featuresHtml = buildFeaturesGroupHtml();
         const placesHtml = buildPlacesGroupHtml();
         const internalHtml = buildInternalGroupsHtml();
-        if (!placesHtml && !internalHtml) {
+        if (!featuresHtml && !placesHtml && !internalHtml) {
             // Genuine no-match only once Places has actually resolved
             // (lastPreds !== null); while it's pending we only paint early
-            // when there were internal hits, so don't flash "No matches".
+            // when there were internal/feature hits, so don't flash "No matches".
             if (lastPreds !== null) {
                 resultsEl.style.display = 'block';
                 resultsEl.innerHTML = `<div style="padding:14px 18px; color:var(--text-secondary); font-size:0.85rem;">${esc(t('map.noMatches'))}</div>`;
@@ -424,7 +500,8 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
             return;
         }
         resultsEl.style.display = 'block';
-        resultsEl.innerHTML = placesHtml + internalHtml;
+        // Features FIRST (the "front door"), then Places, then the internal groups.
+        resultsEl.innerHTML = featuresHtml + placesHtml + internalHtml;
         // C5-B2: reinstate the keyboard/SR highlight if the option it was on
         // survived this repaint, so a late Places response doesn't silently drop
         // the user's arrow-key selection (and the following Enter still fires).
@@ -439,7 +516,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         // lengths over-announced (e.g. "59 results" for ~13 rows). Count the
         // rendered option rows instead — it tracks the caps, Show-all state and
         // any expanded Places text results automatically.
-        const renderedCount = resultsEl.querySelectorAll('.map-search-row, .map-internal-row').length;
+        const renderedCount = resultsEl.querySelectorAll('.map-feature-row, .map-search-row, .map-internal-row').length;
         if (statusEl) statusEl.textContent = tn('map.resultsAnnounce', renderedCount);
     };
 
@@ -553,7 +630,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         const q = searchInput.value.trim();
         clearBtn.style.display = q ? 'inline-flex' : 'none';
         if (typingTimer) clearTimeout(typingTimer);
-        if (!q) { hideResults(); return; }
+        if (!q) { lastFeatures = []; hideResults(); return; }
         // Debounce 220ms — Autocomplete is cheap but a request per
         // keystroke is wasteful and noisy visually as predictions
         // fight to render.
@@ -575,6 +652,11 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
             placesExpanded = false;
             lastTextResults = null;
             placesLoading = false;
+            // App features/actions matching the query (sync, like internal).
+            lastFeatures = searchFeatures(q, {
+                hasActiveTrip: !!STATE.activeTripId,
+                label: tKey,
+            });
             // Smooth-first: hold the panel for a beat so Places + the internal
             // groups can appear together (avoids "Places snap in on top and
             // shove the rows down" reflow). The fallback paints the internal
@@ -582,7 +664,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
             // leaves the user staring at a blank input.
             lastPreds = null;
             const internalFallback = setTimeout(() => {
-                if (seq === searchSeq && hasInternalHits(lastInternal)) paintResults();
+                if (seq === searchSeq && (hasInternalHits(lastInternal) || lastFeatures.length)) paintResults();
             }, 320);
             // Bias predictions toward the current viewport so
             // "lisbon" while looking at Berlin doesn't surface
@@ -675,6 +757,12 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
             }
             return;
         }
+        // Feature/action row → run the feature (navigate or open a modal).
+        const featureRow = target?.closest('.map-feature-row') as HTMLElement | null;
+        if (featureRow) {
+            runFeature(featureRow.dataset.featureId || '');
+            return;
+        }
         // Internal hit → navigate within the app.
         const internalRow = target?.closest('.map-internal-row') as HTMLElement | null;
         if (internalRow) {
@@ -733,7 +821,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
             // Places is empty) rather than doing nothing — a user who types and
             // presses Enter shouldn't have to ArrowDown first to commit.
             const active = (resultsEl.querySelector('[aria-selected="true"]')
-                || resultsEl.querySelector('.map-search-row, .map-internal-row')) as HTMLElement | null;
+                || resultsEl.querySelector('.map-feature-row, .map-search-row, .map-internal-row')) as HTMLElement | null;
             if (active) {
                 e.preventDefault();
                 // C5-I2: the toggles are options too now — Enter on one runs its
@@ -741,6 +829,8 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
                 // resultsEl), rather than committing/navigating.
                 if (active.classList.contains('map-places-toggle') || active.classList.contains('map-internal-showall')) {
                     active.click();
+                } else if (active.classList.contains('map-feature-row')) {
+                    runFeature(active.dataset.featureId || '');
                 } else if (active.classList.contains('map-internal-row')) {
                     goToInternal(
                         active.dataset.internalKind || '',

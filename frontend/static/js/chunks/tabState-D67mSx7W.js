@@ -1,0 +1,2 @@
+import{n as e}from"./rolldown-runtime-Kw0j5LDr.js";var t=e({getActiveExpensesTab:()=>s,getExpensesTabVersion:()=>f,getUploadMode:()=>l,setActiveExpensesTab:()=>c,setUploadMode:()=>u,subscribeExpensesTab:()=>d}),n=`upload`,r=`manual`,i=new Set,a=0;function o(){a++,i.forEach(e=>e())}function s(){return n}function c(e){n!==e&&(n=e,o())}function l(){return r}function u(e){r!==e&&(r=e,o())}function d(e){return i.add(e),()=>{i.delete(e)}}function f(){return a}export{u as a,c as i,f as n,d as o,l as r,t as s,s as t};
+//# sourceMappingURL=tabState-D67mSx7W.js.map
