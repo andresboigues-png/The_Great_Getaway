@@ -238,7 +238,6 @@ export function avatar(
     // browser cuts that to whatever's actually on screen.
     const inner = user?.picture
         ? `<img src="${esc(user.picture)}" alt="" referrerpolicy="no-referrer" loading="lazy" decoding="async" width="${size}" height="${size}"
-            onerror="this.outerHTML=this.dataset.fallback;"
             data-fallback="${esc(fallback)}"
             style="width:${size}px; height:${size}px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid rgba(255,255,255,0.6); box-shadow: 0 2px 8px rgba(0,45,91,0.12);">`
         : fallback;

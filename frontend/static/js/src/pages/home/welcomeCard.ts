@@ -30,7 +30,7 @@ export function buildEmptyStateHtml(displayImages: string[], displayQuotes: stri
         </div>
 
         <div class="card glass cover-card cover-card--lg">
-            <img id="homeHeroImg" src="${displayImages[0] || ''}" alt="" style="width: 100%; height: 100%; object-fit: cover; transition: opacity 0.8s ease-in-out;" onerror="this.style.display='none'">
+            <img id="homeHeroImg" src="${displayImages[0] || ''}" alt="" style="width: 100%; height: 100%; object-fit: cover; transition: opacity 0.8s ease-in-out;" data-hide-on-error>
             <div class="cover-card__gradient"></div>
             <div class="cover-card__content" style="display: flex; align-items: flex-end; justify-content: space-between;">
                 <p id="homeQuote" class="cover-card__quote" style="max-width: 60%;">

@@ -57,6 +57,27 @@ export function wireNavChrome(): void {
     // click() for the entire page in a single delegated listener.
     wireRoleButtonKeys(document.body);
 
+    // CSP-safe image-error fallbacks. The app runs under a nonce-based CSP,
+    // which ALWAYS blocks inline `onerror=` handlers (nonces don't apply to
+    // event-handler attributes) — so any `<img onerror="…">` silently fails
+    // AND logs a "inline event handler violates CSP" console violation. One
+    // delegated CAPTURE-phase listener replaces them all (img `error` events
+    // don't bubble, but they DO capture): an img with `data-fallback` swaps
+    // itself for that HTML; one with `data-hide-on-error` just hides.
+    document.addEventListener(
+        'error',
+        (e) => {
+            const el = e.target;
+            if (!(el instanceof HTMLImageElement)) return;
+            if (el.dataset.fallback != null) {
+                el.outerHTML = el.dataset.fallback;
+            } else if (el.dataset.hideOnError != null) {
+                el.style.display = 'none';
+            }
+        },
+        true,
+    );
+
     // Warm the bottom-tab page chunks on idle so the first swipe/tap to each
     // tab doesn't stall on a chunk fetch (self-defers via requestIdleCallback).
     preloadBottomTabChunks();
