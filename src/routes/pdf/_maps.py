@@ -348,7 +348,10 @@ def _fetch_day_pin_map(
     try:
         params = [
             ("center", f"{lat},{lng}"),
-            ("zoom", "12"),
+            # Zoom 14 (was 12) — a tighter neighbourhood framing on the day's
+            # anchor so the per-day map opens zoomed in on where you actually
+            # are, not a wide regional view.
+            ("zoom", "14"),
             ("size", "800x320"),
             ("scale", "2"),
             ("maptype", "roadmap"),

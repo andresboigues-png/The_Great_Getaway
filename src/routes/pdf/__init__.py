@@ -622,6 +622,14 @@ def _sec_days(b: _PdfBuild) -> None:
     rl, styles, tr, story, opt = b.rl, b.styles, b.tr, b.story, b.opt
     page_w, margin_lr, trip_row = b.page_w, b.margin_lr, b.trip_row
     days_renderable, ai_plan_extra = b.days_renderable, b.ai_plan_extra
+    # Resolve {type:'place',placeId} plan blocks against the trip's marked
+    # places (place DATA lives in marked_places_json, keyed by placeId; the
+    # block only stores the id + ordering).
+    marked_by_id = {
+        p.get("placeId"): p
+        for p in (b.marked_places or [])
+        if isinstance(p, dict) and p.get("placeId")
+    }
     # ── DAYS ──
     # days_renderable was computed earlier (Day 0 anchor + empty
     # days dropped) so the cover stats / TOC see the same count.
@@ -730,6 +738,10 @@ def _sec_days(b: _PdfBuild) -> None:
         for day in days_renderable:
             if not isinstance(day, dict):
                 continue
+            # Rich note/place block layout (from the day-plan block editor).
+            # Parsed once here; _day_card renders it in order (falling back to
+            # the flat morning/afternoon/evening text for legacy days).
+            day["_plan_blocks"] = _safe_json(day.get("plan_blocks_json"), None)
             # Per-day mini-map (opt-in), bounded per export.
             day_map_png = None
             if day_pins_on and _day_maps_left > 0:
@@ -767,6 +779,7 @@ def _sec_days(b: _PdfBuild) -> None:
                     day_map_png,
                     tr,
                     day_photos=day_photos,
+                    marked_by_id=marked_by_id,
                 )
             )
 
@@ -1436,7 +1449,8 @@ def export_trip_pdf(trip_id: str):
         # layer too (see PDF builder's ai_plan_extra branch).
         cursor.execute(
             "SELECT id, day_number, date, name, morning, afternoon, "
-            "       evening, notes, tip, lat, lng, photos "  # PDF-4: per-day photos
+            "       evening, notes, tip, lat, lng, photos, "  # PDF-4: per-day photos
+            "       plan_blocks_json "  # rich note/place block layout for the PDF
             "FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL "
             "ORDER BY day_number ASC, date ASC",
             (trip_id,),

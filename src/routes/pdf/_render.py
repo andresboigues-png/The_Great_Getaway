@@ -19,6 +19,7 @@ registration global) and is imported here for ``_esc`` / ``_parse_day_slot``.
 from __future__ import annotations
 
 import io
+import re
 from typing import Any
 
 from observability import get_logger
@@ -317,6 +318,73 @@ def _styles(rl):
 
 _WHY_RE = None  # lazily-compiled regex set inside _parse_day_slot
 _FACT_RE = None
+
+
+def _md_inline(text: Any) -> str:
+    """Convert the day-plan block editor's lite-markdown to reportlab inline
+    markup — **bold**→<b>, _italic_→<i>, ~underline~→<u>. Escapes <>& and
+    strips emoji FIRST (via _esc), so the `**`/`_`/`~` markers survive the
+    escape and only real formatting becomes tags (no injection: user `<b>`
+    already became `&lt;b&gt;`)."""
+    s = _esc(text)
+    s = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
+    # italic: single _ with word-boundary guards so mid_word underscores and
+    # snake_case survive untouched.
+    s = re.sub(r"(?<!\w)_(.+?)_(?!\w)", r"<i>\1</i>", s)
+    s = re.sub(r"~(.+?)~", r"<u>\1</u>", s)
+    return s
+
+
+def _md_block_flowables(text: Any, rl, styles) -> list:
+    """Render a markdown-lite plan-block text as reportlab flowables: inline
+    bold/italic/underline honored, `- `/`* ` lines rendered as bullets, blank
+    lines dropped. Mirrors the block editor's rich-text rendering so the PDF
+    day plan reads the same as the on-screen one."""
+    flows: list = []
+    if not text:
+        return flows
+    for line in str(text).split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped[:2] in ("- ", "* "):
+            flows.append(rl.Paragraph(f"•&nbsp;&nbsp;{_md_inline(stripped[2:])}", styles["body"]))
+        else:
+            flows.append(rl.Paragraph(_md_inline(stripped), styles["body"]))
+    return flows
+
+
+def _place_block_flowables(place: dict, rl, styles, page_w, margin_lr) -> list:
+    """Render a {type:'place'} plan block as a compact bordered place chip —
+    name (bold) + ★ rating on one line, address muted below. The why/fact
+    prose lives in the adjacent note block, so the card stays a clean visual
+    anchor (rating + location) rather than duplicating the reasoning."""
+    name = str(place.get("verifiedName") or place.get("name") or "").strip()
+    if not name:
+        return []
+    head = f"<b>{_esc(name)}</b>"
+    rating = place.get("rating")
+    if isinstance(rating, (int, float)):
+        head += f'&nbsp;&nbsp;<font color="{_BRAND_BLUE}">★ {rating:.1f}</font>'
+    inner: list = [rl.Paragraph(head, styles["body"])]
+    addr = str(place.get("address") or "").strip()
+    if addr:
+        inner.append(rl.Paragraph(_esc(addr), styles["muted"]))
+    card = rl.Table([[inner]], colWidths=[page_w - 2 * margin_lr])
+    card.setStyle(
+        rl.TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), rl.colors.HexColor("#f7f9ff")),
+                ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor("#dbe6fb")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    return [card, rl.Spacer(1, 0.15 * rl.cm)]
 
 
 def _parse_day_slot(raw: str) -> list[dict] | None:
@@ -1096,6 +1164,7 @@ def _day_card(
     day_map_png: bytes | None,
     tr: _T,
     day_photos: list[bytes] | None = None,
+    marked_by_id: dict | None = None,
 ):
     """Render one day as a flat list of flowables (PDF-1 fix).
 
@@ -1208,12 +1277,33 @@ def _day_card(
             # PDF with a missing map and zero trace.
             logger.warning("PDF day-map image render failed", exc_info=True)
 
+    # Rich block layout (from the day-plan block editor): render each slot's
+    # blocks IN ORDER — note text (with bold/italic/underline/bullets) then
+    # place chips — so the PDF matches the on-screen "note, place, note,
+    # place" structure with full formatting. Falls back to the flat-text
+    # parser below for days without planBlocks (legacy / hand-typed notes).
+    plan_blocks = day.get("_plan_blocks") if isinstance(day.get("_plan_blocks"), dict) else None
     any_slot = False
     for slot_name, slot_label in (
         ("morning", tr("slot_morning")),
         ("afternoon", tr("slot_afternoon")),
         ("evening", tr("slot_evening")),
     ):
+        blocks = plan_blocks.get(slot_name) if plan_blocks else None
+        if isinstance(blocks, list) and blocks:
+            any_slot = True
+            body.append(rl.Paragraph(slot_label, styles["slotLabel"]))
+            for blk in blocks:
+                if not isinstance(blk, dict):
+                    continue
+                if blk.get("type") == "text":
+                    body.extend(_md_block_flowables(blk.get("text"), rl, styles))
+                elif blk.get("type") == "place":
+                    place = (marked_by_id or {}).get(blk.get("placeId"))
+                    if isinstance(place, dict):
+                        body.extend(_place_block_flowables(place, rl, styles, page_w, margin_lr))
+            body.append(rl.Spacer(1, 0.15 * rl.cm))
+            continue
         val = day.get(slot_name)
         if not (isinstance(val, str) and val.strip()):
             continue

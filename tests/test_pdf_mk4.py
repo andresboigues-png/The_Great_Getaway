@@ -760,3 +760,51 @@ def test_pdf_ai_sights_carry_why_and_fact():
     assert "builtin1248" in txt, "sight #1 fact must render in the PDF"
     assert "seasidestroll" in txt, "sight #2 why must render in the PDF"
     assert "oldestpier" in txt, "sight #2 fact must render in the PDF"
+
+
+def test_pdf_plan_blocks_render_bold_and_place_cards():
+    """User request 2026-07-09: the day PDF must honor the block editor's
+    formatting (bold via **markdown**) AND render the note→place structure,
+    resolving {type:'place'} blocks against marked_places into a place card
+    (name + rating + address). Pre-fix it rendered only flat text and printed
+    markdown markers literally. Single-token markers dodge pypdf spacing."""
+    marked = [
+        {
+            "placeId": "p_belem",
+            "name": "BelemTower",
+            "verifiedName": "BelemTower",
+            "rating": 4.5,
+            "address": "AvenidaLisboaCity",
+        }
+    ]
+    blocks = {
+        "morning": [
+            {"type": "text", "text": "🥐 **BreakfastHdr**\n- CafeUno\n  Why: cozyspot"},
+            {"type": "place", "placeId": "p_belem"},
+        ]
+    }
+    t = _base_trip(
+        marked_places_json=json.dumps(marked),
+        days=[
+            {
+                "id": "d1",
+                "day_number": 1,
+                "date": "2026-04-01",
+                "name": "DayOne",
+                "morning": "",
+                "afternoon": "",
+                "evening": "",
+                "plan_blocks_json": json.dumps(blocks),
+            }
+        ],
+    )
+    txt = _pdf_text(_build_trip_pdf(t, {"includeDays": True}))
+    # Bold markdown is RENDERED, not printed literally.
+    assert "BreakfastHdr" in txt, "note header must render"
+    assert "**" not in txt, "markdown ** must become bold, not literal asterisks"
+    # Note bullet + why line survive.
+    assert "CafeUno" in txt
+    assert "cozyspot" in txt
+    # The place block resolved to a card with the marked-place name + address.
+    assert "BelemTower" in txt, "place block must resolve to a place card"
+    assert "AvenidaLisboaCity" in txt, "place card shows the address"
