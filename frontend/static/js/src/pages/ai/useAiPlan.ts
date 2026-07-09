@@ -546,27 +546,51 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
             // split always yields index 0 — the `!` is sound and type-only
             // (satisfies noUncheckedIndexedAccess without a runtime branch).
             const dayDate: string = dayInfo.date || new Date().toISOString().split('T')[0]!;
-            // Schema fork: the new food/sights split stores each meal
-            // (one restaurant) as the morning/afternoon/evening plan
-            // text, and the sights list as the day's `tip` field so the
-            // home day card surfaces it under "Tip / Notes" without a
-            // tripDays schema migration. Legacy schema keeps the
-            // existing flatten-slot path so cached aiPlan blobs still
-            // accept cleanly.
+            // Schema fork: the new food/sights split stores each meal (one
+            // restaurant) as the morning/afternoon/evening plan text, and the
+            // day's sights INLINE in those same slots (round-robin), so each
+            // slot's notes read as "the meal + the sights you'll see then",
+            // each with its Why / Fun fact. Legacy schema keeps the existing
+            // flatten-slot path so cached aiPlan blobs still accept cleanly.
             const usesFoodSights = isFoodSightsSchema(dayInfo);
+            // User report 2026-07-09: sights showed as cards but their whys /
+            // curiosities never made it into the plan TEXT (only the meals
+            // did), so the written notes read food-only. Distribute the day's
+            // sights across the three slots — the SAME round-robin the card
+            // auto-push below uses — and fold each slot's sights into its plan
+            // text alongside the meal.
+            const SIGHT_SLOTS = ['morning', 'afternoon', 'evening'] as const;
+            const daySights: AiPlanItem[] =
+                usesFoodSights && Array.isArray(dayInfo.sights) ? (dayInfo.sights as AiPlanItem[]) : [];
+            const sightsBySlot: Record<'morning' | 'afternoon' | 'evening', AiPlanItem[]> = {
+                morning: [],
+                afternoon: [],
+                evening: [],
+            };
+            daySights.forEach((s, i) => sightsBySlot[SIGHT_SLOTS[i % 3]!].push(s));
+            // Meal text + that slot's sightseeing list, blank-line separated
+            // (either half may be empty). flattenSightsForTip emits the same
+            // "- name / Why: / Fun fact:" shape the meal uses.
+            const joinSlot = (mealText: string, slotSights: AiPlanItem[]): string =>
+                [mealText, flattenSightsForTip(slotSights)].filter(Boolean).join('\n\n');
             // The meal/sights fields are `unknown` on AiDayPlan (LLM JSON);
             // the slot helpers below narrow defensively, so the casts to
             // their declared param types are safe (type-only).
             const planMorning = usesFoodSights
-                ? flattenMealForTextarea(dayInfo.breakfast as AiPlanItem, '🥐 Breakfast')
+                ? joinSlot(flattenMealForTextarea(dayInfo.breakfast as AiPlanItem, '🥐 Breakfast'), sightsBySlot.morning)
                 : flattenSlotForTextarea(dayInfo.morning);
             const planAfternoon = usesFoodSights
-                ? flattenMealForTextarea(dayInfo.lunch as AiPlanItem, '🥗 Lunch')
+                ? joinSlot(flattenMealForTextarea(dayInfo.lunch as AiPlanItem, '🥗 Lunch'), sightsBySlot.afternoon)
                 : flattenSlotForTextarea(dayInfo.afternoon);
             const planEvening = usesFoodSights
-                ? flattenMealForTextarea(dayInfo.dinner as AiPlanItem, '🍷 Dinner')
+                ? joinSlot(flattenMealForTextarea(dayInfo.dinner as AiPlanItem, '🍷 Dinner'), sightsBySlot.evening)
                 : flattenSlotForTextarea(dayInfo.evening);
-            const tip = usesFoodSights ? flattenSightsForTip(dayInfo.sights as AiPlanItem[]) : '';
+            // Sights now live INLINE in the slot text above, so the separate
+            // day tip is cleared — keeps each sight's why/fact in one place and
+            // avoids a duplicate 'Sightseeing:' block on the home card / share
+            // / PDF. Still assigned unconditionally (C2-B1) so a re-run wipes
+            // any prior run's stale tip.
+            const tip = '';
 
             // Reuse the existing day at this position if there is one (keeps its
             // id + user-authored content); otherwise append a fresh day.
@@ -591,13 +615,12 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                 // otherwise). Sending null explicitly wipes plan_blocks_json;
                 // the editor rebuilds blocks from this text on next open.
                 prior.planBlocks = null;
-                // C2-B1: reassign the sightseeing summary UNCONDITIONALLY so a
-                // re-run whose new day has empty sights clears the prior run's
-                // stale 'Sightseeing: …' text. Guarding on `if (tip)` (tip is ''
-                // for an empty sights list) left the FIRST run's summary on the
-                // reused day row — surfacing on the public share page. The plan
-                // slots above are already overwritten unconditionally; tip must
-                // match. `''` serialises through upsertDay and clears the column.
+                // C2-B1: reassign the tip UNCONDITIONALLY (tip is now always ''
+                // for the food/sights schema — sights moved inline into the
+                // slot text above) so a re-run clears any prior run's stale
+                // 'Sightseeing: …' tip that would otherwise linger on the
+                // reused day row + the public share page. `''` serialises
+                // through upsertDay and clears the column.
                 prior.tip = tip;
                 if (typeof dayInfo.lat === 'number') prior.lat = dayInfo.lat;
                 if (typeof dayInfo.lon === 'number') prior.lng = dayInfo.lon;
