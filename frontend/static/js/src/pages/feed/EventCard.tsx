@@ -182,10 +182,31 @@ export function EventCard(props: EventCardProps) {
                     data-trip-id={ev.trip.id}
                     onClick={() => void viewArchivedDetails(ev.trip!.id)}
                 >
-                    <span
-                        className="shrink-0 text-[#5856d6] inline-flex"
-                        dangerouslySetInnerHTML={{ __html: iconSvg('map', { size: 24 }) }}
-                    />
+                    {/* E3-I4: cover thumbnail cue when the trip has one, so a
+                        striking cover reads at a glance; falls back to the
+                        generic map glyph (matches the ExploreCard cover/gradient
+                        pattern, kept compact to respect the minimal card). */}
+                    {ev.trip.coverUrl ? (
+                        <span
+                            className="shrink-0"
+                            style={{
+                                width: 44,
+                                height: 44,
+                                borderRadius: 10,
+                                backgroundImage: `url('${ev.trip.coverUrl}')`,
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center',
+                                border: '1px solid var(--border-subtle)',
+                            }}
+                            role="img"
+                            aria-label=""
+                        />
+                    ) : (
+                        <span
+                            className="shrink-0 text-[#5856d6] inline-flex"
+                            dangerouslySetInnerHTML={{ __html: iconSvg('map', { size: 24 }) }}
+                        />
+                    )}
                     <div className="flex-1 min-w-0">
                         <div
                             className="font-extrabold text-brand-navy text-[0.98rem] leading-[1.25] overflow-hidden overflow-ellipsis whitespace-nowrap"

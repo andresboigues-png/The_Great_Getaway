@@ -136,7 +136,7 @@ export function BatchUpload() {
             return;
         }
         try {
-            const { added, skipped, noRateCurrencies, truncatedCount } = runBatchImport(parsed.rows, formatVal);
+            const { added, skipped, noRateCurrencies, truncatedCount, nonNormalizedSplitRows } = runBatchImport(parsed.rows, formatVal);
             let text = t('upload.successImported', { count: added });
             if (skipped.length > 0) {
                 text = `${text} ${t('upload.skippedRows', { count: skipped.length, rows: skipped.join(', ') })}`;
@@ -158,6 +158,13 @@ export function BatchUpload() {
                     0,
                 );
                 text = `${text} ${t('upload.noRateImport', { count: noRateRows, currency: noRateCodes.join(', ') })}`;
+            }
+            // B2-I4: honest signal for imported rows whose explicit splits
+            // cell didn't sum to 100%. The reducer normalized them by their
+            // actual sum, so they imported fine — but tell the user which
+            // rows were re-weighted rather than leaving it invisible.
+            if (nonNormalizedSplitRows.length > 0) {
+                text = `${text} ${t('upload.nonNormalizedSplits', { count: nonNormalizedSplitRows.length, rows: nonNormalizedSplitRows.join(', ') })}`;
             }
             // Amber when nothing imported but rows need a manual EUR amount;
             // red on a pure invalid-data failure; green otherwise.

@@ -67,7 +67,8 @@ import {
     addTripPhoto, addTripDocument,
     removeTripPhoto, removeTripDocument,
 } from '../../tripMedia.js';
-import { formatDayDate, showLiquidAlert } from '../../utils.js';
+import { formatDayDate, showLiquidAlert, generateId } from '../../utils.js';
+import { canEdit } from '../../permissions.js';
 import { t, formatHourLabel } from '../../i18n.js';
 import { navigate } from '../../router.js';
 import { openReactModal } from '../reactModal.js';
@@ -201,6 +202,14 @@ export function DayDetailModal({
     // start collapsed so the plan owns the full width until the user
     // asks for notes/checklist/photos/documents.
     const [drawerOpen, setDrawerOpen] = useState<DrawerView>('');
+    // C1-I3: which slot currently owns keyboard focus inside a text block,
+    // or null when nothing is focused. The format toolbar is DISABLED for a
+    // slot until one of its blocks is focused, so a tap can never fall back
+    // to formatting the slot's ambiguous "last" block the user isn't looking
+    // at (resolveSlotEl's fallback path). The toolbar buttons preventDefault
+    // on pointer/mousedown, so clicking one never blurs the editable — this
+    // stays truthy across a format action.
+    const [focusedSlot, setFocusedSlot] = useState<Slot | null>(null);
     // Shortlist filters: live search text + the Phase G v3 category
     // pill set (empty set = "All" — no dedicated All pill needed).
     const [filterQuery, setFilterQuery] = useState('');
@@ -785,14 +794,38 @@ export function DayDetailModal({
     // and shows up consistently on every day's modal. Full add/edit/
     // delete stays on the Trip Hub checklist modal to keep one editing
     // surface.
+    const checklistAddRef = useRef<HTMLInputElement>(null);
     const onToggleChecklistItem = (item: TripChecklistItem) => {
-        if (!trip) return;
+        if (!trip || !canEdit(trip)) return;
         item.done = !item.done;
         emit('state:changed');
         void upsertTrip(trip);
         // The re-render repaints this row's toggle + strike-through AND
         // the "X of Y left" summary chip via the i18n key (MK6 P3: the
         // chip must not revert to English on toggle in es/fr/pt).
+        forceRender();
+    };
+    // C4-I6: inline quick-add so the user can jot a prep task without the
+    // "Manage" modal hop that closes this day. Mirrors ChecklistModal.addItem
+    // (same trip.checklist array + upsertTrip media write); edit/delete stay
+    // on the Manage surface to keep one full editing surface and this panel
+    // lean. Editor-gated — a viewer never sees the form.
+    const onAddChecklistItem = () => {
+        if (!trip || !canEdit(trip)) return;
+        const input = checklistAddRef.current;
+        const body = (input?.value || '').trim();
+        if (!body) return;
+        (trip.checklist ||= []).push({
+            id: generateId(),
+            body: body.slice(0, 200),
+            done: false,
+            created_at: new Date().toISOString(),
+        } as TripChecklistItem);
+        if (input) input.value = '';
+        emit('state:changed');
+        void upsertTrip(trip);
+        // Keep focus in the field so several tasks can be added in a row.
+        input?.focus();
         forceRender();
     };
 
@@ -1057,9 +1090,15 @@ export function DayDetailModal({
         );
     };
 
-    const fmtBtn = (label: string, glyph: ReactNode, onClick: () => void) => (
+    const fmtBtn = (label: string, glyph: ReactNode, onClick: () => void, disabled = false) => (
+        // C1-I3: `disabled` is set when no text block in the toolbar's slot is
+        // focused — a native-disabled button can't fire click/pointerdown, so
+        // the ambiguous resolveSlotEl "last block" fallback is unreachable from
+        // the toolbar; the user must focus a block first.
         <button type="button" className="plan-md-toolbar__btn" aria-label={label} title={label}
-            onPointerDown={(e) => { e.preventDefault(); captureSelection(); }}
+            disabled={disabled}
+            style={disabled ? { opacity: 0.4, cursor: 'default' } : undefined}
+            onPointerDown={(e) => { e.preventDefault(); if (!disabled) captureSelection(); }}
             onMouseDown={(e) => e.preventDefault()}
             onClick={onClick}>
             {glyph}
@@ -1102,7 +1141,19 @@ export function DayDetailModal({
                                 blockRteRefs.current.delete(b.k);
                             }
                         }}
-                        onFocus={(e) => { focusedBlockEl.current = e.currentTarget; }}
+                        onFocus={(e) => { focusedBlockEl.current = e.currentTarget; setFocusedSlot(slot); }}
+                        onBlur={(e) => {
+                            // Clear the toolbar-enable flag when focus leaves the
+                            // block editables. Toolbar buttons preventDefault their
+                            // pointer/mousedown so a format tap never blurs the
+                            // editable; a real blur (tab away, click elsewhere) means
+                            // no block is focused, so the toolbar disables until the
+                            // user taps back into a block.
+                            if (focusedBlockEl.current === e.currentTarget) {
+                                focusedBlockEl.current = null;
+                                setFocusedSlot(null);
+                            }
+                        }}
                         onBeforeInput={(e) => {
                             // Server caps each block at MAX_BLOCK_LEN chars of the
                             // SERIALISED markdown (day_writes.py _MAX_PLAN_BLOCK_TEXT),
@@ -1207,10 +1258,14 @@ export function DayDetailModal({
                 {/* Editor: focused-block toolbar + reorderable block list. */}
                 <div className="plan-editor" onPointerMove={onGripMove} onPointerUp={onGripUp}
                     onPointerCancel={onGripUp}>
-                    <div className="plan-md-toolbar" role="toolbar" aria-label={t('dayDetail.fmtToolbarAria')}>
-                        {fmtBtn(t('dayDetail.fmtBoldAria'), <strong>B</strong>, () => execFmt(slot, 'bold'))}
-                        {fmtBtn(t('dayDetail.fmtItalicAria'), <em>I</em>, () => execFmt(slot, 'italic'))}
-                        {fmtBtn(t('dayDetail.fmtUnderlineAria'), <u>U</u>, () => execFmt(slot, 'underline'))}
+                    <div className="plan-md-toolbar" role="toolbar" aria-label={t('dayDetail.fmtToolbarAria')}
+                        aria-disabled={focusedSlot !== slot}>
+                        {/* C1-I3: the toolbar is inert until a text block IN THIS
+                            slot is focused, so a format tap can never toggle the
+                            slot's ambiguous "last" block the user isn't looking at. */}
+                        {fmtBtn(t('dayDetail.fmtBoldAria'), <strong>B</strong>, () => execFmt(slot, 'bold'), focusedSlot !== slot)}
+                        {fmtBtn(t('dayDetail.fmtItalicAria'), <em>I</em>, () => execFmt(slot, 'italic'), focusedSlot !== slot)}
+                        {fmtBtn(t('dayDetail.fmtUnderlineAria'), <u>U</u>, () => execFmt(slot, 'underline'), focusedSlot !== slot)}
                         {fmtBtn(
                             t('dayDetail.fmtBulletAria'),
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -1220,6 +1275,7 @@ export function DayDetailModal({
                                 <rect x="8.5" y="17" width="11.5" height="2" rx="1" />
                             </svg>,
                             () => execFmt(slot, 'insertUnorderedList'),
+                            focusedSlot !== slot,
                         )}
                         {fmtBtn(
                             // Clear formatting — strips bold/italic/underline from the
@@ -1231,6 +1287,7 @@ export function DayDetailModal({
                                 <path d="M6 5h11" /><path d="M11 5 8 19" /><path d="m15 14 5 5" /><path d="m20 14-5 5" />
                             </svg>,
                             () => execFmt(slot, 'removeFormat'),
+                            focusedSlot !== slot,
                         )}
                     </div>
                     <div className="plan-blocks">
@@ -1427,6 +1484,17 @@ export function DayDetailModal({
         <div style={{ background: 'rgba(212,160,23,0.04)', padding: 'var(--space-5)', borderRadius: 24, border: '1.5px dashed rgba(212,160,23,0.32)' }}>
             <h4 className="text-tag" style={{ '--accent': '212,160,23' } as CSSProperties}>{t('dayDetail.checklistHeading')}</h4>
             <p style={{ margin: '6px 0 8px', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>{t('dayDetail.checklistEmpty')}</p>
+            {trip && canEdit(trip) && (
+                <form style={{ display: 'flex', gap: 8, marginTop: 4 }}
+                    onSubmit={(e) => { e.preventDefault(); onAddChecklistItem(); }}>
+                    <input ref={checklistAddRef} type="text" maxLength={200} autoComplete="off"
+                        placeholder={t('dayDetail.checklistAddPlaceholder')}
+                        style={{ flex: 1, minWidth: 0, padding: '8px 12px', border: '1px solid rgba(212,160,23,0.28)', borderRadius: 999, fontSize: '0.85rem', fontFamily: 'inherit', background: 'white', color: '#002d5b' }} />
+                    <button type="submit" className="btn-primary" style={{ padding: '8px 16px', borderRadius: 999, fontSize: '0.8rem' }}>
+                        {t('dayDetail.checklistAddBtn')}
+                    </button>
+                </form>
+            )}
         </div>
     ) : (
         <div style={{ background: 'rgba(212,160,23,0.04)', padding: 'var(--space-5)', borderRadius: 24, border: '1.5px solid rgba(212,160,23,0.22)' }}>
@@ -1437,6 +1505,17 @@ export function DayDetailModal({
                     {t('dayDetail.checklistRemaining', { remaining: checklistRemaining, total: checklistItems.length })}
                 </span>
             </div>
+            {trip && canEdit(trip) && (
+                <form style={{ display: 'flex', gap: 8, margin: '2px 0 8px' }}
+                    onSubmit={(e) => { e.preventDefault(); onAddChecklistItem(); }}>
+                    <input ref={checklistAddRef} type="text" maxLength={200} autoComplete="off"
+                        placeholder={t('dayDetail.checklistAddPlaceholder')}
+                        style={{ flex: 1, minWidth: 0, padding: '8px 12px', border: '1px solid rgba(212,160,23,0.28)', borderRadius: 999, fontSize: '0.85rem', fontFamily: 'inherit', background: 'white', color: '#002d5b' }} />
+                    <button type="submit" className="btn-primary" style={{ padding: '8px 16px', borderRadius: 999, fontSize: '0.8rem' }}>
+                        {t('dayDetail.checklistAddBtn')}
+                    </button>
+                </form>
+            )}
             <div id="dayChecklistRows" style={{ display: 'flex', flexDirection: 'column' }}>
                 {checklistItems.map((item) => {
                     const done = !!item.done;

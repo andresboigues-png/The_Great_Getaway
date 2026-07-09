@@ -549,7 +549,7 @@ def _build_friend_shared_trip(cursor, ctx: FeedContext) -> list:
         f'''
         SELECT fp.id, fp.user_id AS sharer_id, fp.trip_id, fp.created_at, fp.caption,
                u.name AS sharer_name, u.picture AS sharer_picture,
-               t.name AS trip_name, t.country AS trip_country
+               t.name AS trip_name, t.country AS trip_country, t.cover_url AS trip_cover
         FROM feed_posts fp
         JOIN users u ON u.id = fp.user_id
         JOIN trips t ON t.id = fp.trip_id
@@ -581,6 +581,7 @@ def _build_friend_shared_trip(cursor, ctx: FeedContext) -> list:
                     "id": row['trip_id'],
                     "name": row['trip_name'],
                     "country": row['trip_country'],
+                    "coverUrl": row['trip_cover'],
                 },
                 "post_id": row['id'],
                 "caption": row['caption'],
@@ -636,7 +637,7 @@ def _build_friend_reposted_trip(cursor, ctx: FeedContext) -> list:
         )
         SELECT fp.id, fp.user_id AS reposter_id, fp.trip_id, fp.created_at,
                u.name AS reposter_name, u.picture AS reposter_picture,
-               t.name AS trip_name, t.country AS trip_country,
+               t.name AS trip_name, t.country AS trip_country, t.cover_url AS trip_cover,
                orig.user_id AS original_sharer_id, orig.caption AS original_caption,
                ou.name AS original_sharer_name, ou.picture AS original_sharer_picture
         FROM feed_posts fp
@@ -691,6 +692,7 @@ def _build_friend_reposted_trip(cursor, ctx: FeedContext) -> list:
                     "id": row['trip_id'],
                     "name": row['trip_name'],
                     "country": row['trip_country'],
+                    "coverUrl": row['trip_cover'],
                 },
                 "post_id": row['id'],
                 "caption": row['original_caption'],
@@ -894,7 +896,7 @@ def _resolve_share(cursor, components) -> dict | None:
     post_id = int(components[0])
     cursor.execute(
         "SELECT fp.id, fp.user_id, fp.trip_id, fp.created_at, fp.caption, "
-        "       t.name AS trip_name, t.country AS trip_country "
+        "       t.name AS trip_name, t.country AS trip_country, t.cover_url AS trip_cover "
         "FROM feed_posts fp JOIN trips t ON t.id = fp.trip_id "
         "WHERE fp.id = ? AND fp.repost_of_post_id IS NULL LIMIT 1",
         (post_id,),
@@ -909,7 +911,12 @@ def _resolve_share(cursor, components) -> dict | None:
         "id": f"share_{row['id']}",
         "type": "friend_shared_trip",
         "actor": actor,
-        "trip": {"id": row["trip_id"], "name": row["trip_name"], "country": row["trip_country"]},
+        "trip": {
+            "id": row["trip_id"],
+            "name": row["trip_name"],
+            "country": row["trip_country"],
+            "coverUrl": row["trip_cover"],
+        },
         "post_id": row["id"],
         "caption": row["caption"],
         "when": row["created_at"],
@@ -921,7 +928,7 @@ def _resolve_repost(cursor, components) -> dict | None:
     post_id = int(components[0])
     cursor.execute(
         "SELECT fp.id, fp.user_id, fp.trip_id, fp.created_at, "
-        "       t.name AS trip_name, t.country AS trip_country, "
+        "       t.name AS trip_name, t.country AS trip_country, t.cover_url AS trip_cover, "
         "       orig.user_id AS orig_user_id, orig.caption AS orig_caption "
         "FROM feed_posts fp "
         "JOIN trips t ON t.id = fp.trip_id "
@@ -940,7 +947,12 @@ def _resolve_repost(cursor, components) -> dict | None:
         "type": "friend_reposted_trip",
         "actor": actor,
         "original_sharer": _resolve_actor(cursor, row["orig_user_id"]),
-        "trip": {"id": row["trip_id"], "name": row["trip_name"], "country": row["trip_country"]},
+        "trip": {
+            "id": row["trip_id"],
+            "name": row["trip_name"],
+            "country": row["trip_country"],
+            "coverUrl": row["trip_cover"],
+        },
         "post_id": row["id"],
         "caption": row["orig_caption"],
         "when": row["created_at"],

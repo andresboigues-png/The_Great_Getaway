@@ -63,7 +63,17 @@ def search_friends():
         attacker has to know the prefix — exact lookups for adding
         a known contact still work, fishing expeditions do not;
       - `%` and `_` in the query are escaped so a `_` wildcard
-        can't be smuggled in to widen the match."""
+        can't be smuggled in to widen the match.
+
+    E1-I2 — name-searchable discovery. Email-prefix-only search was a
+    steep discovery barrier on a social/travel app: to follow someone
+    you had to know the leading chars of their email. We now ALSO match
+    the display `name` by prefix under the exact same posture (3-char
+    min, 5-row cap, 10/min limit, block-filtering, masked email in the
+    response). Name is not a fresh enumeration vector — it's already
+    shown publicly on profiles, the feed, and shared-trip member lists —
+    so surfacing name matches leaks nothing the app doesn't already
+    surface, while the email itself stays masked."""
     query = request.args.get("q", "").strip()
     if len(query) < 3:
         return jsonify([])
@@ -85,10 +95,10 @@ def search_friends():
         cursor = conn.cursor()
         cursor.execute(
             "SELECT id, name, email, picture FROM users "
-            "WHERE email LIKE ? ESCAPE '\\' "
+            "WHERE (name LIKE ? ESCAPE '\\' OR email LIKE ? ESCAPE '\\') "
             "AND id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?) "
             "LIMIT 5",
-            (f"{safe_query}%", caller_id),
+            (f"{safe_query}%", f"{safe_query}%", caller_id),
         )
         rows = cursor.fetchall()
     # 2026-05-18 audit H7: mask the email before returning. The 3-char

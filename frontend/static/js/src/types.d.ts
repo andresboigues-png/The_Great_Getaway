@@ -191,8 +191,10 @@ export interface Trip {
      *  "small things" release. Set via the Edit Trip modal's "Choose
      *  cover" button (which uploads to /api/upload). Display priority
      *  on the collections list card thumbnail and the archived-trip
-     *  detail hero is `trip.coverUrl > first-day-photo > default
-     *  gradient`. NULL for legacy trips; the user has to opt in. */
+     *  detail hero is `trip.coverUrl > first trip-level photo >
+     *  first day-photo > default gradient` (see tripCover() in
+     *  collections-mount/helpers.ts). NULL for legacy trips; the user
+     *  has to opt in. */
     coverUrl?: string | null;
     /** FIXING_ROADMAP §4.1 — public share-via-link state.
      *  - `shareToken` is the URL-safe slug at the end of /share/<token>.

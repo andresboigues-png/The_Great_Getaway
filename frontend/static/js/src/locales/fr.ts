@@ -40,6 +40,11 @@ export const fr: Translations = {
         saveChanges: 'Enregistrer',
     },
     editTrip: {
+        saveWithDelete: 'Supprimer {count} jour(s) et enregistrer',
+        datesPreviewScaffold: '{count} jour(s) vide(s) seront créés pour cette période.',
+        datesPreviewRebase: 'Le nombre de jours reste identique ; chaque jour se décale vers le nouveau début.',
+        datesPreviewRemove: '{count} jour(s) seront supprimés — leurs notes et photos seront perdues.',
+        datesPreviewAdd: '{count} jour(s) vide(s) seront ajoutés à la fin.',
         title: 'Modifier le voyage',
         adventureName: 'Nom de l\'aventure',
         destination: 'Destination',
@@ -614,6 +619,7 @@ export const fr: Translations = {
         homeCountryNotSet: '— Non défini —',
     },
     settlement: {
+        crossTripPayInfoOnly: 'Aperçu uniquement — enregistre chacun d\'eux dans l\'onglet Régler de son propre voyage.',
         historyEditReRecordsNote: "Modifier réenregistre ce paiement et notifie à nouveau le destinataire.",
         crossTripSettledBody: "Aucun solde en attente sur aucun de vos voyages.",
         crossTripSettledTitle: "Tout le monde est à jour",
@@ -796,6 +802,10 @@ export const fr: Translations = {
         createDuplicateScope: 'Un budget pour ce voyage, cette catégorie et cette personne existe déjà.',
     },
     insights: {
+        worthTodayDeviceLocalNote: 'Vous avez défini vos propres taux, enregistrés sur cet appareil — vos compagnons peuvent voir un « Vaut aujourd’hui » différent.',
+        worthTodayFallbackNote: 'L’inflation locale n’est pas appliquée à {currencies} — aucune donnée pour ces devises — leur « Vaut aujourd’hui » peut donc sous-estimer les années de forte inflation.',
+        perNoCountryNote: 'Les dépenses sans pays renseigné sont regroupées sous « Sans pays », afin que les totaux ici correspondent au reste du voyage.',
+        perNoCountry: 'Sans pays',
         avgDailyNoDatedSpend: "Aucune dépense datée pour ce filtre",
         cpiStillUpdating: "Mise à jour des données d'inflation…",
         title: 'Analyses',
@@ -1308,6 +1318,7 @@ export const fr: Translations = {
         addSplitPersonAria: "Ajouter une personne pour diviser la dépense",
     },
     feed: {
+        endOfRecent: 'Vous avez atteint la fin de votre activité récente.',
         toastRepostConfirmBtn: 'Republier',
         toastRepostConfirmMessage: 'Cela partage le voyage avec tous vos abonnés.',
         toastRepostConfirmTitle: 'Republier sur votre fil ?',
@@ -1427,6 +1438,9 @@ export const fr: Translations = {
         commentPostAria: 'Publier le commentaire',
     },
     map: {
+        assignDayAria: 'Attribuer ce lieu à un jour',
+        tripWideOption: 'N\'importe quel jour · liste',
+        pinnedTo: 'Assigné à',
         searchRateLimited: "Trop de recherches pour le moment. Réessayez dans un instant.",
         searchUnavailable: "La recherche est momentanément indisponible. Réessayez plus tard.",
         addToTodo: '📋 Ajouter à la liste de choses à faire',
@@ -1445,6 +1459,7 @@ export const fr: Translations = {
         searchLoadError: "Impossible de charger ce lieu.",
     },
     templates: {
+        useCount: { one: '{count} utilisation', other: '{count} utilisations' },
         startDatePromptV2: 'Les modèles ont un nombre de jours défini — choisis ton premier jour et nous daterons le reste. Seuls le plan et les lieux enregistrés sont repris ; les dépenses, les compagnons et les photos ne sont pas copiés.',
         previewMorePlaces: '+{n} de plus',
         previewMoreDays: '+{n} jours de plus',
@@ -1634,6 +1649,14 @@ export const fr: Translations = {
         pinCancelAria: 'Annuler la modification de l\'épingle',
     },
     checklist: {
+        clearedToast: '{count} tâche(s) terminée(s) supprimées',
+        dragToReorder: 'Glisser pour réordonner',
+        clearCompletedConfirm: 'Supprimer',
+        clearCompletedBody: '{count} tâche(s) terminée(s) seront retirées de cette liste. Les tâches en cours restent.',
+        clearCompletedTitle: 'Supprimer les tâches terminées ?',
+        clearCompleted: 'Effacer les terminés',
+        markAllDone: 'Tout marquer comme fait',
+        charsLeft: '{n} caractères restants',
         clearToDeleteBody: "Vous avez effacé le texte, cette tâche sera donc retirée de la liste. Annulez pour continuer à la modifier.",
         clearToDeleteTitle: "Supprimer cette tâche ?",
         modalTitle: '📝 Liste du voyage',
@@ -1844,6 +1867,8 @@ export const fr: Translations = {
         traffic: 'Noms des autoroutes / routes principales + trafic en direct Google + stations-service sur la zone élargie du voyage',
     },
     dayDetail: {
+        checklistAddBtn: 'Ajouter',
+        checklistAddPlaceholder: 'Ajouter une tâche…',
         fmtClearAria: "Effacer la mise en forme",
         noteFull: "Cette note est pleine — supprimez du texte pour en ajouter.",
         headerChipAnchor: '⭐ Centre du Voyage',
@@ -1928,6 +1953,10 @@ export const fr: Translations = {
         toastUpdated: 'Itinéraire mis à jour !',
     },
     tripMedia: {
+        photoUploadingCard: 'Envoi de la photo…',
+        photosPdfHint: 'Vous voulez ajouter un PDF de réservation ? Ils vont dans Documents.',
+        docsOpenAria: 'Ouvrir ou télécharger {name}',
+        docsOpenTitle: 'Ouvrir / télécharger',
         photoUploadQuota: "Limite de stockage atteinte — supprime des photos ou des documents pour libérer de l'espace, puis réessaie.",
         addDocStatusFailedWithMsg: "❌ Échec de l'envoi : {error}",
         addDocValidationInvalidUrl: "Ce lien n'est pas pris en charge. Utilisez une URL http(s):// ou importez le fichier.",
@@ -2017,6 +2046,7 @@ export const fr: Translations = {
         dayBucketDay: 'Jour {n}',
     },
     modals: {
+        newTripCreatingBtn: 'Création…',
         pdfOptOffByDefault: 'Désactivé par défaut',
         countryFallbackLabel: 'Maps est indisponible — choisissez le pays de destination pour continuer',
         downloadZipOptionBodyV2: 'Tout ce voyage — y compris toutes les photos et tous les fichiers — réimportable plus tard. Peut être volumineux.',
@@ -2164,6 +2194,7 @@ export const fr: Translations = {
         sharePrivate: 'Ce voyage est privé — passez-le en Public (le contrôle de visibilité ci-dessus) pour le partager.',
     },
     upload: {
+        nonNormalizedSplits: '{count} ligne(s) avaient des parts qui ne totalisent pas 100% ({rows}) — elles ont été ajustées proportionnellement.',
         modeSwitchAria: 'Mode de téléversement',
         modeManualLabel: 'Une par une',
         modeManualHint: 'Saisis une seule dépense à la main',

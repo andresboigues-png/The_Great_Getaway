@@ -40,6 +40,11 @@ export const en = {
     },
     // 2026-05-25: Edit-Trip modal (renaming + repinning + cover photo).
     editTrip: {
+        saveWithDelete: 'Delete {count} day(s) & Save',
+        datesPreviewScaffold: '{count} empty day(s) will be created for this range.',
+        datesPreviewRebase: 'Day count stays the same; each day shifts to keep the new start.',
+        datesPreviewRemove: '{count} day(s) will be deleted — notes & photos on them are lost.',
+        datesPreviewAdd: '{count} empty day(s) will be added to the end.',
         title: 'Edit Trip',
         adventureName: 'Adventure Name',
         destination: 'Destination',
@@ -731,6 +736,7 @@ export const en = {
         homeCountryNotSet: '— Not set —',
     },
     settlement: {
+        crossTripPayInfoOnly: 'Overview only — record each of these on its own trip\'s Settle tab.',
         historyEditReRecordsNote: "Editing re-records this payment and re-notifies the recipient.",
         crossTripSettledBody: "No outstanding balances across any of your trips.",
         crossTripSettledTitle: "Everyone's settled up",
@@ -957,6 +963,10 @@ export const en = {
         createDuplicateScope: 'A budget for this trip, category and person already exists.',
     },
     insights: {
+        worthTodayDeviceLocalNote: 'You’ve set your own rates, saved on this device — companions may see a different “Worth today”.',
+        worthTodayFallbackNote: 'Local inflation isn’t applied to {currencies} — no data for these currencies — so their “Worth today” may understate high-inflation years.',
+        perNoCountryNote: 'Expenses with no country recorded are grouped as “No country”, so the totals here match the rest of the trip.',
+        perNoCountry: 'No country',
         avgDailyNoDatedSpend: "No dated spend for this filter",
         cpiStillUpdating: "Still updating inflation data…",
         // Page header.
@@ -1588,6 +1598,7 @@ export const en = {
         addSplitPersonAria: 'Add a person to split the expense between',
     },
     feed: {
+        endOfRecent: 'That\'s the end of your recent activity.',
         toastRepostConfirmBtn: 'Repost',
         toastRepostConfirmMessage: 'This shares the trip with all your followers.',
         toastRepostConfirmTitle: 'Repost to your feed?',
@@ -1755,6 +1766,9 @@ export const en = {
     // dropdown. These render via imperative innerHTML builders, so they
     // read t() at build time rather than carrying data-i18n bindings.
     map: {
+        assignDayAria: 'Assign this place to a day',
+        tripWideOption: 'Any day · to-do list',
+        pinnedTo: 'Pinned to',
         searchRateLimited: "Too many searches right now. Try again in a moment.",
         searchUnavailable: "Search is temporarily unavailable. Please try again later.",
         addToTodo: '📋 Add to to-do list',
@@ -1773,6 +1787,7 @@ export const en = {
         searchLoadError: "Couldn't load this place.",
     },
     templates: {
+        useCount: { one: '{count} use', other: '{count} uses' },
         startDatePromptV2: 'Templates come with a set number of days — pick your first day and we\'ll date the rest. Only the plan and saved places carry over; expenses, companions, and photos aren\'t copied.',
         previewMorePlaces: '+{n} more',
         previewMoreDays: '+{n} more days',
@@ -1994,6 +2009,14 @@ export const en = {
     // R11-B7: tripChecklistModal.ts — packing/errand list. Every
     // template-literal label and inline-string fallback now via t().
     checklist: {
+        clearedToast: 'Removed {count} completed task(s)',
+        dragToReorder: 'Drag to reorder',
+        clearCompletedConfirm: 'Remove',
+        clearCompletedBody: '{count} completed task(s) will be removed from this checklist. Unfinished tasks stay.',
+        clearCompletedTitle: 'Remove completed tasks?',
+        clearCompleted: 'Clear completed',
+        markAllDone: 'Mark all done',
+        charsLeft: '{n} characters left',
         clearToDeleteBody: "You cleared the text, so this task will be removed from the checklist. Cancel to keep editing instead.",
         clearToDeleteTitle: "Delete this task?",
         modalTitle: '📝 Trip checklist',
@@ -2249,6 +2272,8 @@ export const en = {
     // handles BOTH the trip anchor (Trip Hub) AND any numbered day; some
     // keys are shared, others are mode-specific (anchor-only / day-only).
     dayDetail: {
+        checklistAddBtn: 'Add',
+        checklistAddPlaceholder: 'Add a task…',
         fmtClearAria: "Clear formatting",
         noteFull: "This note is full — remove some text to add more.",
         // Header chips & title.
@@ -2351,6 +2376,10 @@ export const en = {
     // Five popups share these keys: documents list, photos grid, add
     // doc, edit doc, add-photo-by-link.
     tripMedia: {
+        photoUploadingCard: 'Uploading photo…',
+        photosPdfHint: 'Looking to add a booking PDF? Those live in Documents.',
+        docsOpenAria: 'Open or download {name}',
+        docsOpenTitle: 'Open / download',
         photoUploadQuota: "Storage limit reached — delete some photos or documents to free space, then try again.",
         addDocStatusFailedWithMsg: "❌ Upload failed: {error}",
         addDocValidationInvalidUrl: "That link isn't supported. Use an http(s):// URL, or upload the file instead.",
@@ -2452,6 +2481,7 @@ export const en = {
     // add day, trip invite. Companions + share modals have their own
     // sections (`companions:` / `share:`).
     modals: {
+        newTripCreatingBtn: 'Creating…',
         pdfOptOffByDefault: 'Off by default',
         countryFallbackLabel: 'Maps is unavailable — choose your destination country to continue',
         downloadZipOptionBodyV2: 'Everything in this trip — including all photos and files — re-importable later. Can be large.',
@@ -2614,6 +2644,7 @@ export const en = {
     },
     // Upload tab (pages/upload.ts) — Excel/CSV import for bulk expenses.
     upload: {
+        nonNormalizedSplits: '{count} row(s) had splits that don\'t add up to 100% ({rows}) — they were scaled to fit.',
         // Mode-switch on the Expenses Upload tab (UploadTab.tsx).
         // Two-position toggle: "One at a time" (manual single-row
         // entry) vs "From a spreadsheet" (Excel/CSV batch import).

@@ -135,6 +135,12 @@ export function Feed({ highlightPostId }: { highlightPostId?: string | undefined
     // during a layout reflow.
     const [nextCursor, setNextCursor] = useState<string | null>(null);
     const [loadingMore, setLoadingMore] = useState(false);
+    // E2-I5: true when the server flagged that the 200-event unified cap
+    // truncated real activity (there was more beyond the cursor's reach).
+    // Swaps the end-of-feed copy from "all caught up" to an honest
+    // "end of your recent activity" so a heavy user's older events don't
+    // silently vanish.
+    const [feedCapped, setFeedCapped] = useState(false);
 
     // E2-I4: reposted state lives in React, not imperative DOM patches.
     // Pre-fix onRepost rewrote the button's innerHTML/disabled directly on
@@ -192,7 +198,16 @@ export function Feed({ highlightPostId }: { highlightPostId?: string | undefined
                 // routes/feed.py docstring), so a service-worker
                 // cached pre-R9-F1 response stays valid until next
                 // poll.
-                const res = await apiFetch('/api/feed?limit=30');
+                // E2-I3: scope the fetch to the active tab so the server
+                // only builds that tab's events (proportional pagination,
+                // no wasted bandwidth on the other tab's events). 'explore'
+                // has its own route, so we only scope for posts/actions;
+                // the server treats any other ?tab value as "all".
+                const tabParam =
+                    activeTab === 'posts' || activeTab === 'actions'
+                        ? `&tab=${activeTab}`
+                        : '';
+                const res = await apiFetch(`/api/feed?limit=30${tabParam}`);
                 if (!res.ok) return;
                 const data = await res.json();
                 // Defensive: tolerate both legacy bare-array AND
@@ -203,6 +218,7 @@ export function Feed({ highlightPostId }: { highlightPostId?: string | undefined
                     setCachedEvents(data);
                     setEvents(data);
                     setNextCursor(null);  // legacy → no pagination
+                    setFeedCapped(false);
                 } else if (data && Array.isArray(data.events)) {
                     setCachedEvents(data.events);
                     setEvents(data.events);
@@ -211,6 +227,7 @@ export function Feed({ highlightPostId }: { highlightPostId?: string | undefined
                             ? data.nextCursor
                             : null,
                     );
+                    setFeedCapped(data.isEndOfFeed === true);
                 }
             } catch (e) {
                 console.error('Feed refresh failed:', e);
@@ -262,8 +279,14 @@ export function Feed({ highlightPostId }: { highlightPostId?: string | undefined
         if (!nextCursor) return;
         setLoadingMore(true);
         try {
+            // E2-I3: keep the page scoped to the active tab so deep
+            // pagination stays proportional (mirrors the initial fetch).
+            const tabParam =
+                activeTab === 'posts' || activeTab === 'actions'
+                    ? `&tab=${activeTab}`
+                    : '';
             const res = await apiFetch(
-                `/api/feed?limit=20&cursor=${encodeURIComponent(nextCursor)}`,
+                `/api/feed?limit=20&cursor=${encodeURIComponent(nextCursor)}${tabParam}`,
             );
             if (!res.ok) return;
             const data = await res.json();
@@ -295,12 +318,13 @@ export function Feed({ highlightPostId }: { highlightPostId?: string | undefined
             setNextCursor(
                 typeof data.nextCursor === 'string' ? data.nextCursor : null,
             );
+            setFeedCapped(data.isEndOfFeed === true);
         } catch (e) {
             console.error('Feed loadMore failed:', e);
         } finally {
             setLoadingMore(false);
         }
-    }, [nextCursor, loadingMore]);
+    }, [nextCursor, loadingMore, activeTab]);
 
     useEffect(() => {
         const sentinel = sentinelRef.current;
@@ -332,7 +356,42 @@ export function Feed({ highlightPostId }: { highlightPostId?: string | undefined
             void ensureExploreLoaded(() => {
                 setExplore(getCachedExplore());
             });
+            return;
         }
+        // E2-I3: the base feed fetch is now scoped per tab (?tab=...), so
+        // switching between Posts and Actions must refetch the newly-
+        // selected tab's events + reset the cursor — the previously-loaded
+        // pool only holds the old tab's events. Fetch a fresh scoped page
+        // for `tab` (not `activeTab`, whose state update above hasn't
+        // flushed yet).
+        void (async () => {
+            if (!STATE.user) return;
+            try {
+                const res = await apiFetch(`/api/feed?limit=30&tab=${tab}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    setEvents(data);
+                    setNextCursor(null);
+                    setFeedCapped(false);
+                } else if (data && Array.isArray(data.events)) {
+                    setEvents(data.events);
+                    setNextCursor(
+                        typeof data.nextCursor === 'string'
+                            ? data.nextCursor
+                            : null,
+                    );
+                    setFeedCapped(data.isEndOfFeed === true);
+                }
+                // If the Saved filter is on, re-merge the out-of-window
+                // saved set for this tab (same posture as the initial
+                // fetch) so bookmarked items outside the 30-day window
+                // still surface under the newly-selected tab.
+                if (bookmarkedOnly) void loadSavedItems();
+            } catch (e) {
+                console.error('Feed tab switch fetch failed:', e);
+            }
+        })();
     };
 
     // ── MK4 SOC-4: "Saved" surface ───────────────────────────────
@@ -814,6 +873,7 @@ export function Feed({ highlightPostId }: { highlightPostId?: string | undefined
                         sentinelRef={sentinelRef}
                         loadingMore={loadingMore}
                         hasMore={nextCursor !== null}
+                        feedCapped={feedCapped}
                     />
                 </div>
             </div>

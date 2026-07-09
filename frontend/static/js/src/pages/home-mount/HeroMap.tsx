@@ -41,7 +41,11 @@ import {
     whenGoogleMapsReady,
 } from '../../googleMapsServices.js';
 import { canEdit } from '../../permissions.js';
-import { findMarkedPlace, toggleTodoListMembership } from '../../markedPlaces.js';
+import {
+    findMarkedPlace,
+    toggleTodoListMembership,
+    setMarkedPlaceAssignment,
+} from '../../markedPlaces.js';
 import { esc } from '../../utils.js';
 import { t } from '../../i18n.js';
 import {
@@ -292,6 +296,42 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name || '')}`;
             const marked = findMarkedPlace(activeTrip, place.place_id);
             const isOnTodo = !!marked?.forManual;
+            // C3-I5 + C3-I3: once a place is on the to-do list, make the
+            // otherwise-silent auto-pin legible AND editable in place. One
+            // <select> does both jobs — its SELECTED option answers "which
+            // day did this land on?" (the confirmation the old label-only
+            // refresh never gave), and changing it re-tags the place to any
+            // day, or back to trip-wide, without leaving the map for the
+            // day-detail modal. The hour picker stays in the day modal — a
+            // 24-option dropdown in a 240px map bubble is chrome this surface
+            // doesn't need.
+            const dayPinnerHtml =
+                isOnTodo && place.place_id
+                    ? (() => {
+                          const numberedDays = [...currentTripDays]
+                              .filter((d) => d.dayNumber > 0)
+                              .sort((a, b) => a.dayNumber - b.dayNumber);
+                          const currentDayId = marked?.dayId || '';
+                          const opts = [
+                              `<option value=""${currentDayId ? '' : ' selected'}>${esc(t('map.tripWideOption'))}</option>`,
+                              ...numberedDays.map((d) => {
+                                  const label = d.name
+                                      ? `${t('map.dayLabel', { n: d.dayNumber })} \u00b7 ${d.name}`
+                                      : t('map.dayLabel', { n: d.dayNumber });
+                                  return `<option value="${esc(d.id)}"${d.id === currentDayId ? ' selected' : ''}>${esc(label)}</option>`;
+                              }),
+                          ].join('');
+                          return `
+                        <label style="display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 0.7rem; color: #666;">
+                            <span style="font-weight: 700; white-space: nowrap;">${esc(t('map.pinnedTo'))}</span>
+                            <select data-action="assign-day" data-place-id="${esc(place.place_id)}" aria-label="${esc(t('map.assignDayAria'))}"
+                                style="flex: 1; min-width: 0; padding: 4px 6px; border-radius: 6px; border: 1px solid #ccc; font-size: 0.72rem; color: #002d5b; background: white; cursor: pointer;">
+                                ${opts}
+                            </select>
+                        </label>
+                    `;
+                      })()
+                    : '';
             const markBtnsHtml =
                 tripIsEditable && place.place_id
                     ? `
@@ -301,6 +341,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                                 ${isOnTodo ? esc(t('map.onTodo')) : esc(t('map.addToTodo'))}
                             </button>
                         </div>
+                        ${dayPinnerHtml}
                     `
                     : '';
             const headerIcon = pickPlaceIcon(cat, place);
@@ -357,6 +398,23 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 // map diverged from saved state until the next remount.
                 repaintTodoMarkers();
             };
+            // C3-I3: inline day-tag for a place already on the to-do list.
+            // Only present when isOnTodo (buildInfoWindowHtml gates it), so
+            // there is always a marked entry to re-stamp. Leaves timeOfDay
+            // null — the coarse slot / hour stays owned by the day modal.
+            const dayAssignSel = document.querySelector(
+                `.gm-style-iw [data-action="assign-day"][data-place-id="${place.place_id}"]`,
+            ) as HTMLSelectElement | null;
+            if (dayAssignSel && place.place_id) {
+                const pid = place.place_id;
+                dayAssignSel.onchange = () => {
+                    setMarkedPlaceAssignment(activeTrip, pid, dayAssignSel.value || null, null);
+                    emit('state:changed');
+                    void upsertTrip(activeTrip);
+                    repaintTodoMarkers();
+                    refresh();
+                };
+            }
         };
 
         const dropPlaceMarker = (cat: PoiCategory, place: google.maps.places.PlaceResult) => {
@@ -925,7 +983,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
         const card = cardRef.current;
         if (!card) return;
         card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, []);
 
     // ── Pin-edit toolbar (Save / Cancel) ──────────────────────

@@ -310,7 +310,14 @@ function TemplateCard({ tpl, busy, onUse }: TemplateCardProps) {
         <div className="card glass templates-card">
             <div className="templates-card__banner">
                 <span className="templates-card__flag">{flag || '🗺️'}</span>
-                <span className="templates-card__days">{tn('templates.dayCount', tpl.dayCount, { count: tpl.dayCount })}</span>
+                <div className="templates-card__stats">
+                    {tpl.useCount > 0 && (
+                        <span className="templates-card__uses">
+                            {tn('templates.useCount', tpl.useCount, { count: tpl.useCount })}
+                        </span>
+                    )}
+                    <span className="templates-card__days">{tn('templates.dayCount', tpl.dayCount, { count: tpl.dayCount })}</span>
+                </div>
             </div>
             <h3 className="templates-card__name" dangerouslySetInnerHTML={{ __html: esc(tpl.name) }} />
             {dest && <p className="templates-card__dest" dangerouslySetInnerHTML={{ __html: esc(dest) }} />}

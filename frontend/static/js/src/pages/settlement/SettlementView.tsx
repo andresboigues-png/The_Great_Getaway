@@ -25,6 +25,7 @@ import {
     computeTripBalancesByCurrency,
     simplifyDebts,
     computeGlobalBalances,
+    computeGlobalBalancesByCurrency,
     computeLeaderboard,
 } from './balances.js';
 import {
@@ -75,6 +76,29 @@ function OriginalCurrencyHint({ primaryAmount, primaryCurrency }: { primaryAmoun
     return (
         <span style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px' }}>
             ≈ {formatCurrency(Math.abs(primaryAmount), primaryCurrency)}
+        </span>
+    );
+}
+
+/** B6-I3: the cross-trip mirror of OriginalCurrencyHint. A person's global
+ *  balance mixes currencies from many trips, so instead of one "primary"
+ *  there may be several — this lists each NON-home currency the balance
+ *  actually lives in (≈ CUR amount), letting a co-traveler quote the figure
+ *  the EUR total was converted from. Skips the viewer's home currency (the
+ *  EUR big number already covers it) and sub-cent dust. Renders nothing when
+ *  the whole balance is home-currency, so a same-currency group sees no clutter. */
+function CrossTripCurrencyHint({ byCurrency }: { byCurrency: Record<string, number> | undefined }) {
+    if (!byCurrency) return null;
+    const home = getHomeCurrency().toUpperCase();
+    const parts = Object.entries(byCurrency)
+        .filter(([cur, amt]) => cur !== home && Math.abs(amt) >= 0.005)
+        .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+    if (parts.length === 0) return null;
+    return (
+        <span style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px', textAlign: 'right' }}>
+            {parts.map(([cur, amt], i) => (
+                <span key={cur}>{i > 0 ? ' · ' : '≈ '}{formatCurrency(Math.abs(amt), cur)}</span>
+            ))}
         </span>
     );
 }
@@ -466,6 +490,9 @@ function HistoryTab({ trip, tripIsEditable, onEditSettlement, onUnsettle }: {
 
 function GlobalTab() {
     const globalBalances = computeGlobalBalances();
+    // B6-I3: per-original-currency breakdown keyed by the SAME display labels
+    // as globalBalances, for the '≈ original currency' hint under each total.
+    const globalByCurrency = computeGlobalBalancesByCurrency();
     // B6-B2: computeGlobalBalances seeds EVERY roster name (even net-0), so
     // filter to people who actually carry a balance before rendering — a
     // fully-settled person must not render as a EUR0.00 row. `sorted` drives
@@ -515,7 +542,10 @@ function GlobalTab() {
                                         {person.charAt(0).toUpperCase()}
                                     </div>
                                     <div style={{ flex: 1, minWidth: 0, fontWeight: 800, color: 'var(--text-brand-navy)', fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person}</div>
-                                    <div style={{ fontWeight: 800, color, fontSize: '1rem' }}>{isCredit ? '+' : ''}{formatHome(bal, 'EUR')}</div>
+                                    <div style={{ fontWeight: 800, color, fontSize: '1rem', textAlign: 'right' }}>
+                                        {isCredit ? '+' : ''}{formatHome(bal, 'EUR')}
+                                        <CrossTripCurrencyHint byCurrency={globalByCurrency[person]} />
+                                    </div>
                                 </div>
                                 <div style={{ height: '6px', background: 'rgba(0,0,0,0.05)', borderRadius: '999px', overflow: 'hidden', position: 'relative' }}>
                                     {isCredit ? <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: `${pct / 2}%`, background: '#34c759', borderRadius: '999px' }} /> : null}
@@ -533,6 +563,12 @@ function GlobalTab() {
                         <div style={{ minWidth: 0 }}>
                             <h3 className="stl-heading-1">{t('settlement.crossTripPayTitle')}</h3>
                             <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', marginTop: '3px' }}>{t('settlement.crossTripPaySubtitle')}</div>
+                            {/* B5-I5: this cross-trip list is a read-only overview — the
+                                figures are aggregated across several trips and don't map to a
+                                single trip's real debt, so there's no Settle button here. Tell
+                                the user where to actually record each payment instead of leaving
+                                a dead-end that looks settle-able like the per-trip rows do. */}
+                            <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '4px', fontStyle: 'italic' }}>{t('settlement.crossTripPayInfoOnly')}</div>
                         </div>
                         <span className="stl-section-label--shrink-0">{tn('settlement.crossTripPaymentsCount', globalDebts.length)}</span>
                     </div>
@@ -560,15 +596,16 @@ function GlobalTab() {
 
 export function SettlementView(props: SettlementViewProps) {
     const { trip, tripIsEditable, activeTab, currentTripId } = props;
-    // Trip picker is only meaningful on per-trip tabs (Trip + History) — on
-    // Cross-Trip the totals are global, so picking a trip there does nothing
-    // visible. Hidden on the global tab; Cross-Trip carries its own subtitle.
-    const showPicker = activeTab !== 'global';
+    // B6-I4: the trip picker is ALWAYS shown (it used to vanish on the
+    // Cross-Trip tab). Picking a trip from here jumps you to that trip's
+    // per-trip tab — keeping the picker on-screen makes that jump a visible,
+    // self-explaining consequence of your own action rather than a picker
+    // that silently disappears and a tab that silently changes underneath you.
 
     return (
         <div>
             <PageHeader />
-            {showPicker ? <TripsStrip currentTripId={currentTripId} onPickTrip={props.onPickTrip} /> : null}
+            <TripsStrip currentTripId={currentTripId} onPickTrip={props.onPickTrip} />
             {!trip ? (
                 <div className="card glass" style={{ textAlign: 'center', padding: '60px 32px', marginTop: '24px', borderRadius: '28px' }}>
                     {/* FE-D-2: monochrome line icon (handshake = "settled up")

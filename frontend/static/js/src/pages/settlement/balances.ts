@@ -350,12 +350,46 @@ function _identityKeyFor(
     companionsByTrip: Map<string, Companion[]>,
     tripId: string,
     name: string,
+    linkedNames?: Map<string, string>,
 ): string {
     const lower = (name || '').toLocaleLowerCase();
     const companions = companionsByTrip.get(tripId) || [];
     const match = companions.find((c) => (c.name || '').toLocaleLowerCase() === lower);
     if (match?.linkedUserId) return `user:${match.linkedUserId}`;
+    // B6-I1: this occurrence is UNLINKED on this trip. If the SAME display
+    // name is linked to exactly ONE user id somewhere else (see `linkedNames`,
+    // built once in computeGlobalBalances), fold this occurrence into that
+    // linked identity so a person unlinked on trip A + linked on trip B shows
+    // as ONE cross-trip row instead of two half-balances. Skipped when the
+    // name is ambiguous (linked to two different ids) — we can't know which
+    // real person an unlinked namesake is, so it stays name-keyed as before.
+    const linked = linkedNames?.get(lower);
+    if (linked) return linked;
     return `name:${lower}`;
+}
+
+/** B6-I1: map lowercased display name -> the single `user:<id>` it is linked
+ *  to across ALL trips, for the merge in _identityKeyFor. A name linked to
+ *  two DIFFERENT ids is AMBIGUOUS (two real namesakes) and is omitted, so an
+ *  unlinked occurrence of that name can never be silently merged into the
+ *  wrong person. Built from every companion carrying a linkedUserId. */
+function _buildLinkedNameMap(companionsByTrip: Map<string, Companion[]>): Map<string, string> {
+    const idsByName = new Map<string, Set<string>>();
+    for (const companions of companionsByTrip.values()) {
+        for (const c of companions) {
+            if (!c.linkedUserId) continue;
+            const lower = (c.name || '').toLocaleLowerCase();
+            if (!lower) continue;
+            let ids = idsByName.get(lower);
+            if (!ids) { ids = new Set<string>(); idsByName.set(lower, ids); }
+            ids.add(c.linkedUserId);
+        }
+    }
+    const out = new Map<string, string>();
+    for (const [lower, ids] of idsByName) {
+        if (ids.size === 1) out.set(lower, `user:${[...ids][0]}`);
+    }
+    return out;
 }
 
 /** Compute the cross-trip balance map. Same shape as the per-trip
@@ -394,12 +428,15 @@ export function computeGlobalBalances(): Record<string, number> {
     for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
         companionsByTrip.set(t.id, t.companions ?? []);
     }
+    // B6-I1: name -> unique linked user id, so an unlinked namesake folds into
+    // its linked identity across trips (unambiguous names only).
+    const linkedNames = _buildLinkedNameMap(companionsByTrip);
     /** Seed (or look up) an identity for a name seen on `tripId`. Returns
      *  the identity key so callers can apply amounts. The first non-empty
      *  name to reach an identity becomes its display name; roster names are
      *  seeded first below, so a linked identity shows its roster spelling. */
     const seed = (tripId: string, name: string): string => {
-        const key = _identityKeyFor(companionsByTrip, tripId, name);
+        const key = _identityKeyFor(companionsByTrip, tripId, name, linkedNames);
         if (!(key in byIdentity)) byIdentity[key] = 0;
         if (name && !displayByIdentity[key]) displayByIdentity[key] = name;
         return key;
@@ -631,6 +668,174 @@ export function computeGlobalBalances(): Record<string, number> {
 
     _globalBalCache = { v: _v, result: globalBalances };
     return { ...globalBalances };
+}
+
+/** B6-I3: cross-trip balances kept PER ORIGINAL CURRENCY, keyed by the SAME
+ *  display labels computeGlobalBalances produces. The EUR cross-trip view
+ *  collapses USD/ARS/etc. into one EUR number with no way for a co-traveler
+ *  to quote the figure in the currency the debt actually lives in; this feeds
+ *  a small '≈ original' hint next to each EUR total (the per-trip tab already
+ *  shows one). Uses each expense's raw `value` (not euroValue) so a no-rate
+ *  currency stays nominal. Returns { byLabel[label][CUR] = signed amount }.
+ *
+ *  Label alignment: this walks the identical trips → expenses → settlements
+ *  sequence, seeds identities with the same _identityKeyFor + linkedNames
+ *  merge, and projects to display labels with the same collision-
+ *  disambiguation as computeGlobalBalances, so `byLabel` keys match the EUR
+ *  map's keys one-for-one. Memoized on the state version like its sibling. */
+let _globalCurCache: { v: number; result: Record<string, Record<string, number>> } | null = null;
+export function computeGlobalBalancesByCurrency(): Record<string, Record<string, number>> {
+    const _v = getStateVersion();
+    if (_globalCurCache && _globalCurCache.v === _v) {
+        const copy: Record<string, Record<string, number>> = {};
+        for (const [k, m] of Object.entries(_globalCurCache.result)) copy[k] = { ...m };
+        return copy;
+    }
+
+    // Identity -> (currency -> amount); plus the display bookkeeping that must
+    // mirror computeGlobalBalances so the projected labels line up.
+    const byIdentity: Record<string, Record<string, number>> = {};
+    const displayByIdentity: Record<string, string> = {};
+    const companionsByTrip = new Map<string, Companion[]>();
+    for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
+        companionsByTrip.set(t.id, t.companions ?? []);
+    }
+    const linkedNames = _buildLinkedNameMap(companionsByTrip);
+    const seed = (tripId: string, name: string): string => {
+        const key = _identityKeyFor(companionsByTrip, tripId, name, linkedNames);
+        if (!(key in byIdentity)) byIdentity[key] = {};
+        if (name && !displayByIdentity[key]) displayByIdentity[key] = name;
+        return key;
+    };
+    const add = (key: string, cur: string, amt: number): void => {
+        const bucket = byIdentity[key]!;
+        bucket[cur] = (bucket[cur] || 0) + amt;
+    };
+    for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
+        for (const name of getTripCompanionNames(t)) seed(t.id, name);
+    }
+
+    // Same dedupe as computeGlobalBalances: STATE.expenses is the master list;
+    // archived-trip snapshots repeat those same ids.
+    const seenIds = new Set<string>();
+    const allExpenses: typeof STATE.expenses = [];
+    for (const e of STATE.expenses) {
+        if (!seenIds.has(e.id)) { seenIds.add(e.id); allExpenses.push(e); }
+    }
+    for (const t of STATE.archivedTrips || []) {
+        for (const e of (t.expenses || [])) {
+            if (!seenIds.has(e.id)) { seenIds.add(e.id); allExpenses.push(e); }
+        }
+    }
+
+    for (const exp of allExpenses) {
+        if (exp.who) seed(exp.tripId, exp.who);
+        if (exp.splits) for (const name of Object.keys(exp.splits)) { if (name) seed(exp.tripId, name); }
+    }
+
+    const tripCompanionsById: Record<string, string[]> = {};
+    for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
+        tripCompanionsById[t.id] = getTripCompanionNames(t);
+    }
+
+    for (const exp of allExpenses) {
+        const cur = ((exp.currency || 'EUR') as string).toUpperCase();
+        const amount = Number(exp.value) || 0; // ORIGINAL currency units
+        if (!(amount > 0)) continue;
+        const whoKey = exp.who ? seed(exp.tripId, exp.who) : undefined;
+        if (whoKey !== undefined) add(whoKey, cur, amount);
+        if (exp.splits && Object.keys(exp.splits).length > 0) {
+            const denom = Object.values(exp.splits).reduce(
+                (a: number, b: number) => a + (Number(b) || 0),
+                0,
+            );
+            if (denom > 0) {
+                for (const [person, pct] of Object.entries(exp.splits)) {
+                    const k = seed(exp.tripId, person);
+                    add(k, cur, -(amount * Number(pct)) / denom);
+                }
+            }
+        } else {
+            const roster = tripCompanionsById[exp.tripId] || [];
+            const splitGroup = roster.length > 0
+                ? roster
+                : Array.from(new Set([exp.who, ...Object.keys(exp.splits || {})].filter(Boolean)));
+            const share = amount / Math.max(splitGroup.length, 1);
+            splitGroup.forEach((p) => { const k = seed(exp.tripId, p); add(k, cur, -share); });
+        }
+    }
+
+    // Settlements per original currency (mirrors the EUR path's identity keys).
+    const tripsById = new Map<string, Trip>();
+    for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) tripsById.set(t.id, t);
+    const seenSettlements = new Set<string>();
+    const allSettlements: Settlement[] = [];
+    for (const s of (STATE.settlements || [])) {
+        if (!seenSettlements.has(s.id)) { seenSettlements.add(s.id); allSettlements.push(s); }
+    }
+    for (const t of (STATE.archivedTrips || [])) {
+        const snap = ((t as { settlements?: Settlement[] }).settlements) || [];
+        for (const s of snap) {
+            if (!seenSettlements.has(s.id)) { seenSettlements.add(s.id); allSettlements.push(s); }
+        }
+    }
+    const settlementPartyKey = (
+        userId: string | null | undefined,
+        snapshotName: string | null | undefined,
+        trip: Trip | null,
+        tripId: string,
+    ): string | null => {
+        if (userId && `user:${userId}` in byIdentity) {
+            const k = `user:${userId}`;
+            if (snapshotName && !displayByIdentity[k]) displayByIdentity[k] = snapshotName;
+            return k;
+        }
+        const rosterName = snapshotName
+            || (userId ? findTripCompanionByLinkedUser(trip, userId)?.name : undefined);
+        if (rosterName) return seed(tripId, rosterName);
+        if (userId) {
+            const k = `user:${userId}`;
+            if (!(k in byIdentity)) byIdentity[k] = {};
+            return k;
+        }
+        return null;
+    };
+    for (const s of allSettlements) {
+        const trip = tripsById.get(s.tripId);
+        const fromKey = settlementPartyKey(s.fromUserId, s.fromName, trip || null, s.tripId);
+        const toKey = settlementPartyKey(s.toUserId, s.toName, trip || null, s.tripId);
+        if (!fromKey || !toKey) continue;
+        const cur = ((s.currency || 'EUR') as string).toUpperCase();
+        const amt = Number(s.amount) || 0;
+        if (!(amt > 0)) continue;
+        add(fromKey, cur, amt);
+        add(toKey, cur, -amt);
+    }
+
+    // Project to the SAME display labels computeGlobalBalances assigns.
+    const byLabel: Record<string, Record<string, number>> = {};
+    const baseNameCount = new Map<string, number>();
+    for (const key of Object.keys(byIdentity)) {
+        const base = displayByIdentity[key] || key.slice(key.indexOf(':') + 1);
+        const seenN = baseNameCount.get(base) || 0;
+        baseNameCount.set(base, seenN + 1);
+        let label = base;
+        if (seenN > 0) {
+            const tag = key.startsWith('user:') ? key.slice(5, 9) : String(seenN + 1);
+            label = `${base} (${tag})`;
+        }
+        if (label in byLabel) {
+            let n = 2;
+            while (`${label} #${n}` in byLabel) n += 1;
+            label = `${label} #${n}`;
+        }
+        byLabel[label] = byIdentity[key]!;
+    }
+
+    _globalCurCache = { v: _v, result: byLabel };
+    const copy: Record<string, Record<string, number>> = {};
+    for (const [k, m] of Object.entries(byLabel)) copy[k] = { ...m };
+    return copy;
 }
 
 /** Per-companion paid/share leaderboard for a trip — used by the

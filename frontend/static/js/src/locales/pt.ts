@@ -35,6 +35,11 @@ export const pt: Translations = {
         saveChanges: 'Guardar alterações',
     },
     editTrip: {
+        saveWithDelete: 'Excluir {count} dia(s) e guardar',
+        datesPreviewScaffold: '{count} dia(s) vazio(s) serão criados para este intervalo.',
+        datesPreviewRebase: 'O número de dias permanece; cada dia desloca-se para o novo início.',
+        datesPreviewRemove: '{count} dia(s) serão excluídos — notas e fotos neles serão perdidas.',
+        datesPreviewAdd: '{count} dia(s) vazio(s) serão adicionados ao fim.',
         title: 'Editar viagem',
         adventureName: 'Nome da aventura',
         destination: 'Destino',
@@ -613,6 +618,7 @@ export const pt: Translations = {
         homeCountryNotSet: '— Por definir —',
     },
     settlement: {
+        crossTripPayInfoOnly: 'Só uma visão geral — regista cada um destes no separador Acertar da respetiva viagem.',
         historyEditReRecordsNote: "Editar regista novamente este pagamento e volta a notificar o destinatário.",
         crossTripSettledBody: "Nenhum saldo pendente em nenhuma das suas viagens.",
         crossTripSettledTitle: "Todos acertaram as contas",
@@ -795,6 +801,10 @@ export const pt: Translations = {
         createDuplicateScope: 'Já existe um orçamento para esta viagem, categoria e pessoa.',
     },
     insights: {
+        worthTodayDeviceLocalNote: 'Definiste as tuas próprias taxas, guardadas neste dispositivo — os companheiros podem ver um “Vale hoje” diferente.',
+        worthTodayFallbackNote: 'A inflação local não é aplicada a {currencies} — sem dados para estas moedas — pelo que o seu “Vale hoje” pode subestimar anos de alta inflação.',
+        perNoCountryNote: 'As despesas sem país registado são agrupadas como “Sem país”, para que os totais aqui correspondam ao resto da viagem.',
+        perNoCountry: 'Sem país',
         avgDailyNoDatedSpend: "Sem gastos com data para este filtro",
         cpiStillUpdating: "Ainda a atualizar dados de inflação…",
         title: 'Análises',
@@ -1307,6 +1317,7 @@ export const pt: Translations = {
         addSplitPersonAria: 'Adicionar uma pessoa para dividir a despesa',
     },
     feed: {
+        endOfRecent: 'Chegaste ao fim da tua atividade recente.',
         toastRepostConfirmBtn: 'Republicar',
         toastRepostConfirmMessage: 'Isto partilha a viagem com todos os seus seguidores.',
         toastRepostConfirmTitle: 'Republicar no seu feed?',
@@ -1426,6 +1437,9 @@ export const pt: Translations = {
         commentPostAria: 'Publicar comentário',
     },
     map: {
+        assignDayAria: 'Atribuir este local a um dia',
+        tripWideOption: 'Qualquer dia · lista de tarefas',
+        pinnedTo: 'Fixado em',
         searchRateLimited: "Demasiadas pesquisas neste momento. Tente novamente dentro de instantes.",
         searchUnavailable: "A pesquisa está temporariamente indisponível. Tente novamente mais tarde.",
         addToTodo: '📋 Adicionar à lista de tarefas',
@@ -1444,6 +1458,7 @@ export const pt: Translations = {
         searchLoadError: 'Não foi possível carregar este local.',
     },
     templates: {
+        useCount: { one: '{count} uso', other: '{count} usos' },
         startDatePromptV2: 'Os modelos vêm com um número fixo de dias — escolhe o primeiro dia e nós datamos os restantes. Só o plano e os locais guardados são copiados; despesas, companheiros e fotos não são copiados.',
         previewMorePlaces: '+{n} adicionais',
         previewMoreDays: '+{n} dias adicionais',
@@ -1633,6 +1648,14 @@ export const pt: Translations = {
         pinCancelAria: 'Cancelar edição do pin',
     },
     checklist: {
+        clearedToast: '{count} tarefa(s) concluída(s) removidas',
+        dragToReorder: 'Arraste para reordenar',
+        clearCompletedConfirm: 'Remover',
+        clearCompletedBody: '{count} tarefa(s) concluída(s) serão removidas desta lista. As tarefas por fazer permanecem.',
+        clearCompletedTitle: 'Remover tarefas concluídas?',
+        clearCompleted: 'Limpar concluídos',
+        markAllDone: 'Marcar tudo como feito',
+        charsLeft: '{n} caracteres restantes',
         clearToDeleteBody: "Você apagou o texto, então esta tarefa será removida da lista. Cancele para continuar editando.",
         clearToDeleteTitle: "Excluir esta tarefa?",
         modalTitle: '📝 Lista da viagem',
@@ -1843,6 +1866,8 @@ export const pt: Translations = {
         traffic: 'Nomes de autoestradas / vias principais + tráfego ao vivo do Google + bombas de combustível na área alargada da viagem',
     },
     dayDetail: {
+        checklistAddBtn: 'Adicionar',
+        checklistAddPlaceholder: 'Adicionar uma tarefa…',
         fmtClearAria: "Limpar formatação",
         noteFull: "Esta nota está cheia — remova algum texto para adicionar mais.",
         headerChipAnchor: '⭐ Centro da Viagem',
@@ -1927,6 +1952,10 @@ export const pt: Translations = {
         toastUpdated: 'Itinerário atualizado!',
     },
     tripMedia: {
+        photoUploadingCard: 'A carregar foto…',
+        photosPdfHint: 'Quer adicionar um PDF de reserva? Esses ficam em Documentos.',
+        docsOpenAria: 'Abrir ou transferir {name}',
+        docsOpenTitle: 'Abrir / transferir',
         photoUploadQuota: "Limite de armazenamento atingido — apaga algumas fotos ou documentos para libertar espaço e tenta novamente.",
         addDocStatusFailedWithMsg: "❌ Falha no envio: {error}",
         addDocValidationInvalidUrl: "Esse link não é suportado. Use um URL http(s):// ou carregue o ficheiro.",
@@ -2016,6 +2045,7 @@ export const pt: Translations = {
         dayBucketDay: 'Dia {n}',
     },
     modals: {
+        newTripCreatingBtn: 'A criar…',
         pdfOptOffByDefault: 'Desativado por defeito',
         countryFallbackLabel: 'Mapas indisponível — escolha o país de destino para continuar',
         downloadZipOptionBodyV2: 'Tudo desta viagem — incluindo todas as fotos e ficheiros — reimportável mais tarde. Pode ser grande.',
@@ -2163,6 +2193,7 @@ export const pt: Translations = {
         sharePrivate: 'Esta viagem é privada — define-a como Pública (o controlo de visibilidade acima) para a partilhares.',
     },
     upload: {
+        nonNormalizedSplits: '{count} linha(s) tinham divisões que não somam 100% ({rows}) — foram ajustadas proporcionalmente.',
         modeSwitchAria: 'Modo de carregamento',
         modeManualLabel: 'Uma a uma',
         modeManualHint: 'Escreve uma única despesa à mão',

@@ -163,9 +163,13 @@ _UPLOAD_QUOTA_BYTES = int(os.getenv("GG_UPLOAD_QUOTA_BYTES", str(500 * 1024 * 10
 #   * serve_upload's ACL runs on the ORIGINAL path; `?size=` resolves the
 #     variant AFTER the gate, so variants inherit exactly the original's
 #     access control.
-# Animated images (GIF / animated WebP) get NO variants — a static
-# thumbnail of frame 0 would silently kill the animation; they serve the
-# original at every size. PDFs are skipped entirely.
+# Animated images (GIF / animated WebP) get a STATIC frame-0 `thumb`
+# only — the grid renders 140px tiles and used to download+decode the
+# whole multi-MB animation just to paint one, so a still first frame is
+# a pure bandwidth win. They deliberately get NO `display` variant: the
+# lightbox requests `?size=display`, which then falls back to the
+# original animated file, so the animation is preserved exactly where a
+# viewer expects to see it play. PDFs are skipped entirely.
 _VARIANT_DIR = "_variants"
 _VARIANT_SIZES = {"thumb": 320, "display": 1600}
 _VARIANT_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
@@ -191,19 +195,26 @@ def _generate_variants(out_path: str, user_folder: str) -> None:
         from PIL import Image
 
         with Image.open(out_path) as img:
-            if getattr(img, "is_animated", False):
-                return
             img.load()
             fmt = img.format
             icc = img.info.get("icc_profile") if hasattr(img, "info") else None
             vdir = os.path.join(user_folder, _VARIANT_DIR)
             os.makedirs(vdir, exist_ok=True)
-            for label, edge in _VARIANT_SIZES.items():
-                if max(img.size) <= edge:
+            # Animated GIF/WebP get a STATIC frame-0 `thumb` only. img is
+            # positioned on frame 0 after load(), and .copy() detaches that
+            # single frame from the animation, so the saved variant never
+            # loops. `display` is skipped on purpose: the lightbox asks for
+            # ?size=display, which falls back to the original animated file
+            # (see _send_upload) — that's where the animation still plays.
+            animated = bool(getattr(img, "is_animated", False))
+            sizes = {"thumb": _VARIANT_SIZES["thumb"]} if animated else _VARIANT_SIZES
+            base = img.copy() if animated else img
+            for label, edge in sizes.items():
+                if max(base.size) <= edge:
                     # Original is already at/below this size — serving it
                     # directly is both correct and cheaper than a re-encode.
                     continue
-                copy = img.copy()
+                copy = base.copy()
                 copy.thumbnail((edge, edge), Image.LANCZOS)
                 save_kwargs = {}
                 if fmt in ("JPEG", "WEBP"):

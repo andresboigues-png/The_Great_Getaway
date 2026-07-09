@@ -497,15 +497,21 @@ export function navigate(
         // Scroll positioning after the new tree is committed. Deferred
         // into restoreScrollTo's rAF loop so the document is tall enough
         // to actually reach the target (post-clear scrollHeight is 0).
-        //   - same page + active-tab tap → top.
         //   - same page mutation re-render / explicit preserveScroll →
         //     keep the user's position.
         //   - returning to Home → restore where they left it.
         //   - any other fresh page → top.
+        //
+        // F3-I4: same-page + active-tab-tap → top is NOT handled here — the
+        // synchronous guard near the top of navigate() (fromNavClick &&
+        // !preserveScroll && STATE.user && currentPage === page) already
+        // intercepts every signed-in same-page nav tap and returns before this
+        // loader runs, so `willBeSamePage && fromNavClick` can never both be
+        // true by the time we get here (unsigned users exit at the login wall;
+        // a preserveScroll same-page tap wants its position kept, below). That
+        // guard is the single source of truth for scroll-to-top-on-tap.
         let targetY: number;
-        if (willBeSamePage && fromNavClick) {
-            targetY = 0;
-        } else if (preserveScroll || willBeSamePage) {
+        if (preserveScroll || willBeSamePage) {
             targetY = savedScrollY;
         } else if (page === PAGES.HOME && userInitiated) {
             // Genuine return to Home (tapped the tab / back-forward) → restore

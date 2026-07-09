@@ -32,7 +32,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { STATE, emit } from '../../state.js';
-import { showLiquidAlert, showConfirmModal } from '../../utils.js';
+import { showLiquidAlert } from '../../utils.js';
 import {
     upsertTrip,
     upsertDay,
@@ -61,6 +61,10 @@ export function EditTripModal({ trip, close }: { trip: Trip; close: () => void }
     const dateRangeRef = useRef<HTMLInputElement>(null);
     const startDateRef = useRef<HTMLInputElement>(null);
     const endDateRef = useRef<HTMLInputElement>(null);
+    // A3-I5: dedicated live date-change preview line (own element, NOT the
+    // date hint that _wireDateRangeValidation owns) — updated imperatively
+    // from the picker's onChange so React re-renders never clobber it.
+    const datePreviewRef = useRef<HTMLParagraphElement>(null);
     const coverInputRef = useRef<HTMLInputElement>(null);
     // The submit handler reads the picked place through this ref — the
     // getter only exists once the mount effect has wired the picker.
@@ -140,6 +144,70 @@ export function EditTripModal({ trip, close }: { trip: Trip; close: () => void }
         // an invalid range; native min-attribute + setCustomValidity
         // both catch it.
         _wireDateRangeValidation(form, 'editTripStartDate', 'editTripEndDate', 'editTripDateHint');
+
+        // A3-I5/A3-I1 — live date-change preview. Mirrors onSubmit's UTC
+        // date arithmetic (no STATE mutation) to work out which lifecycle
+        // case a Save would run and the day count involved, then surfaces
+        // it inline + on the submit button so the consequence is legible
+        // before the click. Wired as the picker's onChange (fires after the
+        // mirrors sync); the initial paint below covers the pre-filled range.
+        const parsePreviewUTC = (iso: string): Date | null => {
+            if (!iso) return null;
+            const d = new Date(iso + 'T00:00:00Z');
+            return isNaN(d.getTime()) ? null : d;
+        };
+        const saveLabel = t('common.saveChanges');
+        const refreshPreview = () => {
+            const previewEl = datePreviewRef.current;
+            const startIso = startInput.value;
+            const endIso = endInput.value;
+            // Default: no change to surface, submit reads 'Save Changes'.
+            let text = '';
+            let shortenCount = 0;
+            if (startIso && endIso) {
+                const newStart = parsePreviewUTC(startIso);
+                const newEnd = parsePreviewUTC(endIso);
+                if (numberedDays.length === 0) {
+                    // Fresh set — Save will scaffold one day per date.
+                    if (newStart && newEnd && newEnd >= newStart) {
+                        const span = Math.round((newEnd.getTime() - newStart.getTime()) / 86400000) + 1;
+                        text = t('editTrip.datesPreviewScaffold', { count: span });
+                    }
+                } else if (newStart && newEnd) {
+                    const oldFirst = parsePreviewUTC(numberedDays[0]!.date || '');
+                    const startChanged = oldFirst ? newStart.getTime() !== oldFirst.getTime() : true;
+                    // Effective last date AFTER the (optional) rebase keeps the
+                    // old length shifted to the new start — same as onSubmit.
+                    const effLast = (() => {
+                        const d = new Date(newStart);
+                        d.setUTCDate(d.getUTCDate() + (numberedDays.length - 1));
+                        return d;
+                    })();
+                    if (newEnd.getTime() > effLast.getTime()) {
+                        const add = Math.round((newEnd.getTime() - effLast.getTime()) / 86400000);
+                        text = t('editTrip.datesPreviewAdd', { count: add });
+                    } else if (newEnd.getTime() < effLast.getTime()) {
+                        shortenCount = Math.round((effLast.getTime() - newEnd.getTime()) / 86400000);
+                        text = t('editTrip.datesPreviewRemove', { count: shortenCount });
+                    } else if (startChanged && oldFirst) {
+                        text = t('editTrip.datesPreviewRebase');
+                    }
+                }
+            }
+            if (previewEl) {
+                previewEl.textContent = text;
+                previewEl.style.display = text ? 'block' : 'none';
+            }
+            // A3-I1: relabel the submit button so a shorten's impact is on the
+            // primary action itself (collapses the old two-modal flow).
+            submitBtn.textContent = shortenCount > 0
+                ? t('editTrip.saveWithDelete', { count: shortenCount })
+                : saveLabel;
+        };
+        visibleInput.addEventListener('input', refreshPreview);
+        startInput.addEventListener('input', refreshPreview);
+        endInput.addEventListener('input', refreshPreview);
+        refreshPreview();
 
         // The imperative version never destroyed the flatpickr instance on
         // close (it leaked the orphaned calendar node); the effect cleanup
@@ -422,42 +490,38 @@ export function EditTripModal({ trip, close }: { trip: Trip; close: () => void }
         };
 
         if (daysToDelete.length > 0) {
-            const count = daysToDelete.length;
-            // Hold the modal open until the user decides. If they cancel
-            // we DON'T mutate STATE / write to server — the entire edit
-            // is treated as cancelled so they can re-open + adjust.
-            showConfirmModal({
-                title: t('editTrip.shortenConfirmTitle'),
-                message: t('editTrip.shortenConfirmBody', { count }),
-                confirmText: t('common.delete'),
-                onConfirm: () => {
-                    // Remove from STATE first so the UI updates immediately.
-                    const doomedIds = new Set(daysToDelete.map(d => d.id));
-                    STATE.tripDays = (STATE.tripDays || []).filter(
-                        d => !doomedIds.has(d.id),
-                    );
-                    // A3-B1: prune the trip-level media arrays of any item
-                    // scoped to a doomed day BEFORE finalizeAndClose upserts
-                    // the trip. finalizeAndClose → upsertTrip → persistTripMedia
-                    // POSTs trip.photos/documents/markedPlaces as-is; without
-                    // this prune those arrays still carry the deleted days'
-                    // items. That POST can land after the server-side day
-                    // delete has already cascaded the media away — 409 → the
-                    // add-only merge re-adds them as orphaned media. Dropping
-                    // them from the LOCAL arrays here means the reconcile base
-                    // reads them as our own deletes and honours them. Only
-                    // items whose dayId is a doomed (dayNumber > 0) day are
-                    // touched; trip-wide + surviving-day media is left intact.
-                    const prunes = (item: { dayId?: string | null }) =>
-                        !(item.dayId != null && doomedIds.has(item.dayId));
-                    if (Array.isArray(trip.photos)) trip.photos = trip.photos.filter(prunes);
-                    if (Array.isArray(trip.documents)) trip.documents = trip.documents.filter(prunes);
-                    if (Array.isArray(trip.markedPlaces)) trip.markedPlaces = trip.markedPlaces.filter(prunes);
-                    // Then fire delete-on-server for each (idempotent + outbox-replayable).
-                    daysToDelete.forEach((d) => { void deleteDayOnServer(d.id); });
-                    void finalizeAndClose();
-                },
-            });
+            // A3-I1: the submit button already read 'Delete N days & Save'
+            // (relabelled live from the date-preview effect) and the inline
+            // preview line spelled out the loss, so the impact was surfaced
+            // BEFORE this click. A second confirm modal stacked on the
+            // already-clicked Save was redundant friction — proceed straight
+            // to the delete + finalize, the primary action's own label being
+            // the confirmation.
+            const doomedIds = new Set(daysToDelete.map(d => d.id));
+            // Remove from STATE first so the UI updates immediately.
+            STATE.tripDays = (STATE.tripDays || []).filter(
+                d => !doomedIds.has(d.id),
+            );
+            // A3-B1: prune the trip-level media arrays of any item
+            // scoped to a doomed day BEFORE finalizeAndClose upserts
+            // the trip. finalizeAndClose → upsertTrip → persistTripMedia
+            // POSTs trip.photos/documents/markedPlaces as-is; without
+            // this prune those arrays still carry the deleted days'
+            // items. That POST can land after the server-side day
+            // delete has already cascaded the media away — 409 → the
+            // add-only merge re-adds them as orphaned media. Dropping
+            // them from the LOCAL arrays here means the reconcile base
+            // reads them as our own deletes and honours them. Only
+            // items whose dayId is a doomed (dayNumber > 0) day are
+            // touched; trip-wide + surviving-day media is left intact.
+            const prunes = (item: { dayId?: string | null }) =>
+                !(item.dayId != null && doomedIds.has(item.dayId));
+            if (Array.isArray(trip.photos)) trip.photos = trip.photos.filter(prunes);
+            if (Array.isArray(trip.documents)) trip.documents = trip.documents.filter(prunes);
+            if (Array.isArray(trip.markedPlaces)) trip.markedPlaces = trip.markedPlaces.filter(prunes);
+            // Then fire delete-on-server for each (idempotent + outbox-replayable).
+            daysToDelete.forEach((d) => { void deleteDayOnServer(d.id); });
+            void finalizeAndClose();
         } else {
             void finalizeAndClose();
         }
@@ -491,6 +555,10 @@ export function EditTripModal({ trip, close }: { trip: Trip; close: () => void }
                 <p id="editTripDateHint" className="form-hint w-full mb-4">
                     {numberedDays.length > 0 ? t('modals.editTripDatesHintRekey') : t('modals.newTripDatesHint')}
                 </p>
+                {/* A3-I5: live date-change preview, updated imperatively by the
+                    mount effect. Starts empty + hidden; shows 'N days added /
+                    deleted / shift to the new start' as the user picks a range. */}
+                <p id="editTripDatePreview" ref={datePreviewRef} className="form-hint w-full mb-4" style={{ display: 'none', fontWeight: 600 }} />
 
                 {/* Cover photo picker (post-Phase-C feature). Hidden
                     <input type="file"> driven by a styled button so we
@@ -512,7 +580,7 @@ export function EditTripModal({ trip, close }: { trip: Trip; close: () => void }
                             🖼 {t('editTrip.chooseCover')}
                         </button>
                         <div id="editTripCoverPreview" style={{ display: coverUrl ? 'flex' : 'none', flex: 1, alignItems: 'center', gap: 'var(--space-3)' }}>
-                            <img id="editTripCoverThumb" src={coverUrl ?? ''} alt={t('editTrip.coverPreviewAlt')} style={{ width: 56, height: 56, borderRadius: 12, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.25)', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }} />
+                            {coverUrl && <img id="editTripCoverThumb" src={coverUrl} alt={t('editTrip.coverPreviewAlt')} style={{ width: 56, height: 56, borderRadius: 12, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.25)', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }} />}
                             <button
                                 type="button"
                                 id="editTripCoverRemoveBtn"

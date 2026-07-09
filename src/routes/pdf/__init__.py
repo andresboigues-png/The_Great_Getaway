@@ -531,7 +531,7 @@ def _sec_cover(b: _PdfBuild) -> None:
             (
                 f"{n:02d}",
                 tr("sec_days"),
-                f"{len(days_renderable)} · {tr('stat_days').lower()}",
+                f"{len(days_renderable)} · {tr.days_word(len(days_renderable))}",
                 _BRAND_BLUE,
             )
         )
@@ -735,11 +735,14 @@ def _sec_days(b: _PdfBuild) -> None:
             if day_pins_on and _day_maps_left > 0:
                 d_lat = day.get("lat")
                 d_lng = day.get("lng")
-                if d_lat is None or d_lng is None:
-                    d_lat = trip_row.get("lat")
-                    d_lng = trip_row.get("lng")
-                day_map_png = _fetch_day_pin_map(d_lat, d_lng, None)
-                _day_maps_left -= 1
+                # A6-I3: only fetch a per-day map when the day has its OWN
+                # coordinates. Days lacking coords used to fall back to the
+                # trip centre and still fetch, so a 30-day trip where only
+                # the anchor had coords rendered 30 identical trip-centre
+                # mini-maps (and burned 30 Static Maps calls). Skip them.
+                if d_lat is not None and d_lng is not None:
+                    day_map_png = _fetch_day_pin_map(d_lat, d_lng, None)
+                    _day_maps_left -= 1
             # PDF-4: per-day inline photos (opt-in, off by default), bounded
             # by the remaining per-trip photo budget.
             day_photos: list[bytes] = []

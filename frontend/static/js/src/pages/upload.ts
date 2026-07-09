@@ -329,7 +329,7 @@ export function runBatchImport(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SheetJS sheet_to_json rows: heterogeneous cells (string|number|Date) coerced at use; unknown[][] would break parseFloat(row[n]) without a runtime change
     parsedRows: any[][],
     formatVal: string,
-): { added: number; skipped: string[]; noRateCurrencies: Record<string, number>; truncatedCount: number } {
+): { added: number; skipped: string[]; noRateCurrencies: Record<string, number>; truncatedCount: number; nonNormalizedSplitRows: string[] } {
     const activeTripId = STATE.activeTripId!;
     const activeTrip = STATE.trips.find(t => t.id === activeTripId);
     if (activeTrip && !Array.isArray(activeTrip.companions)) activeTrip.companions = [];
@@ -353,6 +353,13 @@ export function runBatchImport(
      *  rate (EXP-1). Lets the caller tell the user exactly which currencies
      *  need a manual EUR amount instead of just "N skipped". */
     const noRateCurrencies = ({} as Record<string, number>);
+    /** B2-I4: labels of IMPORTED rows whose explicit splits cell didn't sum
+     *  to 100% (only custom formats carry a splits column; popular formats +
+     *  the equal-split fallback always sum to ~100). The reducer normalizes
+     *  by the actual sum, so these still import correctly — but the user
+     *  supplied e.g. "Alice:30,Bob:30" (60%) and deserves an honest signal
+     *  that we treated it as 50/50 rather than silently. */
+    const nonNormalizedSplitRows = ([] as string[]);
 
     if (!isPopular) {
         const formatId = formatVal.split(':')[1];
@@ -458,6 +465,20 @@ export function runBatchImport(
             return;
         }
 
+        // B2-I4: a non-null `splits` here can only have come from a custom
+        // format's splits cell (popular formats leave `splits` null and the
+        // equal-split fallback runs later, only when `splits` is null). If
+        // the user's verbatim percentages don't sum to ~100, flag the row —
+        // it still imports (the reducer normalizes by the actual sum), but
+        // we tell the user instead of silently re-weighting their intent. A
+        // 0.5% tolerance absorbs equal-split rounding (e.g. 33.33×3 = 99.99).
+        if (splits) {
+            const splitSum = Object.values(splits).reduce((a, b) => a + b, 0);
+            if (Math.abs(splitSum - 100) > 0.5) {
+                nonNormalizedSplitRows.push(label || `#${rowIndex + 2}`);
+            }
+        }
+
         // Register `who` on both rosters: the account-level master list AND
         // this trip's roster (UNLINKED — `who` is just a CSV string; the
         // user can promote it to a linked friend later).
@@ -541,5 +562,5 @@ export function runBatchImport(
     // were likewise lost on reload before.
     void syncCategories();
     if (activeTrip) void upsertTrip(activeTrip);
-    return { added, skipped, noRateCurrencies, truncatedCount };
+    return { added, skipped, noRateCurrencies, truncatedCount, nonNormalizedSplitRows };
 }

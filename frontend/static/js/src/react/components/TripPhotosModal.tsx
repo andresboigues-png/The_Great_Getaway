@@ -26,7 +26,7 @@
 // the second try). With React the element and its handler survive
 // re-renders, so that whole dance is obsolete.
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { STATE, emit } from '../../state.js';
 import { upsertTrip, upsertDay, uploadMedia } from '../../api.js';
@@ -77,6 +77,14 @@ export function TripPhotosModal({
     const tripIsEditable = canEdit(trip);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const bodyRef = useRef<HTMLDivElement>(null);
+    // D1-I3 — number of files still uploading in the current batch. A
+    // 10-photo mobile batch takes many seconds and onFilesChosen only
+    // emitted ONE state change (after the whole for-loop), so the grid
+    // sat frozen with a single upfront toast. We render this many
+    // placeholder spinner cards at the top of the grid and decrement it
+    // as each file resolves, so the user sees the batch draining in
+    // real time. 0 when idle.
+    const [pendingUploads, setPendingUploads] = useState(0);
 
     const photos = getAllTripPhotos(trip);
     const anchorDayForPhotos = (STATE.tripDays || [])
@@ -106,6 +114,12 @@ export function TripPhotosModal({
             const anchorDay = (STATE.tripDays || [])
                 .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);
             const defaultDayId = anchorDay ? anchorDay.id : null;
+            // D1-I3 — show the batch draining: seed the placeholder count
+            // with the full batch size, then decrement per resolved file
+            // below. setState re-renders us in place independently of the
+            // single end-of-loop emit('state:changed'), so the grid no
+            // longer sits frozen for the whole batch.
+            setPendingUploads(files.length);
             let added = 0;
             let autoTagged = 0;
             let failed = 0;
@@ -155,7 +169,15 @@ export function TripPhotosModal({
                     console.error('Photo upload failed:', e);
                     failed++;
                 }
+                // D1-I3 — one placeholder card drains as each file
+                // finishes (success OR failure). Guarded at 0 so a stray
+                // extra decrement can't drive the count negative.
+                setPendingUploads(n => Math.max(0, n - 1));
             }
+            // Defensive reset — the loop decrements to exactly 0, but pin
+            // it so a future early-return in the loop body can't leave
+            // phantom placeholders on the grid.
+            setPendingUploads(0);
             input.value = '';
             if (added > 0) {
                 emit('state:changed'); // re-renders the grid (the old repaint())
@@ -470,7 +492,18 @@ export function TripPhotosModal({
                         {photos.length === 1 ? t('tripMedia.photosCountOne', { count: photos.length }) : t('tripMedia.photosCountOther', { count: photos.length })}
                     </span>
                 </div>
-                {photos.length === 0 ? (
+                {/* D1-I5 — the file input is accept="image/*", so the OS
+                    picker silently hides PDFs even though /api/upload
+                    accepts them for the Documents flow. Turn that silent
+                    dead-end into an honest one-line pointer to the right
+                    place. Only shown to editors (who see the upload
+                    button at all). */}
+                {tripIsEditable && (
+                    <p className="tmm-modal-subtext" style={{ marginTop: -6, marginBottom: 14 }}>
+                        {t('tripMedia.photosPdfHint')}
+                    </p>
+                )}
+                {photos.length === 0 && pendingUploads === 0 ? (
                     <div className="card glass" style={{ padding: 28, borderRadius: 18, border: '1.5px dashed rgba(52,199,89,0.32)', background: 'rgba(52,199,89,0.04)', textAlign: 'center' }}>
                         <div className="tmm-icon-large" style={{ color: '#1a6b3c' }} dangerouslySetInnerHTML={{ __html: iconSvg('photo', { size: 30 }) }} />
                         <h3 style={{ margin: '0 0 6px', color: '#1a6b3c', fontWeight: 800 }}>{t('tripMedia.photosEmptyTitle')}</h3>
@@ -481,6 +514,23 @@ export function TripPhotosModal({
                     </div>
                 ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
+                        {/* D1-I3 — one spinner placeholder per file still
+                            uploading, prepended so a long mobile batch shows
+                            progress instead of a frozen grid. They drain as
+                            setPendingUploads decrements; the real cards below
+                            appear as each upload's emit lands. aria-busy +
+                            visually-hidden label so it's announced, not silent. */}
+                        {Array.from({ length: pendingUploads }).map((_, i) => (
+                            <div
+                                key={`uploading-${i}`}
+                                aria-busy="true"
+                                role="status"
+                                aria-label={t('tripMedia.photoUploadingCard')}
+                                style={{ position: 'relative', aspectRatio: '1', borderRadius: 14, overflow: 'hidden', background: 'rgba(52,199,89,0.06)', border: '1px dashed rgba(52,199,89,0.32)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                                <span className="spinner-ring" style={{ width: 26, height: 26, borderWidth: 2 }} />
+                            </div>
+                        ))}
                         {photos.map((p, i) => {
                             const isImage = isImageSrc(p.src);
                             const canEditDay = tripIsEditable && p._source === 'trip';

@@ -168,6 +168,13 @@ export function Insights() {
     // !isSettlement filter is Insights-specific and stays here.
     const { activeTripId, expenses: tripExpensesAll } = useActiveTrip();
     const categories = useStore((s) => s.categories);
+    // B7-I4: read trips + budgets through useStore selectors (not STATE.*
+    // directly). Today every mutation emits state:changed so a direct read
+    // would still repaint, but routing through the store makes the netBalances
+    // + tripBudgets derivations resilient if a future mutation ever emits a
+    // narrower event — same contract as every other slice on this page.
+    const trips = useStore((s) => s.trips);
+    const budgets = useStore((s) => s.budgets);
     const rateMode = useStore((s) => s.rateMode);
     const rateCache = useStore((s) => s.rateCache);
     const cpiCache = useStore((s) => s.cpiCache);
@@ -332,6 +339,52 @@ export function Insights() {
         targetCurr.toUpperCase(),
         ...tripExps.map((e: Expense) => (e.currency || 'EUR').toUpperCase()),
     ])).some((c) => c in CURRENCY_TO_CPI_COUNTRY && !(c in cpiCache));
+
+    // B3-I1 + B3-I2 shared input: this trip's per-trip FX overrides (empty if none).
+    const tripFxOverridesActive = (activeTripId && fxOverridesByTrip[activeTripId]) || {};
+
+    // B3-I2: cpiUnavailable above checks ONLY the home currency, so a foreign
+    // leg can silently lose ITS OWN inflation with no signal — e.g. a 2018
+    // Argentina trip where ARS has no live FX (→ Model B applies HOME CPI,
+    // ignoring 300%+ local inflation), or a currency whose World-Bank CPI
+    // series never landed (→ factor 1, no inflation at all). List the FOREIGN
+    // currencies whose local inflation is being dropped in "today" mode, once
+    // the CPI fetch has settled (cpiChecked). A per-trip override or a
+    // user-pinned manual inflation % supplies a real figure, so those aren't
+    // flagged. Empty in "at trip" mode (no inflation is applied there at all).
+    const inflationFallbackCurrencies = (cpiChecked && mode === 'today')
+        ? Array.from(new Set(tripExps.map((e: Expense) => (e.currency || 'EUR').toUpperCase())))
+            .filter((c) => c !== targetCurr.toUpperCase())
+            .filter((c) => {
+                if (tripFxOverridesActive[c]) return false;
+                const noFx = !hasRate(c);
+                const series = cpiCache[c];
+                const noCpi = !(series && Object.keys(series).length > 0);
+                // Model B (no FX) drops local inflation; factor-1 (FX but no CPI
+                // series) applies none. Either way the currency's OWN inflation
+                // is silently ignored. If it has both FX and a CPI series it's fine.
+                if (!noFx && !noCpi) return false;
+                // A user-pinned manual inflation % (any year) is an explicit
+                // choice, not a silent auto fallback — don't warn about it.
+                const manualInfl = manualRates[c] && Object.values(manualRates[c]!)
+                    .some((r) => Number.isFinite(r?.inflationPct));
+                return !manualInfl;
+            })
+            .sort()
+        : [];
+
+    // B3-I1: manualRates + per-trip fxOverridesByTrip persist ONLY in this
+    // device's localStorage (and CPI/FX caches are client-side), so two
+    // companions on one trip can see different "Worth today" totals. Flag when a
+    // manual override is actually shaping THIS trip's figure — a per-trip FX
+    // override, or a global manual rate for a currency this trip used — so the
+    // hero can note the number is device-specific. Only in "today" mode
+    // (overrides never touch the at-trip "Spent" leg).
+    const worthTodayIsDeviceLocal = mode === 'today' && (
+        Object.keys(tripFxOverridesActive).length > 0 ||
+        Array.from(new Set(tripExps.map((e: Expense) => (e.currency || 'EUR').toUpperCase())))
+            .some((c) => manualRates[c] && Object.keys(manualRates[c]!).length > 0)
+    );
 
     const {
         totalDisplay,
@@ -557,7 +610,12 @@ export function Insights() {
             let key: string;
             let label: string;
             let color = '#0071e3';
-            if (perDim === 'country') { key = e.country || ''; label = key; if (!key) continue; }
+            // B7-I1: bucket no-country expenses under a labeled "No country"
+            // slice instead of silently dropping them (which understated the
+            // trip while the Spenders "by country" breakdown still counted the
+            // same rows under '—'). Now both surfaces agree; a footnote below
+            // explains the bucket for auditability.
+            if (perDim === 'country') { key = e.country || '__nocountry__'; label = e.country || t('insights.perNoCountry'); }
             else if (perDim === 'currency') { key = (e.currency || 'EUR').toUpperCase(); label = key; }
             else { const c = findCategory(e.categoryId); key = c.id || c.name; label = c.name; color = c.color; }
             if (!m[key]) m[key] = { label, value: 0, count: 0, color };
@@ -588,7 +646,7 @@ export function Insights() {
 
     // Net balances (who owes whom) — reuses the settlement engine (splits +
     // settlements), shown in the home currency. Hidden when everyone's even.
-    const activeTrip = STATE.trips.find((tr) => tr.id === activeTripId);
+    const activeTrip = trips.find((tr) => tr.id === activeTripId);
     const netBalances = activeTrip
         ? Object.entries(computeTripBalances(activeTrip).balances)
               .map(([name, eur]) => ({ name, eur: eur as number, home: convertCurrency(eur as number, 'EUR', targetCurr) }))
@@ -602,7 +660,7 @@ export function Insights() {
 
     // Budget vs. spent — planned (EUR canonical) vs actual spend per budget
     // scope, both shown in the home currency. Reuses the budgets helpers.
-    const tripBudgets = (STATE.budgets || [])
+    const tripBudgets = (budgets || [])
         .filter((b) => b.tripId === activeTripId || b.tripId === 'all')
         .map((b) => {
             const stat = budgetStatus(b);
@@ -1377,6 +1435,16 @@ export function Insights() {
                             onClick={() => setMode('today')}
                         >
                             {t('insights.rateModeToday')}
+                            {/* B7-I5: make the toggle's effect self-evident — show
+                                the net inflation delta the figure applies (reuses
+                                inflPctNum). Hidden while the async inputs settle and
+                                when the move rounds to ~0% (no CPI series yet, or a
+                                very recent trip), so it never advertises a no-op. */}
+                            {!heroCalculating && Math.abs(inflPctNum) >= 0.1 ? (
+                                <span style={{ marginLeft: '5px', fontSize: '0.72em', fontWeight: 600, opacity: 0.7 }}>
+                                    {inflPctSigned}
+                                </span>
+                            ) : null}
                         </button>
                     </div>
                     <button
@@ -1438,6 +1506,24 @@ export function Insights() {
                     {!heroCalculating && cpiStillUpdating ? (
                         <p className="hero-stat-card__sub" style={{ opacity: 0.7, marginTop: '4px' }}>
                             {t('insights.cpiStillUpdating')}
+                        </p>
+                    ) : null}
+                    {/* B3-I2: name the foreign currencies whose OWN inflation the
+                        "Worth today" figure silently ignores (no FX → Model B, or
+                        no CPI series → factor 1), so a hyper-inflation trip (e.g.
+                        2018 Argentina) doesn't quietly look flat. */}
+                    {!heroCalculating && inflationFallbackCurrencies.length > 0 ? (
+                        <p className="hero-stat-card__sub" style={{ opacity: 0.7, marginTop: '4px' }}>
+                            {t('insights.worthTodayFallbackNote', { currencies: inflationFallbackCurrencies.join(', ') })}
+                        </p>
+                    ) : null}
+                    {/* B3-I1: manual FX/inflation overrides live only in this
+                        device's localStorage, so companions can see different
+                        "Worth today" totals — flag it so the figure isn't read as
+                        authoritative across devices. */}
+                    {!heroCalculating && worthTodayIsDeviceLocal ? (
+                        <p className="hero-stat-card__sub" style={{ opacity: 0.7, marginTop: '4px' }}>
+                            {t('insights.worthTodayDeviceLocalNote')}
                         </p>
                     ) : null}
                     <p
@@ -1848,6 +1934,14 @@ export function Insights() {
                         </div>
                     </div>
                 )}
+                {/* B7-I1: footnote so the per-country numbers audit — expenses
+                    with no country recorded are shown as a "No country" slice
+                    here (they used to be dropped, understating the trip). */}
+                {perDim === 'country' && convertedExps.some((e) => !e.country) ? (
+                    <p className="text-secondary text-[0.75rem] leading-snug mt-3 m-0">
+                        {t('insights.perNoCountryNote')}
+                    </p>
+                ) : null}
             </div>
 
             {/* Per-currency spend over time — moved here from the old breakdown

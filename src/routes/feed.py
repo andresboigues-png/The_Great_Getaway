@@ -164,6 +164,36 @@ from feed_events import (
 
 FEED_EVENT_BUILDERS = [et.build for et in FEED_EVENT_TYPES]
 
+# E2-I3: server-side tab scoping. The feed UI splits events into two
+# tabs — "Posts" (explicit shares + reposts) and "Actions" (everything
+# else: created / archived / joined trips, new friendships, settled-up,
+# achievements). Pre-fix get_feed ran EVERY builder each page and the
+# client discarded the non-active tab's events; on a Posts-heavy-Actions
+# feed that wasted bandwidth and could take many round-trips to fill one
+# tab (each page's 20-slot window mostly filled with the wrong type).
+# When the request carries `?tab=posts|actions` we run ONLY that tab's
+# builders, so pagination is proportional to the surfaced tab. The two
+# event-type NAMES below are the registry names (feed_events.py) whose
+# builders emit the wire types 'friend_shared_trip' / 'friend_reposted_
+# trip' that POSTS_EVENT_TYPES in the frontend renders under Posts.
+_POSTS_TAB_EVENT_NAMES = frozenset({"share", "repost"})
+
+
+def _builders_for_tab(tab):
+    """Return the FeedEventType builders scoped to `tab`.
+
+    tab == 'posts'   → share + repost builders only.
+    tab == 'actions' → every other builder.
+    tab is None / anything else → the full builder set (legacy behaviour,
+    so an absent or unrecognised ?tab value is a no-op — the response is
+    identical to pre-E2-I3).
+    """
+    if tab == "posts":
+        return [et.build for et in FEED_EVENT_TYPES if et.name in _POSTS_TAB_EVENT_NAMES]
+    if tab == "actions":
+        return [et.build for et in FEED_EVENT_TYPES if et.name not in _POSTS_TAB_EVENT_NAMES]
+    return FEED_EVENT_BUILDERS
+
 
 def _attach_engagement_counts(cursor, events: list, user_id: str) -> None:
     """Mutate `events` to add like/bookmark/comment counts + viewer-
@@ -311,13 +341,19 @@ def get_feed():
     except (TypeError, ValueError):
         limit = _FEED_DEFAULT_LIMIT
     limit = max(1, min(limit, _FEED_MAX_LIMIT))
+    # E2-I3: optional tab scoping. Only 'posts' / 'actions' narrow the
+    # builder set; any other value (incl. absent, or 'explore' which is
+    # served by a different route) leaves the full set so the response
+    # is byte-identical to the pre-E2-I3 behaviour.
+    tab = request.args.get("tab")
+    builders = _builders_for_tab(tab)
 
     events: list = []
     with get_db() as conn:
         cursor = conn.cursor()
         ctx = _build_feed_context(cursor, user_id)
 
-        for builder in FEED_EVENT_BUILDERS:
+        for builder in builders:
             try:
                 events.extend(builder(cursor, ctx))
             except Exception as e:
@@ -354,6 +390,17 @@ def get_feed():
             return jsonify(events)
 
         # R9-F1 paginated path: bound the unified list before slicing.
+        # E2-I5: remember whether the hard cap actually truncated the
+        # unified list. When the builders emitted MORE than _FEED_TOTAL_CAP
+        # events, positions 201+ are permanently unreachable via the
+        # cursor (every page re-runs the builders and re-caps here before
+        # cursor-filtering). Pre-fix that boundary was silent — a very
+        # active user's month-old activity just stopped with the same
+        # "you're all caught up" as a genuinely-exhausted feed. We surface
+        # `isEndOfFeed` on the final page so the client can say "this is
+        # the end of your recent activity" honestly instead of implying
+        # there was never anything more.
+        capped = len(events) > _FEED_TOTAL_CAP
         events = events[:_FEED_TOTAL_CAP]
 
         # Apply cursor — keep only events strictly older than the
@@ -378,7 +425,16 @@ def get_feed():
                 last.get("id") or "",
             )
 
-    return jsonify({"events": page, "nextCursor": next_cursor})
+        # E2-I5: this is the LAST page (no next cursor) AND the unified
+        # list was truncated by the hard cap — so there really was more
+        # activity beyond position 200 that the cursor path can't reach.
+        # Flag it so the client shows an honest "end of your recent
+        # activity" note rather than the generic caught-up copy. On the
+        # non-capped end (a genuinely exhausted feed) this stays False and
+        # the client keeps its existing "all caught up" message.
+        is_end_of_feed = next_cursor is None and capped
+
+    return jsonify({"events": page, "nextCursor": next_cursor, "isEndOfFeed": is_end_of_feed})
 
 
 # ── §4.2 Explore — cold-start fix ────────────────────────────────────

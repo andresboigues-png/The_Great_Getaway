@@ -98,6 +98,18 @@ export function wireNavChrome(): void {
     // Round 19: the left-edge peek handle (which replaced the burger button)
     // opens the island too.
     document.getElementById('railPeek')?.addEventListener('click', toggleRail);
+    // F3-I6: the close chevron pinned at the top of the OPEN island gives a
+    // first-time user an honest, visible way to dismiss it — replacing the
+    // hidden "two blank-space taps" rule that read as stuck. It's shown by
+    // CSS only while `.is-open`, so a tap here always collapses the island;
+    // an explicit close (not toggle) keeps intent unambiguous and matches
+    // the Esc / control-tap paths.
+    document.getElementById('railClose')?.addEventListener('click', () => {
+        const rail = document.getElementById('sidebarRail');
+        if (!rail?.classList.contains('is-open')) return;
+        rail.classList.remove('is-open');
+        hamburgerBtn?.setAttribute('aria-expanded', 'false');
+    });
 
     // Desktop hover labels for the permanent left rail (like the home map's
     // Maps/Share buttons). The rail clips horizontal overflow (overflow-y:auto

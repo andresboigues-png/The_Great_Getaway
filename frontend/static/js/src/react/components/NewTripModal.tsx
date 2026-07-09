@@ -280,7 +280,18 @@ export function NewTripModal({
             }
 
             emit('state:changed');               // saveState + updateTripSelector via subscriber
-            close();
+            // A1-I4: keep the modal open with a pending state instead of
+            // vanishing it synchronously. close() used to fire here (its
+            // async history.back() then raced navigate()); we now defer
+            // dismissal to closeForNavigation() on each exit path below and
+            // show a brief "Creating…" state so create feels deliberate.
+            // Disabled/label go through the ref imperatively (matching the
+            // runImport pattern) — this modal is render-once by design.
+            const submitBtn = submitBtnRef.current;
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = t('modals.newTripCreatingBtn');
+            }
             // FE-1 (MK4): await the trip + day writes BEFORE navigate(). The
             // router aborts in-flight requests on navigation (apiFetch inherits
             // the nav signal); on a slow link that cancelled the just-created
@@ -305,11 +316,17 @@ export function NewTripModal({
                     const capHit = tripRes.status === 429
                         || (!!tripRes.body && tripRes.body.userCapHit === true);
                     showLiquidAlert(capHit ? t('errors.tripCreateCapHit') : t('errors.tripCreateFailed'));
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = t('modals.newTripCreateBtn');
+                    }
+                    closeForNavigation();
                     navigate('home');
                     return;
                 }
                 await Promise.all(scaffolded.map(d => upsertDay(d)));
             } catch { /* network failure → the offline outbox retries the write; keep the optimistic trip */ }
+            closeForNavigation();
             navigate('home');
         })();
     };
@@ -373,14 +390,21 @@ export function NewTripModal({
             {/* spacer keeps the title/pills from crowding the form */}
             <div style={{ height: 2 }}></div>
             <form id="newTripForm" className="mdl-col-center" ref={formRef} onSubmit={onSubmit}>
-                <div className="w-full mb-4">
-                    <label className="form-label" htmlFor="tripName">{t('modals.newTripLabelName')}</label>
-                    <input type="text" id="tripName" ref={nameInputRef} className="glass-input-modal" placeholder={t('modals.newTripPlaceholderName')} required />
-                </div>
+                {/* A1-I2: Destination first. Submit is gated on a picked
+                    destination (owned imperatively by _wirePlacePicker), so
+                    filling this field is what enables Create — putting it
+                    above Name removes the dead-end where a user typed a name
+                    then found Create greyed out. */}
                 <div className="w-full mb-4 relative">
                     <label className="form-label" htmlFor="tripPlaceInput">{t('modals.newTripLabelDest')}</label>
                     <input type="text" id="tripPlaceInput" ref={placeInputRef} className="glass-input-modal" placeholder={t('modals.newTripPlaceholderDest')} autoComplete="off" />
                     <p id="tripPlaceHint" ref={placeHintRef} className="form-hint">{t('modals.newTripDestHint')}</p>
+                </div>
+                <div className="w-full mb-4">
+                    <label className="form-label" htmlFor="tripName">{t('modals.newTripLabelName')}</label>
+                    {/* A1-I3: maxLength mirrors the 200-char server cap used
+                        for every other user-named entity (see ChecklistModal). */}
+                    <input type="text" id="tripName" ref={nameInputRef} className="glass-input-modal" placeholder={t('modals.newTripPlaceholderName')} maxLength={200} required />
                 </div>
                 {/* USER-FEAT-3: single range calendar replaces the
                     two-input pattern. The hidden start/end inputs are

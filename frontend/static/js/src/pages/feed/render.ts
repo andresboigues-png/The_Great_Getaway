@@ -21,6 +21,11 @@ export interface TripRef {
     id: string;
     name: string;
     country?: string | null;
+    /** E3-I4: trip cover image, surfaced on the share/repost card as a
+     *  thumbnail cue (falls back to the generic map glyph when unset).
+     *  Server threads it through _build_friend_shared_trip /
+     *  _build_friend_reposted_trip (column already existed — no schema change). */
+    coverUrl?: string | null;
 }
 export interface FeedEvent {
     id: string;

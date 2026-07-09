@@ -132,6 +132,20 @@ export function BlocksView() {
                                 <strong style={{ color: 'var(--text-brand-navy)' }}>
                                     {u.name || t('settings.blocksUnknownUser')}
                                 </strong>
+                                {u.email ? (
+                                    <div
+                                        style={{
+                                            fontSize: '0.78rem',
+                                            color: 'var(--text-secondary)',
+                                            marginTop: '2px',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                        }}
+                                    >
+                                        {u.email}
+                                    </div>
+                                ) : null}
                                 <div
                                     style={{
                                         fontSize: '0.78rem',

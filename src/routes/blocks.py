@@ -341,11 +341,17 @@ def unblock_user(user_id):
 def list_blocks():
     """Return the list of users the caller has blocked. Used by the
     Settings page's block-list management surface."""
+    # E8-I5: surface a MASKED email alongside name/avatar so the caller
+    # can tell two blocked contacts apart when display names collide (or
+    # a name is null -> "Unknown user"). Local import mirrors social.py's
+    # reuse of the same masking helper; never ship the raw address.
+    from routes.friends import _mask_email
+
     caller_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT u.id, u.name, u.picture, b.created_at "
+            "SELECT u.id, u.name, u.picture, u.email, b.created_at "
             "FROM blocks b LEFT JOIN users u ON u.id = b.blocked_id "
             "WHERE b.blocker_id = ? ORDER BY b.created_at DESC",
             (caller_id,),
@@ -358,6 +364,7 @@ def list_blocks():
                     "id": r["id"],
                     "name": r["name"],
                     "picture": r["picture"],
+                    "email": _mask_email(r["email"]),
                     "createdAt": r["created_at"],
                 }
                 for r in rows

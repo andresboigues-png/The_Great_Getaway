@@ -72,6 +72,11 @@ interface FeedListBodyProps {
      *  hint INSTEAD of mounting the sentinel so the observer doesn't
      *  fire pointless requests. */
     hasMore: boolean;
+    /** E2-I5: true when the feed ended because the server's 200-event
+     *  unified cap truncated real activity (there was more beyond the
+     *  cursor's reach). Swaps the end-of-feed copy to an honest "end of
+     *  your recent activity" instead of implying the feed is exhausted. */
+    feedCapped?: boolean;
 }
 
 
@@ -103,6 +108,7 @@ export function FeedListBody(props: FeedListBodyProps) {
         sentinelRef,
         loadingMore,
         hasMore,
+        feedCapped,
     } = props;
 
     // Explore tab — separate render path (its own loader + cards).
@@ -278,7 +284,7 @@ export function FeedListBody(props: FeedListBodyProps) {
                     className="text-center text-secondary py-4 text-[0.82rem] opacity-70"
                     style={{ minHeight: 40 }}
                 >
-                    {t('feed.endOfFeed')}
+                    {feedCapped ? t('feed.endOfRecent') : t('feed.endOfFeed')}
                 </div>
             )}
         </>

@@ -14,6 +14,10 @@ export interface BlockedUser {
     id: string;
     name: string | null;
     picture: string | null;
+    /** E8-I5: masked email (e.g. `a****s@example.com`) for disambiguating
+     *  blocked contacts whose display names collide or are null. Empty
+     *  string when the user has no email on file. */
+    email: string | null;
     createdAt: string;
 }
 

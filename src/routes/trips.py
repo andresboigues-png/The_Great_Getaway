@@ -1487,13 +1487,21 @@ def _clone_marked_places_json(raw):
     return json.dumps(out)
 
 
-def _clone_trip_attempt(cursor, src, new_owner_id, new_trip_id, include_marked_places=True):
+def _clone_trip_attempt(
+    cursor, src, new_owner_id, new_trip_id, include_marked_places=True, include_notes=True
+):
     """One INSERT attempt for the clone's trip row, factored so the
     caller can retry on the rare PK collision from `_generate_trip_id`.
 
     `include_marked_places` (Audit MK5 P1): full-access clones (a member
     duplicating a trip they can see) copy the wishlist; share-link clones pass
-    False because the share page hides markedPlaces from the recipient."""
+    False because the share page hides markedPlaces from the recipient.
+
+    `include_notes` (A4-I4): the Trip Hub free-text `notes` field is member-only
+    content (public/share read paths strip it — see public.py). A full-access
+    clone of a trip the caller can already see keeps the notes (they'd expect
+    their own planning text to carry over); a share-link clone passes False so a
+    recipient never receives notes the share page hid from them."""
     new_name = f"{src['name'] or 'Trip'} (copy)"
     # Audit MK5 BUG-037/057: do NOT copy an UPLOADED cover verbatim. It lives in
     # the SOURCE owner's /static/uploads/<owner>/ namespace, so the clone's cover
@@ -1503,6 +1511,14 @@ def _clone_trip_attempt(cursor, src, new_owner_id, new_trip_id, include_marked_p
     # this clone already drops), so NULL it → the clone falls back to its
     # country-default cover. A country-default / external cover URL is a stable
     # shared asset and is kept.
+    # D3-I6: in practice the `else src_cover` branch is DEAD — the only way a
+    # cover_url gets stored is via validate_upload_url (per-row path) /
+    # _validated_cover_url (sync path), both of which reject every non-upload
+    # URL, so a stored cover is ALWAYS a /static/uploads/ path and this ternary
+    # always takes the `None` branch. The `else src_cover` is kept as defensive
+    # belt-and-braces (a legacy/backfilled row or a future country-default cover
+    # would be a stable shared asset worth keeping) — it is NOT evidence that
+    # external cover URLs are live. Do not assume you can store one.
     src_cover = src['cover_url']
     clone_cover = (
         None
@@ -1517,8 +1533,8 @@ def _clone_trip_attempt(cursor, src, new_owner_id, new_trip_id, include_marked_p
             place_id, lat, lng, viewport_json, place_types,
             companions_json, marked_places_json,
             documents_json, photos_json, checklist_json,
-            trip_countries_json, actions_hidden, cover_url
-        ) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+            trip_countries_json, actions_hidden, cover_url, notes
+        ) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
     ''',
         (
             new_trip_id,
@@ -1551,12 +1567,23 @@ def _clone_trip_attempt(cursor, src, new_owner_id, new_trip_id, include_marked_p
             # same — no reason to force re-discovery on the clone.
             src['trip_countries_json'],
             clone_cover,
+            # Trip Hub notes — copied ONLY for a full-access clone (member
+            # duplicating a trip they can see). A share-link clone passes
+            # include_notes=False: notes are member-only and stripped from the
+            # public/share read surfaces, so copying them would resurrect
+            # planning text the recipient was never shown (A4-I4).
+            src['notes'] if include_notes else None,
         ),
     )
 
 
 def _clone_trip_record(
-    cursor, source_trip_id, new_owner_id, include_plans=True, include_marked_places=True
+    cursor,
+    source_trip_id,
+    new_owner_id,
+    include_plans=True,
+    include_marked_places=True,
+    include_notes=True,
 ):
     """Deep-copy a single trip + its trip_days into a new trip owned by
     `new_owner_id`. The caller is responsible for visibility (must verify
@@ -1587,7 +1614,7 @@ def _clone_trip_record(
     cursor.execute(
         "SELECT id, name, country, country_code, place_id, lat, lng, "
         "       viewport_json, place_types, "
-        "       marked_places_json, trip_countries_json, cover_url "
+        "       marked_places_json, trip_countries_json, cover_url, notes "
         "FROM trips WHERE id = ?",
         (source_trip_id,),
     )
@@ -1603,7 +1630,12 @@ def _clone_trip_record(
         candidate = _generate_trip_id()
         try:
             _clone_trip_attempt(
-                cursor, src, new_owner_id, candidate, include_marked_places=include_marked_places
+                cursor,
+                src,
+                new_owner_id,
+                candidate,
+                include_marked_places=include_marked_places,
+                include_notes=include_notes,
             )
             new_trip_id = candidate
             break
@@ -1816,6 +1848,9 @@ def clone_trip_from_share_token(token):
             user_id,
             include_plans=bool(row['share_show_plans']),
             include_marked_places=False,
+            # Notes are member-only planning text stripped from the share page —
+            # never hand them to a share-link recipient (A4-I4).
+            include_notes=False,
         )
         if not new_trip_id:
             # Same half-clone hazard as clone_trip: _clone_trip_record may

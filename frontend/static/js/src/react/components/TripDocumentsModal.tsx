@@ -119,6 +119,20 @@ export function TripDocumentsModal({
         return (da?.dayNumber ?? 999) - (db?.dayNumber ?? 999);
     });
 
+    // Shared open action for a doc: PDFs → in-app preview, everything
+    // else → new browser tab. Used by BOTH the title link's click and
+    // the explicit download/open button (D2-I4) so their behaviour
+    // stays identical.
+    const openDoc = (d: DocEntry) => {
+        const url = d.url;
+        if (!url) return;
+        if (looksLikePdfUrl(url)) {
+            openPdfPreview(url, d.name || t('tripMedia.docsFallbackName'));
+        } else {
+            window.open(url, '_blank', 'noopener,noreferrer');
+        }
+    };
+
     // PDF link → in-app preview (Cmd/Ctrl/Shift/middle-click still
     // escape to a new tab / browser default). Same per-anchor pattern
     // as DayViewModal.tsx.
@@ -256,6 +270,27 @@ export function TripDocumentsModal({
                                                             {d.name || t('tripMedia.docsFallbackName')}
                                                         </a>
                                                         {dayChip(d.dayId)}
+                                                        {d.url ? (
+                                                            /* D2-I4 — explicit open/download
+                                                               affordance. The title is still a link,
+                                                               but on touch that's easy to confuse with
+                                                               editing; this icon button makes "get the
+                                                               file" discoverable and is available to
+                                                               view-only members too (outside the
+                                                               tripIsEditable gate). Reuses openDoc so
+                                                               PDFs preview in-app and other links open a
+                                                               new tab, exactly like tapping the title. */
+                                                            <button
+                                                                type="button"
+                                                                className="trip-doc-open-btn"
+                                                                data-doc-id={d.id}
+                                                                title={t('tripMedia.docsOpenTitle')}
+                                                                aria-label={t('tripMedia.docsOpenAria', { name: d.name || t('tripMedia.docsFallbackName') })}
+                                                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 0, color: 'var(--text-secondary)', borderRadius: 8, padding: 4, cursor: 'pointer', flexShrink: 0, lineHeight: 1 }}
+                                                                onClick={() => openDoc(d)}
+                                                                dangerouslySetInnerHTML={{ __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>' }}
+                                                            />
+                                                        ) : null}
                                                     </div>
                                                     {d.url ? (
                                                         <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

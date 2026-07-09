@@ -336,6 +336,25 @@ class _T:
         table = _STRINGS.get(self.locale) or _STRINGS["en"]
         return table.get(key) or _STRINGS["en"].get(key) or key
 
+    # A6-I4: minimal one/other plural rule for the cover "What's inside"
+    # TOC day count. The stat_days label is stored plural (JOURS/DÍAS/
+    # DIAS), so "1 · jours" read wrong for a single-day trip. We only
+    # need the day word here, so a tiny per-locale singular/plural pair
+    # is enough — no combinatorial plural table. Singular is used for
+    # count == 1 (correct for en/fr/es/pt in this count>=1 context).
+    _DAY_WORD = {
+        "en": ("day", "days"),
+        "fr": ("jour", "jours"),
+        "es": ("día", "días"),
+        "pt": ("dia", "dias"),
+    }
+
+    def days_word(self, count: int) -> str:
+        """Lowercase day noun agreeing with `count` for the active locale.
+        Falls back to English forms for any unknown locale."""
+        one, other = self._DAY_WORD.get(self.locale, self._DAY_WORD["en"])
+        return one if count == 1 else other
+
     def num(self, value: float, decimals: int = 2) -> str:
         """Group + decimal-separate a number per the active locale."""
         try:
