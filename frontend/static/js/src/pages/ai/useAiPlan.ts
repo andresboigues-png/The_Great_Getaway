@@ -425,6 +425,11 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
         // `{userCapHit: true}` on the per-user-cap 429 (see
         // src/routes/integrations.py:679). Source-of-truth wins.
         let serverUserCapHit = false;
+        // Backend's explicit "your personal (BYO) key failed AND host fallback
+        // couldn't recover" signal — the one case that IS genuinely a key
+        // problem. Used to gate the bad-key message instead of regex-matching
+        // the word "key" in every error string.
+        let serverByoFailed = false;
         let serverStatus = 0;
         // BUG-38 (MK2 audit): track whether the bar was already updated
         // from the response's authoritative `host_keys` snapshot, so the
@@ -472,6 +477,7 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
             // `serverStatus === 429` to make the routing decision
             // without depending on regex-against-error-string.
             if (d && d.userCapHit === true) serverUserCapHit = true;
+            if (d && d.byoFailed === true) serverByoFailed = true;
             // Backend rides the latest pool snapshot in both success
             // and error responses (see src/routes/integrations.py).
             // Update the bar BEFORE the throw so the user sees the
@@ -528,7 +534,18 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                 // Pool drained → auto-pop the BYO panel so the user
                 // sees their escape hatch without hunting for it.
                 setShowByoCard(true);
-            } else if (/key|api[_ ]?key|UNAUTHENTICATED|401|403/i.test(rawMsg)) {
+            } else if (
+                serverByoFailed ||
+                /API[_ ]?KEY[_ ]?INVALID|api key (is )?(not valid|invalid)|invalid api key|UNAUTHENTICATED|\b40[13]\b/i.test(
+                    rawMsg,
+                )
+            ) {
+                // Only a GENUINE key-auth failure (explicit backend byoFailed
+                // flag, or an invalid/unauthenticated key error) — NOT any
+                // message that merely mentions the word "key". The generic
+                // 500/502 fallback text says "add your own Gemini API key",
+                // which the old broad /key/i regex wrongly rendered as "key
+                // not accepted" even when the real cause was an overload/timeout.
                 msg = t('ai.errorBadKey');
                 hint = t('ai.errorBadKeyHint');
             } else if (/network|fetch|timed?[- ]?out|ECONN/i.test(rawMsg)) {

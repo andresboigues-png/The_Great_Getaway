@@ -1072,6 +1072,16 @@ def generate_itinerary():
                         "temperature": 0.35,
                         "responseMimeType": "application/json",
                         "maxOutputTokens": max_output_tokens,
+                        # Disable "thinking" (2.5+ flash). It was the dominant
+                        # latency source — a 7-day trip's thinking + output blew
+                        # past the request timeout, so EVERY slot timed out and
+                        # the whole generation failed. It also consumes the
+                        # output-token budget, truncating the JSON mid-array.
+                        # This task is schema-constrained + heavily-guided, so a
+                        # zero thinking budget keeps quality while making the
+                        # call fast + reliable. Harmless on models without
+                        # thinking (they ignore it).
+                        "thinkingConfig": {"thinkingBudget": 0},
                     }
                     if use_schema:
                         gen_config["responseSchema"] = response_schema
@@ -1090,7 +1100,12 @@ def generate_itinerary():
                         url,
                         headers=headers,
                         json=payload,
-                        timeout=30,
+                        # 60s (was 30): a longer prompt + schema-constrained
+                        # decoding can legitimately need >30s on a big trip;
+                        # 30s made long trips time out on every slot. The client
+                        # waits 150s, and with thinking disabled the first
+                        # working slot returns well within budget.
+                        timeout=60,
                         allow_redirects=False,
                     ) as resp:
                         # Capture Google's error body before raising — a bare HTTPError
@@ -1356,7 +1371,12 @@ def generate_itinerary():
         # server log. Also: the client never needs the raw Python
         # exception — surface a friendly generic instead.
         scrubbed = scrub_key(str(e))
-        logger.error("Gemini API Error: %s", scrubbed)
+        # logger.exception → full traceback in the server log (Python
+        # tracebacks show code frames, not local-variable values, so no key
+        # leaks; the message is scrubbed separately). Without the traceback a
+        # 500 here is undiagnosable from the logs — exactly the situation this
+        # was in when the itinerary parse/enrich started crashing.
+        logger.exception("Gemini generation crashed: %s", scrubbed)
         return jsonify(
             {
                 "error": (
