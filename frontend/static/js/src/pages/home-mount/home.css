@@ -2284,11 +2284,10 @@
 }
 
 /* Path tab wrapped in the same blue-ribbon card as the other two tabs.
-   overflow: visible (unlike the base card) so the selected day-chip's
-   scale-up animation isn't clipped by the card edge; the chips row keeps
-   its own horizontal scroll. */
+   Keeps the base card's `overflow: hidden` so the blue header is clipped
+   to the rounded corners (matching Trip Hub + Companions) — the day-chip
+   scale animation sits well inside the padded body, so it isn't clipped. */
 .trip-companions-card--path {
-    overflow: visible;
     width: 100%;
 }
 .trip-path-card__body {
