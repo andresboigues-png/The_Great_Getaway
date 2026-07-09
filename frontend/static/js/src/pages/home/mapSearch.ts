@@ -432,7 +432,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
      *  set of features so users learn the search doubles as a command palette
      *  (typing "imp" → Import, etc.) without having to guess. */
     const showSuggestions = (): void => {
-        const feats = suggestedFeatures({ hasActiveTrip: !!STATE.activeTripId });
+        const feats = suggestedFeatures({ hasActiveTrip: !!STATE.activeTripId }, 8);
         if (!feats.length) { hideResults(); return; }
         const rows = feats.map((f, i) => featureRowHtml(f, i)).join('');
         activeIndex = -1;

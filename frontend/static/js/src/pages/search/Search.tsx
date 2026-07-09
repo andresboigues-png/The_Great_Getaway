@@ -243,17 +243,17 @@ export function Search() {
             {!hasQuery && (
                 <>
                     <div
-                        className="text-center py-[36px] px-5 text-secondary"
+                        className="text-center pt-5 px-5 pb-2 text-secondary"
                     >
-                        <div className="text-[3rem] mb-3">🔎</div>
-                        <p className="m-0 font-semibold text-[1.05rem]">
+                        <div className="text-[1.9rem] mb-1.5">🔎</div>
+                        <p className="m-0 font-semibold text-[0.92rem]">
                             {t('search.emptyPrompt')}
                         </p>
                         {/* D3 contrast: was opacity: 0.7 — that drove the
                             subtitle to ~#89898c on the page bg, 3.2:1 (fails
                             AA). Drop opacity and let --text-secondary
                             (#5a5a5e, 6.6:1) carry the muted tone. */}
-                        <p className="mt-2 mx-0 mb-0 text-[0.85rem] text-secondary">
+                        <p className="mt-1 mx-0 mb-0 text-[0.78rem] text-secondary">
                             {t('search.emptyPromptHint')}
                         </p>
                     </div>
@@ -436,6 +436,7 @@ function ResultRow({
     archived,
     onClick,
     trailing,
+    compact,
 }: {
     iconName: string;
     title: string;
@@ -444,18 +445,26 @@ function ResultRow({
     onClick: () => void;
     /** Optional right-aligned affordance (e.g. the feature "→"). */
     trailing?: React.ReactNode;
+    /** Tighter row + smaller title — used by the feature rows so the empty
+     *  "quick access" list stays fully visible without scrolling. */
+    compact?: boolean;
 }) {
     return (
-        <button type="button" onClick={onClick} style={rowStyle} className="search-result-row">
+        <button
+            type="button"
+            onClick={onClick}
+            style={compact ? { ...rowStyle, padding: '8px 14px' } : rowStyle}
+            className="search-result-row"
+        >
             <span
                 className="shrink-0 inline-flex"
                 style={{ color: 'var(--accent-blue)' }}
                 aria-hidden="true"
-                dangerouslySetInnerHTML={{ __html: iconSvg(iconName, { size: 20 }) }}
+                dangerouslySetInnerHTML={{ __html: iconSvg(iconName, { size: compact ? 18 : 20 }) }}
             />
             <div className="flex-1 min-w-0">
                 <div
-                    className="font-extrabold text-[0.98rem] text-brand-navy whitespace-nowrap overflow-hidden overflow-ellipsis"
+                    className={`font-extrabold text-brand-navy whitespace-nowrap overflow-hidden overflow-ellipsis ${compact ? 'text-[0.88rem]' : 'text-[0.98rem]'}`}
                 >
                     {title}
                 </div>
@@ -495,6 +504,7 @@ function FeatureSection({
                         iconName={f.icon}
                         title={t(f.labelKey as Parameters<typeof t>[0])}
                         archived={false}
+                        compact
                         onClick={() => runFeature(f.id)}
                         trailing={
                             <span
