@@ -45,7 +45,7 @@ import {
     type AiDayPlan,
 } from './slots.js';
 import { t } from '../../i18n.js';
-import type { Trip, TripDay } from '../../types';
+import type { Trip, TripDay, PlanBlock } from '../../types';
 
 
 /** MK2 BUG-2: the AI itinerary MUST be a day-array before any
@@ -568,29 +568,63 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                 evening: [],
             };
             daySights.forEach((s, i) => sightsBySlot[SIGHT_SLOTS[i % 3]!].push(s));
-            // Meal text + that slot's sightseeing list, blank-line separated
-            // (either half may be empty). flattenSightsForTip emits the same
-            // "- name / Why: / Fun fact:" shape the meal uses.
+            // ── Flat day.plan text (PLAIN headers, markdown-free) ──
+            // The home card / public share / PDF read + parse this format, so
+            // keep it plain. Meal note + that slot's sightseeing list, blank-line
+            // separated (either half may be empty).
             const joinSlot = (mealText: string, slotSights: AiPlanItem[]): string =>
                 [mealText, flattenSightsForTip(slotSights)].filter(Boolean).join('\n\n');
             // The meal/sights fields are `unknown` on AiDayPlan (LLM JSON);
             // the slot helpers below narrow defensively, so the casts to
             // their declared param types are safe (type-only).
             const planMorning = usesFoodSights
-                ? joinSlot(flattenMealForTextarea(dayInfo.breakfast as AiPlanItem, '🥐 Breakfast'), sightsBySlot.morning)
+                ? joinSlot(flattenMealForTextarea(dayInfo.breakfast as AiPlanItem, '🥐 Breakfast:'), sightsBySlot.morning)
                 : flattenSlotForTextarea(dayInfo.morning);
             const planAfternoon = usesFoodSights
-                ? joinSlot(flattenMealForTextarea(dayInfo.lunch as AiPlanItem, '🥗 Lunch'), sightsBySlot.afternoon)
+                ? joinSlot(flattenMealForTextarea(dayInfo.lunch as AiPlanItem, '🥗 Lunch:'), sightsBySlot.afternoon)
                 : flattenSlotForTextarea(dayInfo.afternoon);
             const planEvening = usesFoodSights
-                ? joinSlot(flattenMealForTextarea(dayInfo.dinner as AiPlanItem, '🍷 Dinner'), sightsBySlot.evening)
+                ? joinSlot(flattenMealForTextarea(dayInfo.dinner as AiPlanItem, '🍷 Dinner:'), sightsBySlot.evening)
                 : flattenSlotForTextarea(dayInfo.evening);
-            // Sights now live INLINE in the slot text above, so the separate
-            // day tip is cleared — keeps each sight's why/fact in one place and
-            // avoids a duplicate 'Sightseeing:' block on the home card / share
-            // / PDF. Still assigned unconditionally (C2-B1) so a re-run wipes
-            // any prior run's stale tip.
+            // Sights now live inline in the slot text, so the separate day tip is
+            // cleared (assigned unconditionally per C2-B1 so a re-run wipes stale).
             const tip = '';
+
+            // ── Explicit day.planBlocks (BOLD headers) — the reorderable block
+            // editor renders these in this exact order per slot:
+            //   1. meal note (🥐 **Breakfast** + why/fun-fact)
+            //   2. meal place card
+            //   3. sightseeing note (🏛️ **Sightseeing** + each why/fun-fact)
+            //   4. sight place cards
+            // Only VERIFIED items (with a placeId) become place blocks; the
+            // sights use the SAME round-robin as the card auto-push below, so
+            // every place block matches a slotted marked-place and the
+            // day-detail place reconciliation preserves this order.
+            const verifiedPlaceId = (raw: unknown): string | null => {
+                const p = raw as VerifiedAIItem | null;
+                return p && typeof p === 'object' && p.verified && p.placeId ? p.placeId : null;
+            };
+            const slotBlocks = (meal: unknown, boldHeader: string, slotSights: AiPlanItem[]): PlanBlock[] => {
+                const blocks: PlanBlock[] = [];
+                const mealText = flattenMealForTextarea(meal as AiPlanItem, boldHeader);
+                if (mealText) blocks.push({ type: 'text', text: mealText });
+                const mealPid = verifiedPlaceId(meal);
+                if (mealPid) blocks.push({ type: 'place', placeId: mealPid });
+                const sightsText = flattenSightsForTip(slotSights, '🏛️ **Sightseeing**');
+                if (sightsText) blocks.push({ type: 'text', text: sightsText });
+                for (const s of slotSights) {
+                    const pid = verifiedPlaceId(s);
+                    if (pid) blocks.push({ type: 'place', placeId: pid });
+                }
+                return blocks;
+            };
+            const planBlocks: TripDay['planBlocks'] = usesFoodSights
+                ? {
+                      morning: slotBlocks(dayInfo.breakfast, '🥐 **Breakfast**', sightsBySlot.morning),
+                      afternoon: slotBlocks(dayInfo.lunch, '🥗 **Lunch**', sightsBySlot.afternoon),
+                      evening: slotBlocks(dayInfo.dinner, '🍷 **Dinner**', sightsBySlot.evening),
+                  }
+                : null;
 
             // Reuse the existing day at this position if there is one (keeps its
             // id + user-authored content); otherwise append a fresh day.
@@ -608,13 +642,13 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                     afternoon: planAfternoon || prior.plan?.afternoon || '',
                     evening: planEvening || prior.plan?.evening || '',
                 };
-                // Clear any block-editor structure so the NEW plan text renders.
-                // The day-detail editor prefers day.planBlocks over the flat
-                // text; leaving a prior edit's blocks would silently shadow the
-                // AI's fresh plan (upsertDay's no-clobber rule keeps the column
-                // otherwise). Sending null explicitly wipes plan_blocks_json;
-                // the editor rebuilds blocks from this text on next open.
-                prior.planBlocks = null;
+                // Overwrite block-editor structure with the AI's fresh blocks.
+                // For the food/sights schema this is the EXPLICIT ordered layout
+                // (meal note → meal place → sights note → sight places, bold
+                // headers); for the legacy schema it's null so the editor
+                // rebuilds from the flat text. Assigned unconditionally so a
+                // re-run replaces any prior run's stale blocks (no shadowing).
+                prior.planBlocks = planBlocks;
                 // C2-B1: reassign the tip UNCONDITIONALLY (tip is now always ''
                 // for the food/sights schema — sights moved inline into the
                 // slot text above) so a re-run clears any prior run's stale
@@ -649,6 +683,12 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                         evening: planEvening,
                     },
                 };
+                // Explicit ordered blocks (food/sights schema) so the day opens
+                // meal-note → meal-place → sights-note → sight-places. Omitted
+                // (undefined) for the legacy schema — the editor rebuilds from
+                // the flat text; exactOptionalPropertyTypes forbids a literal
+                // undefined, so only assign when we actually have blocks.
+                if (planBlocks) newDay.planBlocks = planBlocks;
                 if (tip) newDay.tip = tip;
                 STATE.tripDays.push(newDay);
                 void upsertDay(newDay);

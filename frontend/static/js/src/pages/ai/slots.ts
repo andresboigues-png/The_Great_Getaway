@@ -288,11 +288,13 @@ export function renderSightsList(sights: AiPlanItem[]): string {
  *  consistent — one-liner headline + bullet item with the place
  *  name. The why/fact lines are appended below so the user keeps
  *  the LLM's reasoning visible after Accept. */
-export function flattenMealForTextarea(place: AiPlanItem | null | undefined, mealLabel: string): string {
+export function flattenMealForTextarea(place: AiPlanItem | null | undefined, header: string): string {
     if (!place) return '';
     const text = itemToText(place);
     if (!text) return '';
-    const lines: string[] = [`${mealLabel}:`, `- ${text}`];
+    // `header` is the full headline line — callers pass a plain "🥐 Breakfast:"
+    // for the flat day.plan text, or a bold "🥐 **Breakfast**" for a plan block.
+    const lines: string[] = [header, `- ${text}`];
     if (place && typeof place === 'object') {
         if (place.why) lines.push(`  Why: ${place.why}`);
         if (place.fact) lines.push(`  Fun fact: ${place.fact}`);
@@ -300,13 +302,13 @@ export function flattenMealForTextarea(place: AiPlanItem | null | undefined, mea
     return lines.join('\n');
 }
 
-/** Flatten the day's `sights` list into a single string suitable for
- *  the TripDay.tip field (re-purposed as the day's sightseeing
- *  summary post-split). One bullet per sight, with the why-line so
- *  the user keeps context on what each sight is for. */
-export function flattenSightsForTip(sights: AiPlanItem[]): string {
+/** Flatten the day's `sights` list into a single string — one bullet per
+ *  sight with its why/fact. `header` is the full headline line (plain
+ *  "Sightseeing:" for the flat day.plan text, bold "🏛️ **Sightseeing**" for
+ *  a plan block). */
+export function flattenSightsForTip(sights: AiPlanItem[], header = 'Sightseeing:'): string {
     if (!Array.isArray(sights) || sights.length === 0) return '';
-    const lines: string[] = ['Sightseeing:'];
+    const lines: string[] = [header];
     for (const s of sights) {
         const text = itemToText(s);
         if (!text) continue;
