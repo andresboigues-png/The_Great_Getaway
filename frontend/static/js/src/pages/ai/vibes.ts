@@ -24,8 +24,8 @@ export const VIBES: Vibe[] = [
     { id: 'relax', emoji: '🌿', labelKey: 'ai.vibeRelax', prompt: 'relaxed and slow-paced — recharge, fewer stops, calm and restful' },
     { id: 'culture', emoji: '🏛️', labelKey: 'ai.vibeCulture', prompt: 'culture and history — museums, monuments, heritage and local traditions' },
     { id: 'nightlife', emoji: '🌙', labelKey: 'ai.vibeNightlife', prompt: 'nightlife-focused — late dinners, bars, clubs and evening scenes' },
-    { id: 'budget', emoji: '🎒', labelKey: 'ai.vibeBudget', prompt: 'budget / backpacker — cheap eats, free or low-cost activities, great value' },
-    { id: 'luxury', emoji: '✨', labelKey: 'ai.vibeLuxury', prompt: 'luxury — upscale dining, premium experiences and refined spots' },
+    { id: 'budget', emoji: '🎒', labelKey: 'ai.vibeBudget', prompt: 'budget / backpacker — keep costs LOW: cheap, everyday local eateries (street food, markets, bakeries, tascas, set-menu day lunches), free or low-cost activities; avoid expensive, upscale or tourist-trap restaurants' },
+    { id: 'luxury', emoji: '✨', labelKey: 'ai.vibeLuxury', prompt: 'luxury — upscale, high-end dining and premium, refined experiences; splurge-worthy spots' },
 ];
 
 const BY_ID = new Map(VIBES.map((v) => [v.id, v]));
