@@ -69,10 +69,12 @@ export function AIUsageCard({
                         style={{
                             fontSize: '0.7rem',
                             fontWeight: 700,
-                            color: drained ? '#a82424' : '#5b3a7e',
+                            // Theme-aware so the pill stays legible on the dark
+                            // card (the old #5b3a7e went near-invisible there).
+                            color: drained ? 'var(--ai-warn)' : 'var(--accent-purple-deep)',
                             background: drained
-                                ? 'rgba(168,36,36,0.10)'
-                                : 'rgba(155,89,182,0.10)',
+                                ? 'var(--ai-warn-bg)'
+                                : 'var(--accent-purple-bg-soft)',
                             padding: '3px 8px',
                             borderRadius: 999,
                             letterSpacing: '0.02em',
@@ -114,7 +116,7 @@ export function AIUsageCard({
                         style={{
                             margin: '8px 0 0',
                             fontSize: '0.78rem',
-                            color: drained ? '#a82424' : 'var(--text-secondary)',
+                            color: drained ? 'var(--ai-warn)' : 'var(--text-secondary)',
                             lineHeight: 1.45,
                         }}
                     >

@@ -279,7 +279,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                             </div>
                             <p
                                 className="ai-field__hint"
-                                style={plan.dateValidityErr ? { color: '#a82424' } : undefined}
+                                style={plan.dateValidityErr ? { color: 'var(--ai-warn)' } : undefined}
                             >
                                 {plan.dateValidityErr || t('ai.dateHint')}
                             </p>

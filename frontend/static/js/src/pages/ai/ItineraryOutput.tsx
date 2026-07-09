@@ -31,7 +31,7 @@ export function GenerationErrorCard({
     return (
         <div className="card glass text-center py-8 px-7">
             <div className="text-[2.4rem] mb-2">😬</div>
-            <h2 className="text-[#a82424] mt-0 mx-0 mb-1.5 text-[1.2rem]">
+            <h2 className="text-[color:var(--ai-warn)] mt-0 mx-0 mb-1.5 text-[1.2rem]">
                 {error.msg}
             </h2>
             {error.hint ? (

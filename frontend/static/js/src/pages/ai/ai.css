@@ -380,6 +380,18 @@
    so type finally matches the rest of the app.
    ───────────────────────────────────────────────────────────────── */
 
+/* Theme-aware "warn" colour for the AI-usage quota pill + drained note. The
+   old inline #5b3a7e / #a82424 were tuned for the light card and went nearly
+   invisible on the dark card — these flip bright in dark mode. */
+:root {
+    --ai-warn: #b3261e;
+    --ai-warn-bg: rgba(179, 38, 30, 0.1);
+}
+:root[data-theme='dark'] {
+    --ai-warn: #ff6b60;
+    --ai-warn-bg: rgba(255, 107, 96, 0.14);
+}
+
 /* Card shell — the premium container all three planner cards share
    (AI usage, Trip info/dates, Requisitos). Shell only: each card
    controls its own internal spacing. */
