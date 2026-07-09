@@ -354,11 +354,14 @@ def _md_block_flowables(text: Any, rl, styles) -> list:
     return flows
 
 
-def _place_block_flowables(place: dict, rl, styles, page_w, margin_lr) -> list:
-    """Render a {type:'place'} plan block as a compact bordered place chip —
-    name (bold) + ★ rating on one line, address muted below. The why/fact
-    prose lives in the adjacent note block, so the card stays a clean visual
-    anchor (rating + location) rather than duplicating the reasoning."""
+def _place_block_flowables(
+    place: dict, rl, styles, page_w, margin_lr, photo_png: bytes | None = None
+) -> list:
+    """Render a {type:'place'} plan block as a bordered place card — a photo
+    thumbnail (when available) beside the name (bold) + ★ rating + address.
+    The why/fact prose lives in the adjacent note block, so the card stays a
+    clean visual anchor (photo + rating + location) rather than duplicating
+    the reasoning."""
     name = str(place.get("verifiedName") or place.get("name") or "").strip()
     if not name:
         return []
@@ -366,24 +369,46 @@ def _place_block_flowables(place: dict, rl, styles, page_w, margin_lr) -> list:
     rating = place.get("rating")
     if isinstance(rating, (int, float)):
         head += f'&nbsp;&nbsp;<font color="{_BRAND_BLUE}">★ {rating:.1f}</font>'
-    inner: list = [rl.Paragraph(head, styles["body"])]
+    text_flows: list = [rl.Paragraph(head, styles["body"])]
     addr = str(place.get("address") or "").strip()
     if addr:
-        inner.append(rl.Paragraph(_esc(addr), styles["muted"]))
-    card = rl.Table([[inner]], colWidths=[page_w - 2 * margin_lr])
-    card.setStyle(
-        rl.TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, -1), rl.colors.HexColor("#f7f9ff")),
-                ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor("#dbe6fb")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 12),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
-                ("TOPPADDING", (0, 0), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ]
-        )
+        text_flows.append(rl.Paragraph(_esc(addr), styles["muted"]))
+
+    full_w = page_w - 2 * margin_lr
+    style = rl.TableStyle(
+        [
+            ("BACKGROUND", (0, 0), (-1, -1), rl.colors.HexColor("#f7f9ff")),
+            ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor("#dbe6fb")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 12),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]
     )
+    # Photo thumbnail on the left when we fetched one — a 2-column card.
+    if photo_png:
+        try:
+            thumb_w = 2.6 * rl.cm
+            aspect = _image_aspect(photo_png) or 1.4  # width / height
+            thumb_h = thumb_w / aspect
+            max_h = 2.6 * rl.cm
+            if thumb_h > max_h:  # cap portrait shots so the row stays tidy
+                thumb_h = max_h
+                thumb_w = thumb_h * aspect
+            img = rl.Image(io.BytesIO(photo_png), width=thumb_w, height=thumb_h)
+            gap = 10
+            card = rl.Table(
+                [[img, text_flows]],
+                colWidths=[thumb_w + gap, full_w - thumb_w - gap],
+            )
+            card.setStyle(style)
+            return [card, rl.Spacer(1, 0.18 * rl.cm)]
+        except Exception:
+            logger.warning("PDF place-card photo render failed", exc_info=True)
+            # fall through to the text-only card
+    card = rl.Table([[text_flows]], colWidths=[full_w])
+    card.setStyle(style)
     return [card, rl.Spacer(1, 0.15 * rl.cm)]
 
 
@@ -1165,6 +1190,7 @@ def _day_card(
     tr: _T,
     day_photos: list[bytes] | None = None,
     marked_by_id: dict | None = None,
+    place_photos: dict | None = None,
 ):
     """Render one day as a flat list of flowables (PDF-1 fix).
 
@@ -1301,7 +1327,16 @@ def _day_card(
                 elif blk.get("type") == "place":
                     place = (marked_by_id or {}).get(blk.get("placeId"))
                     if isinstance(place, dict):
-                        body.extend(_place_block_flowables(place, rl, styles, page_w, margin_lr))
+                        body.extend(
+                            _place_block_flowables(
+                                place,
+                                rl,
+                                styles,
+                                page_w,
+                                margin_lr,
+                                photo_png=(place_photos or {}).get(blk.get("placeId")),
+                            )
+                        )
             body.append(rl.Spacer(1, 0.15 * rl.cm))
             continue
         val = day.get(slot_name)

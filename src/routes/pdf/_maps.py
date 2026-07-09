@@ -347,16 +347,19 @@ def _fetch_day_pin_map(
         markers.append(f"color:0x9b59b6|size:small|{plat},{plng}")
     try:
         params = [
-            ("center", f"{lat},{lng}"),
-            # Zoom 14 (was 12) — a tighter neighbourhood framing on the day's
-            # anchor so the per-day map opens zoomed in on where you actually
-            # are, not a wide regional view.
-            ("zoom", "14"),
             ("size", "800x320"),
             ("scale", "2"),
             ("maptype", "roadmap"),
             ("key", key),
         ]
+        # AUTO-FIT: when the day has real place pins (more than just the
+        # anchor), OMIT center+zoom so Google Static Maps frames ALL of them
+        # tightly — the map hugs exactly the day's places. With only the
+        # anchor pin, keep a fixed tight zoom (14) so a lone pin isn't shown
+        # at world scale (auto-fit on a single point picks an ugly max zoom).
+        if len(markers) <= 1:
+            params.insert(0, ("center", f"{lat},{lng}"))
+            params.insert(1, ("zoom", "14"))
         for m in markers:
             params.append(("markers", m))
         # R3-Round 4 fix: same content-hash cache as the other two

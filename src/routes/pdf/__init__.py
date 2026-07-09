@@ -735,6 +735,10 @@ def _sec_days(b: _PdfBuild) -> None:
         _MAX_DAY_PIN_MAPS = 60
         _day_maps_left = _MAX_DAY_PIN_MAPS
         _day_photos_left = _PHOTO_MAX_PER_TRIP
+        # Separate, smaller budget for the inline place-card thumbnails on the
+        # day plan (each is one Places-photo fetch + PIL re-encode). Bounded so
+        # a photo-heavy trip can't turn the export into hundreds of downloads.
+        _place_photos_left = 40
         for day in days_renderable:
             if not isinstance(day, dict):
                 continue
@@ -742,6 +746,28 @@ def _sec_days(b: _PdfBuild) -> None:
             # Parsed once here; _day_card renders it in order (falling back to
             # the flat morning/afternoon/evening text for legacy days).
             day["_plan_blocks"] = _safe_json(day.get("plan_blocks_json"), None)
+            # Resolve the day's place blocks (in order) to their marked-place
+            # records — used for the auto-fit map pins AND the place-card
+            # thumbnails below.
+            day_places: list[tuple[str, dict]] = []
+            if isinstance(day.get("_plan_blocks"), dict):
+                for _slot in ("morning", "afternoon", "evening"):
+                    for _blk in day["_plan_blocks"].get(_slot) or []:
+                        if isinstance(_blk, dict) and _blk.get("type") == "place":
+                            _pl = marked_by_id.get(_blk.get("placeId"))
+                            if isinstance(_pl, dict):
+                                day_places.append((_blk.get("placeId"), _pl))
+            # Prefetch a thumbnail per place (budgeted) → {placeId: png bytes}.
+            day_place_photos: dict[str, bytes] = {}
+            for _pid, _pl in day_places:
+                if _place_photos_left <= 0:
+                    break
+                if _pid in day_place_photos:
+                    continue
+                _got = _collect_photos([_pl.get("photoUrl")], limit=1)
+                if _got:
+                    day_place_photos[_pid] = _got[0]
+                    _place_photos_left -= 1
             # Per-day mini-map (opt-in), bounded per export.
             day_map_png = None
             if day_pins_on and _day_maps_left > 0:
@@ -753,7 +779,16 @@ def _sec_days(b: _PdfBuild) -> None:
                 # the anchor had coords rendered 30 identical trip-centre
                 # mini-maps (and burned 30 Static Maps calls). Skip them.
                 if d_lat is not None and d_lng is not None:
-                    day_map_png = _fetch_day_pin_map(d_lat, d_lng, None)
+                    # Pass the day's place coords so the map AUTO-FITS to them
+                    # (tight framing on exactly this day's stops).
+                    _pins = [
+                        (_pl.get("lat"), _pl.get("lng"))
+                        for _pid, _pl in day_places
+                        if isinstance(_pl.get("lat"), (int, float))
+                        and isinstance(_pl.get("lng"), (int, float))
+                        and (_pl.get("lat") or _pl.get("lng"))
+                    ]
+                    day_map_png = _fetch_day_pin_map(d_lat, d_lng, _pins or None)
                     _day_maps_left -= 1
             # PDF-4: per-day inline photos (opt-in, off by default), bounded
             # by the remaining per-trip photo budget.
@@ -780,6 +815,7 @@ def _sec_days(b: _PdfBuild) -> None:
                     tr,
                     day_photos=day_photos,
                     marked_by_id=marked_by_id,
+                    place_photos=day_place_photos,
                 )
             )
 

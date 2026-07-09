@@ -775,6 +775,11 @@ def test_pdf_plan_blocks_render_bold_and_place_cards():
             "verifiedName": "BelemTower",
             "rating": 4.5,
             "address": "AvenidaLisboaCity",
+            # data-URL photo → exercises the place-card thumbnail path with no
+            # network (decoded locally by _load_photo_png).
+            "photoUrl": _tiny_png_data_url(),
+            "lat": 38.7,
+            "lng": -9.2,
         }
     ]
     blocks = {
