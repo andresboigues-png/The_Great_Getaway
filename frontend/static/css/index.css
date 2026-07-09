@@ -957,6 +957,64 @@ h1 {
 body.menu-handle-off .rail-peek {
     display: none !important;
 }
+/* F3-I6: close chevron for the open rail island. Hidden by default and on
+   desktop (the rail is permanent there — nothing to close). On mobile it is
+   revealed only while the island is open, pinned just above the reel window
+   so it sits outside the fade-mask and is always tappable. Same Liquid-Glass
+   recipe as the peek handle. Unlike #railPeek it ignores body.menu-handle-off
+   so an open island can always be dismissed with a visible control. */
+.rail-close {
+    display: none;
+    padding: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+@media (max-width: 720px) {
+    .sidebar-rail.is-open ~ .rail-close {
+        display: flex;
+        position: fixed;
+        left: 12px;
+        width: 56px;
+        /* Island: top:50% + height 200px, centred via translateY(-50%), so its
+           top edge sits at calc(50% - 100px). Park the chevron a touch above
+           that so it clears the mask fade. */
+        top: calc(50% - 122px);
+        height: 34px;
+        align-items: center;
+        justify-content: center;
+        z-index: 1101;
+        border-radius: 17px;
+        color: var(--accent-blue);
+        background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.5) 0%,
+            rgba(255, 255, 255, 0.28) 55%,
+            rgba(255, 255, 255, 0.42) 100%
+        );
+        backdrop-filter: blur(20px) saturate(185%) brightness(1.06);
+        -webkit-backdrop-filter: blur(20px) saturate(185%) brightness(1.06);
+        border: 1px solid rgba(255, 255, 255, 0.65);
+        box-shadow:
+            0 8px 22px rgba(0, 45, 91, 0.18),
+            inset 0 1.5px 1px rgba(255, 255, 255, 0.9);
+        transition: transform 0.18s ease, opacity 0.2s ease;
+    }
+    .sidebar-rail.is-open ~ .rail-close:active {
+        transform: scale(0.92);
+    }
+}
+:root[data-theme="dark"] .rail-close {
+    color: #7fb2ff;
+    background: linear-gradient(
+        180deg,
+        rgba(44, 52, 66, 0.62) 0%,
+        rgba(30, 36, 48, 0.42) 55%,
+        rgba(40, 48, 62, 0.54) 100%
+    );
+    border-color: rgba(255, 255, 255, 0.12);
+}
 :root[data-theme="dark"] .rail-peek {
     background: linear-gradient(
         180deg,
@@ -2289,6 +2347,32 @@ body.is-signed-out .trip-controls-popover {
         transform: translateX(0) translateY(0);
     }
 }
+/* Touch devices have no hover, so the label above would stay invisible and the
+   Clone/Cloning (and Back/Share/Restore) affordance would rest on aria-label
+   alone. On coarse pointers, render the label as honest inline text beside the
+   icon instead of a transient tooltip — the host is inline-flex with a gap, so
+   the pill simply grows to fit. */
+@media (hover: none), (pointer: coarse) {
+    .hover-reveal-host .hover-reveal-label,
+    .hover-reveal-host .hover-reveal-label--corner {
+        position: static;
+        top: auto;
+        bottom: auto;
+        left: auto;
+        right: auto;
+        transform: none;
+        opacity: 1;
+        pointer-events: auto;
+        background: transparent;
+        color: inherit;
+        box-shadow: none;
+        padding: 0;
+        border-radius: 0;
+        font-size: inherit;
+        font-weight: inherit;
+        z-index: auto;
+    }
+}
 
 /* Permanent left-rail hover label. Appended to <body> by nav-chrome.ts (the
    rail clips overflow, so the label can't live inside it) and positioned at
@@ -2649,6 +2733,7 @@ body.is-signed-out .trip-controls-popover {
     font-size: var(--font-base);
 }
 .notification-item {
+    position: relative;
     padding: var(--space-4) var(--space-5);
     border-bottom: 1px solid rgba(255,255,255,0.12);
     cursor: pointer;
@@ -2656,6 +2741,37 @@ body.is-signed-out .trip-controls-popover {
     transition: background-color 0.15s ease;
 }
 .notification-item:last-child { border-bottom: 0; }
+/* E6-I3: in-place dismiss affordance (unread rows only). Sits in the
+   top-right corner; the timestamp lives bottom-right so they don't
+   collide. Low-key by default, lifts to full opacity on row hover /
+   its own focus so it stays discoverable but doesn't shout. */
+.notification-item__dismiss {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-4);
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: rgba(255,255,255,0.55);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.55;
+    transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+.notification-item:hover .notification-item__dismiss { opacity: 1; }
+.notification-item__dismiss:hover ,
+.notification-item__dismiss:focus-visible {
+    opacity: 1;
+    background: rgba(255,255,255,0.16);
+    color: #ffffff;
+}
 .notification-item:hover , .notification-item:active , .notification-item:focus-visible { background: rgba(255,255,255,0.08); }
 .notification-item.unread { background: rgba(0,113,227,0.28); }
 .notification-item.unread:hover , .notification-item.unread:active , .notification-item.unread:focus-visible { background: rgba(0,113,227,0.4); }
@@ -7616,6 +7732,11 @@ main#app-container.nav-anim-backward {
     background: linear-gradient(135deg, rgba(88,86,214,0.12), rgba(0,113,227,0.06));
 }
 .templates-card__flag { font-size: 1.6rem; line-height: 1; }
+.templates-card__stats { display: flex; align-items: center; gap: 8px; }
+.templates-card__uses {
+    font-size: 0.68rem; font-weight: 700; color: var(--text-secondary);
+    white-space: nowrap; letter-spacing: 0.01em;
+}
 .templates-card__days {
     font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
     color: #5856d6; background: rgba(88,86,214,0.12); padding: 3px 9px; border-radius: 999px;

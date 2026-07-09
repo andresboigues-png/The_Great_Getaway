@@ -489,6 +489,19 @@
         </a>
     </aside>
 
+    <!-- F3-I6: honest close affordance for the open rail island. The island
+         is non-modal and persists across navigation; before this, dismissing
+         it relied on a hidden "two blank taps" rule that read as stuck to
+         first-time users. This visible chevron is pinned at the top of the
+         open island (mobile only — desktop keeps the rail permanent) and
+         simply retracts it. Independent of the peek handle so it stays
+         available even when the handle is switched off in Settings. -->
+    <button type="button" id="railClose" class="rail-close" aria-label="Close menu" data-i18n-aria-label="sidebar.closeMenu">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+    </button>
+
     <!-- Round 19: mobile peek handle — a small half-tucked circle on the
          left edge that hints at the slidable rail island and opens it on
          tap (the hamburger was removed). Hidden while the island is open
