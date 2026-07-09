@@ -45,6 +45,24 @@ export const FEATURES: FeatureDef[] = [
     { id: 'personalization', labelKey: 'search.featPersonalization', icon: 'palette', keywords: ['theme', 'language', 'dark mode', 'appearance', 'personalize', 'locale'] },
 ];
 
+// Curated discovery set shown BEFORE the user types (search bar focused +
+// empty) — the highest-value entry points, in priority order.
+const SUGGESTED_IDS = ['newTrip', 'ai', 'addExpense', 'download', 'settlement', 'todo', 'import', 'budgets'];
+
+/** The features to surface as "quick access" on an empty focused search box.
+ *  Trip-only features are dropped when no trip is open; capped at `limit`. */
+export function suggestedFeatures(opts: { hasActiveTrip: boolean }, limit = 6): FeatureDef[] {
+    const byId = new Map(FEATURES.map((f) => [f.id, f]));
+    const out: FeatureDef[] = [];
+    for (const id of SUGGESTED_IDS) {
+        const f = byId.get(id);
+        if (!f || (f.needsTrip && !opts.hasActiveTrip)) continue;
+        out.push(f);
+        if (out.length >= limit) break;
+    }
+    return out;
+}
+
 /** Match `query` against the feature registry. Returns matching features in
  *  registry (priority) order. `opts.label` resolves an i18n key to the active
  *  locale's text so localised labels match too; `opts.hasActiveTrip` gates the

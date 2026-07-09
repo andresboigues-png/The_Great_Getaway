@@ -1113,6 +1113,7 @@ export const en = {
         showLess: 'Show less',
         seeMore: 'See more',
         featuresLabel: 'Features',
+        featuresSuggested: 'Quick access',
         featImport: 'Import a trip',
         featDownload: 'Download / Export',
         featNewTrip: 'New trip',

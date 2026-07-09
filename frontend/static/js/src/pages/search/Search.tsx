@@ -23,6 +23,8 @@ import { EVENTS } from '../../constants.js';
 import { setSelectedDay } from '../home/pathSelection.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import { searchInternal } from './searchInternal.js';
+import { searchFeatures, suggestedFeatures } from './searchFeatures.js';
+import { runFeature } from './featureActions.js';
 import type { Trip, TripDay } from '../../types';
 import { t, tn, getIntlLocale } from '../../i18n.js';
 import { stripEmoji, iconSvg } from '../../icons.js';
@@ -140,8 +142,21 @@ export function Search() {
         [query, trips, archivedTrips, tripDays, expenses],
     );
 
+    // App features/actions matching the query, and the "quick access" set to
+    // show before the user types — same behaviour as the home search bar.
+    const hasActiveTrip = !!STATE.activeTripId;
+    const features = useMemo(
+        () => searchFeatures(query, {
+            hasActiveTrip,
+            label: (k) => t(k as Parameters<typeof t>[0]),
+        }),
+        [query, hasActiveTrip],
+    );
+    const suggested = useMemo(() => suggestedFeatures({ hasActiveTrip }, 8), [hasActiveTrip]);
+
     const totalHits = results.trips.length + results.days.length + results.expenses.length;
     const hasQuery = query.trim().length > 0;
+    const hasResults = totalHits > 0 || features.length > 0;
 
     // ── Click handlers ──────────────────────────────────────────────
     // Active trip + page navigation goes through the legacy mutation
@@ -226,21 +241,26 @@ export function Search() {
                 results" so the user knows the page works; they just
                 haven't asked for anything. */}
             {!hasQuery && (
-                <div
-                    className="text-center py-[60px] px-5 text-secondary"
-                >
-                    <div className="text-[3rem] mb-3">🔎</div>
-                    <p className="m-0 font-semibold text-[1.05rem]">
-                        {t('search.emptyPrompt')}
-                    </p>
-                    {/* D3 contrast: was opacity: 0.7 — that drove the
-                        subtitle to ~#89898c on the page bg, 3.2:1 (fails
-                        AA). Drop opacity and let --text-secondary
-                        (#5a5a5e, 6.6:1) carry the muted tone. */}
-                    <p className="mt-2 mx-0 mb-0 text-[0.85rem] text-secondary">
-                        {t('search.emptyPromptHint')}
-                    </p>
-                </div>
+                <>
+                    <div
+                        className="text-center py-[36px] px-5 text-secondary"
+                    >
+                        <div className="text-[3rem] mb-3">🔎</div>
+                        <p className="m-0 font-semibold text-[1.05rem]">
+                            {t('search.emptyPrompt')}
+                        </p>
+                        {/* D3 contrast: was opacity: 0.7 — that drove the
+                            subtitle to ~#89898c on the page bg, 3.2:1 (fails
+                            AA). Drop opacity and let --text-secondary
+                            (#5a5a5e, 6.6:1) carry the muted tone. */}
+                        <p className="mt-2 mx-0 mb-0 text-[0.85rem] text-secondary">
+                            {t('search.emptyPromptHint')}
+                        </p>
+                    </div>
+                    {/* Discovery: the search doubles as a command palette — show
+                        the top features before the user types anything. */}
+                    <FeatureSection label={t('search.featuresSuggested')} features={suggested} />
+                </>
             )}
 
             {/* No results — query non-empty but everything filtered
@@ -250,7 +270,7 @@ export function Search() {
                 test selector `data-search-empty` lives on a wrapping
                 div that EmptyState renders inside (the e2e suite reads
                 this attribute by `[data-testid="search-empty"]`). */}
-            {hasQuery && totalHits === 0 && (
+            {hasQuery && !hasResults && (
                 <div data-testid="search-empty">
                     <EmptyState
                         accent="blue"
@@ -261,14 +281,19 @@ export function Search() {
                 </div>
             )}
 
-            {hasQuery && totalHits > 0 && (
+            {hasQuery && hasResults && (
                 <>
                     {/* Total count headline so the user sees scale at a glance. */}
-                    <div
-                        className="mt-5 mx-1 mb-0 text-[0.85rem] text-secondary font-semibold"
-                    >
-                        {tn('search.resultCount', totalHits, { query })}
-                    </div>
+                    {totalHits > 0 && (
+                        <div
+                            className="mt-5 mx-1 mb-0 text-[0.85rem] text-secondary font-semibold"
+                        >
+                            {tn('search.resultCount', totalHits, { query })}
+                        </div>
+                    )}
+
+                    {/* ── Features / actions (front door) ────────── */}
+                    <FeatureSection label={t('search.featuresLabel')} features={features} />
 
                     {/* ── Trips ─────────────────────────────────── */}
                     {results.trips.length > 0 && (
@@ -410,12 +435,15 @@ function ResultRow({
     subtitle,
     archived,
     onClick,
+    trailing,
 }: {
     iconName: string;
     title: string;
-    subtitle: string;
+    subtitle?: string;
     archived: boolean;
     onClick: () => void;
+    /** Optional right-aligned affordance (e.g. the feature "→"). */
+    trailing?: React.ReactNode;
 }) {
     return (
         <button type="button" onClick={onClick} style={rowStyle} className="search-result-row">
@@ -431,14 +459,56 @@ function ResultRow({
                 >
                     {title}
                 </div>
-                <div
-                    className="text-[0.8rem] text-secondary mt-0.5 whitespace-nowrap overflow-hidden overflow-ellipsis"
-                >
-                    {subtitle}
-                </div>
+                {subtitle ? (
+                    <div
+                        className="text-[0.8rem] text-secondary mt-0.5 whitespace-nowrap overflow-hidden overflow-ellipsis"
+                    >
+                        {subtitle}
+                    </div>
+                ) : null}
             </div>
             {archived && <span style={archivedPillStyle}>{t('search.archivedPill')}</span>}
+            {trailing}
         </button>
+    );
+}
+
+/** A section of feature/action rows (matched results or "quick access"
+ *  suggestions) — clicking runs the feature. */
+function FeatureSection({
+    label,
+    features,
+}: {
+    label: string;
+    features: Array<{ id: string; labelKey: string; icon: string }>;
+}) {
+    if (!features.length) return null;
+    return (
+        <div data-search-group="features" className="mt-2">
+            <div style={sectionLabelStyle}>
+                {label} · {features.length}
+            </div>
+            <div className="flex flex-col gap-2">
+                {features.map((f) => (
+                    <ResultRow
+                        key={`feat-${f.id}`}
+                        iconName={f.icon}
+                        title={t(f.labelKey as Parameters<typeof t>[0])}
+                        archived={false}
+                        onClick={() => runFeature(f.id)}
+                        trailing={
+                            <span
+                                className="shrink-0 font-extrabold text-accent-blue"
+                                style={{ marginLeft: 6 }}
+                                aria-hidden="true"
+                            >
+                                &#8594;
+                            </span>
+                        }
+                    />
+                ))}
+            </div>
+        </div>
     );
 }
 

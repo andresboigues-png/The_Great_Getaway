@@ -24,12 +24,13 @@ import { POI_CATEGORIES, type PoiCategory } from './poiCategories.js';
 import { esc } from '../../utils.js';
 import { t, tn, getIntlLocale } from '../../i18n.js';
 import { STATE, emit } from '../../state.js';
-import { EVENTS, PAGES } from '../../constants.js';
+import { EVENTS } from '../../constants.js';
 import { navigate } from '../../router.js';
 import { setSelectedDay } from './pathSelection.js';
 import { iconSvg } from '../../icons.js';
 import { searchInternal, type InternalSearchResults } from '../search/searchInternal.js';
-import { searchFeatures, type FeatureDef } from '../search/searchFeatures.js';
+import { searchFeatures, suggestedFeatures, type FeatureDef } from '../search/searchFeatures.js';
+import { runFeature as runFeatureAction } from '../search/featureActions.js';
 import type { Trip } from '../../types';
 
 /** t() wants a typed key; the feature registry stores plain-string keys, so
@@ -421,51 +422,25 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         return groupWrap(t('search.featuresLabel'), rows, '', lastFeatures.length);
     };
 
-    /** Dispatch a feature id to its action — navigation or a lazily-imported
-     *  modal. Trip-only features resolve the active trip (guaranteed present
-     *  since searchFeatures already filtered them out when no trip is open). */
+    /** Close the panel then run the feature via the shared dispatcher. */
     const runFeature = (id: string): void => {
         hideResults();
-        const activeTrip = (STATE.trips || []).find((tr) => tr.id === STATE.activeTripId) || null;
-        switch (id) {
-            case 'import': {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = '.ggtrip.zip,application/zip,application/x-zip-compressed';
-                input.style.display = 'none';
-                input.addEventListener('change', () => {
-                    const file = input.files && input.files[0];
-                    if (file) void import('../../modals.js').then((m) => m.importTripFromFile(file));
-                    input.remove();
-                });
-                document.body.appendChild(input);
-                input.click();
-                return;
-            }
-            case 'newTrip': void import('../../modals.js').then((m) => m.openNewTripModal()); return;
-            case 'addDay': void import('../../modals.js').then((m) => m.openAddDayModal()); return;
-            case 'download': if (activeTrip) void import('../../modals.js').then((m) => m.openDownloadChooserModal(activeTrip)); return;
-            case 'companions': if (activeTrip) void import('../../modals.js').then((m) => m.openCompanionPickerModal(activeTrip.id)); return;
-            case 'share': if (activeTrip) void import('../../modals.js').then((m) => m.openShareTripModal(activeTrip)); return;
-            case 'addExpense':
-                navigate(PAGES.EXPENSES);
-                void import('../expenses/tabState.js').then((m) => {
-                    m.setActiveExpensesTab('upload');
-                    m.setUploadMode('manual');
-                });
-                return;
-            case 'ai': navigate(PAGES.AI); return;
-            case 'budgets': navigate(PAGES.BUDGETS); return;
-            case 'insights': navigate(PAGES.INSIGHTS); return;
-            case 'settlement': navigate(PAGES.SETTLEMENT); return;
-            case 'todo': navigate(PAGES.TODO); return;
-            case 'templates': navigate(PAGES.TEMPLATES); return;
-            case 'collections': navigate(PAGES.COLLECTIONS); return;
-            case 'feed': navigate(PAGES.FEED); return;
-            case 'friends': navigate(PAGES.FRIENDS); return;
-            case 'settings': navigate(PAGES.SETTINGS); return;
-            case 'personalization': navigate(PAGES.PERSONALIZATION); return;
-        }
+        runFeatureAction(id);
+    };
+
+    /** Discovery: on an empty focused search box, show a small "quick access"
+     *  set of features so users learn the search doubles as a command palette
+     *  (typing "imp" → Import, etc.) without having to guess. */
+    const showSuggestions = (): void => {
+        const feats = suggestedFeatures({ hasActiveTrip: !!STATE.activeTripId });
+        if (!feats.length) { hideResults(); return; }
+        const rows = feats.map((f, i) => featureRowHtml(f, i)).join('');
+        activeIndex = -1;
+        searchInput.setAttribute('aria-expanded', 'true');
+        searchInput.removeAttribute('aria-activedescendant');
+        resultsEl.style.display = 'block';
+        resultsEl.innerHTML = groupWrap(t('search.featuresSuggested'), rows);
+        if (statusEl) statusEl.textContent = tn('map.resultsAnnounce', feats.length);
     };
 
     /** Paint the unified panel from the two cached halves. */
@@ -626,11 +601,16 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
     // BUG-088: monotonic request id so a slow earlier prediction response
     // can't overwrite a newer one (stale-render guard, checked in the callback).
     let searchSeq = 0;
+    // Focusing the empty box shows the "quick access" feature suggestions so
+    // the command-palette side of the search is discoverable before typing.
+    searchInput.addEventListener('focus', () => {
+        if (!searchInput.value.trim()) showSuggestions();
+    });
     searchInput.addEventListener('input', () => {
         const q = searchInput.value.trim();
         clearBtn.style.display = q ? 'inline-flex' : 'none';
         if (typingTimer) clearTimeout(typingTimer);
-        if (!q) { lastFeatures = []; hideResults(); return; }
+        if (!q) { lastFeatures = []; showSuggestions(); return; }
         // Debounce 220ms — Autocomplete is cheap but a request per
         // keystroke is wasteful and noisy visually as predictions
         // fight to render.

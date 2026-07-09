@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { FEATURES, searchFeatures } from './searchFeatures.js';
+import { FEATURES, searchFeatures, suggestedFeatures } from './searchFeatures.js';
 
 // label resolver stub — return the key itself so tests don't depend on i18n.
 const idLabel = (k: string) => k;
@@ -49,6 +49,23 @@ describe('searchFeatures', () => {
             // ids are unique
             expect(FEATURES.filter((g) => g.id === f.id)).toHaveLength(1);
         }
+    });
+
+    describe('suggestedFeatures (quick access)', () => {
+        it('returns a curated non-empty set, capped by limit', () => {
+            const s = suggestedFeatures({ hasActiveTrip: true }, 6);
+            expect(s.length).toBe(6);
+            expect(s.every((f) => FEATURES.some((g) => g.id === f.id))).toBe(true);
+        });
+
+        it('drops trip-only suggestions when no trip is active', () => {
+            const withTrip = suggestedFeatures({ hasActiveTrip: true }, 8).map((f) => f.id);
+            const noTrip = suggestedFeatures({ hasActiveTrip: false }, 8).map((f) => f.id);
+            expect(withTrip).toContain('settlement'); // trip-only
+            expect(noTrip).not.toContain('settlement');
+            expect(noTrip).toContain('newTrip'); // always available
+            expect(noTrip).toContain('import');
+        });
     });
 
     it('returns features in registry (priority) order', () => {

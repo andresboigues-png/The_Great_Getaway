@@ -926,6 +926,7 @@ export const pt: Translations = {
         showLess: 'Ver menos',
         seeMore: 'Ver mais',
         featuresLabel: 'Funcionalidades',
+        featuresSuggested: 'Acesso rápido',
         featImport: 'Importar uma viagem',
         featDownload: 'Descarregar / Exportar',
         featNewTrip: 'Nova viagem',

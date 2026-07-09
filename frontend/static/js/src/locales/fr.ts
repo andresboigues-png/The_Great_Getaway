@@ -927,6 +927,7 @@ export const fr: Translations = {
         showLess: 'Voir moins',
         seeMore: 'Voir plus',
         featuresLabel: 'Fonctions',
+        featuresSuggested: 'Accès rapide',
         featImport: 'Importer un voyage',
         featDownload: 'Télécharger / Exporter',
         featNewTrip: 'Nouveau voyage',

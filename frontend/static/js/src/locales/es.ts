@@ -922,6 +922,7 @@ export const es: Translations = {
         showLess: 'Ver menos',
         seeMore: 'Ver más',
         featuresLabel: 'Funciones',
+        featuresSuggested: 'Acceso rápido',
         featImport: 'Importar un viaje',
         featDownload: 'Descargar / Exportar',
         featNewTrip: 'Nuevo viaje',
