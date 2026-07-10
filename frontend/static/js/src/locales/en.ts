@@ -659,6 +659,7 @@ export const en = {
         quotesDeleteTitle: 'Delete memory?',
         quotesDeleteBody: 'This removes the memory for good.',
         memArrangeBy: 'Arrange',
+        memConnectBy: 'Connect',
         memGroupNone: 'Free',
         memGroupYear: 'Year',
         memGroupTrip: 'Trip',

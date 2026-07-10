@@ -547,6 +547,7 @@ export const es: Translations = {
         quotesDeleteTitle: '¿Eliminar recuerdo?',
         quotesDeleteBody: 'Esto elimina el recuerdo para siempre.',
         memArrangeBy: 'Organizar',
+        memConnectBy: 'Conectar',
         memGroupNone: 'Libre',
         memGroupYear: 'Año',
         memGroupTrip: 'Viaje',

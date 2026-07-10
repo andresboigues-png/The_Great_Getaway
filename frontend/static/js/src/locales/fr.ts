@@ -552,6 +552,7 @@ export const fr: Translations = {
         quotesDeleteTitle: 'Supprimer le souvenir ?',
         quotesDeleteBody: 'Cela supprime définitivement le souvenir.',
         memArrangeBy: 'Organiser',
+        memConnectBy: 'Relier',
         memGroupNone: 'Libre',
         memGroupYear: 'Année',
         memGroupTrip: 'Voyage',

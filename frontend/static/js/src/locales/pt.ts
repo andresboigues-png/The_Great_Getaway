@@ -551,6 +551,7 @@ export const pt: Translations = {
         quotesDeleteTitle: 'Eliminar memória?',
         quotesDeleteBody: 'Isto remove a memória definitivamente.',
         memArrangeBy: 'Organizar',
+        memConnectBy: 'Conectar',
         memGroupNone: 'Livre',
         memGroupYear: 'Ano',
         memGroupTrip: 'Viagem',

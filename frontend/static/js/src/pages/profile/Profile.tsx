@@ -1257,10 +1257,12 @@ function countryCodeFromName(name: string | null | undefined): string {
  *  CDN. '' when there's no ISO code, so callers can fall back cleanly. */
 /** Stable colour per author id — used for the zoomed-out memory dots so
  *  the same person's memories read as one colour across the canvas. */
-function authorColor(id: string | null | undefined): string {
+// Stable, evenly-spread colour from any string key (hash → hue). Used for the
+// secondary-dimension node tint + connection lines so the same author / year /
+// trip always gets the same colour across the whole canvas.
+function keyColor(key: string): string {
     let h = 0;
-    const s = id || '';
-    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+    for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 360;
     return `hsl(${h}, 68%, 55%)`;
 }
 
@@ -1599,6 +1601,18 @@ function memClusterOf(m: QuoteItem, group: MemGroup): { key: string; label: stri
     return { key: 'all', label: '', sort: '0' };
 }
 
+// Key for the SECONDARY ("Connect by") dimension that drives node colour +
+// the hover constellation. Returns null for the missing-value buckets (no
+// year / no trip) and for `none` — "both lack a trip" is not a relationship,
+// so those cards stay neutral and never link. Reuses the cluster keys so a
+// colour is consistent whether the dimension is the primary or the secondary.
+function memLinkKey(m: QuoteItem, linkBy: MemGroup): string | null {
+    if (linkBy === 'author') return m.author.id ? `a${m.author.id}` : null;
+    if (linkBy === 'year') return m.year ? `y${m.year}` : null;
+    if (linkBy === 'trip') return m.trip ? `t${m.trip.id}` : null;
+    return null;
+}
+
 function memComputeLayout(memories: QuoteItem[], group: MemGroup): MemLayoutResult {
     const groups = new Map<string, { label: string; sort: string; items: QuoteItem[] }>();
     for (const m of memories) {
@@ -1662,6 +1676,38 @@ function MemoryCanvas({
     // base grid WITHOUT wiping the user's drags or resetting the view.
     const [overrides, setOverrides] = useState<Record<number, { x: number; y: number }>>({});
     const posOf = (id: number) => overrides[id] ?? layout.positions[id] ?? { x: 0, y: 0 };
+
+    // ── Secondary "Connect by" dimension → node colour + hover constellation.
+    // It always differs from the primary grouping (tinting by the axis you
+    // grouped on is flat), so a card's colour reveals a SECOND relationship the
+    // cluster layout doesn't show. `linkBy` is the user's pick; `effLinkBy`
+    // falls back to the first valid axis if the pick collides with the grouping.
+    const linkOpts = (['author', 'year', 'trip'] as MemGroup[]).filter((k) => k !== group);
+    const [linkBy, setLinkBy] = useState<MemGroup>('author');
+    const [pinnedId, setPinnedId] = useState<number | null>(null);
+    const [hoverId, setHoverId] = useState<number | null>(null);
+    const effLinkBy: MemGroup = linkBy !== group ? linkBy : linkOpts[0] ?? 'author';
+    // link key → member ids, for the hover star + the tinted-vs-neutral choice.
+    const linkGroups = useMemo(() => {
+        const map = new Map<string, number[]>();
+        for (const m of memories) {
+            const k = memLinkKey(m, effLinkBy);
+            if (!k) continue;
+            const arr = map.get(k);
+            if (arr) arr.push(m.id);
+            else map.set(k, [m.id]);
+        }
+        return map;
+    }, [memories, effLinkBy]);
+    // Active card = pinned (tap) OR hovered (mouse). Its same-key siblings form
+    // the constellation; everything else dims. Only THIS card's group is drawn,
+    // so the edge count is O(group size) — never the N² of an all-pairs mesh.
+    const activeId = pinnedId ?? hoverId;
+    const activeMem = activeId != null ? memories.find((m) => m.id === activeId) ?? null : null;
+    const activeKey = activeMem ? memLinkKey(activeMem, effLinkBy) : null;
+    const siblingIds = activeKey ? (linkGroups.get(activeKey) ?? []).filter((id) => id !== activeId) : [];
+    const litSet = activeMem && activeKey ? new Set<number>([activeMem.id, ...siblingIds]) : null;
+
     const [view, setView] = useState({ x: 40, y: 40, scale: 1 });
     const [interacting, setInteracting] = useState(false);
     const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -1680,6 +1726,10 @@ function MemoryCanvas({
         last: { x: 0, y: 0 },
         pinchDist: 1,
         pinchScale: 1,
+        // Tap detection (a press that doesn't move) → toggle the constellation:
+        // on a card = pin it, on empty space = clear the pin.
+        downPt: { x: 0, y: 0 },
+        moved: false,
     });
 
     const fitView = useCallback(() => {
@@ -1701,6 +1751,8 @@ function MemoryCanvas({
     // on each visibility toggle.
     useEffect(() => {
         setOverrides({});
+        setPinnedId(null);
+        setHoverId(null);
         fitView();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [group]);
@@ -1737,6 +1789,8 @@ function MemoryCanvas({
             }
             return;
         }
+        g.current.downPt = pt;
+        g.current.moved = false;
         const cardEl = targetEl.closest('[data-card]') as HTMLElement | null;
         if (cardEl) {
             const id = Number(cardEl.dataset.card);
@@ -1755,6 +1809,9 @@ function MemoryCanvas({
         if (!g.current.pointers.has(e.pointerId)) return;
         const pt = localXY(e);
         g.current.pointers.set(e.pointerId, pt);
+        if (!g.current.moved && Math.hypot(pt.x - g.current.downPt.x, pt.y - g.current.downPt.y) > 5) {
+            g.current.moved = true;
+        }
         const mode = g.current.mode;
         if (mode === 'pinch' && g.current.pointers.size >= 2) {
             const pts = [...g.current.pointers.values()];
@@ -1784,6 +1841,9 @@ function MemoryCanvas({
 
     const endPointer = (e: ReactPointerEvent) => {
         if (!g.current.pointers.delete(e.pointerId)) return;
+        const endedMode = g.current.mode;
+        const endedCardId = g.current.cardId;
+        const wasTap = !g.current.moved;
         try {
             viewportRef.current?.releasePointerCapture(e.pointerId);
         } catch {
@@ -1792,6 +1852,12 @@ function MemoryCanvas({
         if (g.current.pointers.size === 0) {
             g.current.mode = 'none';
             setInteracting(false);
+            // A tap (press with no drag): on a card pin/unpin its constellation;
+            // on empty canvas clear the pinned constellation.
+            if (wasTap) {
+                if (endedMode === 'card') setPinnedId((p) => (p === endedCardId ? null : endedCardId));
+                else if (endedMode === 'pan') setPinnedId(null);
+            }
         } else if (g.current.pointers.size === 1) {
             // pinch released one finger → keep panning with the remaining one
             const only = [...g.current.pointers.values()][0];
@@ -1864,6 +1930,29 @@ function MemoryCanvas({
                         </button>
                     ))}
                 </div>
+                {/* Secondary "Connect by" axis: tints the cards + drives the
+                    hover constellation. Only offers axes OTHER than the current
+                    grouping (linking by the axis you grouped on is a no-op). */}
+                <span className="pf-canvas-bar__label pf-canvas-bar__label--link">
+                    {t('profile.memConnectBy')}
+                </span>
+                <div className="pf-canvas-seg pf-canvas-seg--link">
+                    {linkOpts.map((k) => (
+                        <button
+                            key={k}
+                            type="button"
+                            className="pf-canvas-seg__btn"
+                            data-active={effLinkBy === k}
+                            onClick={() => setLinkBy(k)}
+                        >
+                            {k === 'author'
+                                ? t('profile.memGroupAuthor')
+                                : k === 'year'
+                                  ? t('profile.memGroupYear')
+                                  : t('profile.memGroupTrip')}
+                        </button>
+                    ))}
+                </div>
             </div>
             <div
                 ref={viewportRef}
@@ -1880,6 +1969,48 @@ function MemoryCanvas({
                     data-lod={view.scale >= 0.66 ? 'full' : view.scale >= 0.38 ? 'avatar' : 'dot'}
                     style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
                 >
+                    {/* Constellation overlay — only the ACTIVE (hovered/pinned)
+                        card's same-secondary-key siblings, drawn as a star from
+                        that card (a hub), so the edge count is O(group size). In
+                        the plane's coordinate space so it pans/zooms with the
+                        cards; non-scaling-stroke keeps the lines crisp at any
+                        zoom. Behind the cards (first child). */}
+                    {litSet && activeMem && activeKey && siblingIds.length > 0 ? (
+                        <svg
+                            className="pf-mem-edges"
+                            aria-hidden="true"
+                            style={{
+                                position: 'absolute',
+                                left: 0,
+                                top: 0,
+                                width: layout.width || 1,
+                                height: layout.height || 1,
+                                overflow: 'visible',
+                                pointerEvents: 'none',
+                            }}
+                        >
+                            {(() => {
+                                const a = posOf(activeMem.id);
+                                const ax = a.x + MEM_CARD_W / 2;
+                                const ay = a.y + MEM_CARD_H / 2;
+                                const col = keyColor(activeKey);
+                                return siblingIds.map((id) => {
+                                    const q = posOf(id);
+                                    return (
+                                        <line
+                                            key={id}
+                                            className="pf-mem-edge"
+                                            x1={ax}
+                                            y1={ay}
+                                            x2={q.x + MEM_CARD_W / 2}
+                                            y2={q.y + MEM_CARD_H / 2}
+                                            style={{ stroke: col, color: col }}
+                                        />
+                                    );
+                                });
+                            })()}
+                        </svg>
+                    ) : null}
                     {group !== 'none'
                         ? layout.clusters.map((c) => (
                               <div
@@ -1894,12 +2025,24 @@ function MemoryCanvas({
                     {memories.map((m) => {
                         const p = posOf(m.id);
                         const hidden = isOwnProfile && !m.isVisible;
+                        const lk = memLinkKey(m, effLinkBy);
+                        const lit = litSet ? litSet.has(m.id) : false;
+                        const hub = activeId === m.id && !!activeKey;
                         return (
                             <div
                                 key={m.id}
                                 data-card={m.id}
-                                className={`pf-mem-card${hidden ? ' pf-mem-card--hidden' : ''}`}
-                                style={{ transform: `translate(${p.x}px, ${p.y}px)` }}
+                                className={`pf-mem-card${hidden ? ' pf-mem-card--hidden' : ''}${
+                                    litSet ? (lit ? ' pf-mem-card--lit' : ' pf-mem-card--dim') : ''
+                                }${hub ? ' pf-mem-card--hub' : ''}`}
+                                style={{
+                                    transform: `translate(${p.x}px, ${p.y}px)`,
+                                    // Neutral grey for the no-year / no-trip buckets so they read
+                                    // as "unlinked" rather than sharing a colour.
+                                    ['--link-color' as string]: lk ? keyColor(lk) : '#c4c4cc',
+                                }}
+                                onMouseEnter={() => setHoverId(m.id)}
+                                onMouseLeave={() => setHoverId((h) => (h === m.id ? null : h))}
                             >
                                 {/* Zoom level-of-detail: as you zoom out, the plane's
                                     data-lod flips full → avatar → dot (CSS picks one). */}
@@ -1919,7 +2062,7 @@ function MemoryCanvas({
                                 <span
                                     className="pf-mem-card__lod-dot"
                                     aria-hidden="true"
-                                    style={{ background: authorColor(m.author.id) }}
+                                    style={{ background: 'var(--link-color)' }}
                                 />
                                 <div className="pf-mem-card__text">{m.text}</div>
                                 <div className="pf-mem-card__foot">

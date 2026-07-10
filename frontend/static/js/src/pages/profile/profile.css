@@ -722,6 +722,10 @@
     letter-spacing: 0.05em;
     color: var(--text-secondary);
 }
+/* Small breather before the second ("Connect by") control group. */
+.pf-canvas-bar__label--link {
+    margin-left: 6px;
+}
 .pf-canvas-seg {
     display: inline-flex;
     background: var(--surface-2, rgba(0, 45, 91, 0.05));
@@ -801,7 +805,11 @@
     border-radius: 15px;
     border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.12));
     background: var(--bg-color, #fff);
-    box-shadow: 0 4px 14px rgba(0, 45, 91, 0.09);
+    /* Left stripe in the secondary-dimension colour (--link-color, set per
+       card). Inset so it never shifts layout. */
+    box-shadow:
+        inset 4px 0 0 var(--link-color, transparent),
+        0 4px 14px rgba(0, 45, 91, 0.09);
     cursor: grab;
     transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -817,6 +825,83 @@
 .pf-mem-card--hidden .pf-mem-card__text {
     margin-top: 15px;
     -webkit-line-clamp: 2;
+}
+
+/* ── Connection network — hover/tap a card to reveal its constellation ──
+   Cards not in the active group dim; the group's cards light up; a glowing
+   star of animated links fans out from the hub (the card you're pointing
+   at) to its same-secondary-key siblings. */
+.pf-mem-card--dim {
+    opacity: 0.3;
+    filter: saturate(0.7);
+}
+.pf-mem-card--lit {
+    z-index: 3;
+    border-color: var(--link-color);
+    box-shadow:
+        inset 4px 0 0 var(--link-color, transparent),
+        0 8px 22px rgba(0, 45, 91, 0.18),
+        0 0 0 1.5px var(--link-color);
+}
+.pf-mem-card--hub {
+    z-index: 4;
+    animation: pfHubPulse 1.4s ease-in-out infinite;
+}
+@keyframes pfHubPulse {
+    0%,
+    100% {
+        box-shadow:
+            inset 4px 0 0 var(--link-color, transparent),
+            0 8px 22px rgba(0, 45, 91, 0.2),
+            0 0 0 2px var(--link-color);
+    }
+    50% {
+        box-shadow:
+            inset 4px 0 0 var(--link-color, transparent),
+            0 12px 28px rgba(0, 45, 91, 0.26),
+            0 0 0 6px color-mix(in srgb, var(--link-color) 40%, transparent);
+    }
+}
+
+/* The links live in the plane's coordinate space (so they pan/zoom with the
+   cards) but non-scaling stroke keeps them a constant, crisp width at any
+   zoom. Marching-ants + glow read as live energy between related quotes. */
+.pf-mem-edges {
+    z-index: 0;
+    animation: pfEdgesIn 0.22s ease;
+}
+@keyframes pfEdgesIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+.pf-mem-edge {
+    stroke-width: 2.4;
+    vector-effect: non-scaling-stroke;
+    stroke-linecap: round;
+    stroke-dasharray: 5 7;
+    opacity: 0.95;
+    filter: drop-shadow(0 0 3px currentColor);
+    animation: pfDashFlow 0.9s linear infinite;
+}
+@keyframes pfDashFlow {
+    to {
+        stroke-dashoffset: -24;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .pf-mem-card--hub,
+    .pf-mem-edge {
+        animation: none;
+    }
+}
+/* Ring the avatar medallion in the secondary colour so "Connect by" reads at
+   avatar zoom too (the dot tier already uses --link-color as its fill). */
+.pf-canvas-plane[data-lod='avatar'] .pf-mem-card__lod-ava {
+    box-shadow: 0 0 0 3px var(--link-color);
 }
 .pf-mem-card__text {
     margin: 0;
