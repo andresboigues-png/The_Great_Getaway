@@ -344,17 +344,9 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
 import { FilterSelect } from '../../react/components/FilterSelect.js';
 
 
-/** Top-level presentation mode. `list` is a flat, sortable list;
- *  `group` is the collapsible accordion of sections. */
-type ViewMode = 'list' | 'group';
-
-/** Ordering for the flat list view. Independent of category — those
- *  live in the group view now. */
-type ListSort = 'recent' | 'name-asc' | 'name-desc' | 'ai-first';
-
-/** Which dimension the group view buckets by. `type` uses the POI
- *  category icon; `status` splits ticked-for-AI vs not; `source`
- *  splits AI-added vs user-added. */
+/** Which dimension the (always-on) group view buckets by. `type` uses
+ *  the POI category icon; `status` splits ticked-for-AI vs not;
+ *  `source` splits AI-added vs user-added. */
 type GroupBy = 'type' | 'status' | 'source';
 
 /** AI-tick filter. `all` clears the filter; `ticked` shows only items
@@ -371,21 +363,19 @@ interface TodoGroup {
     items: TodoMarkedPlace[];
 }
 
-// ── View-toggle glyphs (match the app's 2.2px round-cap stroke) ──────
-const ListGlyph = () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <line x1="8" y1="6" x2="21" y2="6" />
-        <line x1="8" y1="12" x2="21" y2="12" />
-        <line x1="8" y1="18" x2="21" y2="18" />
-        <line x1="3.5" y1="6" x2="3.51" y2="6" />
-        <line x1="3.5" y1="12" x2="3.51" y2="12" />
-        <line x1="3.5" y1="18" x2="3.51" y2="18" />
+// ── Group all / Ungroup all glyphs (double-chevron: up = collapse
+// every section, down = expand every section). Match the app's
+// 2.2px round-cap stroke. ──────────────────────────────────────────
+const CollapseGlyph = () => (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <polyline points="17 11 12 6 7 11" />
+        <polyline points="17 18 12 13 7 18" />
     </svg>
 );
-const GroupGlyph = () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <rect x="3" y="4" width="18" height="7" rx="2" />
-        <rect x="3" y="14" width="18" height="6" rx="2" />
+const ExpandGlyph = () => (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <polyline points="7 13 12 18 17 13" />
+        <polyline points="7 6 12 11 17 6" />
     </svg>
 );
 
@@ -395,25 +385,18 @@ export function Todo() {
     // call. Pre-fix this was the find-by-id-against-the-trips-array
     // recipe copy-pasted across ~12 components.
     const { trip: activeTrip } = useActiveTrip();
-    /** Per-icon filter. Empty string = "All" (no filter); non-empty
-     *  shows ONLY items whose normalised icon equals it. */
-    const [filterIcon, setFilterIcon] = useState<string>('');
-    /** AI-tick filter — independent of the category filter so the
-     *  user can ask "show unticked Restaurants" by combining the two. */
+    /** AI-tick filter — narrows to ticked / unticked items across
+     *  every group. */
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-    /** List vs Group presentation. Defaults to `list` — the plain,
-     *  everything-visible view. Group is the opt-in compact mode. */
-    const [viewMode, setViewMode] = useState<ViewMode>('list');
-    /** Flat-list ordering (list view only). */
-    const [listSort, setListSort] = useState<ListSort>('recent');
-    /** Group-view bucketing dimension. */
+    /** Group bucketing dimension. Grouped is the only view now (per user
+     *  request — the flat list was dropped). */
     const [groupBy, setGroupBy] = useState<GroupBy>('type');
     /** Which accordion sections are expanded. Empty = all collapsed
-     *  (the default), which is the whole point of the group view: a
-     *  long to-do collapses to a handful of counted headers. Keys are
-     *  dimension-prefixed so switching groupBy naturally resets to
-     *  collapsed rather than carrying stale open state. View-only, so
-     *  it lives in component state, not STATE. */
+     *  (the default): a long to-do collapses to a handful of counted
+     *  headers. "Ungroup all" opens every section, "Group all" closes
+     *  them. Keys are dimension-prefixed so switching groupBy resets to
+     *  collapsed rather than carrying stale open state. View-only, so it
+     *  lives in component state, not STATE. */
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
 
     const toggleGroup = (key: string) => {
@@ -526,56 +509,14 @@ export function Todo() {
         );
     }
 
-    // Per-icon counts BEFORE the filter applies — pill counts always
-    // reflect the full list so the user can see "Hotels: 1, Sights: 3"
-    // even when Hotels is currently filtered out. (Tally-ho UX:
-    // counts are the catalogue, not the filtered view.) AI items get
-    // normalised to 📍 here so they don't form a standalone bucket —
-    // see groupingIcon() above.
-    const iconCounts = new Map<string, number>();
-    for (const p of todoItems) {
-        const key = groupingIcon(p.icon);
-        iconCounts.set(key, (iconCounts.get(key) || 0) + 1);
-    }
-    const allIcons = [...iconCounts.keys()];
-
-    // Apply the AI-status filter, then the category filter. Both
-    // independent; combining them gives "unticked Restaurants" etc.
+    // Apply the AI-status filter. (The per-type filter dropdown was
+    // dropped with the list view — grouping by Type already surfaces
+    // every category as its own section.)
     let filteredItems = todoItems;
     if (statusFilter === 'ticked') {
         filteredItems = filteredItems.filter((p) => !!p.forAI);
     } else if (statusFilter === 'unticked') {
         filteredItems = filteredItems.filter((p) => !p.forAI);
-    }
-    if (filterIcon !== '') {
-        filteredItems = filteredItems.filter(
-            (p) => groupingIcon(p.icon) === filterIcon,
-        );
-    }
-
-    // ── LIST VIEW: flatten + sort ───────────────────────────────────
-    // The source `filteredItems` array is never mutated in place —
-    // every sort materialises a slice (mutating STATE.trips through a
-    // slice would be a very confusing bug).
-    let listItems = filteredItems;
-    if (viewMode === 'list') {
-        if (listSort === 'name-asc') {
-            listItems = filteredItems.slice().sort((a, b) => a.name.localeCompare(b.name));
-        } else if (listSort === 'name-desc') {
-            listItems = filteredItems.slice().sort((a, b) => b.name.localeCompare(a.name));
-        } else if (listSort === 'recent') {
-            // markedPlaces is append-order (push() at the end), so the
-            // most recently added items are at the tail. A simple reverse
-            // gives "newest first" without needing an addedAt timestamp.
-            listItems = filteredItems.slice().reverse();
-        } else if (listSort === 'ai-first') {
-            listItems = filteredItems.slice().sort((a, b) => {
-                const aTicked = a.forAI ? 0 : 1;
-                const bTicked = b.forAI ? 0 : 1;
-                if (aTicked !== bTicked) return aTicked - bTicked;
-                return a.name.localeCompare(b.name);
-            });
-        }
     }
 
     // ── GROUP VIEW: bucket by the chosen dimension ──────────────────
@@ -611,7 +552,12 @@ export function Todo() {
         if (manual.length) out.push({ key: 'src:manual', icon: '📍', label: t('todo.sourceManual'), items: manual });
         return out;
     };
-    const groupList = viewMode === 'group' ? buildGroups() : [];
+    const groupList = buildGroups();
+
+    // "Group all" collapses every section (compact — just the counted
+    // headers); "Ungroup all" expands every section (all items visible).
+    const groupAll = () => setExpandedGroups(new Set());
+    const ungroupAll = () => setExpandedGroups(new Set(groupList.map((g) => g.key)));
 
     /** "Mark all for AI" applies to the VISIBLE (filtered) list — not
      *  the whole to-do. User feedback: when the user has filtered to a
@@ -635,9 +581,8 @@ export function Todo() {
         void upsertTrip(activeTrip);
     };
 
-    // Any active filter that wipes the list to zero.
-    const isEmptyAfterFilter =
-        filteredItems.length === 0 && (filterIcon !== '' || statusFilter !== 'all');
+    // The AI-status filter wiped the list to zero.
+    const isEmptyAfterFilter = filteredItems.length === 0 && statusFilter !== 'all';
 
     // ── LIST STATE ──────────────────────────────────────────────────
     return (
@@ -704,32 +649,31 @@ export function Todo() {
                 </div>
             </div>
 
-            {/* Toolbar — view toggle (left) + filters + the view-dependent
-                sort/group-by dropdown, with the non-AI "Clear all" pulled
+            {/* Toolbar — Group all / Ungroup all (left) + AI-status filter
+                + the Group-by dropdown, with the non-AI "Clear all" pulled
                 to the far right so it stands apart from the AI controls. */}
             <div className="flex flex-wrap gap-[10px] items-center mb-[18px]">
-                {/* List / Group view toggle. Icon-only with a hover-reveal
-                    label (mouse) — matches the app's other icon buttons. */}
-                <div className="todo-view-toggle" role="group" aria-label={t('todo.viewToggleAria')}>
+                {/* Collapse-every-section / expand-every-section. Labelled
+                    pills (icon + text) — they perform the action, they
+                    aren't a persistent toggle. */}
+                <div className="flex items-center gap-2">
                     <button
                         type="button"
-                        className="todo-view-btn hover-reveal-host"
-                        aria-pressed={viewMode === 'list'}
-                        aria-label={t('todo.viewListLabel')}
-                        onClick={() => setViewMode('list')}
+                        className="todo-collapse-btn"
+                        onClick={groupAll}
+                        title={t('todo.groupAllBtn')}
                     >
-                        <ListGlyph />
-                        <span className="hover-reveal-label">{t('todo.viewListLabel')}</span>
+                        <CollapseGlyph />
+                        {t('todo.groupAllBtn')}
                     </button>
                     <button
                         type="button"
-                        className="todo-view-btn hover-reveal-host"
-                        aria-pressed={viewMode === 'group'}
-                        aria-label={t('todo.viewGroupLabel')}
-                        onClick={() => setViewMode('group')}
+                        className="todo-collapse-btn"
+                        onClick={ungroupAll}
+                        title={t('todo.ungroupAllBtn')}
                     >
-                        <GroupGlyph />
-                        <span className="hover-reveal-label">{t('todo.viewGroupLabel')}</span>
+                        <ExpandGlyph />
+                        {t('todo.ungroupAllBtn')}
                     </button>
                 </div>
 
@@ -743,52 +687,20 @@ export function Todo() {
                         { value: 'unticked', label: `${t('todo.filterStatusUnticked')} (${todoItems.length - tickedCount})` },
                     ]}
                 />
-                {/* Category filter only in list view — in group view the
-                    Type dimension already surfaces every category as a
-                    section, so a single-type filter there is redundant. */}
-                {viewMode === 'list' && allIcons.length >= 1 && (
+
+                {/* Right cluster: the Group-by dimension + Clear all.
+                    ml-auto pushes the whole cluster to the row's right edge. */}
+                <div className="flex items-center gap-2 ml-auto">
                     <FilterSelect
-                        label={t('todo.categoryFilterLabel')}
-                        value={filterIcon}
-                        onChange={setFilterIcon}
+                        label={t('todo.groupByLabel')}
+                        value={groupBy}
+                        onChange={(v) => setGroupBy(v as GroupBy)}
                         options={[
-                            { value: '', label: `${t('todo.categoryAll')} (${todoItems.length})` },
-                            ...allIcons.map((icon) => ({
-                                value: icon,
-                                label: `${icon} ${iconToLabel(icon)} (${iconCounts.get(icon) || 0})`,
-                            })),
+                            { value: 'type', label: t('todo.groupByType') },
+                            { value: 'status', label: t('todo.groupByStatus') },
+                            { value: 'source', label: t('todo.groupBySource') },
                         ]}
                     />
-                )}
-
-                {/* Right cluster: the view-dependent dropdown (Sort in list
-                    view / Group by in group view) + Clear all. ml-auto
-                    pushes the whole cluster to the row's right edge. */}
-                <div className="flex items-center gap-2 ml-auto">
-                    {viewMode === 'list' ? (
-                        <FilterSelect
-                            label={t('todo.sortLabel')}
-                            value={listSort}
-                            onChange={(v) => setListSort(v as ListSort)}
-                            options={[
-                                { value: 'recent', label: t('todo.sortRecent') },
-                                { value: 'ai-first', label: t('todo.sortAiFirst') },
-                                { value: 'name-asc', label: t('todo.sortNameAsc') },
-                                { value: 'name-desc', label: t('todo.sortNameDesc') },
-                            ]}
-                        />
-                    ) : (
-                        <FilterSelect
-                            label={t('todo.groupByLabel')}
-                            value={groupBy}
-                            onChange={(v) => setGroupBy(v as GroupBy)}
-                            options={[
-                                { value: 'type', label: t('todo.groupByType') },
-                                { value: 'status', label: t('todo.groupByStatus') },
-                                { value: 'source', label: t('todo.groupBySource') },
-                            ]}
-                        />
-                    )}
                     {tripIsEditable && (
                         <button
                             type="button"
@@ -810,11 +722,9 @@ export function Todo() {
                 </div>
             </div>
 
-            {/* Empty-filter hint — fires whenever any active filter
-                (category, AI status, or both) wipes the list down to
-                zero. The reset button clears EVERY filter so a single
-                tap brings the whole list back regardless of how the
-                user got stuck. */}
+            {/* Empty-filter hint — the AI-status filter wiped the list to
+                zero. The reset button clears it so a single tap brings the
+                whole list back. */}
             {isEmptyAfterFilter && (
                 <div
                     className="py-6 px-4 text-center text-secondary text-[0.86rem] bg-[rgba(0,_45,_91,_0.03)] rounded-md border-[1.5px] border-dashed border-[var(--border-subtle)]"
@@ -822,10 +732,7 @@ export function Todo() {
                     {t('todo.noFilterMatch')}{' '}
                     <button
                         type="button"
-                        onClick={() => {
-                            setFilterIcon('');
-                            setStatusFilter('all');
-                        }}
+                        onClick={() => setStatusFilter('all')}
                         className="bg-transparent border-0 text-accent-blue font-bold cursor-pointer p-0"
                     >
                         {t('todo.noFilterMatchReset')}
@@ -833,25 +740,8 @@ export function Todo() {
                 </div>
             )}
 
-            {/* ── LIST VIEW — flat, sorted ── */}
-            {viewMode === 'list' && listItems.length > 0 && (
-                <div className="flex flex-col gap-[6px]">
-                    {listItems.map((p) => (
-                        <TodoRow
-                            key={p.placeId}
-                            place={p}
-                            isTicked={!!p.forAI}
-                            tripIsEditable={tripIsEditable}
-                            onTickToggle={handleTickToggle}
-                            onRemove={handleRemove}
-                        />
-                    ))}
-                </div>
-            )}
-
-            {/* ── GROUP VIEW — collapsible accordion sections ── */}
-            {viewMode === 'group' &&
-                groupList.map((g) => {
+            {/* ── Collapsible accordion sections (the only view) ── */}
+            {groupList.map((g) => {
                     // A lone section auto-expands (a single collapsed
                     // header with nothing to compare against reads as a
                     // dead-end); otherwise honour the per-section toggle,

@@ -119,18 +119,9 @@ export function wireNavChrome(): void {
     // Round 19: the left-edge peek handle (which replaced the burger button)
     // opens the island too.
     document.getElementById('railPeek')?.addEventListener('click', toggleRail);
-    // F3-I6: the close chevron pinned at the top of the OPEN island gives a
-    // first-time user an honest, visible way to dismiss it — replacing the
-    // hidden "two blank-space taps" rule that read as stuck. It's shown by
-    // CSS only while `.is-open`, so a tap here always collapses the island;
-    // an explicit close (not toggle) keeps intent unambiguous and matches
-    // the Esc / control-tap paths.
-    document.getElementById('railClose')?.addEventListener('click', () => {
-        const rail = document.getElementById('sidebarRail');
-        if (!rail?.classList.contains('is-open')) return;
-        rail.classList.remove('is-open');
-        hamburgerBtn?.setAttribute('aria-expanded', 'false');
-    });
+    // 2026-07: the explicit close chevron (#railClose) was removed per user
+    // request — a single tap outside the island now dismisses it (see the
+    // outside-tap handler below), so a dedicated back button was redundant.
 
     // Desktop hover labels for the permanent left rail (like the home map's
     // Maps/Share buttons). The rail clips horizontal overflow (overflow-y:auto
@@ -189,49 +180,26 @@ export function wireNavChrome(): void {
         }
     });
 
-    // Round 19: TWO taps outside the open island close it — so the user isn't
-    // forced to the burger. Two (not one) because the island is non-modal: a
-    // single content tap while it's open shouldn't dismiss it. Tapping the
-    // island itself or the burger resets the count.
-    let railOutsideTaps = 0;
+    // 2026-07: a SINGLE tap outside the open island dismisses it. (Was two
+    // blank-space taps + a visible close chevron; the chevron was removed per
+    // user request, so one outside tap — blank space or a page control — now
+    // closes the non-modal island, matching the "tap outside to close"
+    // expectation.) Taps on the island itself, or the burger / peek handle
+    // that toggle it, are left to those handlers.
     document.addEventListener('click', (e) => {
         const rail = document.getElementById('sidebarRail');
-        if (!rail || !rail.classList.contains('is-open')) {
-            railOutsideTaps = 0;
-            return;
-        }
+        if (!rail || !rail.classList.contains('is-open')) return;
         const target = e.target as HTMLElement | null;
-        // Inside the island, or on the burger / peek handle that toggle it →
-        // leave it to those handlers (and reset the blank-tap counter).
         if (
             !target
             || rail.contains(target)
             || target.closest('#hamburgerBtn')
             || target.closest('#railPeek')
         ) {
-            railOutsideTaps = 0;
             return;
         }
-        const closeRail = () => {
-            railOutsideTaps = 0;
-            rail.classList.remove('is-open');
-            hamburgerBtn?.setAttribute('aria-expanded', 'false');
-        };
-        // Tapping an actual control / feature on the current page (a button,
-        // link, field, switch, card — anything clickable) means the user is
-        // now doing something, so retract the island immediately to get it out
-        // of the way. Blank-space taps stay gentle: one keeps the non-modal
-        // island open, a second one dismisses it.
-        if (
-            target.closest(
-                'button, a, input, select, textarea, label, [role="button"], [role="tab"], [role="switch"], [role="link"], [tabindex], [onclick], .card-button-reset',
-            )
-        ) {
-            closeRail();
-            return;
-        }
-        railOutsideTaps += 1;
-        if (railOutsideTaps >= 2) closeRail();
+        rail.classList.remove('is-open');
+        hamburgerBtn?.setAttribute('aria-expanded', 'false');
     });
 
     // ── Mobile swipe-between-tabs ──

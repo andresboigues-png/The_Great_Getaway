@@ -957,64 +957,9 @@ h1 {
 body.menu-handle-off .rail-peek {
     display: none !important;
 }
-/* F3-I6: close chevron for the open rail island. Hidden by default and on
-   desktop (the rail is permanent there — nothing to close). On mobile it is
-   revealed only while the island is open, pinned just above the reel window
-   so it sits outside the fade-mask and is always tappable. Same Liquid-Glass
-   recipe as the peek handle. Unlike #railPeek it ignores body.menu-handle-off
-   so an open island can always be dismissed with a visible control. */
-.rail-close {
-    display: none;
-    padding: 0;
-    background: none;
-    border: none;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-}
-@media (max-width: 720px) {
-    .sidebar-rail.is-open ~ .rail-close {
-        display: flex;
-        position: fixed;
-        left: 12px;
-        width: 56px;
-        /* Island: top:50% + height 200px, centred via translateY(-50%), so its
-           top edge sits at calc(50% - 100px). Park the chevron a touch above
-           that so it clears the mask fade. */
-        top: calc(50% - 122px);
-        height: 34px;
-        align-items: center;
-        justify-content: center;
-        z-index: 1101;
-        border-radius: 17px;
-        color: var(--accent-blue);
-        background: linear-gradient(
-            180deg,
-            rgba(255, 255, 255, 0.5) 0%,
-            rgba(255, 255, 255, 0.28) 55%,
-            rgba(255, 255, 255, 0.42) 100%
-        );
-        backdrop-filter: blur(20px) saturate(185%) brightness(1.06);
-        -webkit-backdrop-filter: blur(20px) saturate(185%) brightness(1.06);
-        border: 1px solid rgba(255, 255, 255, 0.65);
-        box-shadow:
-            0 8px 22px rgba(0, 45, 91, 0.18),
-            inset 0 1.5px 1px rgba(255, 255, 255, 0.9);
-        transition: transform 0.18s ease, opacity 0.2s ease;
-    }
-    .sidebar-rail.is-open ~ .rail-close:active {
-        transform: scale(0.92);
-    }
-}
-:root[data-theme="dark"] .rail-close {
-    color: #7fb2ff;
-    background: linear-gradient(
-        180deg,
-        rgba(44, 52, 66, 0.62) 0%,
-        rgba(30, 36, 48, 0.42) 55%,
-        rgba(40, 48, 62, 0.54) 100%
-    );
-    border-color: rgba(255, 255, 255, 0.12);
-}
+/* 2026-07: the open-island close chevron (.rail-close / #railClose) was
+   removed — a single tap outside the non-modal island now dismisses it
+   (nav-chrome.ts), so the explicit control was redundant. */
 :root[data-theme="dark"] .rail-peek {
     background: linear-gradient(
         180deg,
@@ -1133,11 +1078,14 @@ body.menu-handle-off .rail-peek {
     width: 56px;
     max-height: calc(100dvh - 100px);
     z-index: 100;
+    /* 2026-07: less see-through per user request — alphas raised (was
+       0.5 / 0.28 / 0.42) so page content behind the rail no longer bleeds
+       through, while the frosted-glass blur is kept. */
     background: linear-gradient(
         180deg,
-        rgba(255, 255, 255, 0.5) 0%,
-        rgba(255, 255, 255, 0.28) 55%,
-        rgba(255, 255, 255, 0.42) 100%
+        rgba(255, 255, 255, 0.78) 0%,
+        rgba(255, 255, 255, 0.66) 55%,
+        rgba(255, 255, 255, 0.74) 100%
     );
     backdrop-filter: blur(26px) saturate(185%) brightness(1.06);
     -webkit-backdrop-filter: blur(26px) saturate(185%) brightness(1.06);
@@ -6068,12 +6016,14 @@ main#app-container.nav-anim-backward {
    on the right edge defines where the rail ends against the
    page bg. */
 :root[data-theme="dark"] .sidebar-rail {
-    /* Dark Liquid Glass island — matches the dark mobile island. */
+    /* Dark Liquid Glass island — matches the dark mobile island. 2026-07:
+       alphas raised (was 0.5 / 0.42 / 0.5) so it reads less see-through,
+       mirroring the light-theme bump. */
     background: linear-gradient(
         180deg,
-        rgba(66, 66, 74, 0.5) 0%,
-        rgba(40, 40, 46, 0.42) 55%,
-        rgba(52, 52, 60, 0.5) 100%
+        rgba(66, 66, 74, 0.82) 0%,
+        rgba(40, 40, 46, 0.74) 55%,
+        rgba(52, 52, 60, 0.8) 100%
     );
     border: 1px solid rgba(255, 255, 255, 0.16);
     box-shadow:

@@ -1183,10 +1183,9 @@ export const en = {
         sortNameDesc: 'Name Z→A',
         sortRecent: 'Recently added',
         sortAiFirst: 'For AI first',
-        // View toggle + group-view dimension (2026-07).
-        viewToggleAria: 'Change how the list is shown',
-        viewListLabel: 'List',
-        viewGroupLabel: 'Groups',
+        // Group-view controls (2026-07). Grouped is the only view.
+        groupAllBtn: 'Group all',
+        ungroupAllBtn: 'Ungroup all',
         groupByLabel: 'Group by',
         groupByType: 'Type',
         groupByStatus: 'AI status',

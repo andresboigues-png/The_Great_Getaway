@@ -977,10 +977,9 @@ export const es: Translations = {
         sortNameDesc: 'Nombre Z→A',
         sortRecent: 'Añadidos recientemente',
         sortAiFirst: 'Marcados primero',
-        // View toggle + group-view dimension (2026-07).
-        viewToggleAria: 'Cambiar cómo se muestra la lista',
-        viewListLabel: 'Lista',
-        viewGroupLabel: 'Grupos',
+        // Group-view controls (2026-07). Grouped is the only view.
+        groupAllBtn: 'Agrupar todo',
+        ungroupAllBtn: 'Desagrupar todo',
         groupByLabel: 'Agrupar por',
         groupByType: 'Tipo',
         groupByStatus: 'Estado IA',
