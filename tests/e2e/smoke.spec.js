@@ -273,6 +273,77 @@ test.describe('The Great Getaway — smoke', () => {
         await expect(expenses).not.toHaveClass(/active/);
     });
 
+    test('Path day-swipe stays inside the Path tab (no tab/rail hijack)', async ({ page }, testInfo) => {
+        // Regression: a horizontal swipe on the Path tab's day surface (the
+        // day-chips "wheel" + day cards, all under #pathTabInner) has its OWN
+        // day-step gesture, so it must be opted OUT of the global tab/rail swipe
+        // — otherwise one drag also changed the bottom tab / opened the rail.
+        // Mobile only (the global swipe bails above 720px).
+        if (testInfo.project.name !== 'chromium-mobile') test.skip();
+
+        await openFreshApp(page, uniqueId('user'));
+        // Land on a known bottom-tab page so swipe direction is deterministic:
+        // Home is index 0, so a right-swipe opens the rail and a left-swipe would
+        // advance to the next tab (Todo) — that's the exact hijack we're guarding.
+        await page.evaluate(() => {
+            window.location.hash = 'home';
+        });
+        await page.waitForTimeout(300);
+
+        // Mount two full-width surfaces at known y-bands: #pathTabInner is the
+        // REAL Path-tab day container (TripBody.tsx — it wraps the day-chips
+        // "wheel", summary, and day cards) and is opted OUT of the global
+        // tab/rail swipe (mobileSwipe.ts); #ctrlSurface is a plain div that is
+        // NOT opted out. Using stand-ins keeps the test off the mobile-flaky
+        // trip-creation UI — the opt-out is a pure `target.closest('#pathTabInner')`
+        // match, so the id is all that matters. Real CDP touch events (below)
+        // hit-test to whichever surface sits under the coordinates.
+        await page.evaluate(() => {
+            const mk = (id, top) => {
+                const el = document.createElement('div');
+                el.id = id;
+                el.style.cssText = `position:fixed;left:0;right:0;top:${top}px;height:140px;z-index:9999`;
+                document.body.appendChild(el);
+            };
+            mk('pathTabInner', 120); // y 120–260
+            mk('ctrlSurface', 300); // y 300–440 (not opted out)
+        });
+        const hashBefore = await page.evaluate(() => window.location.hash);
+
+        // Real touch swipe via CDP (browser-native events — synthetic
+        // TouchEvents don't reliably populate `touches` for the handler). Left
+        // swipe = dx<0, right = dx>0; > the 80px + horizontal-ratio thresholds.
+        const cdp = await page.context().newCDPSession(page);
+        const swipeAt = async (y, dx) => {
+            const x1 = 80;
+            const x2 = x1 + dx;
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x1, y }] });
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: (x1 + x2) / 2, y }] });
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x2, y }] });
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        };
+        const railOpen = () =>
+            page.evaluate(() => !!document.getElementById('sidebarRail')?.classList.contains('is-open'));
+        const closeRail = () =>
+            page.evaluate(() => document.getElementById('sidebarRail')?.classList.remove('is-open'));
+
+        // POSITIVE CONTROL — a right-swipe over the NON-opted surface DOES open
+        // the rail, proving the CDP touch gesture actually fires the handler
+        // (so the opt-out assertions below aren't passing on a dead gesture).
+        await closeRail();
+        await swipeAt(370, 160); // over #ctrlSurface
+        expect(await railOpen()).toBe(true);
+
+        // THE FIX — the same right-swipe over the Path surface must NOT open the
+        // rail…
+        await closeRail();
+        await swipeAt(190, 160); // over #pathTabInner
+        expect(await railOpen()).toBe(false);
+        // …and a left-swipe there must NOT jump to the next bottom tab.
+        await swipeAt(190, -160);
+        expect(await page.evaluate(() => window.location.hash)).toBe(hashBefore);
+    });
+
     // Re-enabled now that addCompanion works (Companions tab switch in
     // helpers.js) and Phase D1 fixed the mobile navbar — mobile gate
     // gone. Form submit validates `#expCurrency` non-empty — earlier
