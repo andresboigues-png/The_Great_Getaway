@@ -56,6 +56,23 @@ export function selectActiveTrip(tripId: string): void {
     navigate(PAGES.HOME);
 }
 
+/** Hide any trip-action group whose rows are ALL hidden. Each
+ *  `.trip-menu-group` carries a grey background + border, so an empty group
+ *  (every row display:none) renders as a stray grey bar — which is exactly
+ *  what showed in the "no active trips" popover (all action rows hidden, three
+ *  empty group boxes left behind). Also covers role-gated cases (e.g. the
+ *  Delete-only group is hidden for non-owners). */
+function syncTripMenuGroups(): void {
+    const groups = document.querySelectorAll<HTMLElement>(
+        '.sidebar-trip-controls .trip-menu-group',
+    );
+    for (const group of groups) {
+        const rows = group.querySelectorAll<HTMLElement>('.trip-menu-row');
+        const anyVisible = Array.from(rows).some((r) => r.style.display !== 'none');
+        group.style.display = anyVisible ? '' : 'none';
+    }
+}
+
 export function updateTripSelector() {
     // Two trip selectors live in the DOM: #tripSelector in the desktop
     // top navbar, #tripSelectorSidebar in the mobile burger drawer. Only
@@ -115,6 +132,9 @@ export function updateTripSelector() {
         for (const btn of deleteBtns) btn.style.display = 'none';
         for (const btn of [editBtn, downloadBtn, silenceBtn]) if (btn) btn.style.display = 'none';
         if (navTripChange) navTripChange.style.display = 'none';
+        // Collapse the now-empty action groups so the popover doesn't show
+        // three stray grey bars above "New trip".
+        syncTripMenuGroups();
         return;
     }
 
@@ -177,6 +197,10 @@ export function updateTripSelector() {
             selectActiveTrip(target.value);
         };
     }
+
+    // Drop any action group left with no visible rows (e.g. a non-owner's
+    // Delete group) so we never render an empty grey box.
+    syncTripMenuGroups();
 }
 
 /**
