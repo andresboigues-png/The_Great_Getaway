@@ -7,7 +7,7 @@
 // the exact same trip. Both server endpoints live in routes/trip_io.py.
 
 import { showLiquidAlert } from '../utils.js';
-import { apiFetch, pullFromServer } from '../api.js';
+import { apiFetch, pullFromServer, fetchTripMedia } from '../api.js';
 import { showModal } from '../components/Modal.js';
 import { t } from '../i18n.js';
 import { STATE, emit } from '../state.js';
@@ -146,9 +146,18 @@ export async function importTripFromFile(file: File): Promise<{ ok: boolean; err
     if (!body.tripId) return { ok: false, error: t('modals.importTripError') };
 
     // Pull the full visible set so the freshly-created trip + its rows land in
-    // STATE, then select it. Media lazy-loads on trip-open via GET /media.
+    // STATE, then select it AND hydrate its media. Photos / documents / marked
+    // (to-do) places / checklist live on the SEPARATE /media write-path — they
+    // are NOT shipped by /api/data (R12 media-write invariant), so
+    // pullFromServer alone leaves them empty. pullFromServer DOES auto-hydrate
+    // the active trip's media, but it ran just now with the PREVIOUS active
+    // trip, so it fetched the wrong one. Fetch the imported trip's media
+    // explicitly (mirrors viewArchivedDetails) or the to-do list, day photos,
+    // and docs stay blank until a much-later poll. Awaited so the caller
+    // navigates to a fully-hydrated trip; dedupe-guarded inside fetchTripMedia.
     await pullFromServer();
     STATE.activeTripId = body.tripId;
+    await fetchTripMedia(body.tripId);
     emit('state:changed');
     return { ok: true };
 }
