@@ -784,6 +784,36 @@ function GeneralAppearanceSection() {
         document.body.classList.toggle('menu-handle-off', !on);
     };
 
+    // Profile memory-canvas connection network — which relationships to draw
+    // when hovering a memory. localStorage-backed view pref (mirrors the reader
+    // in Profile.tsx / gg_mem_connect); all on by default. The canvas reads it
+    // on mount, so a change applies next time the profile is opened.
+    const [connect, setConnect] = useState<{ author: boolean; trip: boolean; year: boolean }>(() => {
+        try {
+            const raw = localStorage.getItem('gg_mem_connect');
+            if (raw) {
+                const p = JSON.parse(raw);
+                return { author: p.author !== false, trip: p.trip !== false, year: p.year !== false };
+            }
+        } catch {
+            /* malformed / unavailable → defaults */
+        }
+        return { author: true, trip: true, year: true };
+    });
+    const setConnectDim = (dim: 'author' | 'trip' | 'year', on: boolean) => {
+        setConnect((prev) => {
+            const next = { ...prev, [dim]: on };
+            try {
+                localStorage.setItem('gg_mem_connect', JSON.stringify(next));
+            } catch {
+                /* storage unavailable — the in-memory toggle still reflects intent */
+            }
+            return next;
+        });
+    };
+    // Fixed dimension colours — mirror MEM_LINK_DIMS in Profile.tsx.
+    const connectColor = { author: '#0a84ff', trip: '#30b46b', year: '#f5a623' } as const;
+
     const onPick = (value: 'light' | 'dark' | 'system') => {
         setTheme(value);
     };
@@ -841,6 +871,47 @@ function GeneralAppearanceSection() {
                     />
                     <span className="slider"></span>
                 </label>
+            </div>
+
+            {/* Profile memory-canvas connection network — pick which
+                relationships light up when you hover a memory. All on by
+                default; turning one off drops its rays + legend entry. */}
+            <div className="mt-7">
+                <div className="font-semibold text-[0.95rem]">{t('settings.memConnectLabel')}</div>
+                <div className="text-secondary text-[0.82rem] mt-0.5 mb-2">
+                    {t('settings.memConnectSub')}
+                </div>
+                {(
+                    [
+                        ['author', t('profile.memGroupAuthor')],
+                        ['trip', t('profile.memGroupTrip')],
+                        ['year', t('profile.memGroupYear')],
+                    ] as const
+                ).map(([dim, label]) => (
+                    <div key={dim} className="flex items-center justify-between gap-4 mt-2">
+                        <div className="min-w-0 flex items-center gap-2.5">
+                            <span
+                                aria-hidden="true"
+                                style={{
+                                    width: 10,
+                                    height: 10,
+                                    borderRadius: '50%',
+                                    flexShrink: 0,
+                                    background: connectColor[dim],
+                                }}
+                            />
+                            <span className="text-[0.9rem]">{label}</span>
+                        </div>
+                        <label className="switch" title={label}>
+                            <input
+                                type="checkbox"
+                                checked={connect[dim]}
+                                onChange={(e) => setConnectDim(dim, e.target.checked)}
+                            />
+                            <span className="slider"></span>
+                        </label>
+                    </div>
+                ))}
             </div>
         </div>
     );

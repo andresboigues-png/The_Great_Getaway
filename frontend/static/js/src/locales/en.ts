@@ -452,6 +452,8 @@ export const en = {
         themePickerSubtitle: "Pick a theme. <strong>System</strong> follows your device's appearance setting and updates live when it changes.",
         menuHandleLabel: 'Menu handle',
         menuHandleSub: 'A small grip on the left edge to open the side menu on mobile. Off → swipe right to open.',
+        memConnectLabel: 'Memory connections',
+        memConnectSub: 'On a profile, hovering a memory links it to others that share the same trait. Pick which relationships to show.',
         themeBodyLight: 'Bright surfaces, dark text. Classic.',
         themeBodyDark: 'Dark surfaces, light text. Easy on the eyes after sundown.',
         themeBodySystem: 'Follow your device. Auto-switches when your OS does.',

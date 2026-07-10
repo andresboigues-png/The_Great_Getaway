@@ -370,6 +370,8 @@ export const fr: Translations = {
         themePickerSubtitle: 'Choisis un thème. <strong>Système</strong> suit l\'apparence de ton appareil et se met à jour en direct quand elle change.',
         menuHandleLabel: 'Poignée du menu',
         menuHandleSub: 'Une petite poignée sur le bord gauche pour ouvrir le menu latéral sur mobile. Désactivé → balaye vers la droite.',
+        memConnectLabel: 'Connexions entre souvenirs',
+        memConnectSub: 'Sur un profil, survoler un souvenir le relie aux autres partageant le même trait. Choisis les connexions à afficher.',
         themeBodyLight: 'Surfaces claires, texte sombre. Classique.',
         themeBodyDark: 'Surfaces sombres, texte clair. Plus doux après le coucher du soleil.',
         themeBodySystem: 'Suit ton appareil. Bascule automatiquement quand ton OS le fait.',

@@ -365,6 +365,8 @@ export const es: Translations = {
         themePickerSubtitle: 'Elige un tema. <strong>Sistema</strong> sigue la apariencia de tu dispositivo y se actualiza al instante cuando cambia.',
         menuHandleLabel: 'Asa del menú',
         menuHandleSub: 'Un pequeño tirador en el borde izquierdo para abrir el menú lateral en el móvil. Desactivado → desliza a la derecha.',
+        memConnectLabel: 'Conexiones entre recuerdos',
+        memConnectSub: 'En un perfil, al pasar el cursor sobre un recuerdo se conecta con otros que comparten el mismo rasgo. Elige qué conexiones mostrar.',
         themeBodyLight: 'Superficies claras, texto oscuro. Clásico.',
         themeBodyDark: 'Superficies oscuras, texto claro. Más cómodo después del atardecer.',
         themeBodySystem: 'Sigue tu dispositivo. Se ajusta automáticamente cuando lo hace tu sistema.',

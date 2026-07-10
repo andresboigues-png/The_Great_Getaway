@@ -1613,6 +1613,33 @@ function memLinkKey(m: QuoteItem, linkBy: MemGroup): string | null {
     return null;
 }
 
+// Fixed colour per relationship dimension for the connection rays + legend
+// (distinct from the per-author node hues). Blue = who, green = trip, amber
+// = when. Order = ray draw + legend order.
+type MemLinkDim = 'author' | 'year' | 'trip';
+const MEM_LINK_DIMS: { k: MemLinkDim; color: string }[] = [
+    { k: 'author', color: '#0a84ff' },
+    { k: 'trip', color: '#30b46b' },
+    { k: 'year', color: '#f5a623' },
+];
+
+// Which connection dimensions to draw. User-tunable in Settings → General;
+// all on by default. Stored client-side (a view preference, like the menu
+// handle) under `gg_mem_connect`.
+const MEM_CONNECT_KEY = 'gg_mem_connect';
+function readMemConnectPrefs(): Record<MemLinkDim, boolean> {
+    try {
+        const raw = localStorage.getItem(MEM_CONNECT_KEY);
+        if (raw) {
+            const p = JSON.parse(raw) as Partial<Record<MemLinkDim, boolean>>;
+            return { author: p.author !== false, year: p.year !== false, trip: p.trip !== false };
+        }
+    } catch {
+        /* malformed / unavailable → defaults */
+    }
+    return { author: true, year: true, trip: true };
+}
+
 function memComputeLayout(memories: QuoteItem[], group: MemGroup): MemLayoutResult {
     const groups = new Map<string, { label: string; sort: string; items: QuoteItem[] }>();
     for (const m of memories) {
@@ -1677,36 +1704,43 @@ function MemoryCanvas({
     const [overrides, setOverrides] = useState<Record<number, { x: number; y: number }>>({});
     const posOf = (id: number) => overrides[id] ?? layout.positions[id] ?? { x: 0, y: 0 };
 
-    // ── Secondary "Connect by" dimension → node colour + hover constellation.
-    // It always differs from the primary grouping (tinting by the axis you
-    // grouped on is flat), so a card's colour reveals a SECOND relationship the
-    // cluster layout doesn't show. `linkBy` is the user's pick; `effLinkBy`
-    // falls back to the first valid axis if the pick collides with the grouping.
-    const linkOpts = (['author', 'year', 'trip'] as MemGroup[]).filter((k) => k !== group);
-    const [linkBy, setLinkBy] = useState<MemGroup>('author');
+    // ── Connection network. Every card is tinted by its AUTHOR (its identity
+    // colour, shown at all zoom tiers). Hovering / tapping a card fires
+    // colour-coded rays to EVERY memory it relates to — same author, same trip,
+    // same year — each dimension a fixed colour (see the legend). No picker: the
+    // network reveals itself. Only the ACTIVE card's relatives are drawn, so
+    // it's O(relatives), never an N² mesh. Which dimensions show is user-tunable
+    // in Settings (read once on mount; the canvas re-mounts on the next visit).
     const [pinnedId, setPinnedId] = useState<number | null>(null);
     const [hoverId, setHoverId] = useState<number | null>(null);
-    const effLinkBy: MemGroup = linkBy !== group ? linkBy : linkOpts[0] ?? 'author';
-    // link key → member ids, for the hover star + the tinted-vs-neutral choice.
-    const linkGroups = useMemo(() => {
-        const map = new Map<string, number[]>();
-        for (const m of memories) {
-            const k = memLinkKey(m, effLinkBy);
-            if (!k) continue;
-            const arr = map.get(k);
-            if (arr) arr.push(m.id);
-            else map.set(k, [m.id]);
-        }
-        return map;
-    }, [memories, effLinkBy]);
-    // Active card = pinned (tap) OR hovered (mouse). Its same-key siblings form
-    // the constellation; everything else dims. Only THIS card's group is drawn,
-    // so the edge count is O(group size) — never the N² of an all-pairs mesh.
+    const [connectDims] = useState(readMemConnectPrefs);
+    const activeDims = MEM_LINK_DIMS.filter((d) => connectDims[d.k]);
+
     const activeId = pinnedId ?? hoverId;
     const activeMem = activeId != null ? memories.find((m) => m.id === activeId) ?? null : null;
-    const activeKey = activeMem ? memLinkKey(activeMem, effLinkBy) : null;
-    const siblingIds = activeKey ? (linkGroups.get(activeKey) ?? []).filter((id) => id !== activeId) : [];
-    const litSet = activeMem && activeKey ? new Set<number>([activeMem.id, ...siblingIds]) : null;
+    // Rays out of the active card: one per (relative, dimension) pair, coloured
+    // by the dimension. A pair sharing two dimensions gets two parallel rays
+    // (a small perpendicular offset keeps them from overlapping).
+    const constellation = useMemo(() => {
+        if (!activeMem) return null;
+        const dims = MEM_LINK_DIMS.filter((d) => connectDims[d.k]);
+        const rays: { id: number; color: string; offset: number }[] = [];
+        const lit = new Set<number>([activeMem.id]);
+        dims.forEach((d, di) => {
+            const key = memLinkKey(activeMem, d.k);
+            if (!key) return;
+            const off = (di - (dims.length - 1) / 2) * 4;
+            for (const m of memories) {
+                if (m.id === activeMem.id) continue;
+                if (memLinkKey(m, d.k) === key) {
+                    rays.push({ id: m.id, color: d.color, offset: off });
+                    lit.add(m.id);
+                }
+            }
+        });
+        return { rays, lit };
+    }, [activeMem, memories, connectDims]);
+    const litSet = constellation && constellation.rays.length > 0 ? constellation.lit : null;
 
     const [view, setView] = useState({ x: 40, y: 40, scale: 1 });
     const [interacting, setInteracting] = useState(false);
@@ -1930,29 +1964,31 @@ function MemoryCanvas({
                         </button>
                     ))}
                 </div>
-                {/* Secondary "Connect by" axis: tints the cards + drives the
-                    hover constellation. Only offers axes OTHER than the current
-                    grouping (linking by the axis you grouped on is a no-op). */}
-                <span className="pf-canvas-bar__label pf-canvas-bar__label--link">
-                    {t('profile.memConnectBy')}
-                </span>
-                <div className="pf-canvas-seg pf-canvas-seg--link">
-                    {linkOpts.map((k) => (
-                        <button
-                            key={k}
-                            type="button"
-                            className="pf-canvas-seg__btn"
-                            data-active={effLinkBy === k}
-                            onClick={() => setLinkBy(k)}
-                        >
-                            {k === 'author'
-                                ? t('profile.memGroupAuthor')
-                                : k === 'year'
-                                  ? t('profile.memGroupYear')
-                                  : t('profile.memGroupTrip')}
-                        </button>
-                    ))}
-                </div>
+                {/* Passive legend for the connection rays (no picker — hovering a
+                    card links it to everything it shares an author / trip / year
+                    with, each dimension its own colour). Only lists the
+                    dimensions enabled in Settings. */}
+                {activeDims.length > 0 ? (
+                    <div className="pf-canvas-legend">
+                        <span className="pf-canvas-bar__label pf-canvas-bar__label--link">
+                            {t('profile.memConnectBy')}
+                        </span>
+                        {activeDims.map((d) => (
+                            <span key={d.k} className="pf-canvas-legend__item">
+                                <span
+                                    className="pf-canvas-legend__dot"
+                                    style={{ background: d.color }}
+                                    aria-hidden="true"
+                                />
+                                {d.k === 'author'
+                                    ? t('profile.memGroupAuthor')
+                                    : d.k === 'trip'
+                                      ? t('profile.memGroupTrip')
+                                      : t('profile.memGroupYear')}
+                            </span>
+                        ))}
+                    </div>
+                ) : null}
             </div>
             <div
                 ref={viewportRef}
@@ -1975,7 +2011,7 @@ function MemoryCanvas({
                         the plane's coordinate space so it pans/zooms with the
                         cards; non-scaling-stroke keeps the lines crisp at any
                         zoom. Behind the cards (first child). */}
-                    {litSet && activeMem && activeKey && siblingIds.length > 0 ? (
+                    {litSet && activeMem && constellation && constellation.rays.length > 0 ? (
                         <svg
                             className="pf-mem-edges"
                             aria-hidden="true"
@@ -1993,18 +2029,25 @@ function MemoryCanvas({
                                 const a = posOf(activeMem.id);
                                 const ax = a.x + MEM_CARD_W / 2;
                                 const ay = a.y + MEM_CARD_H / 2;
-                                const col = keyColor(activeKey);
-                                return siblingIds.map((id) => {
-                                    const q = posOf(id);
+                                return constellation.rays.map((ray, i) => {
+                                    const q = posOf(ray.id);
+                                    const bx = q.x + MEM_CARD_W / 2;
+                                    const by = q.y + MEM_CARD_H / 2;
+                                    // Offset the whole ray perpendicular to itself so
+                                    // multiple dimensions between the same pair read as
+                                    // parallel coloured lines instead of overlapping.
+                                    const len = Math.hypot(bx - ax, by - ay) || 1;
+                                    const ox = (-(by - ay) / len) * ray.offset;
+                                    const oy = ((bx - ax) / len) * ray.offset;
                                     return (
                                         <line
-                                            key={id}
+                                            key={i}
                                             className="pf-mem-edge"
-                                            x1={ax}
-                                            y1={ay}
-                                            x2={q.x + MEM_CARD_W / 2}
-                                            y2={q.y + MEM_CARD_H / 2}
-                                            style={{ stroke: col, color: col }}
+                                            x1={ax + ox}
+                                            y1={ay + oy}
+                                            x2={bx + ox}
+                                            y2={by + oy}
+                                            style={{ stroke: ray.color, color: ray.color }}
                                         />
                                     );
                                 });
@@ -2025,9 +2068,10 @@ function MemoryCanvas({
                     {memories.map((m) => {
                         const p = posOf(m.id);
                         const hidden = isOwnProfile && !m.isVisible;
-                        const lk = memLinkKey(m, effLinkBy);
+                        // Node identity colour = its author (stable per person).
+                        const lk = memLinkKey(m, 'author');
                         const lit = litSet ? litSet.has(m.id) : false;
-                        const hub = activeId === m.id && !!activeKey;
+                        const hub = activeId === m.id && !!litSet;
                         return (
                             <div
                                 key={m.id}

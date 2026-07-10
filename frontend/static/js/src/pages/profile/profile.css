@@ -722,9 +722,30 @@
     letter-spacing: 0.05em;
     color: var(--text-secondary);
 }
-/* Small breather before the second ("Connect by") control group. */
+/* Small breather before the connection legend. */
 .pf-canvas-bar__label--link {
     margin-left: 6px;
+}
+/* Passive legend: a coloured dot + label per enabled connection dimension. */
+.pf-canvas-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.pf-canvas-legend__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+.pf-canvas-legend__dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
 }
 .pf-canvas-seg {
     display: inline-flex;
