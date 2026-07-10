@@ -4976,7 +4976,9 @@ body.is-signed-out #sidebarOverlay {
     z-index: 1000;
     min-width: 220px;
     max-width: 300px;
-    max-height: 60vh;
+    /* Same 4-rows-then-scroll cap as the mobile switcher (.trip-switch-list):
+       ~4 trip rows visible, a half-row peek, scroll beyond. Row ≈ 44px. */
+    max-height: calc(44px * 4.5);
     overflow-y: auto;
     padding: 8px;
     border-radius: 16px;
@@ -5030,7 +5032,10 @@ body.is-signed-out #sidebarOverlay {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    max-height: 42vh;
+    /* Show at most ~4 trips; a half-row of the 5th peeks to cue the scroll.
+       4 is plenty — beyond that the list scrolls rather than growing to
+       fill the screen. Row ≈ 44px (11px×2 padding + one line). */
+    max-height: calc(44px * 4.5);
     overflow-y: auto;
 }
 .trip-picker--in-popover .trip-switch-list {
