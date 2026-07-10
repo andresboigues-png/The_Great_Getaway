@@ -104,6 +104,7 @@ _INTENTIONAL_ENGLISH = {
     'todo.itemCount.one': 'pt: loan word "item"',
     'ai.todoPanelTickedCount.one': 'pt: loan word "item"',
     'todo.categoryFilterLabel': 'fr: same word "Type"',
+    'todo.groupByType': 'fr: same word "Type"',
     # ── Settlement payment-method brand names ─────────────────────
     # Brand names — Revolut, Wise, PayPal — keep their English form
     # everywhere (the apps themselves don't localise their names).

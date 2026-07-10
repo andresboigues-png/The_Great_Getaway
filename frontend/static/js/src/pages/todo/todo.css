@@ -46,3 +46,80 @@
     color: var(--text-secondary);
     font-size: 1rem;
 }
+
+/* ── List/Group view toggle — a compact 2-button segmented control.
+ *  Icon-only with a hover-reveal label (see .hover-reveal-* in the
+ *  global stylesheet); the active button lifts onto a solid pill. */
+.todo-view-toggle {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    background: rgba(120, 120, 128, 0.1);
+    border-radius: 12px;
+    flex-shrink: 0;
+}
+.todo-view-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 32px;
+    border: 0;
+    background: transparent;
+    border-radius: 9px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease;
+}
+.todo-view-btn:hover {
+    color: var(--accent-purple);
+}
+.todo-view-btn[aria-pressed='true'] {
+    background: var(--card-bg);
+    color: var(--accent-purple);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+.todo-view-btn:focus-visible {
+    outline: 2px solid var(--accent-purple);
+    outline-offset: 2px;
+}
+
+/* ── Collapsible group-view section header. Full-width tappable row;
+ *  the chevron rotates when the section is open. */
+.todo-group-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 11px 14px;
+    background: var(--card-bg);
+    border: 1.5px solid var(--border-subtle);
+    border-radius: 12px;
+    cursor: pointer;
+    text-align: left;
+    box-shadow: var(--shadow-sm);
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.todo-group-head:hover {
+    border-color: var(--accent-purple-border-soft);
+    background: var(--accent-purple-bg-soft);
+}
+.todo-group-head:focus-visible {
+    outline: 2px solid var(--accent-purple);
+    outline-offset: 2px;
+}
+.todo-group-head__chevron {
+    margin-left: auto;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    transition: transform 0.2s var(--easing-spring, ease);
+}
+.todo-group-head[aria-expanded='true'] .todo-group-head__chevron {
+    transform: rotate(180deg);
+}
+
+/* Dark mode: lift the toggle track off the black canvas (mirrors the
+ * .seg-control dark treatment in the global stylesheet). */
+:root[data-theme='dark'] .todo-view-toggle {
+    background: rgba(255, 255, 255, 0.09);
+}

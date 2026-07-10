@@ -1183,6 +1183,16 @@ export const en = {
         sortNameDesc: 'Name Z→A',
         sortRecent: 'Recently added',
         sortAiFirst: 'For AI first',
+        // View toggle + group-view dimension (2026-07).
+        viewToggleAria: 'Change how the list is shown',
+        viewListLabel: 'List',
+        viewGroupLabel: 'Groups',
+        groupByLabel: 'Group by',
+        groupByType: 'Type',
+        groupByStatus: 'AI status',
+        groupBySource: 'Source',
+        sourceAi: 'Added by AI',
+        sourceManual: 'Added by you',
         // Empty filtered result.
         noFilterMatch: 'No items match this filter.',
         noFilterMatchReset: 'Show all',
