@@ -620,38 +620,56 @@ export function Todo() {
                     className="text-[0.84rem] text-primary leading-[1.5] m-0"
                     dangerouslySetInnerHTML={{ __html: t('todo.explainer') }}
                 />
-                <div className="flex justify-end items-center gap-2 flex-wrap">
-                    {tripIsEditable && filteredItems.length > 0 && (
-                        // Applies to the CURRENTLY VISIBLE (filtered) list.
-                        // Label + tooltip flip based on whether every visible
-                        // item is already ticked.
+                {/* Action row: the AI-status filter ("Show: For AI / All /
+                    Not for AI") lives here — it's an AI-marking filter, and it
+                    pairs with "Mark all" (which acts on the filtered set), so it
+                    belongs with the AI controls rather than the layout toolbar
+                    below. Filter left, actions right. */}
+                <div className="flex justify-between items-center gap-2 flex-wrap">
+                    <FilterSelect
+                        label={t('todo.filterStatusLabel')}
+                        value={statusFilter}
+                        onChange={(v) => setStatusFilter(v as StatusFilter)}
+                        options={[
+                            { value: 'all', label: `${t('todo.filterStatusAll')} (${todoItems.length})` },
+                            { value: 'ticked', label: `${t('todo.filterStatusTicked')} (${tickedCount})` },
+                            { value: 'unticked', label: `${t('todo.filterStatusUnticked')} (${todoItems.length - tickedCount})` },
+                        ]}
+                    />
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {tripIsEditable && filteredItems.length > 0 && (
+                            // Applies to the CURRENTLY VISIBLE (filtered) list.
+                            // Label + tooltip flip based on whether every visible
+                            // item is already ticked.
+                            <button
+                                type="button"
+                                onClick={handleToggleAllForAI}
+                                title={
+                                    allVisibleTicked
+                                        ? t('todo.unselectAllForAiTooltip')
+                                        : t('todo.selectAllForAiTooltip')
+                                }
+                                className="todo-mark-all-btn py-[7px] px-3.5 rounded-full text-[0.78rem] font-bold bg-[var(--accent-purple-bg-soft)] text-accent-purple border border-[var(--accent-purple-border-soft)] cursor-pointer transition-[background_0.18s_ease,_border-color_0.18s_ease]"
+                            >
+                                {allVisibleTicked
+                                    ? t('todo.unselectAllForAiBtn')
+                                    : t('todo.selectAllForAiBtn')}
+                            </button>
+                        )}
                         <button
-                            type="button"
-                            onClick={handleToggleAllForAI}
-                            title={
-                                allVisibleTicked
-                                    ? t('todo.unselectAllForAiTooltip')
-                                    : t('todo.selectAllForAiTooltip')
-                            }
-                            className="todo-mark-all-btn py-[7px] px-3.5 rounded-full text-[0.78rem] font-bold bg-[var(--accent-purple-bg-soft)] text-accent-purple border border-[var(--accent-purple-border-soft)] cursor-pointer transition-[background_0.18s_ease,_border-color_0.18s_ease]"
+                            className="btn-primary py-2.5 px-[18px] rounded-full text-[0.85rem]"
+                            onClick={() => navigate('ai')}
                         >
-                            {allVisibleTicked
-                                ? t('todo.unselectAllForAiBtn')
-                                : t('todo.selectAllForAiBtn')}
+                            Plan with AI ✦
                         </button>
-                    )}
-                    <button
-                        className="btn-primary py-2.5 px-[18px] rounded-full text-[0.85rem]"
-                        onClick={() => navigate('ai')}
-                    >
-                        Plan with AI ✦
-                    </button>
+                    </div>
                 </div>
             </div>
 
-            {/* Toolbar — Group all / Ungroup all (left) + AI-status filter
-                + the Group-by dropdown, with the non-AI "Clear all" pulled
-                to the far right so it stands apart from the AI controls. */}
+            {/* Toolbar — Group all / Ungroup all (left) + the Group-by
+                dropdown, with the non-AI "Clear all" pulled to the far right
+                so it stands apart. The AI-status "Show" filter moved up into
+                the AI card (it's an AI-marking filter). */}
             <div className="flex flex-wrap gap-[10px] items-center mb-[18px]">
                 {/* Collapse-every-section / expand-every-section. Labelled
                     pills (icon + text) — they perform the action, they
@@ -676,17 +694,6 @@ export function Todo() {
                         {t('todo.ungroupAllBtn')}
                     </button>
                 </div>
-
-                <FilterSelect
-                    label={t('todo.filterStatusLabel')}
-                    value={statusFilter}
-                    onChange={(v) => setStatusFilter(v as StatusFilter)}
-                    options={[
-                        { value: 'all', label: `${t('todo.filterStatusAll')} (${todoItems.length})` },
-                        { value: 'ticked', label: `${t('todo.filterStatusTicked')} (${tickedCount})` },
-                        { value: 'unticked', label: `${t('todo.filterStatusUnticked')} (${todoItems.length - tickedCount})` },
-                    ]}
-                />
 
                 {/* Right cluster: the Group-by dimension + Clear all.
                     ml-auto pushes the whole cluster to the row's right edge. */}
