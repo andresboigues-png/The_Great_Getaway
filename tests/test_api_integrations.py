@@ -6,6 +6,7 @@ test logic changed). Shared fixtures (client, auth_headers, seed_user,
 """
 
 import json
+import os
 import sys
 
 import pytest
@@ -1061,27 +1062,143 @@ def test_places_photo_400_on_non_numeric_dimensions(
 # silently change the response envelope.
 
 
-def test_fx_rates_returns_rates_envelope(client):
-    """Plain GET returns 200 + body with a `rates` dict + EUR=1.0
-    (always present even on a cold cache because EUR is the reference
-    currency, not fetched from upstream)."""
+@pytest.fixture
+def _fx_hermetic(monkeypatch):
+    """Keep the /api/fx-rates tests OFF the live Frankfurter network.
+
+    Frankfurter is a real HTTP dependency; without stubbing it, the first
+    fx-touching read in a process makes a real call — flaky (a slow/down
+    upstream returned an empty envelope and the assertions bounced) and slow
+    (a 5s timeout on the cold path). Stub the fetch with a deterministic
+    payload and reset the module cache so these tests are hermetic +
+    order-independent. `monkeypatch.setattr` restores the real module state
+    afterward, so nothing leaks into other tests."""
+    import fx_rates
+
+    # Frankfurter's /latest?from=EUR shape: EUR -> code. The module inverts to
+    # code -> EUR. 25 currencies keeps us above the module's >=20 sanity floor.
+    codes = [
+        "USD",
+        "GBP",
+        "JPY",
+        "CHF",
+        "CAD",
+        "AUD",
+        "CNY",
+        "SEK",
+        "NOK",
+        "DKK",
+        "PLN",
+        "CZK",
+        "HUF",
+        "RON",
+        "BGN",
+        "TRY",
+        "BRL",
+        "MXN",
+        "INR",
+        "ZAR",
+        "KRW",
+        "SGD",
+        "HKD",
+        "NZD",
+        "THB",
+    ]
+    fake = {
+        "amount": 1.0,
+        "base": "EUR",
+        "date": "2026-01-01",
+        "rates": {c: 1.0 + i * 0.1 for i, c in enumerate(codes)},
+    }
+
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return fake
+
+    monkeypatch.setattr(fx_rates.requests, "get", lambda *a, **k: _Resp())
+    monkeypatch.setattr(fx_rates, "_cache", {"EUR": 1.0})
+    monkeypatch.setattr(fx_rates, "_cache_set_at", 0.0)
+    monkeypatch.setattr(fx_rates, "_refresh_fail_until", 0.0)
+    yield
+
+
+def test_fx_rates_returns_rates_envelope(client, _fx_hermetic):
+    """Plain GET returns 200 + a `rates` dict with the EUR pivot (1.0) and the
+    refreshed currencies. Hermetic — the upstream fetch is stubbed, so this
+    exercises the parse/invert path deterministically."""
     res = client.get("/api/fx-rates")
     assert res.status_code == 200
     body = res.get_json()
     assert isinstance(body, dict)
     rates = body.get("rates")
     assert isinstance(rates, dict), f"response must carry a `rates` dict; got {body!r}"
-    # EUR is the pivot — always present.
-    assert "EUR" in rates
+    # EUR is the pivot — always present, always 1.0.
     assert rates["EUR"] == 1.0
+    # A refreshed currency landed and was inverted to `code -> EUR`.
+    assert "USD" in rates
+    assert rates["USD"] > 0
 
 
-def test_fx_rates_anonymous_allowed(client):
+def test_fx_rates_anonymous_allowed(client, _fx_hermetic):
     """No Authorization header → still 200. The endpoint is
     deliberately anonymous (rates are not user-specific + the page-
     load critical path benefits from cacheable responses)."""
     res = client.get("/api/fx-rates")  # no headers
     assert res.status_code == 200
+
+
+def test_fx_rates_serves_eur_pivot_when_upstream_down(client, monkeypatch):
+    """Resilience regression: a cold cache + a FAILED upstream fetch must still
+    return 200 with at least `{EUR: 1.0}` — never an empty envelope. Pre-fix, a
+    Frankfurter outage on a fresh worker served `{"rates": {}}` (no rates at
+    all); the EUR pivot is now seeded so the endpoint degrades gracefully."""
+    import fx_rates
+
+    def _boom(*a, **k):
+        raise RuntimeError("frankfurter unreachable")
+
+    # Fresh-worker state: the module-init seed + a guaranteed-failing fetch.
+    monkeypatch.setattr(fx_rates.requests, "get", _boom)
+    monkeypatch.setattr(fx_rates, "_cache", {"EUR": 1.0})
+    monkeypatch.setattr(fx_rates, "_cache_set_at", 0.0)
+    monkeypatch.setattr(fx_rates, "_refresh_fail_until", 0.0)
+
+    res = client.get("/api/fx-rates")
+    assert res.status_code == 200
+    rates = res.get_json()["rates"]
+    assert rates == {"EUR": 1.0}, "cold cache + dead upstream must still serve the EUR pivot"
+
+
+@pytest.mark.skipif(
+    os.getenv("RUN_LIVE_FX") != "1",
+    reason="hits live Frankfurter — opt in with RUN_LIVE_FX=1 to catch upstream URL/shape drift",
+)
+def test_fx_rates_live_frankfurter(client, monkeypatch):
+    """Opt-in live check: actually call Frankfurter to catch upstream contract
+    drift (URL move, response-shape change). Skipped by default so CI stays
+    hermetic + non-flaky; run locally with RUN_LIVE_FX=1 when validating the
+    provider integration."""
+    import fx_rates
+
+    monkeypatch.setattr(fx_rates, "_cache", {})
+    monkeypatch.setattr(fx_rates, "_cache_set_at", 0.0)
+    monkeypatch.setattr(fx_rates, "_refresh_fail_until", 0.0)
+
+    res = client.get("/api/fx-rates")
+    assert res.status_code == 200
+    rates = res.get_json()["rates"]
+    assert rates.get("EUR") == 1.0
+    assert "USD" in rates, "a healthy Frankfurter response includes major currencies"
+    assert len(rates) >= 20, f"expected a full rate table, got {len(rates)}"
 
 
 def test_enrich_itinerary_normalizes_without_maps_key(monkeypatch):

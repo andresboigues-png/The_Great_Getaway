@@ -56,8 +56,15 @@ _TTL_SECONDS = 24 * 60 * 60
 # directly. Same JSON shape ({ "rates": { CUR: rate } }).
 _FRANKFURTER_LATEST = "https://api.frankfurter.dev/v1/latest?from=EUR"
 
-# Module-private cache.
-_cache: dict[str, float | None] = {}
+# Module-private cache. Seeded with the EUR pivot (1.0) so a fresh worker
+# whose first upstream refresh FAILS (Frankfurter down/slow/rate-limited on a
+# cold cache) still serves at least `{EUR: 1.0}` instead of an empty envelope —
+# EUR is the reference currency and is never fetched from upstream, so seeding
+# it can't go stale or wrong. A successful refresh atomically replaces the whole
+# dict (which re-includes EUR: 1.0), so this only ever matters on the cold-fail
+# path. `_cache_set_at = 0` keeps the seed "stale" so the first read still
+# attempts a real refresh.
+_cache: dict[str, float | None] = {"EUR": 1.0}
 _cache_set_at: float = 0.0
 # R2 audit fix: failed-fetch back-off. When Frankfurter is down,
 # _refresh() returns without bumping _cache_set_at, so every
