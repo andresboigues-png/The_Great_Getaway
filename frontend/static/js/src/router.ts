@@ -342,12 +342,17 @@ export function navigate(
     // and doing it inline (rather than in the async loader .then()) makes it
     // reliable regardless of chunk/mount timing, which was why the deferred
     // version didn't always fire. Guarded to genuine chrome taps on the
-    // current page while signed in.
+    // current page while signed in — where "current page" means the SAME
+    // TARGET HASH, not just the same page name: on a friend's profile
+    // (#profile/<id>) the rail's profile icon targets #profile (OWN profile),
+    // which is a real navigation, not a re-tap. Comparing hashes keeps that
+    // working while a genuine own-profile re-tap still scrolls to top.
     if (
         params?.fromNavClick === true &&
         !preserveScroll &&
         !!STATE.user &&
-        currentPage === page
+        currentPage === page &&
+        window.location.hash.replace(/^#/, '') === targetHash
     ) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
@@ -422,7 +427,13 @@ export function navigate(
     // the page on actions that are just re-renders (Quick Access show/
     // hide, filter toggles, etc.).
     const savedScrollY = window.scrollY;
-    const willBeSamePage = currentPage === page;
+    // Same page = same TARGET HASH, not just the same page name — navigating
+    // from a friend's profile (#profile/<id>) to your own (#profile) remounts
+    // with different content and should get fresh-page scroll semantics. When
+    // this navigate() was triggered by a hashchange the hash already equals
+    // the target, which keeps the existing back/forward behaviour intact.
+    const willBeSamePage =
+        currentPage === page && window.location.hash.replace(/^#/, '') === targetHash;
     // A tap on the ALREADY-active nav item (set by the nav chrome) means
     // "go to the top"; a same-page navigate() without it is a mutation
     // re-render that should keep the user's scroll.

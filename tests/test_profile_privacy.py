@@ -191,6 +191,25 @@ def test_stranger_cannot_follow_private_profile(client, seed_user, seed_other_us
     )
 
 
+def test_friends_add_private_404_body_matches_missing_user(client, seed_user, auth_headers):
+    """No existence oracle via the friends façade: the 404 BODY for a private
+    target must be byte-identical to the 404 for a nonexistent target, or the
+    error string itself confirms the private account exists."""
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO users (id, email, name, is_public) VALUES ('test-priv', 'p@x.com', 'P', 0)"
+        )
+        conn.commit()
+    r_private = client.post(
+        "/api/friends/add", json={"friend_id": "test-priv"}, headers=auth_headers
+    )
+    r_missing = client.post(
+        "/api/friends/add", json={"friend_id": "test-no-such-user"}, headers=auth_headers
+    )
+    assert r_private.status_code == r_missing.status_code == 404
+    assert r_private.get_json() == r_missing.get_json()
+
+
 def test_friends_facade_cannot_follow_private_profile(
     client, seed_user, seed_other_user, auth_headers
 ):

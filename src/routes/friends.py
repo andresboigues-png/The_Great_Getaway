@@ -180,11 +180,12 @@ def add_friend():
         status = create_follow(cursor, user_id, friend_id, source='friend_request')
         if status == "blocked":
             return jsonify({"status": "blocked"})
-        # Private target the caller can't see → 404, so the friends façade can't
-        # back-door a follow onto a private account any more than the canonical
-        # follow route can (create_follow gates both).
+        # Private target the caller can't see → 404 with the SAME body as the
+        # ensure_user_exists 404 above, so the two cases are indistinguishable —
+        # a differential body would be an existence oracle for private accounts
+        # even with matching status codes.
         if status == "private":
-            return jsonify({"error": "User not found"}), 404
+            return jsonify({"error": "Friend not found"}), 404
         # E1-B1: honour the shared per-account daily follow cap (same gate as
         # /api/follows/<id>). 429 + followCapHit so the UI can show the same
         # "hit today's follow limit" copy the profile-follow button uses.

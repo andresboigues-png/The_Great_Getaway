@@ -2029,6 +2029,16 @@ function MemoryCanvas({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [group]);
 
+    // Clamp focusDim to the dimensions that still have links: a delete /
+    // visibility toggle can remove a dimension's last cross-cluster bridge
+    // while its focus is active, which would leave the chip disabled AND
+    // active at once (and un-toggleable, since its onClick is gated). The
+    // group-reset effect above doesn't cover this — it's keyed on `group`
+    // only, and the canvas stays mounted across memory mutations.
+    useEffect(() => {
+        setFocusDim((prev) => (prev && !dimsWithLinks.has(prev) ? null : prev));
+    }, [dimsWithLinks]);
+
     const localXY = (e: ReactPointerEvent) => {
         const r = viewportRef.current!.getBoundingClientRect();
         return { x: e.clientX - r.left, y: e.clientY - r.top };
