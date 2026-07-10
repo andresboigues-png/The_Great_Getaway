@@ -1939,7 +1939,7 @@ export const en = {
             other: '{count} Days of adventure',
         },
         // Trip tab buttons (Path / Companions in the tab strip).
-        tabPath: 'Path',
+        tabPath: 'Your Path',
         tabHub: 'Trip Hub',
         tabCompanions: 'Companions',
         // Map search input placeholder.

@@ -1597,7 +1597,7 @@ export const fr: Translations = {
             one: '{count} Jour d\'aventure',
             other: '{count} Jours d\'aventure',
         },
-        tabPath: 'Itinéraire',
+        tabPath: 'Ton itinéraire',
         tabHub: 'Base',
         tabCompanions: 'Compagnons',
         searchMapPlaceholder: 'Tout rechercher (lieux, voyages…)',

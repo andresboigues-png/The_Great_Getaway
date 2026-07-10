@@ -1592,7 +1592,7 @@ export const es: Translations = {
             one: '{count} Día de aventura',
             other: '{count} Días de aventura',
         },
-        tabPath: 'Camino',
+        tabPath: 'Tu camino',
         tabHub: 'Centro',
         tabCompanions: 'Acompañantes',
         searchMapPlaceholder: 'Buscar cualquier cosa (lugares, viajes…)',

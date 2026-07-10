@@ -1596,7 +1596,7 @@ export const pt: Translations = {
             one: '{count} Dia de aventura',
             other: '{count} Dias de aventura',
         },
-        tabPath: 'Caminho',
+        tabPath: 'O teu caminho',
         tabHub: 'Base',
         tabCompanions: 'Companheiros',
         searchMapPlaceholder: 'Pesquisar qualquer coisa (locais, viagens…)',
