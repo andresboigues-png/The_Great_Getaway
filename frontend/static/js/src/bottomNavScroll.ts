@@ -24,27 +24,48 @@ const DIRECTION_DELTA_PX = 6;
 // Always fully expanded near the very top — there's nothing to gain by shrinking
 // when the user is at the start of the content.
 const TOP_GUARD_PX = 36;
+// After a tab/page change the router moves scrollY programmatically (scroll-to-
+// top / restore), which reads exactly like a fast scroll-up and would GROW a
+// scrolled-down (compact) island on every tab switch. Freeze the island's size
+// for this window so switching tabs never resizes it — only a real user scroll
+// should. Long enough to cover the scroll-to-top + restore-across-frames.
+const NAV_SETTLE_MS = 450;
 
 export function initBottomNavScroll(): void {
     let lastY = window.scrollY || document.documentElement.scrollTop || 0;
     let ticking = false;
+    // Timestamp until which the island's size is frozen (set on every hash
+    // navigation). The top banner is NOT frozen — it should still reappear when
+    // you land on a fresh page.
+    let islandFrozenUntil = 0;
+
+    // A hash change == a tab/page navigation. The scroll-position jump the
+    // router does right after must not resize the island. Set BEFORE the
+    // scroll's rAF-throttled apply() runs, so it reliably wins the race.
+    window.addEventListener('hashchange', () => {
+        islandFrozenUntil = performance.now() + NAV_SETTLE_MS;
+    });
 
     const apply = (): void => {
         ticking = false;
         const nav = document.querySelector('.mobile-bottom-nav');
         const topbar = document.querySelector('.navbar');
         const y = window.scrollY || document.documentElement.scrollTop || 0;
+        // While a navigation is settling, keep the island at whatever size the
+        // user's last scroll left it — don't let the programmatic scroll jump
+        // grow/shrink it.
+        const islandFrozen = performance.now() < islandFrozenUntil;
         if (y <= TOP_GUARD_PX) {
             // At/near the top: everything fully expanded + visible.
-            nav?.classList.remove('is-compact');
+            if (!islandFrozen) nav?.classList.remove('is-compact');
             topbar?.classList.remove('is-hidden');
         } else if (y > lastY + DIRECTION_DELTA_PX) {
             // Scrolling down → shrink the island, hide the top banner.
-            nav?.classList.add('is-compact');
+            if (!islandFrozen) nav?.classList.add('is-compact');
             topbar?.classList.add('is-hidden');
         } else if (y < lastY - DIRECTION_DELTA_PX) {
             // Scrolling up → grow the island, reveal the top banner.
-            nav?.classList.remove('is-compact');
+            if (!islandFrozen) nav?.classList.remove('is-compact');
             topbar?.classList.remove('is-hidden');
         }
         lastY = y;

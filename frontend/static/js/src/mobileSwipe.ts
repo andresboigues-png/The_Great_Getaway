@@ -140,6 +140,10 @@ const SWIPE_OPT_OUT_SELECTORS = [
     '.timeline-scroll',
     '.pf-statstrip',
     '.pf-canvas-viewport',
+    // The Path tab's day cards have their OWN horizontal swipe (step to the
+    // prev/next day — see TripBody.tsx). Without this opt-out a day-swipe ALSO
+    // changed the bottom tab / opened the rail island: two gestures on one drag.
+    '.path-cards-row',
 ].join(',');
 
 let _wired = false;
