@@ -1537,16 +1537,28 @@ type MemGroup = 'none' | 'year' | 'trip' | 'author';
 
 const MEM_CARD_W = 210;
 const MEM_CARD_H = 140;
-const MEM_GAP = 18;
+// Tight WITHIN a cluster (memories clump like a neuron), roomy BETWEEN
+// clusters (each group reads as a distinct node in the network).
+const MEM_GAP = 10;
 const MEM_LABEL_H = 40;
-const MEM_CLUSTER_GAP_X = 60;
-const MEM_CLUSTER_GAP_Y = 54;
-const MEM_MAX_COLS = 3;
+const MEM_CLUSTER_GAP_X = 190;
+const MEM_CLUSTER_GAP_Y = 150;
+// Deterministic per-card scatter + a per-cluster vertical stagger break the
+// rigid grid so it reads organic ("neural") rather than spreadsheet-y.
+const MEM_JITTER = 18;
+const MEM_STAGGER = 64;
 const MEM_ROW_MAX_W = 1500;
 const MEM_MIN_SCALE = 0.35;
 const MEM_MAX_SCALE = 2.2;
 
 const memClamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+// Stable pseudo-random in [-1, 1] from an integer seed (GLSL-style hash), so a
+// card's jitter / a cluster's stagger is organic but fixed across re-renders.
+function memHash(seed: number): number {
+    const s = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+    return (s - Math.floor(s)) * 2 - 1;
+}
 
 const EYE_ICON = (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
@@ -1656,9 +1668,10 @@ function memComputeLayout(memories: QuoteItem[], group: MemGroup): MemLayoutResu
     let cy = 0;
     let rowH = 0;
     let width = 0;
-    for (const grp of entries) {
+    entries.forEach((grp, ci) => {
         const n = grp.items.length;
-        const cols = group === 'none' ? memClamp(Math.ceil(Math.sqrt(n)), 1, 5) : Math.min(MEM_MAX_COLS, n);
+        // Squarish packing → a compact blob, not a wide row.
+        const cols = memClamp(Math.ceil(Math.sqrt(n)), 1, 4);
         const rows = Math.ceil(n / cols);
         const w = cols * MEM_CARD_W + (cols - 1) * MEM_GAP;
         const labelH = group === 'none' ? 0 : MEM_LABEL_H;
@@ -1668,20 +1681,30 @@ function memComputeLayout(memories: QuoteItem[], group: MemGroup): MemLayoutResu
             cy += rowH + MEM_CLUSTER_GAP_Y;
             rowH = 0;
         }
-        clusters.push({ key: `${grp.label}@${cx},${cy}`, label: grp.label, x: cx, y: cy, w });
+        // Alternate clusters drop by a stagger (+ a little jitter) so their
+        // baseline isn't a rigid line — reads as scattered nodes, not a table.
+        const stag = Math.max(0, (ci % 2) * MEM_STAGGER + memHash(ci * 7 + 3) * 22);
+        const clusterY = cy + stag;
+        clusters.push({ key: `${grp.label}@${cx},${clusterY}`, label: grp.label, x: cx, y: clusterY, w });
         grp.items.forEach((m, i) => {
             const col = i % cols;
             const row = Math.floor(i / cols);
             positions[m.id] = {
-                x: cx + col * (MEM_CARD_W + MEM_GAP),
-                y: cy + labelH + row * (MEM_CARD_H + MEM_GAP),
+                x: cx + col * (MEM_CARD_W + MEM_GAP) + memHash(m.id) * MEM_JITTER,
+                y: clusterY + labelH + row * (MEM_CARD_H + MEM_GAP) + memHash(m.id + 9973) * MEM_JITTER,
             };
         });
         cx += w + MEM_CLUSTER_GAP_X;
-        rowH = Math.max(rowH, h);
+        rowH = Math.max(rowH, stag + h);
         width = Math.max(width, cx - MEM_CLUSTER_GAP_X);
-    }
-    return { positions, clusters, width, height: cy + rowH };
+    });
+    // Pad for the jitter / stagger overhang so fit-view doesn't clip edge cards.
+    return {
+        positions,
+        clusters,
+        width: width + MEM_JITTER,
+        height: cy + rowH + MEM_JITTER,
+    };
 }
 
 function MemoryCanvas({
