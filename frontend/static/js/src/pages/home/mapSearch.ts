@@ -26,6 +26,7 @@ import { t, tn, getIntlLocale } from '../../i18n.js';
 import { STATE, emit } from '../../state.js';
 import { EVENTS } from '../../constants.js';
 import { navigate } from '../../router.js';
+import { apiFetch } from '../../api.js';
 import { setSelectedDay } from './pathSelection.js';
 import { iconSvg } from '../../icons.js';
 import { searchInternal, type InternalSearchResults } from '../search/searchInternal.js';
@@ -92,13 +93,18 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
     let errorHideTimer: ReturnType<typeof setTimeout> | null = null;
     // DSGN-006: index of the keyboard-highlighted option (-1 = none).
     let activeIndex = -1;
+    // BUG-088: monotonic request id so a slow earlier prediction / people
+    // response can't overwrite a newer one (stale-render guard, checked in each
+    // async callback). hideResults() also bumps it so an in-flight response that
+    // resolves AFTER the user dismissed the panel can't re-open it.
+    let searchSeq = 0;
     const OPTION_ID_PREFIX = 'homeMapSearchOpt';
     // C5-I2: the combobox arrow-nav walks EVERY option-role node, including the
     // "See more" (.map-places-toggle) and "Show all N" (.map-internal-showall)
     // toggles — otherwise a keyboard/AT user driving the input can never reach
     // them without Tab-ing out, which breaks the combobox contract. All four
     // selectors are role="option" with ids, so they share one activedescendant.
-    const OPTION_SELECTOR = '.map-feature-row, .map-search-row, .map-internal-row, .map-places-toggle, .map-internal-showall';
+    const OPTION_SELECTOR = '.map-feature-row, .map-search-row, .map-people-row, .map-internal-row, .map-places-toggle, .map-internal-showall';
 
     /** Pick the best POI category match for a place — used so the
      *  InfoWindow matches the colour/icon of the relevant pill if
@@ -117,6 +123,10 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         // C5-B1: cancel a pending error auto-hide so it can't later fire
         // hideResults() against a panel the user has since repopulated.
         if (errorHideTimer) { clearTimeout(errorHideTimer); errorHideTimer = null; }
+        // Invalidate any in-flight Places / People response so one that resolves
+        // after this dismissal (Escape / click-outside) can't re-open the panel:
+        // its `seq !== searchSeq` guard now trips.
+        searchSeq++;
         resultsEl.style.display = 'none';
         resultsEl.innerHTML = '';
         // DSGN-006: collapse the combobox + drop any active-option link.
@@ -162,6 +172,13 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
     let placesExpanded = false;
     let lastTextResults: google.maps.places.PlaceResult[] | null = null;
     let placesLoading = false;
+    // People (user-profile) search — the async social half of the bar. Hits
+    // GET /api/friends/search (prefix name/email match, privacy-filtered +
+    // block-filtered + rate-limited server-side; private users surface only to
+    // their own followers). null = request in flight (group omitted for now);
+    // [] = resolved with no people; non-empty = render the People group. Rows
+    // navigate to that user's public profile (#profile/<id>).
+    let lastPeople: PersonHit[] | null = null;
 
     const hasInternalHits = (r: InternalSearchResults | null): boolean =>
         !!r && (r.trips.length > 0 || r.days.length > 0 || r.expenses.length > 0);
@@ -189,6 +206,10 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
     /** Normalised place row — both Autocomplete predictions and Text Search
      *  results collapse to this so one renderer handles both. */
     type PlaceRow = { placeId: string; title: string; subtitle: string; distanceMeters: number | null };
+
+    /** One user-profile hit from /api/friends/search. `email` is server-masked
+     *  ("a***s@x.com") — shown only as a disambiguation subtitle, never raw. */
+    type PersonHit = { id: string; name: string | null; email: string | null; picture: string | null };
 
     const fromPrediction = (p: google.maps.places.AutocompletePrediction): PlaceRow => ({
         placeId: p.place_id,
@@ -402,6 +423,40 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         return html;
     };
 
+    /** One people (user-profile) row — avatar + name (+ masked email). Carries
+     *  data-user-id read by the delegated click handler → that user's profile. */
+    const personRowHtml = (p: PersonHit, i: number): string => {
+        const initial = esc((p.name || p.email || '?').charAt(0).toUpperCase());
+        const avatar = p.picture
+            ? `<img src="${esc(p.picture)}" alt="" referrerpolicy="no-referrer" loading="lazy" decoding="async" style="width:26px; height:26px; border-radius:50%; object-fit:cover; flex-shrink:0;">`
+            : `<span aria-hidden="true" style="width:26px; height:26px; border-radius:50%; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; background:rgba(0,113,227,0.12); color:var(--accent-blue); font-weight:800; font-size:0.8rem;">${initial}</span>`;
+        return `
+            <button type="button" class="map-people-row" role="option" id="${OPTION_ID_PREFIX}p${i}" aria-selected="false" data-user-id="${esc(p.id)}"
+                style="width:100%; text-align:left; padding:11px 16px; background:transparent; border:0; border-bottom:1px solid rgba(0,0,0,0.05); display:flex; gap:10px; align-items:center; cursor:pointer;">
+                ${avatar}
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:700; color:var(--text-brand-navy); font-size:0.88rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.name || t('search.peopleNoName'))}</div>
+                    ${p.email ? `<div style="font-size:0.74rem; color:var(--text-secondary); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.email)}</div>` : ''}
+                </div>
+            </button>`;
+    };
+
+    /** People group — profile hits for the query. Omitted while the request is
+     *  in flight (lastPeople null) or resolved empty. */
+    const buildPeopleGroupHtml = (): string => {
+        if (!lastPeople || lastPeople.length === 0) return '';
+        const rows = lastPeople.map((p, i) => personRowHtml(p, i)).join('');
+        return groupWrap(t('search.groupPeople'), rows, '', lastPeople.length);
+    };
+
+    /** Navigate to a user's profile (read-only foreign view for other users,
+     *  own profile if it's you). */
+    const goToPerson = (userId: string) => {
+        if (!userId) return;
+        hideResults();
+        navigate('profile', { userId });
+    };
+
     /** One feature/action row — a "→" affordance signals it navigates/opens.
      *  data-feature-id is read by the delegated click handler → runFeature. */
     const featureRowHtml = (f: FeatureDef, i: number): string => `
@@ -462,11 +517,14 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         searchInput.removeAttribute('aria-activedescendant');
         const featuresHtml = buildFeaturesGroupHtml();
         const placesHtml = buildPlacesGroupHtml();
+        const peopleHtml = buildPeopleGroupHtml();
         const internalHtml = buildInternalGroupsHtml();
-        if (!featuresHtml && !placesHtml && !internalHtml) {
-            // Genuine no-match only once Places has actually resolved
-            // (lastPreds !== null); while it's pending we only paint early
-            // when there were internal/feature hits, so don't flash "No matches".
+        if (!featuresHtml && !placesHtml && !peopleHtml && !internalHtml) {
+            // Genuine no-match once Places has resolved (lastPreds !== null). We
+            // do NOT also wait on the People fetch: a hung/slow people request
+            // would otherwise suppress "No matches" for up to the full apiFetch
+            // timeout. If people arrive later, paintResults re-runs and replaces
+            // the note with the People group — a brief, self-correcting flash.
             if (lastPreds !== null) {
                 resultsEl.style.display = 'block';
                 resultsEl.innerHTML = `<div style="padding:14px 18px; color:var(--text-secondary); font-size:0.85rem;">${esc(t('map.noMatches'))}</div>`;
@@ -475,8 +533,11 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
             return;
         }
         resultsEl.style.display = 'block';
-        // Features FIRST (the "front door"), then Places, then the internal groups.
-        resultsEl.innerHTML = featuresHtml + placesHtml + internalHtml;
+        // Features FIRST (the "front door"), then People — a name/email query
+        // means the user wants a person, so they rank above the (often long)
+        // Places list — then Places, then the internal (Trips / Days / Expenses)
+        // groups.
+        resultsEl.innerHTML = featuresHtml + peopleHtml + placesHtml + internalHtml;
         // C5-B2: reinstate the keyboard/SR highlight if the option it was on
         // survived this repaint, so a late Places response doesn't silently drop
         // the user's arrow-key selection (and the following Enter still fires).
@@ -491,7 +552,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         // lengths over-announced (e.g. "59 results" for ~13 rows). Count the
         // rendered option rows instead — it tracks the caps, Show-all state and
         // any expanded Places text results automatically.
-        const renderedCount = resultsEl.querySelectorAll('.map-feature-row, .map-search-row, .map-internal-row').length;
+        const renderedCount = resultsEl.querySelectorAll('.map-feature-row, .map-search-row, .map-people-row, .map-internal-row').length;
         if (statusEl) statusEl.textContent = tn('map.resultsAnnounce', renderedCount);
     };
 
@@ -598,9 +659,6 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         });
     };
 
-    // BUG-088: monotonic request id so a slow earlier prediction response
-    // can't overwrite a newer one (stale-render guard, checked in the callback).
-    let searchSeq = 0;
     // Focusing the empty box shows the "quick access" feature suggestions so
     // the command-palette side of the search is discoverable before typing.
     searchInput.addEventListener('focus', () => {
@@ -610,7 +668,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         const q = searchInput.value.trim();
         clearBtn.style.display = q ? 'inline-flex' : 'none';
         if (typingTimer) clearTimeout(typingTimer);
-        if (!q) { lastFeatures = []; showSuggestions(); return; }
+        if (!q) { lastFeatures = []; lastPeople = []; showSuggestions(); return; }
         // Debounce 220ms — Autocomplete is cheap but a request per
         // keystroke is wasteful and noisy visually as predictions
         // fight to render.
@@ -637,6 +695,34 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
                 hasActiveTrip: !!STATE.activeTripId,
                 label: tKey,
             });
+            // People (profiles) — async, like Places. The endpoint needs ≥3
+            // chars (matching its server-side floor), so shorter queries resolve
+            // to an empty group without a wasted round-trip. Stamped with `seq`
+            // + re-checked on resolve so a stale response can't overwrite a newer
+            // query's people (same guard the Places callback uses).
+            if (q.length >= 3) {
+                lastPeople = null; // pending → group omitted until it resolves
+                void apiFetch(`/api/friends/search?q=${encodeURIComponent(q)}`)
+                    .then((r) => (r.ok ? r.json() : []))
+                    .then((rows: unknown) => {
+                        if (seq !== searchSeq || searchInput.value.trim() !== q) return;
+                        lastPeople = Array.isArray(rows)
+                            ? // Defensive cap only — the endpoint itself returns ≤5 (friends.py
+                              // LIMIT 5); this just bounds the group if that ever changes.
+                              (rows as PersonHit[]).filter((x) => x && typeof x.id === 'string').slice(0, 8)
+                            : [];
+                        paintResults();
+                    })
+                    .catch(() => {
+                        if (seq !== searchSeq || searchInput.value.trim() !== q) return;
+                        // Resolve to empty so the no-match gate isn't stuck waiting
+                        // on a failed people fetch; repaint to drop any stale group.
+                        lastPeople = [];
+                        paintResults();
+                    });
+            } else {
+                lastPeople = [];
+            }
             // Smooth-first: hold the panel for a beat so Places + the internal
             // groups can appear together (avoids "Places snap in on top and
             // shove the rows down" reflow). The fallback paints the internal
@@ -754,6 +840,12 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
             );
             return;
         }
+        // People hit → open that user's profile.
+        const personRow = target?.closest('.map-people-row') as HTMLElement | null;
+        if (personRow) {
+            goToPerson(personRow.dataset.userId || '');
+            return;
+        }
         // Place prediction → pin on the map (existing flow).
         selectRow(target?.closest('.map-search-row') as HTMLElement | null);
     });
@@ -801,7 +893,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
             // Places is empty) rather than doing nothing — a user who types and
             // presses Enter shouldn't have to ArrowDown first to commit.
             const active = (resultsEl.querySelector('[aria-selected="true"]')
-                || resultsEl.querySelector('.map-feature-row, .map-search-row, .map-internal-row')) as HTMLElement | null;
+                || resultsEl.querySelector('.map-feature-row, .map-search-row, .map-people-row, .map-internal-row')) as HTMLElement | null;
             if (active) {
                 e.preventDefault();
                 // C5-I2: the toggles are options too now — Enter on one runs its
@@ -811,6 +903,8 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
                     active.click();
                 } else if (active.classList.contains('map-feature-row')) {
                     runFeature(active.dataset.featureId || '');
+                } else if (active.classList.contains('map-people-row')) {
+                    goToPerson(active.dataset.userId || '');
                 } else if (active.classList.contains('map-internal-row')) {
                     goToInternal(
                         active.dataset.internalKind || '',

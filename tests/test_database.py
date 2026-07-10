@@ -190,6 +190,11 @@ def test_expected_columns_covers_golden_path_columns():
     assert "is_creator" in _EXPECTED_COLUMNS["users"], (
         "users.is_creator missing from the schema-drift tripwire"
     )
+    # is_public is SELECTed on the same login / user-status golden path as
+    # is_creator (auth.py), so a stale DB missing it 500s every login too.
+    assert "is_public" in _EXPECTED_COLUMNS["users"], (
+        "users.is_public missing from the schema-drift tripwire"
+    )
     assert "updated_at" in _EXPECTED_COLUMNS["categories"], (
         "categories.updated_at missing from the schema-drift tripwire"
     )

@@ -75,6 +75,37 @@ def is_following(cursor, follower_id: str, followee_id: str) -> bool:
     return cursor.fetchone() is not None
 
 
+def can_view_profile(cursor, caller_id: str | None, owner_id: str) -> bool:
+    """Profile-visibility gate — the single source of truth for who may see a
+    user's profile surface (profile shell, quotes, follow counts).
+
+    A PUBLIC profile (users.is_public = 1, the default) is visible to everyone,
+    including anonymous callers — the historical always-public behaviour. A
+    PRIVATE profile (is_public = 0) is visible ONLY to the owner themselves and
+    to their current followers (which includes mutual friends, since a friend
+    is a follower). This matches the product decision: "private means findable
+    + viewable only by me and the people already following me."
+
+    Blocks are gated SEPARATELY (and BEFORE this) by each caller — this helper
+    does not re-check them. Returns True for an unknown owner_id so the caller's
+    own existence check owns the 404 (never 404 differently based on privacy)."""
+    if caller_id and caller_id == owner_id:
+        return True
+    cursor.execute("SELECT is_public FROM users WHERE id = ?", (owner_id,))
+    row = cursor.fetchone()
+    if row is None:
+        # Unknown user — let the caller's ensure_user_exists / SELECT own the
+        # 404 rather than leaking a different code from here.
+        return True
+    # NULL is_public (an unmigrated / hand-touched row) counts as PUBLIC, to
+    # match the default-public contract in auth.py and the migration's DEFAULT 1
+    # — a NULL must never be read as "private" and silently 404 a public profile.
+    if row["is_public"] is None or row["is_public"]:
+        return True
+    # Private: only the owner (handled above) and current followers may view.
+    return is_following(cursor, caller_id, owner_id) if caller_id else False
+
+
 def create_follow(cursor, follower_id: str, followee_id: str, source: str = "followed_you") -> str:
     """E1-I1: the ONE place a follow edge is created. Both the canonical
     POST /api/follows/<id> (follow_user, source='followed_you') and the
@@ -107,6 +138,14 @@ def create_follow(cursor, follower_id: str, followee_id: str, source: str = "fol
 
     if is_blocked(cursor, follower_id, followee_id) or is_blocked(cursor, followee_id, follower_id):
         return "blocked"
+    # Privacy gate — the back-door closer. A PRIVATE account (is_public=0) is
+    # followable only by someone who can already SEE it: an existing follower
+    # (an idempotent re-follow — can_view_profile returns True via is_following)
+    # or the owner. A stranger can't follow their way past the privacy wall into
+    # the follower-only view; the search-hide alone is discovery, not authz.
+    # Public accounts (the default) always pass, so normal follows are unchanged.
+    if not can_view_profile(cursor, follower_id, followee_id):
+        return "private"
     # E1-B4: skip the cap for a follow that already exists — an idempotent
     # re-call must stay free even when the bucket is spent. Only genuinely-new,
     # notification-generating follows are metered (incremented below).
@@ -182,6 +221,10 @@ def follow_user(user_id):
         # can't follow. Same posture the route used pre-unification.
         if status == "blocked":
             return jsonify({"error": "Not found"}), 404
+        # Private target the caller can't see → same 404 as blocked/missing, so
+        # a stranger can't tell a private account apart from a nonexistent one.
+        if status == "private":
+            return jsonify({"error": "Not found"}), 404
         if status == "capped":
             return jsonify(
                 {
@@ -239,6 +282,47 @@ def unfollow_user(user_id):
     )
 
 
+@bp.route("/api/follows/followers/<follower_id>", methods=["DELETE"])
+@require_auth
+@limiter.limit("60/minute")
+@retry_on_lock()
+def remove_follower(follower_id):
+    """Remove `follower_id` from the CALLER's own followers — deletes the edge
+    (follower_id → caller). Lets a user (especially a private one) revoke
+    someone's access to their profile: once removed, that person is no longer a
+    follower, so can_view_profile stops granting them the private-profile view.
+
+    Distinct from unfollow (DELETE /api/follows/<id>), which removes the reverse
+    edge (caller → target). Idempotent — removing a non-follower is a no-op that
+    still returns fresh counts so the UI can repaint. The two-segment path
+    (/api/follows/followers/<id>) can't collide with the one-segment
+    follow/unfollow/status routes on /api/follows/<user_id>."""
+    caller_id = current_user_id()
+    if caller_id == follower_id:
+        return jsonify({"error": "Can't remove yourself"}), 400
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM follows WHERE follower_id = ? AND followee_id = ?",
+            (follower_id, caller_id),
+        )
+        removed = cursor.rowcount > 0
+        conn.commit()
+        counts = follower_counts(cursor, caller_id)
+    if removed:
+        logger.info(
+            "follower removed",
+            extra=log_extra(follower_id=follower_id, followee_id=caller_id),
+        )
+    return jsonify(
+        {
+            "removed": removed,
+            "followers": counts["followers"],
+            "following": counts["following"],
+        }
+    )
+
+
 @bp.route("/api/follows/<user_id>", methods=["GET"])
 @require_auth
 @limiter.limit("120/minute")
@@ -279,6 +363,11 @@ def get_follow_status(user_id):
 
             if is_blocked(cursor, user_id, caller_id) or is_blocked(cursor, caller_id, user_id):
                 return jsonify({"error": "Not found"}), 404
+        # Privacy gate: a private profile's follow counts are only visible to the
+        # owner + their followers, so a non-follower can't poll counts around a
+        # 404'd profile shell. can_view_profile treats caller==owner as allowed.
+        if not can_view_profile(cursor, caller_id, user_id):
+            return jsonify({"error": "Not found"}), 404
         counts = follower_counts(cursor, user_id)
         following = is_following(cursor, caller_id, user_id) if caller_id else False
         payload = {

@@ -391,6 +391,17 @@ def get_public_profile(user_id):
             if cursor.fetchone():
                 return jsonify({"error": "User not found"}), 404
 
+        # Privacy gate (profile visibility feature). A PRIVATE profile
+        # (users.is_public = 0) is viewable only by the owner and their current
+        # followers/friends; everyone else — including anonymous callers — gets
+        # the same 404 as a missing user, so privacy never leaks via a
+        # differential status code. Public profiles (the default) fall straight
+        # through, preserving the historical anonymous-viewable behaviour.
+        from routes.follows import can_view_profile
+
+        if not can_view_profile(cursor, caller_id, user_id):
+            return jsonify({"error": "User not found"}), 404
+
         # Get user info — no email exposed publicly. `id` IS included (the
         # caller already knows it — it's the URL they requested) so the
         # frontend has the profile-owner id for follow / quote / etc. calls.

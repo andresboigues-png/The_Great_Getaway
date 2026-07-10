@@ -97,8 +97,15 @@ def search_friends():
             "SELECT id, name, email, picture FROM users "
             "WHERE (name LIKE ? ESCAPE '\\' OR email LIKE ? ESCAPE '\\') "
             "AND id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?) "
+            # Profile-privacy feature: a PRIVATE user (is_public = 0) is
+            # discoverable only by THEMSELVES and by their current followers —
+            # so a stranger can neither find nor (having found) follow a private
+            # account to back-door their way into the follower-only view. Public
+            # users (the default) match unconditionally.
+            "AND (is_public = 1 OR id = ? "
+            "     OR id IN (SELECT followee_id FROM follows WHERE follower_id = ?)) "
             "LIMIT 5",
-            (f"{safe_query}%", f"{safe_query}%", caller_id),
+            (f"{safe_query}%", f"{safe_query}%", caller_id, caller_id, caller_id),
         )
         rows = cursor.fetchall()
     # 2026-05-18 audit H7: mask the email before returning. The 3-char
@@ -173,6 +180,11 @@ def add_friend():
         status = create_follow(cursor, user_id, friend_id, source='friend_request')
         if status == "blocked":
             return jsonify({"status": "blocked"})
+        # Private target the caller can't see → 404, so the friends façade can't
+        # back-door a follow onto a private account any more than the canonical
+        # follow route can (create_follow gates both).
+        if status == "private":
+            return jsonify({"error": "User not found"}), 404
         # E1-B1: honour the shared per-account daily follow cap (same gate as
         # /api/follows/<id>). 429 + followCapHit so the UI can show the same
         # "hit today's follow limit" copy the profile-follow button uses.
@@ -219,6 +231,8 @@ def accept_friend():
         if not ensure_user_exists(cursor, friend_id):
             return jsonify({"error": "User not found"}), 404
         status = create_follow(cursor, user_id, friend_id, source='accepted_request')
+        if status == "private":
+            return jsonify({"error": "User not found"}), 404
         # E1-B1: "Follow back" is a follow — honour the same daily cap so a
         # capped account can't slip an extra follow through the accept
         # façade (and so the caller sees an honest 429, not a phantom

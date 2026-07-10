@@ -65,6 +65,7 @@ _INTENTIONAL_ENGLISH = {
     'dayDetail.editDayDateLabel': 'fr: "Date" identical (same word)',
     'collections.title': 'fr: identical loanword',
     'collections.publicLabel': 'fr: "Public" identical',
+    'profile.visibilityPublic': 'fr: "Public" identical (same word)',
     'poi.restaurants': 'fr: identical (same word)',
     'poi.pharmacies': 'fr: identical (same word)',
     'dayDetail.photosHeading': 'fr: "Photos" identical (same word)',

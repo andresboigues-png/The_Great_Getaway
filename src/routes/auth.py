@@ -85,7 +85,7 @@ def user_status():
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, email, name, picture, bio, status, home_currency, home_country, language, is_creator FROM users WHERE id = ?",
+            "SELECT id, email, name, picture, bio, status, home_currency, home_country, language, is_creator, is_public FROM users WHERE id = ?",
             (user_id,),
         )
         row = cursor.fetchone()
@@ -118,6 +118,10 @@ def user_status():
                 # detectBrowserLocale (i18n.ts).
                 "language": row["language"],
                 "isCreator": is_creator,
+                # Profile visibility — the owner's own client needs this to
+                # render the public/private toggle in its current state on boot.
+                # Absent column (unmigrated) → treat as public (the default).
+                "isPublic": bool(row["is_public"]) if row["is_public"] is not None else True,
             },
         }
     )
@@ -254,6 +258,9 @@ def google_auth():
                         # falls back to navigator.language.
                         "language": None,
                         "isCreator": test_is_creator,
+                        # Test users are created minimally (is_public defaults to
+                        # 1), so they start public like any fresh account.
+                        "isPublic": True,
                     },
                 }
             )
@@ -337,7 +344,7 @@ def google_auth():
             )
 
             cursor.execute(
-                "SELECT bio, status, home_currency, home_country, language, is_creator FROM users WHERE id = ?",
+                "SELECT bio, status, home_currency, home_country, language, is_creator, is_public FROM users WHERE id = ?",
                 (user_id,),
             )
             user_row = cursor.fetchone()
@@ -354,6 +361,13 @@ def google_auth():
             db_is_creator = (bool(user_row['is_creator']) if user_row else False) or (
                 email or ""
             ).strip().lower() in ADMIN_EMAILS
+            # Profile visibility — default public (matches the column DEFAULT 1
+            # and a brand-new user whose INSERT didn't set it).
+            db_is_public = (
+                bool(user_row['is_public'])
+                if (user_row and user_row['is_public'] is not None)
+                else True
+            )
 
             # MK4: give brand-new users the 3 starter categories (no-op if
             # they already have any, or deliberately deleted them all).
@@ -390,6 +404,7 @@ def google_auth():
                         # default before that happens.
                         "language": db_language,
                         "isCreator": db_is_creator,
+                        "isPublic": db_is_public,
                     },
                 }
             )

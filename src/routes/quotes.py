@@ -142,6 +142,14 @@ def leave_quote(owner_id):
 
         if is_blocked(cursor, owner_id, author_id) or is_blocked(cursor, author_id, owner_id):
             return jsonify({"error": "Not found"}), 404
+        # Privacy gate: you can only leave a memory on a profile you can see. A
+        # private profile is reachable only by the owner (blocked above by the
+        # self-quote check) and their followers, so a non-follower can't seed
+        # a private profile's curation queue.
+        from routes.follows import can_view_profile
+
+        if not can_view_profile(cursor, author_id, owner_id):
+            return jsonify({"error": "Not found"}), 404
         # Per-account daily cap — a single account can't flood a target's
         # curation queue past this (in-memory bucket; mirrors follows.py).
         if user_daily_count("quote", author_id) >= _QUOTE_DAILY_CAP:
@@ -202,6 +210,13 @@ def list_quotes(owner_id):
 
             if is_blocked(cursor, owner_id, caller_id) or is_blocked(cursor, caller_id, owner_id):
                 return jsonify({"error": "Not found"}), 404
+            # Privacy gate: a private profile's memories are only readable by the
+            # owner + their followers — otherwise a non-follower could pull the
+            # visible quotes via /api/quotes/<owner> around a 404'd profile shell.
+            from routes.follows import can_view_profile
+
+            if not can_view_profile(cursor, caller_id, owner_id):
+                return jsonify({"error": "Not found"}), 404
         # Owner sees every quote (to curate); everyone else only the visible
         # ones. Newest first, capped so a flooded profile can't return an
         # unbounded set. Quotes whose AUTHOR is blocked by / has blocked the
@@ -239,6 +254,14 @@ def list_common_trips(owner_id):
         from routes.blocks import is_blocked
 
         if is_blocked(cursor, owner_id, caller_id) or is_blocked(cursor, caller_id, owner_id):
+            return jsonify({"error": "Not found"}), 404
+        # Privacy gate, mirroring list_quotes/leave_quote: a private profile's
+        # shared-trip pick-list is only for the owner + their followers, so a
+        # non-follower can't enumerate shared trips (id/name/country) around a
+        # 404'd profile, nor use the 200-vs-404 as an existence oracle.
+        from routes.follows import can_view_profile
+
+        if not can_view_profile(cursor, caller_id, owner_id):
             return jsonify({"error": "Not found"}), 404
         if caller_id == owner_id:
             return jsonify({"trips": []})

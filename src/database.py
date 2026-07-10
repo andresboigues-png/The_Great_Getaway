@@ -203,6 +203,12 @@ def init_db():
                 -- as a creator regardless of this flag. Migration
                 -- e2a4c6b8d0f1 adds it to existing DBs.
                 is_creator INTEGER DEFAULT 0,
+                -- Profile privacy: 1 = public (discoverable in search +
+                -- viewable by anyone — the historical always-public default);
+                -- 0 = private (findable + viewable only by the owner and their
+                -- current followers/friends). Migration c3f7a1b9e2d4 adds it to
+                -- existing DBs with DEFAULT 1 so no profile silently disappears.
+                is_public INTEGER DEFAULT 1,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -1179,6 +1185,10 @@ _EXPECTED_COLUMNS = {
         # EVERY login — auth.py SELECTs it on the golden path (user-status /
         # login). The tripwire exists precisely to fail LOUDLY at boot instead.
         "is_creator",
+        # Profile privacy flag (migration c3f7a1b9e2d4). SELECTed on the login /
+        # user-status golden path (auth.py), so a stale DB missing it would 500
+        # every login — same failure mode as is_creator above.
+        "is_public",
     ],
     "trips": [
         "id",

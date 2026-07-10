@@ -40,6 +40,12 @@ export interface User {
      *  templates). The dev account is always a creator; others are granted
      *  via the Developer dashboard. Server-resolved on /api/user-status. */
     isCreator?: boolean;
+    /** Profile visibility. true = public (discoverable in search + viewable
+     *  by anyone — the default); false = private (findable + viewable only by
+     *  the owner and their current followers/friends). Backed by the
+     *  `is_public` column; written via /api/profile/update, read on
+     *  /api/user-status + login. Absent (unmigrated) → treat as public. */
+    isPublic?: boolean;
 }
 
 export interface Category {

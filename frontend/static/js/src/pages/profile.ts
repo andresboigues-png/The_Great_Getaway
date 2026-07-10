@@ -101,6 +101,17 @@ export interface StatListItem {
     avatarInitial?: string | undefined;
     /** Present → row is a button that closes the modal and runs this. */
     onClick?: (() => void) | undefined;
+    /** Optional trailing action button (e.g. "Remove" a follower). Runs
+     *  WITHOUT closing the modal or navigating; on a resolved onClick the row
+     *  is removed from the list in place and the count decrements. A rejected
+     *  onClick re-enables the button and leaves the row. */
+    action?:
+        | {
+              label: string;
+              onClick: () => void | Promise<void>;
+              danger?: boolean;
+          }
+        | undefined;
 }
 
 /** Aesthetic, searchable list modal behind the profile stat captions
@@ -125,16 +136,29 @@ export function openStatListModal(opts: {
               ? `<img src="${esc(it.avatarUrl)}" alt="" referrerpolicy="no-referrer" loading="lazy" decoding="async" class="pf-listrow__avatar">`
               : `<div class="pf-listrow__avatar pf-listrow__avatar--fallback">${esc(it.avatarInitial || '?')}</div>`;
         const secondary = it.secondary ? `<div class="pf-listrow__secondary">${esc(it.secondary)}</div>` : '';
-        const tag = clickable ? 'button' : 'div';
-        return `
-            <${tag}${clickable ? ' type="button"' : ''} class="pf-listrow${clickable ? ' pf-listrow--tappable' : ''}" data-idx="${idx}" data-search="${esc(searchKey)}">
+        const inner = `
                 ${avatar}
                 <div class="pf-listrow__text">
                     <div class="pf-listrow__primary">${esc(it.primary)}</div>
                     ${secondary}
                 </div>
-                ${clickable ? '<span class="pf-listrow__chev" aria-hidden="true">›</span>' : ''}
-            </${tag}>`;
+                ${clickable ? '<span class="pf-listrow__chev" aria-hidden="true">›</span>' : ''}`;
+        // With a trailing action (e.g. "Remove"), the row can't be a native
+        // <button> (a button can't nest a button), so it becomes a role="button"
+        // div beside a sibling action <button>, wrapped in a flex container.
+        if (it.action) {
+            const rowEl = clickable
+                ? `<div role="button" tabindex="0" class="pf-listrow pf-listrow--tappable" data-idx="${idx}" data-search="${esc(searchKey)}">${inner}</div>`
+                : `<div class="pf-listrow" data-idx="${idx}" data-search="${esc(searchKey)}">${inner}</div>`;
+            return `
+            <div class="pf-listrow-wrap">
+                ${rowEl}
+                <button type="button" class="pf-listrow__action${it.action.danger ? ' pf-listrow__action--danger' : ''}" data-action-idx="${idx}">${esc(it.action.label)}</button>
+            </div>`;
+        }
+        const tag = clickable ? 'button' : 'div';
+        return `
+            <${tag}${clickable ? ' type="button"' : ''} class="pf-listrow${clickable ? ' pf-listrow--tappable' : ''}" data-idx="${idx}" data-search="${esc(searchKey)}">${inner}</${tag}>`;
     };
     const { root, close } = showModal({
         cardStyle: 'width: 440px; max-width: calc(100vw - 32px); max-height: 82vh; padding: 22px; border-radius: 24px; background: white; display:flex; flex-direction:column;',
@@ -156,21 +180,70 @@ export function openStatListModal(opts: {
     const rowsEl = root.querySelector('#statListRows') as HTMLElement | null;
     const emptyEl = root.querySelector('#statListEmpty') as HTMLElement | null;
     if (emptyEl) emptyEl.style.display = items.length === 0 ? 'block' : 'none';
+    // A row may be wrapped (row + trailing action button); toggle the WRAPPER so
+    // the action hides with its row. `data-search` lives on the inner row.
+    const containerOf = (row: HTMLElement): HTMLElement =>
+        (row.closest('.pf-listrow-wrap') as HTMLElement | null) || row;
     searchEl?.addEventListener('input', () => {
         const q = searchEl.value.trim().toLowerCase();
         let shown = 0;
         rowsEl?.querySelectorAll<HTMLElement>('[data-search]').forEach((row) => {
             const match = !q || (row.dataset.search || '').includes(q);
-            row.style.display = match ? '' : 'none';
+            containerOf(row).style.display = match ? '' : 'none';
             if (match) shown += 1;
         });
         if (emptyEl) emptyEl.style.display = shown === 0 ? 'block' : 'none';
     });
     rowsEl?.querySelectorAll<HTMLElement>('.pf-listrow--tappable').forEach((row) => {
-        row.addEventListener('click', () => {
+        const activate = () => {
             const item = items[Number(row.dataset.idx)];
             close();
             item?.onClick?.();
+        };
+        row.addEventListener('click', activate);
+        // role="button" divs (rows that carry a trailing action) don't fire on
+        // Enter/Space natively — restore that so keyboard nav still activates.
+        if (row.tagName !== 'BUTTON') {
+            row.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    activate();
+                }
+            });
+        }
+    });
+    // Trailing per-row action buttons (e.g. "Remove follower"). Run in place —
+    // no navigation, no close. On success drop the row + decrement the count.
+    const countEl = root.querySelector('.pf-list-count') as HTMLElement | null;
+    let liveCount = items.length;
+    rowsEl?.querySelectorAll<HTMLButtonElement>('.pf-listrow__action').forEach((btn) => {
+        btn.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            const item = items[Number(btn.dataset.actionIdx)];
+            if (!item?.action) return;
+            btn.disabled = true;
+            // Void the async work so the listener itself returns void (eslint
+            // no-misused-promises); failures re-enable the button below.
+            void (async () => {
+                try {
+                    await item.action!.onClick();
+                    btn.closest('.pf-listrow-wrap')?.remove();
+                    liveCount = Math.max(0, liveCount - 1);
+                    if (countEl) countEl.textContent = String(liveCount);
+                    // Show the empty state based on VISIBLE rows, not DOM presence —
+                    // an active search filter may be hiding other rows that are
+                    // still in the DOM, so a bare querySelector would wrongly stay
+                    // non-empty.
+                    if (emptyEl) {
+                        const anyVisible = [
+                            ...(rowsEl?.querySelectorAll<HTMLElement>('[data-search]') ?? []),
+                        ].some((el) => containerOf(el).style.display !== 'none');
+                        emptyEl.style.display = anyVisible ? 'none' : 'block';
+                    }
+                } catch {
+                    btn.disabled = false;
+                }
+            })();
         });
     });
 }

@@ -802,6 +802,42 @@ function ProfileInfoSection({
         };
     }, [isOwnProfile, targetUserId]);
 
+    // Profile visibility (own profile only). Public = discoverable + viewable
+    // by anyone (the default); Private = findable + viewable only by the owner
+    // and their current followers/friends. Instant-apply: no Save button — a
+    // visibility switch should take effect the moment you flip it.
+    const [visSaving, setVisSaving] = useState(false);
+    const isPublic = user.isPublic !== false; // absent (unmigrated) → public
+    const setVisibility = async (next: boolean) => {
+        if (!STATE.user || visSaving || next === isPublic) return;
+        setVisSaving(true);
+        try {
+            const res = await apiFetch('/api/profile/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isPublic: next }),
+            });
+            if (res.ok) {
+                STATE.user.isPublic = next;
+                emit('state:changed');
+                showLiquidAlert(
+                    next ? t('profile.visibilityNowPublic') : t('profile.visibilityNowPrivate'),
+                    'success',
+                );
+            } else {
+                showLiquidAlert(
+                    res.status === 401
+                        ? t('profile.photoSessionExpired')
+                        : t('profile.saveFailed', { status: res.status }),
+                );
+            }
+        } catch {
+            showLiquidAlert(t('profile.saveNetwork'));
+        } finally {
+            setVisSaving(false);
+        }
+    };
+
     // Travel stats derived from the (completed) trips.
     const dayCount = (tp: Trip): number => {
         if (!tp.dateFrom || !tp.dateTo) return 0;
@@ -873,6 +909,20 @@ function ProfileInfoSection({
     const searchPh = t('common.search');
     const openList = (title: string, items: StatListItem[]) => () =>
         openStatListModal({ title, searchPlaceholder: searchPh, items });
+    // Remove someone from your OWN followers (revokes their access to a private
+    // profile). Throws on failure so the list modal keeps the row + re-enables
+    // its button; on success the modal drops the row in place AND we prune the
+    // cached list (so reopening doesn't resurrect them) + push the fresh count
+    // to the stat tile via onFollowersChange.
+    const removeFollower = async (followerId: string): Promise<void> => {
+        const res = await apiFetch(`/api/follows/followers/${encodeURIComponent(followerId)}`, {
+            method: 'DELETE',
+        });
+        if (!res.ok) throw new Error(`remove follower failed: ${res.status}`);
+        follow.prune(followerId);
+        const data = (await res.json().catch(() => null)) as { followers?: number } | null;
+        if (data && typeof data.followers === 'number') onFollowersChange(data.followers);
+    };
     const stats: Stat[] = [
         {
             num: String(tripCount),
@@ -938,7 +988,16 @@ function ProfileInfoSection({
             // foreign profile they resolve to [] while the count is real. Only wire
             // the tap-through when we actually have the list, else it opens an
             // empty "Nothing here yet" modal that contradicts the count.
-            onClick: isOwnProfile ? openList(tn('profile.followersLabel', followers), peopleItems(follow.followers)) : undefined,
+            onClick: isOwnProfile
+                ? openList(
+                      tn('profile.followersLabel', followers),
+                      peopleItems(follow.followers, (p) => ({
+                          label: t('profile.removeFollower'),
+                          danger: true,
+                          onClick: () => removeFollower(p.id),
+                      })),
+                  )
+                : undefined,
         },
         {
             num: String(following),
@@ -961,6 +1020,34 @@ function ProfileInfoSection({
                 <ProfilePicSection isOwnProfile={isOwnProfile} user={user} />
                 <h2 className="pf-identity__name">{user.name}</h2>
                 <span className="pf-identity__email">{user.email}</span>
+                {isOwnProfile ? (
+                    <div className="pf-visibility" role="radiogroup" aria-label={t('profile.visibilityLabel')}>
+                        <button
+                            type="button"
+                            role="radio"
+                            className="pf-visibility__opt"
+                            data-active={isPublic}
+                            aria-checked={isPublic}
+                            disabled={visSaving}
+                            title={t('profile.visibilityPublicHint')}
+                            onClick={() => void setVisibility(true)}
+                        >
+                            <span aria-hidden="true">🌐</span> {t('profile.visibilityPublic')}
+                        </button>
+                        <button
+                            type="button"
+                            role="radio"
+                            className="pf-visibility__opt"
+                            data-active={!isPublic}
+                            aria-checked={!isPublic}
+                            disabled={visSaving}
+                            title={t('profile.visibilityPrivateHint')}
+                            onClick={() => void setVisibility(false)}
+                        >
+                            <span aria-hidden="true">🔒</span> {t('profile.visibilityPrivate')}
+                        </button>
+                    </div>
+                ) : null}
                 {!isOwnProfile && targetUserId ? (
                     isBlocked ? (
                         // E8-I2: blocked relationship made explicit — a plain
@@ -1074,8 +1161,19 @@ interface FollowLists {
     friends: ProfileFriend[]; // mutuals
     loaded: boolean;
 }
-function useFollowLists(profileUserId: string | undefined): FollowLists {
+function useFollowLists(profileUserId: string | undefined): FollowLists & { prune: (id: string) => void } {
     const [state, setState] = useState<FollowLists>({ followers: [], following: [], friends: [], loaded: false });
+    // Locally drop a follower after a successful remove, so reopening the list
+    // (without a refetch) doesn't resurrect them. They leave followers + friends
+    // (mutuals) but stay in `following` — removing a follower only deletes THEIR
+    // follow of me; if I still follow them they remain in my following list.
+    const prune = useCallback((id: string) => {
+        setState((s) => ({
+            ...s,
+            followers: s.followers.filter((p) => p.id !== id),
+            friends: s.friends.filter((p) => p.id !== id),
+        }));
+    }, []);
     useEffect(() => {
         if (!profileUserId) return;
         let alive = true;
@@ -1100,11 +1198,16 @@ function useFollowLists(profileUserId: string | undefined): FollowLists {
             alive = false;
         };
     }, [profileUserId]);
-    return state;
+    return { ...state, prune };
 }
 
-/** Build the people rows for a follows list modal (→ each taps to profile). */
-function peopleItems(people: ProfileFriend[]): StatListItem[] {
+/** Build the people rows for a follows list modal (→ each taps to profile).
+ *  `actionFor` optionally attaches a trailing action button per person (e.g.
+ *  "Remove" on the OWN followers list). */
+function peopleItems(
+    people: ProfileFriend[],
+    actionFor?: (p: ProfileFriend) => StatListItem['action'],
+): StatListItem[] {
     return people.map((p) => ({
         id: p.id,
         primary: p.name || 'Someone',
@@ -1112,6 +1215,7 @@ function peopleItems(people: ProfileFriend[]): StatListItem[] {
         avatarUrl: p.picture || undefined,
         avatarInitial: (p.name || p.email || '?').charAt(0).toUpperCase(),
         onClick: () => navigate('profile', { userId: p.id }),
+        action: actionFor ? actionFor(p) : undefined,
     }));
 }
 
@@ -1625,6 +1729,16 @@ function memLinkKey(m: QuoteItem, linkBy: MemGroup): string | null {
     return null;
 }
 
+// Two memories sit in the SAME primary cluster when a grouping is active and
+// their cluster keys match. A connection between such a pair is redundant —
+// they're already grouped side by side — so the network only draws links that
+// BRIDGE clusters. With no grouping ('none') there are no clusters, so nothing
+// is "already grouped" and every link is drawn.
+function memSameCluster(a: QuoteItem, b: QuoteItem, group: MemGroup): boolean {
+    if (group === 'none') return false;
+    return memClusterOf(a, group).key === memClusterOf(b, group).key;
+}
+
 // Fixed colour per relationship dimension for the connection rays + legend
 // (distinct from the per-author node hues). Blue = who, green = trip, amber
 // = when. Order = ray draw + legend order.
@@ -1634,6 +1748,29 @@ const MEM_LINK_DIMS: { k: MemLinkDim; color: string }[] = [
     { k: 'trip', color: '#30b46b' },
     { k: 'year', color: '#f5a623' },
 ];
+
+// Would focusing `dim` produce at least one cross-cluster (bridging) edge under
+// the current grouping? Drives whether a legend chip is clickable — a dimension
+// whose links all fall inside one cluster would light the button but draw
+// nothing (a dead toggle), so those chips are disabled instead.
+function memDimHasBridge(memories: QuoteItem[], dim: MemLinkDim, group: MemGroup): boolean {
+    const buckets = new Map<string, QuoteItem[]>();
+    for (const m of memories) {
+        const k = memLinkKey(m, dim);
+        if (!k) continue;
+        const arr = buckets.get(k);
+        if (arr) arr.push(m);
+        else buckets.set(k, [m]);
+    }
+    for (const members of buckets.values()) {
+        if (group === 'none') {
+            if (members.length >= 2) return true;
+        } else if (new Set(members.map((m) => memClusterOf(m, group).key)).size >= 2) {
+            return true;
+        }
+    }
+    return false;
+}
 
 // Which connection dimensions to draw. User-tunable in Settings → General;
 // all on by default. Stored client-side (a view preference, like the menu
@@ -1736,8 +1873,28 @@ function MemoryCanvas({
     // in Settings (read once on mount; the canvas re-mounts on the next visit).
     const [pinnedId, setPinnedId] = useState<number | null>(null);
     const [hoverId, setHoverId] = useState<number | null>(null);
+    // Q3: clicking a legend colour enters a whole-dimension "focus" view — EVERY
+    // link of that one dimension lights up across the canvas at once (not just
+    // the hovered card's). null = no focus (the normal hover/pin single-hub).
+    const [focusDim, setFocusDim] = useState<MemLinkDim | null>(null);
     const [connectDims] = useState(readMemConnectPrefs);
-    const activeDims = MEM_LINK_DIMS.filter((d) => connectDims[d.k]);
+    // Q4: drop the connect dimension that MATCHES the current grouping — it's
+    // redundant (grouping by author already clusters same-author memories side
+    // by side, so also firing author rays between them is double-encoding). So
+    // "Arrange by Quem" hides the blue author legend + rays, "by Ano" hides
+    // amber, "by Viagem" hides green. `group === 'none'` matches no dim → all show.
+    const activeDims = MEM_LINK_DIMS.filter((d) => connectDims[d.k] && d.k !== group);
+    // Which legend dimensions actually have a cross-cluster link to show under
+    // the current grouping. A chip not in this set is rendered disabled — its
+    // focus view would light the button but draw no edges.
+    const dimsWithLinks = useMemo(() => {
+        const s = new Set<MemLinkDim>();
+        for (const d of MEM_LINK_DIMS) {
+            if (d.k === group || !connectDims[d.k]) continue;
+            if (memDimHasBridge(memories, d.k, group)) s.add(d.k);
+        }
+        return s;
+    }, [memories, group, connectDims]);
 
     const activeId = pinnedId ?? hoverId;
     const activeMem = activeId != null ? memories.find((m) => m.id === activeId) ?? null : null;
@@ -1746,7 +1903,7 @@ function MemoryCanvas({
     // (a small perpendicular offset keeps them from overlapping).
     const constellation = useMemo(() => {
         if (!activeMem) return null;
-        const dims = MEM_LINK_DIMS.filter((d) => connectDims[d.k]);
+        const dims = MEM_LINK_DIMS.filter((d) => connectDims[d.k] && d.k !== group);
         const rays: { id: number; color: string; offset: number }[] = [];
         const lit = new Set<number>([activeMem.id]);
         dims.forEach((d, di) => {
@@ -1755,15 +1912,72 @@ function MemoryCanvas({
             const off = (di - (dims.length - 1) / 2) * 4;
             for (const m of memories) {
                 if (m.id === activeMem.id) continue;
-                if (memLinkKey(m, d.k) === key) {
+                // Skip relatives already sitting in the same cluster — the link
+                // would be redundant. Only cross-cluster relatives get a ray.
+                if (memLinkKey(m, d.k) === key && !memSameCluster(activeMem, m, group)) {
                     rays.push({ id: m.id, color: d.color, offset: off });
                     lit.add(m.id);
                 }
             }
         });
         return { rays, lit };
-    }, [activeMem, memories, connectDims]);
-    const litSet = constellation && constellation.rays.length > 0 ? constellation.lit : null;
+    }, [activeMem, memories, connectDims, group]);
+
+    // Q3: whole-dimension focus. Group every memory by its key in `focusDim`,
+    // then draw a cheap STAR within each same-key group (one anchor → the rest,
+    // O(n) edges not O(n²)). `lit` = every card that participates in at least one
+    // link of that dimension; lone-key cards (a memory that's the only one with
+    // its author/year/trip) participate in nothing, so they dim like the rest.
+    const focusView = useMemo(() => {
+        if (!focusDim) return null;
+        const color = MEM_LINK_DIMS.find((d) => d.k === focusDim)?.color ?? '#8e8e93';
+        const buckets = new Map<string, QuoteItem[]>();
+        for (const m of memories) {
+            const k = memLinkKey(m, focusDim);
+            if (!k) continue; // no-value cards never link (same rule as hover)
+            const arr = buckets.get(k);
+            if (arr) arr.push(m);
+            else buckets.set(k, [m]);
+        }
+        const edges: { a: number; b: number }[] = [];
+        const lit = new Set<number>();
+        for (const members of buckets.values()) {
+            if (group === 'none') {
+                // No clusters → star all members of the link-key together.
+                if (members.length < 2) continue;
+                const anchor = members[0]!;
+                for (const m of members) {
+                    lit.add(m.id);
+                    if (m.id !== anchor.id) edges.push({ a: anchor.id, b: m.id });
+                }
+            } else {
+                // Cluster-bridging: one representative per DISTINCT cluster, star
+                // among the reps — so a link-key confined to a single cluster
+                // draws nothing (already grouped), and one spanning N clusters
+                // draws N-1 cross-cluster edges. Every member of a bridging
+                // link-key lights up (the whole web reads as connected).
+                const repByCluster = new Map<string, QuoteItem>();
+                for (const m of members) {
+                    const ck = memClusterOf(m, group).key;
+                    if (!repByCluster.has(ck)) repByCluster.set(ck, m);
+                }
+                const reps = [...repByCluster.values()];
+                if (reps.length < 2) continue; // all in one cluster → no link
+                const anchor = reps[0]!;
+                for (const m of members) lit.add(m.id);
+                for (let i = 1; i < reps.length; i++) edges.push({ a: anchor.id, b: reps[i]!.id });
+            }
+        }
+        return { color, edges, lit };
+    }, [focusDim, memories, group]);
+
+    // Focus (whole-dimension) takes precedence over the hover/pin single-hub.
+    const focusActive = !!(focusDim && focusView && focusView.edges.length > 0);
+    const litSet = focusActive
+        ? focusView!.lit
+        : constellation && constellation.rays.length > 0
+          ? constellation.lit
+          : null;
 
     const [view, setView] = useState({ x: 40, y: 40, scale: 1 });
     const [interacting, setInteracting] = useState(false);
@@ -1810,6 +2024,7 @@ function MemoryCanvas({
         setOverrides({});
         setPinnedId(null);
         setHoverId(null);
+        setFocusDim(null);
         fitView();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [group]);
@@ -1912,8 +2127,16 @@ function MemoryCanvas({
             // A tap (press with no drag): on a card pin/unpin its constellation;
             // on empty canvas clear the pinned constellation.
             if (wasTap) {
-                if (endedMode === 'card') setPinnedId((p) => (p === endedCardId ? null : endedCardId));
-                else if (endedMode === 'pan') setPinnedId(null);
+                // Any tap exits whole-dimension focus: a card tap drills into
+                // that card's single-hub constellation; an empty-space tap
+                // clears everything.
+                if (endedMode === 'card') {
+                    setFocusDim(null);
+                    setPinnedId((p) => (p === endedCardId ? null : endedCardId));
+                } else if (endedMode === 'pan') {
+                    setFocusDim(null);
+                    setPinnedId(null);
+                }
             }
         } else if (g.current.pointers.size === 1) {
             // pinch released one finger → keep panning with the remaining one
@@ -1987,29 +2210,53 @@ function MemoryCanvas({
                         </button>
                     ))}
                 </div>
-                {/* Passive legend for the connection rays (no picker — hovering a
-                    card links it to everything it shares an author / trip / year
-                    with, each dimension its own colour). Only lists the
-                    dimensions enabled in Settings. */}
+                {/* Connection legend. Hovering a card links it to everything it
+                    shares an author / trip / year with (each dimension its own
+                    colour). Q3: CLICKING a legend colour toggles a whole-canvas
+                    "focus" — EVERY link of that dimension lights up at once.
+                    Only lists the dimensions enabled in Settings, minus the one
+                    that matches the current grouping (Q4). */}
                 {activeDims.length > 0 ? (
-                    <div className="pf-canvas-legend">
+                    <div className="pf-canvas-legend" role="group" aria-label={t('profile.memConnectBy')}>
                         <span className="pf-canvas-bar__label pf-canvas-bar__label--link">
                             {t('profile.memConnectBy')}
                         </span>
-                        {activeDims.map((d) => (
-                            <span key={d.k} className="pf-canvas-legend__item">
-                                <span
-                                    className="pf-canvas-legend__dot"
-                                    style={{ background: d.color }}
-                                    aria-hidden="true"
-                                />
-                                {d.k === 'author'
+                        {activeDims.map((d) => {
+                            const label =
+                                d.k === 'author'
                                     ? t('profile.memGroupAuthor')
                                     : d.k === 'trip'
                                       ? t('profile.memGroupTrip')
-                                      : t('profile.memGroupYear')}
-                            </span>
-                        ))}
+                                      : t('profile.memGroupYear');
+                            const on = focusDim === d.k;
+                            const hasLinks = dimsWithLinks.has(d.k);
+                            return (
+                                <button
+                                    key={d.k}
+                                    type="button"
+                                    className="pf-canvas-legend__item"
+                                    data-active={on}
+                                    aria-pressed={on}
+                                    disabled={!hasLinks}
+                                    title={
+                                        hasLinks
+                                            ? t('profile.memFocusHint', { dim: label })
+                                            : t('profile.memFocusNone', { dim: label })
+                                    }
+                                    onClick={() => {
+                                        if (!hasLinks) return;
+                                        setFocusDim((prev) => (prev === d.k ? null : d.k));
+                                    }}
+                                >
+                                    <span
+                                        className="pf-canvas-legend__dot"
+                                        style={{ background: d.color }}
+                                        aria-hidden="true"
+                                    />
+                                    {label}
+                                </button>
+                            );
+                        })}
                     </div>
                 ) : null}
             </div>
@@ -2034,49 +2281,69 @@ function MemoryCanvas({
                         the plane's coordinate space so it pans/zooms with the
                         cards; non-scaling-stroke keeps the lines crisp at any
                         zoom. Behind the cards (first child). */}
-                    {litSet && activeMem && constellation && constellation.rays.length > 0 ? (
-                        <svg
-                            className="pf-mem-edges"
-                            aria-hidden="true"
-                            style={{
-                                position: 'absolute',
-                                left: 0,
-                                top: 0,
-                                width: layout.width || 1,
-                                height: layout.height || 1,
-                                overflow: 'visible',
-                                pointerEvents: 'none',
-                            }}
-                        >
-                            {(() => {
-                                const a = posOf(activeMem.id);
-                                const ax = a.x + MEM_CARD_W / 2;
-                                const ay = a.y + MEM_CARD_H / 2;
-                                return constellation.rays.map((ray, i) => {
-                                    const q = posOf(ray.id);
-                                    const bx = q.x + MEM_CARD_W / 2;
-                                    const by = q.y + MEM_CARD_H / 2;
-                                    // Offset the whole ray perpendicular to itself so
-                                    // multiple dimensions between the same pair read as
-                                    // parallel coloured lines instead of overlapping.
-                                    const len = Math.hypot(bx - ax, by - ay) || 1;
-                                    const ox = (-(by - ay) / len) * ray.offset;
-                                    const oy = ((bx - ax) / len) * ray.offset;
-                                    return (
-                                        <line
-                                            key={i}
-                                            className="pf-mem-edge"
-                                            x1={ax + ox}
-                                            y1={ay + oy}
-                                            x2={bx + ox}
-                                            y2={by + oy}
-                                            style={{ stroke: ray.color, color: ray.color }}
-                                        />
-                                    );
+                    {(() => {
+                        // Build the edge segments to draw. Whole-dimension focus
+                        // (a legend-colour click) wins over the single-hub
+                        // hover/pin constellation; both feed the same <line> list.
+                        const segs: { x1: number; y1: number; x2: number; y2: number; color: string }[] = [];
+                        if (focusActive && focusView) {
+                            for (const e of focusView.edges) {
+                                const a = posOf(e.a);
+                                const b = posOf(e.b);
+                                segs.push({
+                                    x1: a.x + MEM_CARD_W / 2,
+                                    y1: a.y + MEM_CARD_H / 2,
+                                    x2: b.x + MEM_CARD_W / 2,
+                                    y2: b.y + MEM_CARD_H / 2,
+                                    color: focusView.color,
                                 });
-                            })()}
-                        </svg>
-                    ) : null}
+                            }
+                        } else if (litSet && activeMem && constellation && constellation.rays.length > 0) {
+                            const a = posOf(activeMem.id);
+                            const ax = a.x + MEM_CARD_W / 2;
+                            const ay = a.y + MEM_CARD_H / 2;
+                            for (const ray of constellation.rays) {
+                                const q = posOf(ray.id);
+                                const bx = q.x + MEM_CARD_W / 2;
+                                const by = q.y + MEM_CARD_H / 2;
+                                // Offset the whole ray perpendicular to itself so
+                                // multiple dimensions between the same pair read as
+                                // parallel coloured lines instead of overlapping.
+                                const len = Math.hypot(bx - ax, by - ay) || 1;
+                                const ox = (-(by - ay) / len) * ray.offset;
+                                const oy = ((bx - ax) / len) * ray.offset;
+                                segs.push({ x1: ax + ox, y1: ay + oy, x2: bx + ox, y2: by + oy, color: ray.color });
+                            }
+                        }
+                        if (segs.length === 0) return null;
+                        return (
+                            <svg
+                                className="pf-mem-edges"
+                                aria-hidden="true"
+                                style={{
+                                    position: 'absolute',
+                                    left: 0,
+                                    top: 0,
+                                    width: layout.width || 1,
+                                    height: layout.height || 1,
+                                    overflow: 'visible',
+                                    pointerEvents: 'none',
+                                }}
+                            >
+                                {segs.map((s, i) => (
+                                    <line
+                                        key={i}
+                                        className="pf-mem-edge"
+                                        x1={s.x1}
+                                        y1={s.y1}
+                                        x2={s.x2}
+                                        y2={s.y2}
+                                        style={{ stroke: s.color, color: s.color }}
+                                    />
+                                ))}
+                            </svg>
+                        );
+                    })()}
                     {group !== 'none'
                         ? layout.clusters.map((c) => (
                               <div
@@ -2094,7 +2361,9 @@ function MemoryCanvas({
                         // Node identity colour = its author (stable per person).
                         const lk = memLinkKey(m, 'author');
                         const lit = litSet ? litSet.has(m.id) : false;
-                        const hub = activeId === m.id && !!litSet;
+                        // No single hub in whole-dimension focus (every anchor is
+                        // just another lit node); the pulse is for the hover/pin card.
+                        const hub = !focusActive && activeId === m.id && !!litSet;
                         return (
                             <div
                                 key={m.id}
@@ -2108,7 +2377,13 @@ function MemoryCanvas({
                                     // as "unlinked" rather than sharing a colour.
                                     ['--link-color' as string]: lk ? keyColor(lk) : '#c4c4cc',
                                 }}
-                                onMouseEnter={() => setHoverId(m.id)}
+                                // While a whole-dimension focus is active it
+                                // overrides the hover constellation, so don't
+                                // churn hover state (avoids a wasted per-mousemove
+                                // constellation recompute with no visible effect).
+                                onMouseEnter={() => {
+                                    if (!focusActive) setHoverId(m.id);
+                                }}
                                 onMouseLeave={() => setHoverId((h) => (h === m.id ? null : h))}
                             >
                                 {/* Zoom level-of-detail: as you zoom out, the plane's

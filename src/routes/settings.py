@@ -439,6 +439,15 @@ def update_profile():
             except ValidationError as ve:
                 return jsonify({"error": str(ve)}), 400
 
+    # Profile visibility (public/private). Boolean on the wire; stored as 0/1.
+    # A self-only write — update_profile always targets the caller's own row —
+    # so there's no cross-user authz concern beyond the require_auth gate.
+    if "isPublic" in payload:
+        raw_public = payload.get("isPublic")
+        if not isinstance(raw_public, bool):
+            return jsonify({"error": "isPublic must be a boolean"}), 400
+        payload["isPublic"] = 1 if raw_public else 0
+
     fields = []
     values = []
     for key, column in (
@@ -448,6 +457,7 @@ def update_profile():
         ("homeCountry", "home_country"),
         ("picture", "picture"),
         ("language", "language"),
+        ("isPublic", "is_public"),
     ):
         if key in payload:
             fields.append(f"{column} = ?")
