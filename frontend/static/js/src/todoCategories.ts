@@ -145,8 +145,8 @@ function _effectiveSlot(p: MarkedPlace): 'morning' | 'afternoon' | 'evening' | n
 }
 
 /** Build a free Google Maps directions URL for a day's route: origin =
- *  the day's accommodation (place-id form — accommodation rows carry no
- *  lat/lng) else the day pin; stops = the day's slot-ordered places
+ *  the day's accommodation whenever set (place_id, else its address/name)
+ *  else the day pin; stops = the day's slot-ordered places
  *  (morning → afternoon → evening, preferredHour within a slot), last one
  *  as destination, the rest as waypoints capped at 9 (the Maps mobile
  *  handoff limit). travelmode derives from day.transport?.mode. Returns
@@ -198,13 +198,20 @@ export function dayDirectionsUrl(
     params.set('api', '1');
     params.set('destination', destination);
     if (waypoints.length) params.set('waypoints', waypoints.join('|'));
-    // Origin: tonight's hotel anchors the day. Accommodation has a place_id
-    // but no stored lat/lng, so use the place-id URL form; else the day pin
-    // (when it isn't already the destination); else Maps defaults to the
-    // user's current location — the right live-usage fallback.
-    if (day.accommodation && day.accommodationPlaceId) {
-        params.set('origin', day.accommodation);
+    // Origin: the day's accommodation anchors the route whenever it's set —
+    // you set out from where you slept. Prefer the exact Google place_id;
+    // when accommodation was entered as free text (no place_id) fall back to
+    // its formatted address, then its name (Google geocodes the text). Only
+    // if there's no accommodation at all do we use the day pin, and finally
+    // the user's current location (Maps' default when origin is omitted).
+    const accomName = (day.accommodation || '').trim();
+    const accomAddr = (day.accommodationAddress || '').trim();
+    if (day.accommodationPlaceId) {
+        // `origin` is the display label; `origin_place_id` drives the routing.
+        params.set('origin', accomName || accomAddr || 'Accommodation');
         params.set('origin_place_id', day.accommodationPlaceId);
+    } else if (accomAddr || accomName) {
+        params.set('origin', accomAddr || accomName);
     } else if (dayPin && dayPin !== destination) {
         params.set('origin', dayPin);
     }
