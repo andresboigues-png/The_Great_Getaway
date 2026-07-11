@@ -719,6 +719,12 @@ def init_db():
                 accommodation TEXT,
                 accommodation_place_id TEXT,
                 accommodation_address TEXT,
+                -- Transportation P1: the day's "how to get around"
+                -- recommendation as JSON {"mode","note"?,"source"?}. NULL =
+                -- none set. Validated in services/day_writes.py; written via
+                -- the conditional-bind pattern (a payload omitting the key
+                -- never clobbers it). Migration a8d2c4f6b1e3.
+                transport_json TEXT,
                 -- 2026-05-26 (audit SY5): tombstone column — see
                 -- migration b7c8d9e0f1a2_add_tombstone_columns and the
                 -- matching comment on `expenses` above.
@@ -1307,6 +1313,11 @@ _EXPECTED_COLUMNS = {
         "morning",
         "afternoon",
         "evening",
+        # Day-plan block content (migration d4b9f1e7a2c8). Was missing from
+        # this tripwire since it shipped — a stale DB without it would boot
+        # clean then fail on every day read/write. Pinned alongside the
+        # transport column (Transportation P1 map flagged the omission).
+        "plan_blocks_json",
         "notes",
         "photos",
         "documents",
@@ -1317,6 +1328,8 @@ _EXPECTED_COLUMNS = {
         "accommodation",
         "accommodation_place_id",
         "accommodation_address",
+        # Transportation P1 (migration a8d2c4f6b1e3).
+        "transport_json",
         # 2026-05-26: tombstone (audit SY5).
         "deleted_at",
         # R3-Round 4: optimistic-concurrency primitive.

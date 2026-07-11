@@ -232,6 +232,11 @@ def get_public_trip(trip_id):
             day.pop('accommodation', None)
             day.pop('accommodation_place_id', None)
             day.pop('accommodation_address', None)
+            # Transportation P1: strip the raw transport_json from the public
+            # read — the share renderer doesn't display transport yet (Phase 4
+            # decision), and a user-typed note can carry member-only info
+            # ("use Sara's Navigo card"). Members read it via /api/data.
+            day.pop('transport_json', None)
             # Per-day personal `notes` (journaling) + the free-text `tip` are
             # the planner's own jottings — strip them for NON-members, the
             # same privacy contract as photos/documents below. The plan text

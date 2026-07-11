@@ -255,6 +255,31 @@ export interface TripChecklistItem {
  *  interleaved anywhere among the notes rather than pinned at the top. */
 export type PlanBlock = { type: 'text'; text: string } | { type: 'place'; placeId: string };
 
+/** Transport modes the per-day recommendation may carry. Mirrors the
+ *  server-side allowlist in services/day_writes.py (_TRANSPORT_MODES). */
+export type TransportMode =
+    | 'walk'
+    | 'metro'
+    | 'bus'
+    | 'train'
+    | 'tram'
+    | 'car'
+    | 'taxi'
+    | 'bike'
+    | 'ferry'
+    | 'flight'
+    | 'mixed';
+
+/** Transportation P1: a day's "how to get around" recommendation. `source`
+ *  records who wrote it — the AI planner / Suggest button never overwrite a
+ *  'user' value. Backed by trip_days.transport_json (migration a8d2c4f6b1e3). */
+export interface DayTransport {
+    mode: TransportMode;
+    /** One practical line (day-pass price, key station, how to buy). ≤200ch. */
+    note?: string;
+    source?: 'ai' | 'suggest' | 'user';
+}
+
 export interface TripDay {
     id: string;
     tripId: string;
@@ -279,6 +304,8 @@ export interface TripDay {
     /** Longitude. `lon` and `lng` are both written; readers should accept either. */
     lon?: number | null;
     lng?: number | null;
+    /** Transportation P1: how to get around this day. Null/absent = none. */
+    transport?: DayTransport | null;
     /** Where you're staying this day. Display name, e.g. "Hotel Garnier".
      *  Set via the day-detail Accommodation picker. NULL / '' = none. */
     accommodation?: string | null;

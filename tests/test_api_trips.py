@@ -1941,6 +1941,7 @@ def test_clone_copies_plan_blocks_and_accommodation(client, seed_user, auth_head
                 "accommodation": "Hotel Baixa",
                 "accommodationPlaceId": "ChIJ-hotel-999",
                 "accommodationAddress": "Rua Augusta 1, Lisbon",
+                "transport": {"mode": "metro", "note": "24h pass", "source": "user"},
                 "lat": 38.7,
                 "lng": -9.1,
             },
@@ -1969,6 +1970,9 @@ def test_clone_copies_plan_blocks_and_accommodation(client, seed_user, auth_head
     assert day["accommodation"] == "Hotel Baixa"
     assert day["accommodationPlaceId"] == "ChIJ-hotel-999"
     assert day["accommodationAddress"] == "Rua Augusta 1, Lisbon"
+    # Transportation P1: the per-day recommendation is plan-class content and
+    # rides the member clone (review finding: the clone SELECT/INSERT dropped it).
+    assert day["transport"] == {"mode": "metro", "note": "24h pass", "source": "user"}
 
 
 def test_clone_drops_uploaded_cover_keeps_shared(client, seed_user, auth_headers):

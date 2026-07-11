@@ -24,6 +24,8 @@
 
 import { esc, formatDayDate, shortPlaceName, localTodayIso } from '../../utils.js';
 import { resolveSelectedDayId } from './pathSelection.js';
+import { dayDirectionsUrl } from '../../todoCategories.js';
+import { transportModeIcon, transportModeLabel } from './transportModal.js';
 import { t, tn } from '../../i18n.js';
 // 4.8 design (DSGN-2): inline-SVG line icons replace the emoji prefixes
 // on the Trip Hub buttons. stripLeadingEmoji drops the emoji from the
@@ -179,6 +181,33 @@ function buildDayCardBody(
                 : `<span style="color: #005bb8; display:inline-flex; align-items:center; gap:4px;">🛏️ ${esc(day.accommodation)}</span>`);
         } else {
             subtitleParts.push(`<button type="button" class="day-card__accom-set" data-day-id="${esc(day.id)}" style="display:inline-flex; align-items:center; gap:4px; background:none; border:none; padding:0; margin:0; font:inherit; color:#005bb8; cursor:pointer;">🛏️ <span style="text-decoration:underline;">${esc(t('pathTab.stayNotSet'))}</span></button>`);
+        }
+        // Transportation P1: how to get around this day. Set → a pill (mode
+        // icon + label + note, tap to edit); unset → a muted set-button
+        // (mirrors the accommodation slot; the modal gates editability, so
+        // viewers get a read-only view). The delegated dispatcher in
+        // TripBody.tsx handles both classes.
+        const tr = day.transport;
+        if (tr) {
+            const noteHtml = tr.note
+                ? ` <span style="opacity:.75; font-weight:600; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">· ${esc(tr.note)}</span>`
+                : '';
+            subtitleParts.push(
+                `<button type="button" class="day-card__transport-pill" data-day-id="${esc(day.id)}" title="${esc(tr.note || transportModeLabel(tr.mode))}" style="display:inline-flex; align-items:center; gap:4px; background:none; border:none; padding:0; margin:0; font:inherit; color:#005bb8; cursor:pointer;">${transportModeIcon(tr.mode)} <span style="text-decoration:underline;">${esc(transportModeLabel(tr.mode))}</span>${noteHtml}</button>`,
+            );
+        } else {
+            subtitleParts.push(
+                `<button type="button" class="day-card__transport-set" data-day-id="${esc(day.id)}" style="display:inline-flex; align-items:center; gap:4px; background:none; border:none; padding:0; margin:0; font:inherit; color:#005bb8; cursor:pointer;">🚌 <span style="text-decoration:underline;">${esc(t('pathTab.transportNotSet'))}</span></button>`,
+            );
+        }
+        // Free Google Maps directions deep link for the day's route (stored
+        // coords only — zero Directions-API billing). Omitted when the day
+        // has nothing routable.
+        const dirUrl = dayDirectionsUrl(day, activeTrip);
+        if (dirUrl) {
+            subtitleParts.push(
+                `<a class="day-card__directions" href="${esc(dirUrl)}" target="_blank" rel="noopener noreferrer" title="${esc(t('transport.directionsTitle'))}" style="color:#005bb8; display:inline-flex; align-items:center; gap:4px; text-decoration:none;">🧭 <span style="text-decoration:underline;">${esc(t('transport.directionsLabel'))}</span><span aria-hidden="true" style="font-size:0.7rem; opacity:0.7;">↗</span></a>`,
+            );
         }
         // Weather slot — populated async by applyWeatherChips() after
         // the trip's forecast lands. Empty by default so days that have

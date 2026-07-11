@@ -168,7 +168,7 @@ def _build_template_snapshot(cursor, trip_id, include_plans, include_places, inc
     if include_plans:
         cursor.execute(
             "SELECT day_number, name, morning, afternoon, evening, tip, lat, lng, "
-            "       plan_blocks_json "
+            "       plan_blocks_json, transport_json "
             "FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL "
             "ORDER BY day_number",
             (trip_id,),
@@ -195,6 +195,11 @@ def _build_template_snapshot(cursor, trip_id, include_plans, include_places, inc
             blocks = _loads(d["plan_blocks_json"])
             if blocks:
                 day_snap["planBlocks"] = blocks
+            # Transportation P1: the day's mode/note recommendation is
+            # shareable content (same class as the plan text).
+            transport = _loads(d["transport_json"])
+            if transport:
+                day_snap["transport"] = transport
             snap["days"].append(day_snap)
 
     if include_places:
@@ -325,6 +330,17 @@ def _instantiate_template(cursor, snap, includes, new_owner_id, start_date=None)
         # leave the column NULL and the client renders from the flat plan text.
         blocks = d.get("planBlocks")
         blocks_json = json.dumps(blocks) if blocks else None
+        # Transportation P1: carry the snapshot's per-day recommendation into
+        # the created trip (shareable content, like the plan text). Re-validate
+        # through the same cleaner the write path uses — snapshots normally
+        # hold already-validated values, but a source trip built from a
+        # hand-edited ZIP import (which inserts by column-intersection,
+        # unvalidated by sanctioned posture) could otherwise freeze junk into
+        # a public template and propagate it into other users' trips.
+        from services.day_writes import _clean_transport
+
+        transport = _clean_transport(d.get("transport"))
+        transport_json = json.dumps(transport) if transport else None
         for _attempt in range(5):
             day_id = _new_id()
             try:
@@ -333,8 +349,8 @@ def _instantiate_template(cursor, snap, includes, new_owner_id, start_date=None)
                     INSERT INTO trip_days (
                         id, trip_id, day_number, date, name,
                         morning, afternoon, evening, tip, lat, lng,
-                        plan_blocks_json
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        plan_blocks_json, transport_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         day_id,
@@ -349,6 +365,7 @@ def _instantiate_template(cursor, snap, includes, new_owner_id, start_date=None)
                         d.get("lat"),
                         d.get("lng"),
                         blocks_json,
+                        transport_json,
                     ),
                 )
                 break

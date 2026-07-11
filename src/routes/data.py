@@ -1008,6 +1008,14 @@ def get_data():
             except (json.JSONDecodeError, TypeError):
                 day['planBlocks'] = None
 
+            # Transportation P1: {"mode","note"?,"source"?} or null (no
+            # recommendation set). Server-validated on write (day_writes.py).
+            _transport_raw = day.pop('transport_json', None)
+            try:
+                day['transport'] = json.loads(_transport_raw) if _transport_raw else None
+            except (json.JSONDecodeError, TypeError):
+                day['transport'] = None
+
             # §2.15: narrow exception types so unrelated bugs (e.g. a
             # missing key on a future-shaped row) aren't silently
             # swallowed.

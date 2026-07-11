@@ -66,6 +66,44 @@ def _clean_plan_blocks(raw):
     return out or None
 
 
+# ── Per-day transport recommendation (Transportation P1) ──
+# {"mode": <enum>, "note"?: str<=200, "source"?: "ai"|"suggest"|"user"}.
+# `source` lets the AI planner / Suggest button know whether they may
+# overwrite (user-set values are never clobbered by automation).
+_TRANSPORT_MODES = (
+    "walk",
+    "metro",
+    "bus",
+    "train",
+    "tram",
+    "car",
+    "taxi",
+    "bike",
+    "ferry",
+    "flight",
+    "mixed",
+)
+_TRANSPORT_SOURCES = ("ai", "suggest", "user")
+_MAX_TRANSPORT_NOTE = 200
+
+
+def _clean_transport(raw):
+    """Validate incoming `transport` → {"mode",...} or None. None/invalid
+    clears the column (the day has no recommendation)."""
+    if not isinstance(raw, dict):
+        return None
+    mode = raw.get("mode")
+    if mode not in _TRANSPORT_MODES:
+        return None
+    out = {"mode": mode}
+    note = raw.get("note")
+    if isinstance(note, str) and note.strip():
+        out["note"] = note.strip()[:_MAX_TRANSPORT_NOTE]
+    if raw.get("source") in _TRANSPORT_SOURCES:
+        out["source"] = raw["source"]
+    return out
+
+
 def _flatten_block_text(blocks_for_slot):
     """Join a slot's text blocks into a plain string for the flat legacy
     column (PDF export + any pre-blocks reader). Place blocks drop out."""
@@ -264,6 +302,16 @@ def apply_day_upsert(
     # trip_days (day['documents'] / day['photos']); upsert_trip and the
     # trip-media endpoints are untouched. The four heavy trip-level columns
     # are not reachable from here.
+    # Transportation P1 — conditional like planBlocks/documents/photos: only
+    # written when the client sends the `transport` key, so older clients and
+    # legacy sync bundles (which never send it) can't NULL a set value.
+    # Explicit transport=null clears the recommendation.
+    if "transport" in d:
+        _transport = _clean_transport(d.get("transport"))
+        cols += ", transport_json"
+        set_clause += "\n            transport_json=excluded.transport_json,"
+        params.append(json.dumps(_transport) if _transport else None)
+
     if "documents" in d:
         _docs = d.get("documents")
         cols += ", documents"

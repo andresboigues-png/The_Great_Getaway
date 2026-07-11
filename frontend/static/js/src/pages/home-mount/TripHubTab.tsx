@@ -25,16 +25,59 @@ import { upsertTrip } from '../../api.js';
 import { openAccommodationModal, consumePendingAccommodationOpen } from '../home/accommodationModal.js';
 import { openTripChecklistModal } from '../home/tripChecklistModal.js';
 import { openTripDocumentsModal, openTripPhotosModal } from '../home/tripMediaModals.js';
-import type { Trip, Expense } from '../../types';
+import { transportModeIcon, transportModeLabel } from '../home/transportModal.js';
+import type { Trip, Expense, TripDay, TransportMode } from '../../types';
 
 
 export interface TripHubTabProps {
     activeTrip: Trip;
     isActive: boolean;
+    /** "Getting around" range rows tap through to that day in Your Path. */
+    onOpenDay?: (dayId: string) => void;
 }
 
 
-export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
+/** One run of consecutive days sharing a transport mode ("Days 1–3 · Metro").
+ *  Days without a recommendation break runs and are skipped. `note` is the
+ *  first non-empty note in the run (rendered small; the per-day pill shows
+ *  each day's own note). `firstDayId` is the tap-through target. */
+interface TransportRange {
+    fromDay: number;
+    toDay: number;
+    mode: TransportMode;
+    note: string;
+    firstDayId: string;
+}
+
+function transportRanges(days: TripDay[]): TransportRange[] {
+    const numbered = days
+        .filter((d) => (d.dayNumber || 0) > 0)
+        .sort((a, b) => a.dayNumber - b.dayNumber);
+    const ranges: TransportRange[] = [];
+    for (const d of numbered) {
+        const tr = d.transport;
+        if (!tr) continue;
+        const last = ranges[ranges.length - 1];
+        // Extend the run only when the mode matches AND the day numbers are
+        // consecutive — a gap (unset day between) starts a new range.
+        if (last && last.mode === tr.mode && d.dayNumber === last.toDay + 1) {
+            last.toDay = d.dayNumber;
+            if (!last.note && tr.note) last.note = tr.note;
+        } else {
+            ranges.push({
+                fromDay: d.dayNumber,
+                toDay: d.dayNumber,
+                mode: tr.mode,
+                note: tr.note || '',
+                firstDayId: d.id,
+            });
+        }
+    }
+    return ranges;
+}
+
+
+export function TripHubTab({ activeTrip, isActive, onOpenDay }: TripHubTabProps) {
     const tripIsEditable = canEdit(activeTrip);
 
     // Deep-link: the AI page "set your accommodation" banner sets a flag
@@ -155,6 +198,55 @@ export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
                         </p>
                     )}
                 </div>
+
+                {/* Transportation P1: "Getting around" — the trip-wide
+                    at-a-glance summary, run-length compressed from the
+                    per-day transport recommendations ("Days 1–3 · Metro").
+                    Computed at read time (no second storage location); each
+                    range row taps through to that day in Your Path where the
+                    per-day pill + editor + directions link live. Hidden
+                    entirely for viewers when nothing is set. */}
+                {(() => {
+                    const ranges = transportRanges(tripDays);
+                    if (!ranges.length && !tripIsEditable) return null;
+                    return (
+                        <div className="trip-hub__section">
+                            <div className="trip-hub__section-head">
+                                <span>🚌</span>
+                                <span>{t('tripHub.transportLabel')}</span>
+                            </div>
+                            {ranges.length ? (
+                                <div className="trip-hub__transport-rows">
+                                    {ranges.map((r) => (
+                                        <button
+                                            key={`${r.fromDay}-${r.mode}`}
+                                            type="button"
+                                            className="trip-hub__transport-row"
+                                            onClick={() => onOpenDay?.(r.firstDayId)}
+                                        >
+                                            <span className="trip-hub__transport-row__icon" aria-hidden="true">
+                                                {transportModeIcon(r.mode)}
+                                            </span>
+                                            <span className="trip-hub__transport-row__days">
+                                                {r.fromDay === r.toDay
+                                                    ? t('tripHub.transportDaySingle', { n: r.fromDay })
+                                                    : t('tripHub.transportDayRange', { from: r.fromDay, to: r.toDay })}
+                                            </span>
+                                            <span className="trip-hub__transport-row__mode">
+                                                {transportModeLabel(r.mode)}
+                                            </span>
+                                            {r.note ? (
+                                                <span className="trip-hub__transport-row__note">{r.note}</span>
+                                            ) : null}
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="trip-hub__transport-empty">{t('tripHub.transportEmpty')}</p>
+                            )}
+                        </div>
+                    );
+                })()}
 
                 {/* Accommodation — dedicated entry point (the 2026-06
                     redesign moved this out of the per-day modal). Opens the

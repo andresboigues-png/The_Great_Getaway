@@ -66,6 +66,12 @@ _INTENTIONAL_ENGLISH = {
     'collections.title': 'fr: identical loanword',
     'collections.publicLabel': 'fr: "Public" identical',
     'profile.visibilityPublic': 'fr: "Public" identical (same word)',
+    # Transportation P1 — transport-mode names are cross-language cognates.
+    'transport.mode_metro': 'pt/es: "Metro" identical (same word)',
+    'transport.mode_ferry': 'pt/es/fr: "Ferry" identical (accepted loanword)',
+    'transport.mode_taxi': 'es/fr: "Taxi" identical (same word)',
+    'transport.mode_train': 'fr: "Train" identical (same word)',
+    'transport.noteLabel': 'fr: "Note" identical (same word)',
     'poi.restaurants': 'fr: identical (same word)',
     'poi.pharmacies': 'fr: identical (same word)',
     'dayDetail.photosHeading': 'fr: "Photos" identical (same word)',

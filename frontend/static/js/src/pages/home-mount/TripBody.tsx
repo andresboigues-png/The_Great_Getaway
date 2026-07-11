@@ -36,6 +36,7 @@ import {
 import { openTripChecklistModal } from '../home/tripChecklistModal.js';
 import { openTripDocumentsModal, openTripPhotosModal } from '../home/tripMediaModals.js';
 import { openAccommodationModal } from '../home/accommodationModal.js';
+import { openTransportModal } from '../home/transportModal.js';
 import { openDayPinPlaceModal } from '../home/dayPinPlaceModal.js';
 import { openDayDetail as _openDayDetailRaw, type HomeTab } from '../home/dayDetailModal.js';
 import { buildPathTabHtml, togglePathCardCollapsed } from '../home/pathTab.js';
@@ -333,6 +334,15 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                 openAccommodationModal(activeTrip, { preselectDayId: accomSetBtn.dataset.dayId });
                 return;
             }
+            // Transportation P1: both the "not set" hint and the set pill open
+            // the per-day transport editor (read-only inside for viewers).
+            const transportBtn = target.closest(
+                '.day-card__transport-set, .day-card__transport-pill',
+            ) as HTMLElement | null;
+            if (transportBtn?.dataset.dayId) {
+                openTransportModal(activeTrip, transportBtn.dataset.dayId);
+                return;
+            }
             if (target.closest('.path-checklist-btn')) {
                 openTripChecklistModal(activeTrip);
                 return;
@@ -373,9 +383,10 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                 setSelectedDay(activeTrip.id, chip.dataset.pathChipDayId);
                 return;
             }
-            // Accommodation link opens its Maps place page in a new tab — let
-            // the <a> handle it; don't also re-select the card.
-            if (target.closest('.day-card__accom-link')) return;
+            // Accommodation / directions links open Google Maps in a new tab —
+            // let the <a> handle it; don't also re-select the card (which would
+            // repaint the Path inner and detach the anchor mid-dispatch).
+            if (target.closest('.day-card__accom-link, .day-card__directions')) return;
             // Card body click — selects that card.
             const pathCard = target.closest(
                 '.path-card[data-day-id]',
@@ -552,7 +563,17 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                 </nav>
             </div>
 
-            <TripHubTab activeTrip={activeTrip} isActive={activeTab === 'hub'} />
+            <TripHubTab
+                activeTrip={activeTrip}
+                isActive={activeTab === 'hub'}
+                onOpenDay={(dayId) => {
+                    // "Getting around" range rows tap through to that day in
+                    // Your Path: switch tab, then select the day (persists +
+                    // repaints the Path inner + pans the map).
+                    switchTab('days');
+                    setSelectedDay(activeTrip.id, dayId);
+                }}
+            />
 
             <CompanionsCard
                 activeTrip={activeTrip}

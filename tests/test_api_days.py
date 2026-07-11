@@ -778,3 +778,152 @@ def test_day_stale_clientUpdatedAt_returns_409(
         else found.get("morning")
     )
     assert morning == "second", "stale write should not have overwritten the second write"
+
+
+# ── Transportation P1: trip_days.transport_json ──────────────────────────────
+
+
+def test_upsert_day_stores_transport(client, seed_user, auth_headers):
+    """A day's transport recommendation {mode, note, source} round-trips
+    through the write path and comes back parsed on /api/data."""
+    import json as _json
+
+    from database import get_db
+
+    client.post("/api/trips", headers=auth_headers, json={"trip": {"id": "trip-t1", "name": "T"}})
+    res = client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={
+            "day": {
+                "id": "day-t1",
+                "tripId": "trip-t1",
+                "dayNumber": 1,
+                "transport": {"mode": "metro", "note": "24h pass €7.50", "source": "user"},
+            }
+        },
+    )
+    assert res.status_code == 200
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT transport_json FROM trip_days WHERE id = ?", ("day-t1",)
+        ).fetchone()
+    assert _json.loads(row["transport_json"]) == {
+        "mode": "metro",
+        "note": "24h pass €7.50",
+        "source": "user",
+    }
+    # /api/data serves it parsed under `transport`.
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    day = next(d for d in data["tripDays"] if d["id"] == "day-t1")
+    assert day["transport"]["mode"] == "metro"
+
+
+def test_upsert_day_without_transport_preserves_column(client, seed_user, auth_headers):
+    """A later write that OMITS the transport key (older client, unrelated
+    edit) must NOT clobber the stored recommendation to NULL."""
+    from database import get_db
+
+    client.post("/api/trips", headers=auth_headers, json={"trip": {"id": "trip-t2", "name": "T"}})
+    client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={
+            "day": {
+                "id": "day-t2",
+                "tripId": "trip-t2",
+                "dayNumber": 1,
+                "transport": {"mode": "walk"},
+            }
+        },
+    )
+    client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={"day": {"id": "day-t2", "tripId": "trip-t2", "dayNumber": 1, "name": "Renamed"}},
+    )
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT name, transport_json FROM trip_days WHERE id = ?", ("day-t2",)
+        ).fetchone()
+    assert row["name"] == "Renamed"
+    assert row["transport_json"] is not None, "omitting the key must not clobber"
+
+
+def test_upsert_day_null_transport_clears_column(client, seed_user, auth_headers):
+    """Explicit transport=null (present key) clears the recommendation —
+    distinct from omitting the key (no-clobber, tested above)."""
+    from database import get_db
+
+    client.post("/api/trips", headers=auth_headers, json={"trip": {"id": "trip-t3", "name": "T"}})
+    client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={
+            "day": {
+                "id": "day-t3",
+                "tripId": "trip-t3",
+                "dayNumber": 1,
+                "transport": {"mode": "train", "source": "ai"},
+            }
+        },
+    )
+    res = client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={"day": {"id": "day-t3", "tripId": "trip-t3", "dayNumber": 1, "transport": None}},
+    )
+    assert res.status_code == 200
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT transport_json FROM trip_days WHERE id = ?", ("day-t3",)
+        ).fetchone()
+    assert row["transport_json"] is None
+
+
+def test_upsert_day_transport_validation(client, seed_user, auth_headers):
+    """Unknown modes are rejected (stored as NULL, never junk); the note is
+    capped at 200 chars; an unknown source is dropped from the stored value."""
+    import json as _json
+
+    from database import get_db
+
+    client.post("/api/trips", headers=auth_headers, json={"trip": {"id": "trip-t4", "name": "T"}})
+    # Invalid mode → whole value rejected → NULL.
+    client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={
+            "day": {
+                "id": "day-t4",
+                "tripId": "trip-t4",
+                "dayNumber": 1,
+                "transport": {"mode": "teleport", "note": "zap"},
+            }
+        },
+    )
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT transport_json FROM trip_days WHERE id = ?", ("day-t4",)
+        ).fetchone()
+    assert row["transport_json"] is None
+    # Oversized note is truncated; junk source is dropped.
+    client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={
+            "day": {
+                "id": "day-t4",
+                "tripId": "trip-t4",
+                "dayNumber": 1,
+                "transport": {"mode": "bus", "note": "x" * 500, "source": "hacker"},
+            }
+        },
+    )
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT transport_json FROM trip_days WHERE id = ?", ("day-t4",)
+        ).fetchone()
+    stored = _json.loads(row["transport_json"])
+    assert len(stored["note"]) == 200
+    assert "source" not in stored

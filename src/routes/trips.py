@@ -1661,7 +1661,7 @@ def _clone_trip_record(
     # soft-deleted day doesn't reincarnate in the destination trip.
     cursor.execute(
         "SELECT day_number, date, name, morning, afternoon, evening, "
-        "       tip, plan_blocks_json, lat, lng, "
+        "       tip, plan_blocks_json, transport_json, lat, lng, "
         "       accommodation, accommodation_place_id, accommodation_address "
         "FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL",
         (source_trip_id,),
@@ -1688,11 +1688,11 @@ def _clone_trip_record(
                     INSERT INTO trip_days (
                         id, trip_id, day_number, date, name,
                         morning, afternoon, evening, tip,
-                        plan_blocks_json,
+                        plan_blocks_json, transport_json,
                         lat, lng,
                         accommodation, accommodation_place_id,
                         accommodation_address
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''',
                     (
                         candidate_day_id,
@@ -1715,6 +1715,9 @@ def _clone_trip_record(
                         # are hidden so a share-link clone can't resurrect plan
                         # blocks the share page suppressed (A4-B1 / Audit MK5 P1).
                         d['plan_blocks_json'] if include_plans else None,
+                        # Transportation P1: the per-day mode/note is plan-class
+                        # content ("how to execute the day") — same share gate.
+                        d['transport_json'] if include_plans else None,
                         d['lat'],
                         d['lng'],
                         # Accommodation (where you sleep this day) is member-only
