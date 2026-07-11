@@ -215,8 +215,18 @@ export function dayDirectionsUrl(
     } else if (dayPin && dayPin !== destination) {
         params.set('origin', dayPin);
     }
-    const mode = day.transport?.mode;
-    params.set('travelmode', (mode && _TRAVELMODE[mode]) || 'transit');
+    // Travel mode. Google Maps CANNOT compute a multi-stop TRANSIT route —
+    // transit ignores intermediate waypoints and the link dead-ends with
+    // "couldn't calculate public transport". So only force transit for a
+    // single-leg route (no waypoints); on a multi-stop day omit travelmode and
+    // let Maps default to a waypoint-capable mode (the transit tab is still one
+    // tap away). Walk / bike / drive all support waypoints, so always keep
+    // them. No mode → omit (Maps picks a sensible default) rather than forcing
+    // the transit that used to fail.
+    const tm = day.transport?.mode ? _TRAVELMODE[day.transport.mode] : undefined;
+    if (tm && !(tm === 'transit' && waypoints.length > 0)) {
+        params.set('travelmode', tm);
+    }
     return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 
