@@ -752,11 +752,17 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                 // reused day row + the public share page. `''` serialises
                 // through upsertDay and clears the column.
                 prior.tip = tip;
-                // Transportation P2: assign unconditionally (C2-B1 — a re-run
-                // replaces the prior run's stale value, and an AI omission
-                // clears it) EXCEPT when the user set it by hand: user beats
-                // automation, per the source contract in types.d.ts.
-                if (prior.transport?.source !== 'user') prior.transport = aiTransport;
+                // Transportation P2 (+ review refinement): a REAL new AI value
+                // replaces anything automation wrote (C2-B1 — no stale carry-
+                // over); but when the model OMITTED transport (or it failed
+                // validation, aiTransport null), only a stale 'ai' value is
+                // cleared — a user-initiated Suggest fill ('suggest') survives
+                // the omission instead of being silently wiped. 'user' always
+                // wins, per the source contract in types.d.ts.
+                if (prior.transport?.source !== 'user') {
+                    if (aiTransport) prior.transport = aiTransport;
+                    else if (prior.transport?.source === 'ai') prior.transport = null;
+                }
                 if (typeof dayInfo.lat === 'number') prior.lat = dayInfo.lat;
                 if (typeof dayInfo.lon === 'number') prior.lng = dayInfo.lon;
                 void upsertDay(prior);
@@ -866,17 +872,19 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
             const hadPlan = !!(
                 d.plan?.morning || d.plan?.afternoon || d.plan?.evening || d.tip || d.planBlocks
             );
-            // Transportation P2: an automation-written recommendation on a
-            // now-out-of-range day is stale too — clear it alongside the plan.
-            // A user-set value survives (same contract as the in-range merge).
-            const hadStaleTransport = !!(d.transport && d.transport.source !== 'user');
+            // Transportation P2 (+ review refinement): only the AI planner's
+            // OWN stale value is cleared on an out-of-range day — a user-set
+            // ('user') or user-initiated Suggest fill ('suggest') survives,
+            // matching the in-range merge and the places contract (drop only
+            // what this machinery wrote).
+            const hadStaleTransport = !!(d.transport && d.transport.source === 'ai');
             if (!hadPlan && !hadStaleTransport) continue;
             if (hadStaleTransport) d.transport = null;
+            if (hadPlan || hadStaleTransport) clearedDays++;
             if (hadPlan) {
                 d.plan = { morning: '', afternoon: '', evening: '' };
                 d.tip = '';
                 d.planBlocks = null;
-                clearedDays++;
             }
             void upsertDay(d);
         }

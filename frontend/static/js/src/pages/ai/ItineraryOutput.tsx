@@ -9,6 +9,24 @@
 import { useState } from 'react';
 import { t } from '../../i18n.js';
 import { showLiquidAlert } from '../../utils.js';
+import { transportModeIcon, transportModeLabel } from '../home/transportModal.js';
+import type { TransportMode } from '../../types';
+
+// Transportation P2 (review fix): the preview must SHOW the per-day transport
+// the accept will write — otherwise the user reviews meals/sights carefully,
+// accepts, and days silently gain recommendations they never saw. Narrow the
+// LLM's opaque field with the same allowlist the accept path uses.
+const _PREVIEW_MODES = new Set<string>([
+    'walk', 'metro', 'bus', 'train', 'tram', 'car', 'taxi', 'bike', 'ferry', 'flight', 'mixed',
+]);
+function previewTransport(raw: unknown): { mode: TransportMode; note?: string } | null {
+    const tr = raw as { mode?: unknown; note?: unknown } | null;
+    if (!tr || typeof tr !== 'object' || typeof tr.mode !== 'string' || !_PREVIEW_MODES.has(tr.mode)) {
+        return null;
+    }
+    const note = typeof tr.note === 'string' ? tr.note.trim() : '';
+    return { mode: tr.mode as TransportMode, ...(note ? { note } : {}) };
+}
 import {
     renderSlotBody,
     renderRestaurantCard,
@@ -199,6 +217,18 @@ export function ItineraryOutput({
                                     >
                                         {day.date || ''}
                                     </span>
+                                    {(() => {
+                                        const tr = previewTransport(day.transport);
+                                        if (!tr) return null;
+                                        return (
+                                            <div className="mt-1 text-[0.82rem] font-semibold text-secondary">
+                                                {transportModeIcon(tr.mode)} {transportModeLabel(tr.mode)}
+                                                {tr.note ? (
+                                                    <span className="font-normal opacity-80"> · {tr.note}</span>
+                                                ) : null}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                                 {isFoodSightsSchema(day) ? (
                                     <>

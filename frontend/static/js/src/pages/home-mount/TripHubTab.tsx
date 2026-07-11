@@ -90,7 +90,7 @@ export function TripHubTab({ activeTrip, isActive, onOpenDay }: TripHubTabProps)
             changed
                 ? tn('tripHub.transportSuggestDone', changed, { count: changed })
                 : t('tripHub.transportSuggestNone'),
-            changed ? 'success' : undefined,
+            changed ? 'success' : 'info',
         );
     };
     const onRefineTransport = () => {
@@ -102,7 +102,7 @@ export function TripHubTab({ activeTrip, isActive, onOpenDay }: TripHubTabProps)
                     changed
                         ? tn('tripHub.transportSuggestDone', changed, { count: changed })
                         : t('tripHub.transportSuggestNone'),
-                    changed ? 'success' : undefined,
+                    changed ? 'success' : 'info',
                 );
             })
             .catch((e: Error) => {

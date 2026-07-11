@@ -6,14 +6,17 @@
 //   2. AI refine — one lightweight Gemini call (POST /api/suggest_transport,
 //      shared key pool + the same 20/day cap) sending only day summaries.
 //
-// Both only ever touch days that are UNSET or previously suggestion-filled
-// (source 'suggest'/'ai' refreshable by refine; heuristic only fills blanks
-// + its own prior output). A user-set value (source:'user') is never
-// overwritten — same contract as the AI planner accept path.
+// Both only ever touch days that are UNSET or previously SUGGEST-filled —
+// review fix: 'ai' values (the AI planner's, often carrying real local-
+// knowledge notes) are NOT refine-fodder; retagging them 'suggest' would let
+// the crude geometry heuristic stomp them one click later. A user-set value
+// (source:'user') is never overwritten, re-checked AT WRITE TIME (the refine
+// round-trip can take many seconds and the user can edit meanwhile).
 
 import { STATE, emit } from '../../state.js';
-import { apiFetch, upsertDay } from '../../api.js';
-import { getLocale } from '../../i18n.js';
+import { apiFetch, upsertDay, isUnretryableRejection } from '../../api.js';
+import { getLocale, t } from '../../i18n.js';
+import { showLiquidAlert } from '../../utils.js';
 import { repaintPathTab } from './pathSelection.js';
 import type { Trip, TripDay, DayTransport, TransportMode } from '../../types';
 
@@ -55,9 +58,27 @@ function dayCenter(trip: Trip, day: TripDay): Pt | null {
     };
 }
 
-/** May automation (heuristic / refine) write over this day's value? */
-function isAutomationWritable(day: TripDay): boolean {
-    return !day.transport || day.transport.source !== 'user';
+/** May the Suggest machinery (heuristic / refine) write over this day's
+ *  value? Only blanks and its OWN prior output — never a user-set value,
+ *  and (review fix) never the AI planner's ('ai'), whose notes carry local
+ *  knowledge the geometry heuristic can't reproduce. */
+function isSuggestWritable(day: TripDay): boolean {
+    return !day.transport || day.transport.source === 'suggest';
+}
+
+/** Persist a suggest write honestly (MK5 cluster-#1 pattern, same as the
+ *  transport modal): optimistic value already applied — on a server
+ *  REJECTION (403 role-revoked race, 5xx) roll THIS day back + toast once
+ *  (showLiquidAlert dedupes by message). Network-0 rides the offline
+ *  outbox; 409 is self-handled inside upsertDay. */
+function persistSuggest(day: TripDay, previous: TripDay['transport']): void {
+    void upsertDay(day).then((res) => {
+        if (!isUnretryableRejection(res)) return;
+        day.transport = previous ?? null;
+        emit('state:changed');
+        repaintPathTab();
+        showLiquidAlert(t('toasts.saveFailed'));
+    });
 }
 
 /** Numbered days of the trip, sorted. */
@@ -81,7 +102,7 @@ export function applyHeuristicTransports(trip: Trip): number {
     let prevCenter: Pt | null = null;
     for (const day of days) {
         const center = dayCenter(trip, day);
-        const eligible = isAutomationWritable(day) && (!day.transport || day.transport.source === 'suggest');
+        const eligible = isSuggestWritable(day);
         if (eligible) {
             let next: DayTransport | null = null;
             if (prevCenter && center && kmBetween(prevCenter.lat, prevCenter.lng, center.lat, center.lng) > 60) {
@@ -101,8 +122,9 @@ export function applyHeuristicTransports(trip: Trip): number {
                 }
             }
             if (next && (day.transport?.mode !== next.mode || day.transport?.source !== next.source)) {
+                const previous = day.transport ?? null;
                 day.transport = next;
-                void upsertDay(day);
+                persistSuggest(day, previous);
                 changed++;
             }
         }
@@ -122,7 +144,9 @@ export function applyHeuristicTransports(trip: Trip): number {
  *  as source:'suggest'. Resolves to the number of days changed; throws on
  *  cap/availability errors so the caller can toast. */
 export async function refineTransportsWithAI(trip: Trip): Promise<number> {
-    const days = suggestableDays(trip).filter(isAutomationWritable);
+    // Match the server's 60-day summary cap explicitly so a longer trip's
+    // tail is dropped HERE, knowingly, rather than silently server-side.
+    const days = suggestableDays(trip).filter(isSuggestWritable).slice(0, 60);
     if (!days.length) return 0;
     const body = {
         destination: trip.country || trip.name || '',
@@ -137,11 +161,19 @@ export async function refineTransportsWithAI(trip: Trip): Promise<number> {
         })),
         ...(STATE.geminiApiKey ? { gemini_key: STATE.geminiApiKey } : {}),
     };
-    const res = await apiFetch('/api/suggest_transport', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
+    // 120s client budget (MK2 BUG-3 class): the server sweeps up to 2 models ×
+    // N keys at 30s each — the 20s apiFetch default would abort client-side
+    // while the server still completes and spends the user's daily pool quota
+    // on a response nobody reads.
+    const res = await apiFetch(
+        '/api/suggest_transport',
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        },
+        120_000,
+    );
     const json = (await res.json().catch(() => null)) as {
         transports?: { day: number; mode: string; note?: string }[];
         userCapHit?: boolean;
@@ -157,13 +189,28 @@ export async function refineTransportsWithAI(trip: Trip): Promise<number> {
     for (const day of days) {
         const rec = byDay.get(day.dayNumber);
         if (!rec) continue;
+        // Review fix (write-time re-check): the round-trip above can take many
+        // seconds; if the user hand-set this day meanwhile, their value wins —
+        // the pre-await eligibility snapshot is not enough.
+        if (!isSuggestWritable(day)) continue;
         const note = (rec.note || '').trim().slice(0, 200);
-        day.transport = {
+        const next = {
             mode: rec.mode as TransportMode,
             ...(note ? { note } : {}),
-            source: 'suggest',
+            source: 'suggest' as const,
         };
-        void upsertDay(day);
+        // Already-equal guard (parity with the heuristic): identical answers
+        // must not fire redundant POSTs or inflate the "N days" toast.
+        if (
+            day.transport?.mode === next.mode
+            && (day.transport?.note || '') === (next.note || '')
+            && day.transport?.source === 'suggest'
+        ) {
+            continue;
+        }
+        const previous = day.transport ?? null;
+        day.transport = next;
+        persistSuggest(day, previous);
         changed++;
     }
     if (changed) {
