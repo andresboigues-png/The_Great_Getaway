@@ -81,6 +81,10 @@ export interface AiDayPlan {
     /** Geocoded coordinates, written back onto the day after lookup. */
     lat?: number;
     lon?: number;
+    /** Transportation P2: the model's per-day "how to get around"
+     *  recommendation ({mode, note?}). Read opaquely — the accept path
+     *  validates the mode against the client enum before writing it. */
+    transport?: unknown;
 }
 
 /** Render a single time-slot body. Three shapes are supported (see

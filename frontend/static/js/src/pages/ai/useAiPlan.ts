@@ -46,7 +46,36 @@ import {
 } from './slots.js';
 import { parseVibeIds, vibePrompt, vibePriceBand } from './vibes.js';
 import { t, getLocale } from '../../i18n.js';
-import type { Trip, TripDay, PlanBlock } from '../../types';
+import type { Trip, TripDay, PlanBlock, TransportMode } from '../../types';
+
+// Transportation P2 — client-side allowlist for the model's per-day transport
+// recommendation. Mirrors the server enum (_TRANSPORT_MODES in day_writes.py);
+// the server re-validates on write, this just keeps junk out of local STATE.
+const AI_TRANSPORT_MODES = new Set<string>([
+    'walk',
+    'metro',
+    'bus',
+    'train',
+    'tram',
+    'car',
+    'taxi',
+    'bike',
+    'ferry',
+    'flight',
+    'mixed',
+]);
+
+/** Narrow the LLM's `transport` field to a valid DayTransport (source:'ai')
+ *  or null. Unknown modes / malformed shapes reject the whole value — never
+ *  store junk. The note is trimmed to the server's 200-char cap. */
+function aiTransportOf(raw: unknown): NonNullable<TripDay['transport']> | null {
+    const t = raw as { mode?: unknown; note?: unknown } | null;
+    if (!t || typeof t !== 'object' || typeof t.mode !== 'string' || !AI_TRANSPORT_MODES.has(t.mode)) {
+        return null;
+    }
+    const note = typeof t.note === 'string' ? t.note.trim().slice(0, 200) : '';
+    return { mode: t.mode as TransportMode, ...(note ? { note } : {}), source: 'ai' };
+}
 
 
 /** MK2 BUG-2: the AI itinerary MUST be a day-array before any
@@ -689,6 +718,10 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                   }
                 : null;
 
+            // Transportation P2: the model's per-day recommendation, validated
+            // to the client enum (null when absent/invalid).
+            const aiTransport = aiTransportOf(dayInfo.transport);
+
             // Reuse the existing day at this position if there is one (keeps its
             // id + user-authored content); otherwise append a fresh day.
             const prior = existingNumbered[idx];
@@ -719,6 +752,11 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                 // reused day row + the public share page. `''` serialises
                 // through upsertDay and clears the column.
                 prior.tip = tip;
+                // Transportation P2: assign unconditionally (C2-B1 — a re-run
+                // replaces the prior run's stale value, and an AI omission
+                // clears it) EXCEPT when the user set it by hand: user beats
+                // automation, per the source contract in types.d.ts.
+                if (prior.transport?.source !== 'user') prior.transport = aiTransport;
                 if (typeof dayInfo.lat === 'number') prior.lat = dayInfo.lat;
                 if (typeof dayInfo.lon === 'number') prior.lng = dayInfo.lon;
                 void upsertDay(prior);
@@ -753,6 +791,8 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                 // undefined, so only assign when we actually have blocks.
                 if (planBlocks) newDay.planBlocks = planBlocks;
                 if (tip) newDay.tip = tip;
+                // Transportation P2: fresh day, no user value to protect.
+                if (aiTransport) newDay.transport = aiTransport;
                 STATE.tripDays.push(newDay);
                 void upsertDay(newDay);
                 addedDays++;
@@ -826,11 +866,18 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
             const hadPlan = !!(
                 d.plan?.morning || d.plan?.afternoon || d.plan?.evening || d.tip || d.planBlocks
             );
-            if (!hadPlan) continue;
-            d.plan = { morning: '', afternoon: '', evening: '' };
-            d.tip = '';
-            d.planBlocks = null;
-            clearedDays++;
+            // Transportation P2: an automation-written recommendation on a
+            // now-out-of-range day is stale too — clear it alongside the plan.
+            // A user-set value survives (same contract as the in-range merge).
+            const hadStaleTransport = !!(d.transport && d.transport.source !== 'user');
+            if (!hadPlan && !hadStaleTransport) continue;
+            if (hadStaleTransport) d.transport = null;
+            if (hadPlan) {
+                d.plan = { morning: '', afternoon: '', evening: '' };
+                d.tip = '';
+                d.planBlocks = null;
+                clearedDays++;
+            }
             void upsertDay(d);
         }
 

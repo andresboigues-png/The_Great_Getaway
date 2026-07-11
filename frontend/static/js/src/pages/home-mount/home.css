@@ -2394,3 +2394,15 @@
     font-weight: 600;
     margin: 0;
 }
+.trip-hub__transport-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+.trip-hub__transport-actions .day-action-btn {
+    flex: 1;
+}
+.trip-hub__transport-actions .day-action-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}

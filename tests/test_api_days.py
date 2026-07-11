@@ -927,3 +927,48 @@ def test_upsert_day_transport_validation(client, seed_user, auth_headers):
     stored = _json.loads(row["transport_json"])
     assert len(stored["note"]) == 200
     assert "source" not in stored
+
+
+# ── Transportation P3: /api/suggest_transport validation ─────────────────────
+
+
+def test_suggest_transport_requires_days(client, seed_user, auth_headers):
+    r = client.post(
+        "/api/suggest_transport",
+        headers=auth_headers,
+        json={"destination": "Lisbon", "days": []},
+    )
+    assert r.status_code == 400
+
+
+def test_suggest_transport_rejects_junk_days(client, seed_user, auth_headers):
+    """Day entries must carry a sane integer day number; all-junk input is a
+    400, never a Gemini call."""
+    r = client.post(
+        "/api/suggest_transport",
+        headers=auth_headers,
+        json={"days": [{"day": "one"}, {"day": True}, "nope", {"day": 0}]},
+    )
+    assert r.status_code == 400
+
+
+def test_suggest_transport_no_keys_is_429(client, seed_user, auth_headers, monkeypatch):
+    """With no BYO key and an empty host pool the endpoint answers 429
+    (unavailable) without attempting any outbound call."""
+    from routes import integrations
+
+    monkeypatch.setattr(integrations, "_available_host_keys", lambda: [])
+    called = {"n": 0}
+
+    def _boom(*a, **k):
+        called["n"] += 1
+        raise AssertionError("no outbound call expected")
+
+    monkeypatch.setattr(integrations.requests, "post", _boom)
+    r = client.post(
+        "/api/suggest_transport",
+        headers=auth_headers,
+        json={"destination": "Lisbon", "days": [{"day": 1, "placeNames": ["Castelo"]}]},
+    )
+    assert r.status_code == 429
+    assert called["n"] == 0

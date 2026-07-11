@@ -15,11 +15,12 @@
 // see read-only notes + the essentials buttons (the modals are view-
 // capable). Mirrors the Companions card's tab-content pattern.
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { STATE, emit } from '../../state.js';
-import { t } from '../../i18n.js';
+import { t, tn } from '../../i18n.js';
 import { iconSvg } from '../../icons.js';
-import { formatHome, shortPlaceName } from '../../utils.js';
+import { formatHome, shortPlaceName, showLiquidAlert } from '../../utils.js';
+import { applyHeuristicTransports, refineTransportsWithAI } from '../home/transportSuggest.js';
 import { canEdit } from '../../permissions.js';
 import { upsertTrip } from '../../api.js';
 import { openAccommodationModal, consumePendingAccommodationOpen } from '../home/accommodationModal.js';
@@ -79,6 +80,40 @@ function transportRanges(days: TripDay[]): TransportRange[] {
 
 export function TripHubTab({ activeTrip, isActive, onOpenDay }: TripHubTabProps) {
     const tripIsEditable = canEdit(activeTrip);
+
+    // Transportation P3 — "Refine with AI" in-flight lock (one lightweight
+    // Gemini call; the heuristic Suggest is synchronous and needs no lock).
+    const [refining, setRefining] = useState(false);
+    const onSuggestTransport = () => {
+        const changed = applyHeuristicTransports(activeTrip);
+        showLiquidAlert(
+            changed
+                ? tn('tripHub.transportSuggestDone', changed, { count: changed })
+                : t('tripHub.transportSuggestNone'),
+            changed ? 'success' : undefined,
+        );
+    };
+    const onRefineTransport = () => {
+        if (refining) return;
+        setRefining(true);
+        void refineTransportsWithAI(activeTrip)
+            .then((changed) => {
+                showLiquidAlert(
+                    changed
+                        ? tn('tripHub.transportSuggestDone', changed, { count: changed })
+                        : t('tripHub.transportSuggestNone'),
+                    changed ? 'success' : undefined,
+                );
+            })
+            .catch((e: Error) => {
+                showLiquidAlert(
+                    e.message === 'capHit'
+                        ? t('tripHub.transportRefineCap')
+                        : t('tripHub.transportRefineFail'),
+                );
+            })
+            .finally(() => setRefining(false));
+    };
 
     // Deep-link: the AI page "set your accommodation" banner sets a flag
     // then navigates home — consume it on mount + open the manager.
@@ -244,6 +279,30 @@ export function TripHubTab({ activeTrip, isActive, onOpenDay }: TripHubTabProps)
                             ) : (
                                 <p className="trip-hub__transport-empty">{t('tripHub.transportEmpty')}</p>
                             )}
+                            {/* P3 — Suggest (free distance heuristic, instant) +
+                                Refine with AI (one lightweight Gemini call under
+                                the shared daily cap). Both only fill days the
+                                user hasn't set by hand. Planner-only. */}
+                            {tripIsEditable ? (
+                                <div className="trip-hub__transport-actions">
+                                    <button
+                                        type="button"
+                                        className="day-action-btn day-action-btn--neutral"
+                                        onClick={onSuggestTransport}
+                                    >
+                                        💡 {t('tripHub.transportSuggestBtn')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="day-action-btn day-action-btn--neutral"
+                                        disabled={refining}
+                                        onClick={onRefineTransport}
+                                    >
+                                        {refining ? '⏳ ' : '✨ '}
+                                        {t('tripHub.transportRefineBtn')}
+                                    </button>
+                                </div>
+                            ) : null}
                         </div>
                     );
                 })()}
