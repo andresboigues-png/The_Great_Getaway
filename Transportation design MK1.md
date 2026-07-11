@@ -2,7 +2,7 @@
 
 _2026-07-11 · design doc. Grounded in a 4-reader codebase map (AI planner, tab structure, Maps billing, day data model)._
 
-**STATUS: Phase 1 SHIPPED 2026-07-11** (migration `a8d2c4f6b1e3`; adversarially reviewed — clone/share/template propagation + honest-save + dispatcher guard fixes included). Phases 2–4 not started. PDF + share-page exposure deliberately deferred (share page STRIPS transport_json; clone carries it under the include_plans gate).
+**STATUS: Phases 1–3 SHIPPED 2026-07-11** (P1 `bfa3a168` — migration `a8d2c4f6b1e3`, adversarially reviewed; P2+P3 `576c72a6` — AI planner emits transport, Suggest heuristic + `/api/suggest_transport` refine, both verified live incl. a real Gemini round-trip). Phase 4 (billed polylines, PDF/share exposure, chip glyphs) demand-gated, not started. Share page STRIPS transport_json; clone carries it under the include_plans gate.
 
 ## Product goal
 
