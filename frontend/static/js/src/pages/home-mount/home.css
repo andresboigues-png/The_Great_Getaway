@@ -2406,3 +2406,22 @@
     opacity: 0.6;
     cursor: default;
 }
+
+/* Transportation P4: tiny per-day mode glyph riding the day chip — the chip
+   strip is the only all-days element, so the trip's "getting around" reads
+   at a glance. Positioned as a badge so the number stays centred. */
+.path-chip {
+    position: relative;
+}
+.path-chip__mode {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    font-size: 0.62rem;
+    line-height: 1;
+    background: var(--surface-1, #fff);
+    border-radius: 999px;
+    padding: 1px 2px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+    pointer-events: none;
+}

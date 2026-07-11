@@ -232,11 +232,23 @@ def get_public_trip(trip_id):
             day.pop('accommodation', None)
             day.pop('accommodation_place_id', None)
             day.pop('accommodation_address', None)
-            # Transportation P1: strip the raw transport_json from the public
-            # read — the share renderer doesn't display transport yet (Phase 4
-            # decision), and a user-typed note can carry member-only info
-            # ("use Sara's Navigo card"). Members read it via /api/data.
-            day.pop('transport_json', None)
+            # Transportation P4: the MODE ("Metro") is plan-class content and
+            # ships to every viewer (this endpoint always ships the plan text).
+            # The NOTE is free-text that can carry member-only detail ("use
+            # Sara's transit pass") — same class as `notes`/`tip` below — so
+            # it's gated on membership. `source` (internal AI/user provenance)
+            # never ships; raw transport_json never ships.
+            _raw_transport = day.pop('transport_json', None)
+            try:
+                _tr = json.loads(_raw_transport) if _raw_transport else None
+            except (json.JSONDecodeError, TypeError):
+                _tr = None
+            if isinstance(_tr, dict) and _tr.get('mode'):
+                day['transport'] = {'mode': _tr['mode']}
+                if is_member and _tr.get('note'):
+                    day['transport']['note'] = _tr['note']
+            else:
+                day['transport'] = None
             # Per-day personal `notes` (journaling) + the free-text `tip` are
             # the planner's own jottings — strip them for NON-members, the
             # same privacy contract as photos/documents below. The plan text
@@ -519,6 +531,45 @@ def _bucket_share_views(n: int) -> int:
     return chosen
 
 
+# Transportation P4 — mode → (emoji, English label) for the standalone Jinja
+# share page (share.html is English-only with raw-emoji conventions; it can't
+# call the frontend's transportModeIcon/Label helpers). Mirrors MODE_ICONS in
+# frontend/static/js/src/pages/home/transportModal.ts.
+_SHARE_TRANSPORT_MODES = {
+    "walk": ("🚶", "Walk"),
+    "metro": ("🚇", "Metro"),
+    "bus": ("🚌", "Bus"),
+    "train": ("🚆", "Train"),
+    "tram": ("🚊", "Tram"),
+    "car": ("🚗", "Car"),
+    "taxi": ("🚕", "Taxi"),
+    "bike": ("🚴", "Bike"),
+    "ferry": ("⛴️", "Ferry"),
+    "flight": ("✈️", "Flight"),
+    "mixed": ("🔀", "Mixed"),
+}
+
+
+def _share_transport(raw_json):
+    """Parse a trip_days.transport_json value into the share-template shape
+    {icon, label, note?} — mode whitelisted, `source` (internal provenance)
+    never shipped. None when unset/invalid."""
+    try:
+        tr = json.loads(raw_json) if raw_json else None
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(tr, dict):
+        return None
+    entry = _SHARE_TRANSPORT_MODES.get(tr.get("mode"))
+    if not entry:
+        return None
+    out = {"icon": entry[0], "label": entry[1]}
+    note = tr.get("note")
+    if isinstance(note, str) and note.strip():
+        out["note"] = note.strip()
+    return out
+
+
 def fetch_share_payload(token, caller_id=None):
     """Look up the trip by share_token and shape the public payload.
     Shared with the /share/<token> HTML route in main.py (no point in
@@ -621,8 +672,11 @@ def fetch_share_payload(token, caller_id=None):
         # the public /share/<token> view — same gate as /api/data.
         if show_plans:
             cursor.execute(
+                # Transportation P4: transport_json rides ONLY the show_plans
+                # branch — same defense-in-depth as the plan columns (the data
+                # never enters the Jinja context when plans are hidden).
                 "SELECT day_number, date, name, lat, lng, "
-                "       morning, afternoon, evening, tip "
+                "       morning, afternoon, evening, tip, transport_json "
                 "FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL "
                 "ORDER BY COALESCE(day_number, 0), date",
                 (row["id"],),
@@ -650,6 +704,10 @@ def fetch_share_payload(token, caller_id=None):
                     "evening": unwrap_legacy_plan_text(d["evening"] or ""),
                 }
                 day["tip"] = d["tip"] or ""
+                # Transportation P4: {icon, label, note} pre-resolved for the
+                # (English-only, emoji-friendly) Jinja template. `source` is
+                # deliberately NOT shipped (internal provenance metadata).
+                day["transport"] = _share_transport(d["transport_json"])
             days.append(day)
 
         # Owner display — first name only. Sharing exposes WHO shared

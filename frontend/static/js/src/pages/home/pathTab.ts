@@ -371,8 +371,15 @@ export function buildPathTabHtml(ctx: PathTabContext): string {
         const isSel = d.id === selectedId;
         const isToday = d.date === todayStr;
         const cls = `path-chip${isToday ? ' path-chip--today' : ''}${isSel ? ' is-selected' : ''}`;
-        const tooltip = `${isToday ? t('pathTab.chipTodayPrefix') + ' · ' : ''}${t('tripMedia.dayBucketDay', { n: d.dayNumber })}${d.name ? ' — ' + d.name : ''}${d.date ? ' · ' + (formatDayDate(d.date) || d.date) : ''}`;
-        return `<button type="button" class="${cls}" data-path-chip-day-id="${esc(d.id)}" title="${esc(tooltip)}" aria-label="${esc(tooltip)}" aria-pressed="${isSel}">${String(d.dayNumber)}</button>`;
+        // Transportation P4: the chip strip is the only all-days-at-once
+        // element, so each chip carries a tiny mode glyph — the whole trip's
+        // "getting around" reads at a glance without opening any day. The
+        // glyph also joins the tooltip for AT users.
+        const tr = d.transport;
+        const modeGlyph = tr ? transportModeIcon(tr.mode) : '';
+        const modeLabel = tr ? transportModeLabel(tr.mode) : '';
+        const tooltip = `${isToday ? t('pathTab.chipTodayPrefix') + ' · ' : ''}${t('tripMedia.dayBucketDay', { n: d.dayNumber })}${d.name ? ' — ' + d.name : ''}${d.date ? ' · ' + (formatDayDate(d.date) || d.date) : ''}${modeLabel ? ' · ' + modeLabel : ''}`;
+        return `<button type="button" class="${cls}" data-path-chip-day-id="${esc(d.id)}" title="${esc(tooltip)}" aria-label="${esc(tooltip)}" aria-pressed="${isSel}">${String(d.dayNumber)}${modeGlyph ? `<span class="path-chip__mode" aria-hidden="true">${modeGlyph}</span>` : ''}</button>`;
     }).join('');
     const addChip = tripIsEditable
         ? `<button type="button" class="path-chip path-chip--add" id="pathAddDayChip" title="${esc(t('pathTab.addNewDay'))}" aria-label="${esc(t('pathTab.addNewDay'))}">+</button>`

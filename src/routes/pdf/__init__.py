@@ -322,10 +322,16 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             return False
         if d.get("day_number") == 0:
             return False
-        return any(
-            isinstance(d.get(k), str) and d[k].strip()
-            for k in ("morning", "afternoon", "evening", "notes", "tip")
-        ) or bool((d.get("name") or "").strip() and d.get("day_number"))
+        return (
+            any(
+                isinstance(d.get(k), str) and d[k].strip()
+                for k in ("morning", "afternoon", "evening", "notes", "tip")
+            )
+            or bool((d.get("name") or "").strip() and d.get("day_number"))
+            # Transportation P4: a day whose only content is its transport
+            # recommendation still renders (offline-useful on its own).
+            or bool(d.get("transport_json"))
+        )
 
     days_renderable = [d for d in days if _day_has_content(d)]
 
@@ -746,6 +752,9 @@ def _sec_days(b: _PdfBuild) -> None:
             # Parsed once here; _day_card renders it in order (falling back to
             # the flat morning/afternoon/evening text for legacy days).
             day["_plan_blocks"] = _safe_json(day.get("plan_blocks_json"), None)
+            # Transportation P4: {"mode","note"?} or None — rendered as a
+            # one-line "how to get around" under the day header.
+            day["_transport"] = _safe_json(day.get("transport_json"), None)
             # Resolve the day's place blocks (in order) to their marked-place
             # records — used for the auto-fit map pins AND the place-card
             # thumbnails below.
@@ -1487,7 +1496,8 @@ def export_trip_pdf(trip_id: str):
         cursor.execute(
             "SELECT id, day_number, date, name, morning, afternoon, "
             "       evening, notes, tip, lat, lng, photos, "  # PDF-4: per-day photos
-            "       plan_blocks_json "  # rich note/place block layout for the PDF
+            "       plan_blocks_json, "  # rich note/place block layout for the PDF
+            "       transport_json "  # Transportation P4: per-day mode/note line
             "FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL "
             "ORDER BY day_number ASC, date ASC",
             (trip_id,),

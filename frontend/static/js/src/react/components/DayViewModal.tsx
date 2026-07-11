@@ -20,6 +20,7 @@ import { formatDayDate } from '../../utils.js';
 import { openPdfPreview, looksLikePdfUrl } from '../../pages/home/lightbox.js';
 import { t } from '../../i18n.js';
 import { iconSvg } from '../../icons.js';
+import { transportModeIcon, transportModeLabel } from '../../pages/home/transportModal.js';
 import { PlanTextOrEmpty } from './PlanText.js';
 import type { TripDay, TripPhoto, TripDocument } from '../../types';
 
@@ -118,6 +119,25 @@ export function DayViewModal({ day, close }: { day: TripDay; close: () => void }
                                     <div style={{ fontWeight: 700, color: '#002d5b', lineHeight: 1.3, wordBreak: 'break-word' }}>{day.accommodation}</div>
                                     {day.accommodationAddress && (
                                         <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 2 }}>{day.accommodationAddress}</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {day.transport && (
+                        /* Transportation P4 — read-only "getting around" card,
+                           mirroring the accommodation card above. Renders on
+                           all three read-only surfaces (own archived trips,
+                           public trips via /api/public-trip, non-planner
+                           members of active trips). */
+                        <div style={{ background: 'rgba(0,113,227,0.04)', padding: 'var(--space-6)', borderRadius: 24, border: '1px solid rgba(0,113,227,0.12)' }}>
+                            <h4 className="text-tag">{t('tripHub.transportLabel')}</h4>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 6 }}>
+                                <span style={{ fontSize: '1.1rem', lineHeight: 1.3 }}>{transportModeIcon(day.transport.mode)}</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontWeight: 700, color: '#002d5b', lineHeight: 1.3 }}>{transportModeLabel(day.transport.mode)}</div>
+                                    {day.transport.note && (
+                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 2, wordBreak: 'break-word' }}>{day.transport.note}</div>
                                     )}
                                 </div>
                             </div>

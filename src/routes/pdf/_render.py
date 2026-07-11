@@ -1530,6 +1530,35 @@ def _day_card(
         body.append(rl.Paragraph(f"<b>{tr('slot_tip')}</b>  {_esc(tip)}", styles["tip"]))
         any_slot = True
 
+    # Transportation P4: one "how to get around" line — exactly the info a
+    # traveller wants offline (mode + the practical note: pass price, key
+    # station). Emoji are stripped by _esc/_strip_emoji, so the line leads
+    # with the survivable arrow glyph instead. Mode is whitelisted so a
+    # junk value (pre-validation row / hand-edited ZIP import) can't echo a
+    # raw "transport_junk" i18n key into the PDF.
+    _transport = day.get("_transport")
+    if isinstance(_transport, dict):
+        _mode = _transport.get("mode")
+        if _mode in (
+            "walk",
+            "metro",
+            "bus",
+            "train",
+            "tram",
+            "car",
+            "taxi",
+            "bike",
+            "ferry",
+            "flight",
+            "mixed",
+        ):
+            _note = _transport.get("note")
+            _note_html = f"  —  {_esc(_note)}" if isinstance(_note, str) and _note.strip() else ""
+            body.append(
+                rl.Paragraph(f"→ <b>{tr('transport_' + _mode)}</b>{_note_html}", styles["tip"])
+            )
+            any_slot = True
+
     # PDF-4: per-day photo thumbnails laid out in a grid, after the plan.
     if day_photos:
         grid = _photo_grid(rl, day_photos, full_w, cols=3)

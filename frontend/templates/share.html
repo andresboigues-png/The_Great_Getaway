@@ -367,6 +367,12 @@
             {% endif %}
           </div>
           {% endif %}
+          {% if d.transport %}
+          {# Transportation P4: the day's "getting around" line — pre-resolved
+             server-side (_share_transport: whitelisted mode → icon+label,
+             note only; provenance never ships). #}
+          <div class="day-tip"><span class="day-tip__label">{{ d.transport.icon }} {{ d.transport.label }}</span>{{ d.transport.note or '' }}</div>
+          {% endif %}
           {% if d.tip %}
           <div class="day-tip"><span class="day-tip__label">💡 Tip</span>{{ d.tip }}</div>
           {% endif %}

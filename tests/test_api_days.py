@@ -462,6 +462,40 @@ def test_day_notes_and_tip_stripped_from_public_trip(client, seed_user, auth_hea
     assert day["plan"]["morning"] == "Visit the park"
 
 
+def test_transport_public_trip_gates_note_on_membership(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers
+):
+    """Transportation P4 privacy: on the public-trip read the transport MODE
+    is plan-class content (ships to everyone), but the free-text NOTE can
+    carry member-only detail ("use Sara's pass") — so it's gated on
+    membership, like notes/tip. `source` provenance never ships."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-pub-tr", public=True)
+    client.post(
+        "/api/days",
+        headers=auth_headers,
+        json={
+            "day": {
+                "id": "day-tr",
+                "tripId": trip_id,
+                "dayNumber": 1,
+                "name": "Day 1",
+                "transport": {"mode": "metro", "note": "MEMBERONLYPASS", "source": "user"},
+            },
+        },
+    )
+    # Anonymous / non-member: mode present, note + source stripped.
+    anon = client.get(f"/api/public-trip/{trip_id}").get_json()
+    day = anon["trip"]["tripDays"][0]
+    assert day["transport"] == {"mode": "metro"}, "anon sees mode only"
+    assert "MEMBERONLYPASS" not in __import__("json").dumps(anon)
+    # A signed-in NON-member also doesn't get the note.
+    other = client.get(f"/api/public-trip/{trip_id}", headers=other_auth_headers).get_json()
+    assert other["trip"]["tripDays"][0]["transport"] == {"mode": "metro"}
+    # The owner (a member) gets mode + note, still no source.
+    mem = client.get(f"/api/public-trip/{trip_id}", headers=auth_headers).get_json()
+    assert mem["trip"]["tripDays"][0]["transport"] == {"mode": "metro", "note": "MEMBERONLYPASS"}
+
+
 def test_delete_day_happy_path(client, seed_user, auth_headers):
     """Planner can delete a numbered day; row is gone after."""
     client.post(
