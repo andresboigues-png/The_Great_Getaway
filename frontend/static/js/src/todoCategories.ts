@@ -9,6 +9,7 @@
 // always read fresh.
 
 import { t } from './i18n.js';
+import { localTodayIso } from './utils.js';
 import type { MarkedPlace, Trip, TripDay } from './types';
 
 /** Resolve the icon used for filtering + grouping. Treats the
@@ -179,17 +180,46 @@ export function dayDirectionsUrl(
     const dayLon = day.lon != null ? day.lon : day.lng;
     const dayPin = dayLat != null && dayLon != null ? `${dayLat},${dayLon}` : null;
 
+    // ── Origin ──────────────────────────────────────────────────────
+    // Priority: the day's accommodation (you set out from where you slept),
+    // else the day pin. Resolved FIRST because it also decides whether we may
+    // fall back to the traveller's current location.
+    // Prefer the exact Google place_id; for a free-text hotel (no place_id)
+    // use its formatted address, then its name (Google geocodes the text).
+    const accomName = (day.accommodation || '').trim();
+    const accomAddr = (day.accommodationAddress || '').trim();
+    let originStr: string | null = null;
+    let originPlaceId: string | null = null;
+    if (day.accommodationPlaceId) {
+        originStr = accomName || accomAddr || 'Accommodation';
+        originPlaceId = day.accommodationPlaceId;
+    } else if (accomAddr || accomName) {
+        originStr = accomAddr || accomName;
+    } else if (dayPin) {
+        originStr = dayPin;
+    }
+
+    // No hotel and no day pin: only fall back to Maps' "my location" default
+    // (origin omitted) when the clicked day is actually TODAY — starting from
+    // where you happen to be now is meaningless for a past/future day. For a
+    // non-today day, start from the day's FIRST stop instead so it routes
+    // among its own places. A day with no date is treated as "not today".
+    const routeStops = stops.slice();
+    const isToday = !!day.date && day.date === localTodayIso();
+    if (!originStr && !isToday && routeStops.length > 0) {
+        originStr = routeStops.shift()!;
+    }
+
+    // ── Destination + waypoints (from the remaining stops, else the pin) ──
     let destination: string | null = null;
     let waypoints: string[] = [];
-    if (stops.length > 0) {
-        destination = stops[stops.length - 1]!;
+    if (routeStops.length > 0) {
+        destination = routeStops[routeStops.length - 1]!;
         // Cap at 9 — beyond that the URL fails to hand off to the Google Maps
         // mobile app. Keep the LAST 9 intermediates so the kept run is
-        // contiguous into the destination: a start-of-route jump (origin →
-        // first kept stop) renders as a normal route, whereas a mid-route gap
-        // would silently skip the stops right before the finale.
-        waypoints = stops.slice(0, -1).slice(-9);
-    } else if (dayPin) {
+        // contiguous into the destination.
+        waypoints = routeStops.slice(0, -1).slice(-9);
+    } else if (dayPin && dayPin !== originStr) {
         destination = dayPin;
     }
     if (!destination) return null;
@@ -198,22 +228,11 @@ export function dayDirectionsUrl(
     params.set('api', '1');
     params.set('destination', destination);
     if (waypoints.length) params.set('waypoints', waypoints.join('|'));
-    // Origin: the day's accommodation anchors the route whenever it's set —
-    // you set out from where you slept. Prefer the exact Google place_id;
-    // when accommodation was entered as free text (no place_id) fall back to
-    // its formatted address, then its name (Google geocodes the text). Only
-    // if there's no accommodation at all do we use the day pin, and finally
-    // the user's current location (Maps' default when origin is omitted).
-    const accomName = (day.accommodation || '').trim();
-    const accomAddr = (day.accommodationAddress || '').trim();
-    if (day.accommodationPlaceId) {
-        // `origin` is the display label; `origin_place_id` drives the routing.
-        params.set('origin', accomName || accomAddr || 'Accommodation');
-        params.set('origin_place_id', day.accommodationPlaceId);
-    } else if (accomAddr || accomName) {
-        params.set('origin', accomAddr || accomName);
-    } else if (dayPin && dayPin !== destination) {
-        params.set('origin', dayPin);
+    if (originStr) {
+        // `origin` is the display label; `origin_place_id` (when present)
+        // drives the exact routing.
+        params.set('origin', originStr);
+        if (originPlaceId) params.set('origin_place_id', originPlaceId);
     }
     // Travel mode. Google Maps CANNOT compute a multi-stop TRANSIT route —
     // transit ignores intermediate waypoints and the link dead-ends with
