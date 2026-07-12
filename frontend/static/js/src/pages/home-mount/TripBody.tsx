@@ -543,7 +543,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                         aria-selected={activeTab === 'transport'}
                         onClick={() => switchTab('transport')}
                     >
-                        {/* Transport mark — two parallel lines (a road / rails),
+                        {/* Transport mark — two VERTICAL parallel lines (rails),
                             sitting right next to the Path trail as the trip's
                             "getting around" tab. */}
                         <svg
@@ -557,8 +557,8 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                             strokeLinejoin="round"
                             aria-hidden="true"
                         >
-                            <line x1="4" y1="9" x2="20" y2="9"></line>
-                            <line x1="4" y1="15" x2="20" y2="15"></line>
+                            <line x1="9" y1="4" x2="9" y2="20"></line>
+                            <line x1="15" y1="4" x2="15" y2="20"></line>
                         </svg>
                         <span className="trip-tabnav__label">{t('home.tabTransport')}</span>
                     </button>
