@@ -1588,6 +1588,8 @@ export const es: Translations = {
         clearBtn: 'Borrar',
         directionsLabel: 'Indicaciones',
         directionsTitle: 'Abrir la ruta de este día en Google Maps',
+        tabSubtitle: 'Cómo moverte cada día',
+        tabEmpty: 'Añade días al viaje para planificar cómo moverte.',
     },
     tripHub: {
         cardTitle: 'Centro del viaje',
@@ -1641,6 +1643,7 @@ export const es: Translations = {
             other: '{count} Días de aventura',
         },
         tabPath: 'Tu camino',
+        tabTransport: 'Transporte',
         tabHub: 'Centro',
         tabCompanions: 'Acompañantes',
         searchMapPlaceholder: 'Buscar cualquier cosa (lugares, viajes…)',

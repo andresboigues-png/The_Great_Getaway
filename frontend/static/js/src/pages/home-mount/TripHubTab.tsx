@@ -15,105 +15,27 @@
 // see read-only notes + the essentials buttons (the modals are view-
 // capable). Mirrors the Companions card's tab-content pattern.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { STATE, emit } from '../../state.js';
-import { t, tn } from '../../i18n.js';
+import { t } from '../../i18n.js';
 import { iconSvg } from '../../icons.js';
-import { formatHome, shortPlaceName, showLiquidAlert } from '../../utils.js';
-import { applyHeuristicTransports, refineTransportsWithAI } from '../home/transportSuggest.js';
+import { formatHome, shortPlaceName } from '../../utils.js';
 import { canEdit } from '../../permissions.js';
 import { upsertTrip } from '../../api.js';
 import { openAccommodationModal, consumePendingAccommodationOpen } from '../home/accommodationModal.js';
 import { openTripChecklistModal } from '../home/tripChecklistModal.js';
 import { openTripDocumentsModal, openTripPhotosModal } from '../home/tripMediaModals.js';
-import { transportModeIcon, transportModeLabel } from '../home/transportModal.js';
-import type { Trip, Expense, TripDay, TransportMode } from '../../types';
+import type { Trip, Expense } from '../../types';
 
 
 export interface TripHubTabProps {
     activeTrip: Trip;
     isActive: boolean;
-    /** "Getting around" range rows tap through to that day in Your Path. */
-    onOpenDay?: (dayId: string) => void;
 }
 
 
-/** One run of consecutive days sharing a transport mode ("Days 1–3 · Metro").
- *  Days without a recommendation break runs and are skipped. `note` is the
- *  first non-empty note in the run (rendered small; the per-day pill shows
- *  each day's own note). `firstDayId` is the tap-through target. */
-interface TransportRange {
-    fromDay: number;
-    toDay: number;
-    mode: TransportMode;
-    note: string;
-    firstDayId: string;
-}
-
-function transportRanges(days: TripDay[]): TransportRange[] {
-    const numbered = days
-        .filter((d) => (d.dayNumber || 0) > 0)
-        .sort((a, b) => a.dayNumber - b.dayNumber);
-    const ranges: TransportRange[] = [];
-    for (const d of numbered) {
-        const tr = d.transport;
-        if (!tr) continue;
-        const last = ranges[ranges.length - 1];
-        // Extend the run only when the mode matches AND the day numbers are
-        // consecutive — a gap (unset day between) starts a new range.
-        if (last && last.mode === tr.mode && d.dayNumber === last.toDay + 1) {
-            last.toDay = d.dayNumber;
-            if (!last.note && tr.note) last.note = tr.note;
-        } else {
-            ranges.push({
-                fromDay: d.dayNumber,
-                toDay: d.dayNumber,
-                mode: tr.mode,
-                note: tr.note || '',
-                firstDayId: d.id,
-            });
-        }
-    }
-    return ranges;
-}
-
-
-export function TripHubTab({ activeTrip, isActive, onOpenDay }: TripHubTabProps) {
+export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
     const tripIsEditable = canEdit(activeTrip);
-
-    // Transportation P3 — "Refine with AI" in-flight lock (one lightweight
-    // Gemini call; the heuristic Suggest is synchronous and needs no lock).
-    const [refining, setRefining] = useState(false);
-    const onSuggestTransport = () => {
-        const changed = applyHeuristicTransports(activeTrip);
-        showLiquidAlert(
-            changed
-                ? tn('tripHub.transportSuggestDone', changed, { count: changed })
-                : t('tripHub.transportSuggestNone'),
-            changed ? 'success' : 'info',
-        );
-    };
-    const onRefineTransport = () => {
-        if (refining) return;
-        setRefining(true);
-        void refineTransportsWithAI(activeTrip)
-            .then((changed) => {
-                showLiquidAlert(
-                    changed
-                        ? tn('tripHub.transportSuggestDone', changed, { count: changed })
-                        : t('tripHub.transportSuggestNone'),
-                    changed ? 'success' : 'info',
-                );
-            })
-            .catch((e: Error) => {
-                showLiquidAlert(
-                    e.message === 'capHit'
-                        ? t('tripHub.transportRefineCap')
-                        : t('tripHub.transportRefineFail'),
-                );
-            })
-            .finally(() => setRefining(false));
-    };
 
     // Deep-link: the AI page "set your accommodation" banner sets a flag
     // then navigates home — consume it on mount + open the manager.
@@ -234,78 +156,9 @@ export function TripHubTab({ activeTrip, isActive, onOpenDay }: TripHubTabProps)
                     )}
                 </div>
 
-                {/* Transportation P1: "Getting around" — the trip-wide
-                    at-a-glance summary, run-length compressed from the
-                    per-day transport recommendations ("Days 1–3 · Metro").
-                    Computed at read time (no second storage location); each
-                    range row taps through to that day in Your Path where the
-                    per-day pill + editor + directions link live. Hidden
-                    entirely for viewers when nothing is set. */}
-                {(() => {
-                    const ranges = transportRanges(tripDays);
-                    if (!ranges.length && !tripIsEditable) return null;
-                    return (
-                        <div className="trip-hub__section">
-                            <div className="trip-hub__section-head">
-                                <span>🚌</span>
-                                <span>{t('tripHub.transportLabel')}</span>
-                            </div>
-                            {ranges.length ? (
-                                <div className="trip-hub__transport-rows">
-                                    {ranges.map((r) => (
-                                        <button
-                                            key={`${r.fromDay}-${r.mode}`}
-                                            type="button"
-                                            className="trip-hub__transport-row"
-                                            onClick={() => onOpenDay?.(r.firstDayId)}
-                                        >
-                                            <span className="trip-hub__transport-row__icon" aria-hidden="true">
-                                                {transportModeIcon(r.mode)}
-                                            </span>
-                                            <span className="trip-hub__transport-row__days">
-                                                {r.fromDay === r.toDay
-                                                    ? t('tripHub.transportDaySingle', { n: r.fromDay })
-                                                    : t('tripHub.transportDayRange', { from: r.fromDay, to: r.toDay })}
-                                            </span>
-                                            <span className="trip-hub__transport-row__mode">
-                                                {transportModeLabel(r.mode)}
-                                            </span>
-                                            {r.note ? (
-                                                <span className="trip-hub__transport-row__note">{r.note}</span>
-                                            ) : null}
-                                        </button>
-                                    ))}
-                                </div>
-                            ) : (
-                                <p className="trip-hub__transport-empty">{t('tripHub.transportEmpty')}</p>
-                            )}
-                            {/* P3 — Suggest (free distance heuristic, instant) +
-                                Refine with AI (one lightweight Gemini call under
-                                the shared daily cap). Both only fill days the
-                                user hasn't set by hand. Planner-only. */}
-                            {tripIsEditable ? (
-                                <div className="trip-hub__transport-actions">
-                                    <button
-                                        type="button"
-                                        className="day-action-btn day-action-btn--neutral"
-                                        onClick={onSuggestTransport}
-                                    >
-                                        💡 {t('tripHub.transportSuggestBtn')}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="day-action-btn day-action-btn--neutral"
-                                        disabled={refining}
-                                        onClick={onRefineTransport}
-                                    >
-                                        {refining ? '⏳ ' : '✨ '}
-                                        {t('tripHub.transportRefineBtn')}
-                                    </button>
-                                </div>
-                            ) : null}
-                        </div>
-                    );
-                })()}
+                {/* Transportation moved to its own tab (the "two parallel
+                    lines" Transport tab) — the trip-wide ranges summary was too
+                    cramped to follow, especially on mobile. */}
 
                 {/* Accommodation — dedicated entry point (the 2026-06
                     redesign moved this out of the per-day modal). Opens the

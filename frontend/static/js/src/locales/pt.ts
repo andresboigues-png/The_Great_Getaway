@@ -1592,6 +1592,8 @@ export const pt: Translations = {
         clearBtn: 'Limpar',
         directionsLabel: 'Direções',
         directionsTitle: 'Abrir o percurso deste dia no Google Maps',
+        tabSubtitle: 'Como te deslocas em cada dia',
+        tabEmpty: 'Adiciona dias \u00e0 viagem para planear como te deslocas.',
     },
     tripHub: {
         cardTitle: 'Base da viagem',
@@ -1645,6 +1647,7 @@ export const pt: Translations = {
             other: '{count} Dias de aventura',
         },
         tabPath: 'O teu caminho',
+        tabTransport: 'Transporte',
         tabHub: 'Base',
         tabCompanions: 'Companheiros',
         searchMapPlaceholder: 'Pesquisar qualquer coisa (locais, viagens…)',

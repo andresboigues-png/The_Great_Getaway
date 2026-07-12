@@ -45,7 +45,7 @@ import { t } from '../../i18n.js';
 
 /** What home tabs a (now-removed) Anchor quick-link could navigate to.
  *  Kept for the OpenDayDetailOptions signature TripBody imports. */
-export type HomeTab = 'days' | 'hub' | 'companions' | 'documents' | 'photos';
+export type HomeTab = 'days' | 'hub' | 'transport' | 'companions' | 'documents' | 'photos';
 
 /** Options bag for openDayDetail. `setActiveHomeTab` is vestigial (see
  *  the header — it only served the dropped anchor quick-links); kept so

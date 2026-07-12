@@ -59,6 +59,7 @@ import {
     editingDayId,
 } from './handlers.js';
 import { TripHubTab } from './TripHubTab.js';
+import { TransportTab } from './TransportTab.js';
 import type { Trip, TripDay } from '../../types';
 import { t, tn } from '../../i18n.js';
 
@@ -66,7 +67,7 @@ import { t, tn } from '../../i18n.js';
 // The three tabs that have real tab CONTENT in TripBody. `documents` /
 // `photos` are modal-only HomeTab values (openDayDetail's quick-links)
 // with no inline content, so they coerce to the Path tab here.
-type TripTab = 'days' | 'hub' | 'companions';
+type TripTab = 'days' | 'hub' | 'transport' | 'companions';
 
 /** Resolve the tab to show on (re)mount. The module-level activeHomeTab
  *  survives the navigate('home') unmount/remount the day-pin + day-action
@@ -536,6 +537,32 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                         <span className="trip-tabnav__label">{t('home.tabPath')}</span>
                     </button>
                     <button
+                        className={`trip-tabnav__tab${activeTab === 'transport' ? ' is-active' : ''}`}
+                        role="tab"
+                        data-tab="transport"
+                        aria-selected={activeTab === 'transport'}
+                        onClick={() => switchTab('transport')}
+                    >
+                        {/* Transport mark — two parallel lines (a road / rails),
+                            sitting right next to the Path trail as the trip's
+                            "getting around" tab. */}
+                        <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.4"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                        >
+                            <line x1="4" y1="9" x2="20" y2="9"></line>
+                            <line x1="4" y1="15" x2="20" y2="15"></line>
+                        </svg>
+                        <span className="trip-tabnav__label">{t('home.tabTransport')}</span>
+                    </button>
+                    <button
                         className={`trip-tabnav__tab${activeTab === 'companions' ? ' is-active' : ''}`}
                         role="tab"
                         data-tab="companions"
@@ -563,17 +590,9 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                 </nav>
             </div>
 
-            <TripHubTab
-                activeTrip={activeTrip}
-                isActive={activeTab === 'hub'}
-                onOpenDay={(dayId) => {
-                    // "Getting around" range rows tap through to that day in
-                    // Your Path: switch tab, then select the day (persists +
-                    // repaints the Path inner + pans the map).
-                    switchTab('days');
-                    setSelectedDay(activeTrip.id, dayId);
-                }}
-            />
+            <TripHubTab activeTrip={activeTrip} isActive={activeTab === 'hub'} />
+
+            <TransportTab activeTrip={activeTrip} isActive={activeTab === 'transport'} />
 
             <CompanionsCard
                 activeTrip={activeTrip}

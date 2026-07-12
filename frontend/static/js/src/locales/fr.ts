@@ -1593,6 +1593,8 @@ export const fr: Translations = {
         clearBtn: 'Effacer',
         directionsLabel: 'Itinéraire',
         directionsTitle: "Ouvrir l'itinéraire de ce jour dans Google Maps",
+        tabSubtitle: 'Se déplacer chaque jour',
+        tabEmpty: 'Ajoutez des jours au voyage pour planifier vos déplacements.',
     },
     tripHub: {
         cardTitle: 'Camp de base',
@@ -1646,6 +1648,7 @@ export const fr: Translations = {
             other: '{count} Jours d\'aventure',
         },
         tabPath: 'Ton itinéraire',
+        tabTransport: 'Transport',
         tabHub: 'Base',
         tabCompanions: 'Compagnons',
         searchMapPlaceholder: 'Tout rechercher (lieux, voyages…)',

@@ -1924,6 +1924,8 @@ export const en = {
         clearBtn: 'Clear',
         directionsLabel: 'Directions',
         directionsTitle: "Open this day's route in Google Maps",
+        tabSubtitle: 'How to get around each day',
+        tabEmpty: 'Add days to your trip to plan how you\u2019ll get around.',
     },
     tripHub: {
         cardTitle: 'Trip Hub',
@@ -1988,6 +1990,7 @@ export const en = {
         },
         // Trip tab buttons (Path / Companions in the tab strip).
         tabPath: 'Your Path',
+        tabTransport: 'Transport',
         tabHub: 'Trip Hub',
         tabCompanions: 'Companions',
         // Map search input placeholder.
