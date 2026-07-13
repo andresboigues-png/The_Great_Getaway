@@ -1749,21 +1749,39 @@ export function DayDetailModal({
     // tap no longer does, since it now owns the expand/collapse).
     const transportLabel = stripTr ? transportModeLabel(stripTr.mode) : t('pathTab.transportNotSet');
     const transportIcon = stripTr ? transportModeIcon(stripTr.mode) : '🚌';
-    const transportRow = stripTr?.note ? (
+    const hasTransportNote = !!stripTr?.note;
+    // The mode + the free directions link share one row (a plain flex div,
+    // not a button — a link can't nest inside a button). The mode is the
+    // disclosure toggle when there's a note (else it opens the editor); the
+    // directions link sits inline beside it and opens Google Maps.
+    const transportRow = (
         <div>
-            <button type="button" className="day-detail__logi-row" style={logiRowStyle}
-                aria-expanded={transportOpen} onClick={() => setTransportOpen((o) => !o)}>
-                <span style={logiIconStyle} aria-hidden="true">{transportIcon}</span>
-                <span style={{ ...logiTextStyle, fontWeight: 700 }}>{transportLabel}</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
-                    style={{ flexShrink: 0, opacity: 0.5, transition: 'transform 0.15s ease', transform: transportOpen ? 'rotate(180deg)' : 'none' }}>
-                    <polyline points="6 9 12 15 18 9" />
-                </svg>
-            </button>
-            {transportOpen ? (
+            <div className="day-detail__logi-row" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '9px 10px', borderRadius: 12 }}>
+                <button type="button"
+                    aria-expanded={hasTransportNote ? transportOpen : undefined}
+                    onClick={hasTransportNote ? () => setTransportOpen((o) => !o) : onTransport}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0, background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'var(--text-brand-navy)', fontWeight: 700, cursor: 'pointer' }}>
+                    <span style={logiIconStyle} aria-hidden="true">{transportIcon}</span>
+                    <span>{transportLabel}</span>
+                    {hasTransportNote ? (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+                            style={{ flexShrink: 0, opacity: 0.5, transition: 'transform 0.15s ease', transform: transportOpen ? 'rotate(180deg)' : 'none' }}>
+                            <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                    ) : null}
+                </button>
+                {stripDirUrl ? (
+                    <a href={stripDirUrl} target="_blank" rel="noopener noreferrer" title={t('transport.directionsTitle')}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#005bb8', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none', flexShrink: 0 }}>
+                        🧭 <span style={{ textDecoration: 'underline' }}>{t('transport.directionsLabel')}</span>
+                        <span aria-hidden="true" style={{ fontSize: '0.7rem', opacity: 0.7 }}>↗</span>
+                    </a>
+                ) : null}
+            </div>
+            {hasTransportNote && transportOpen ? (
                 <div style={{ padding: '2px 12px 8px 42px' }}>
                     <p style={{ margin: '0 0 8px', fontWeight: 500, opacity: 0.82, lineHeight: 1.4, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
-                        {stripTr.note}
+                        {stripTr?.note}
                     </p>
                     <button type="button" onClick={onTransport}
                         style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: '#005bb8', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
@@ -1772,11 +1790,6 @@ export function DayDetailModal({
                 </div>
             ) : null}
         </div>
-    ) : (
-        <button type="button" className="day-detail__logi-row" style={logiRowStyle} onClick={onTransport}>
-            <span style={logiIconStyle} aria-hidden="true">{transportIcon}</span>
-            <span style={{ ...logiTextStyle, fontWeight: 700 }}>{transportLabel}</span>
-        </button>
     );
     const logisticsStrip = (
         <div className="day-detail__logistics">
@@ -1785,14 +1798,6 @@ export function DayDetailModal({
                 <span style={logiTextStyle}>{day.accommodation || t('pathTab.stayNotSet')}</span>
             </button>
             {transportRow}
-            {stripDirUrl ? (
-                <a href={stripDirUrl} target="_blank" rel="noopener noreferrer"
-                    className="day-detail__logi-row" style={logiRowStyle} title={t('transport.directionsTitle')}>
-                    <span style={logiIconStyle} aria-hidden="true">🧭</span>
-                    <span style={logiTextStyle}>{t('transport.directionsLabel')}</span>
-                    <span aria-hidden="true" style={{ opacity: 0.55, flexShrink: 0 }}>↗</span>
-                </a>
-            ) : null}
         </div>
     );
 
