@@ -103,24 +103,27 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
                                             className="trip-transport__main"
                                             onClick={() => openEditor(d.id)}
                                         >
-                                            <span className="trip-transport__daynum">
-                                                {t('tripHub.transportDaySingle', { n: d.dayNumber })}
-                                            </span>
-                                            {tr ? (
-                                                <span className="trip-transport__set">
+                                            <span className="trip-transport__head">
+                                                <span className="trip-transport__daynum">
+                                                    {t('tripHub.transportDaySingle', { n: d.dayNumber })}
+                                                </span>
+                                                {tr ? (
                                                     <span className="trip-transport__mode">
                                                         <span aria-hidden="true">{transportModeIcon(tr.mode)}</span>{' '}
                                                         {transportModeLabel(tr.mode)}
                                                     </span>
-                                                    {tr.note ? (
-                                                        <span className="trip-transport__note">{tr.note}</span>
-                                                    ) : null}
-                                                </span>
-                                            ) : (
-                                                <span className="trip-transport__unset">
-                                                    🚌 {t('pathTab.transportNotSet')}
-                                                </span>
-                                            )}
+                                                ) : (
+                                                    <span className="trip-transport__unset">
+                                                        🚌 {t('pathTab.transportNotSet')}
+                                                    </span>
+                                                )}
+                                            </span>
+                                            {/* Note preview — clamped to 2 lines so every row stays
+                                                compact + scannable on mobile; the full note is in the
+                                                editor (tap the row). */}
+                                            {tr?.note ? (
+                                                <span className="trip-transport__note">{tr.note}</span>
+                                            ) : null}
                                         </button>
                                         {dirUrl ? (
                                             <a
