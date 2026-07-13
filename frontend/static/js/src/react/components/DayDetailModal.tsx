@@ -1745,12 +1745,18 @@ export function DayDetailModal({
                 <span style={logiIconStyle} aria-hidden="true">🛏️</span>
                 <span style={logiTextStyle}>{day.accommodation || t('pathTab.stayNotSet')}</span>
             </button>
-            <button type="button" className="day-detail__logi-row" style={logiRowStyle} onClick={onTransport}
-                title={stripTr?.note || ''}>
-                <span style={logiIconStyle} aria-hidden="true">{stripTr ? transportModeIcon(stripTr.mode) : '🚌'}</span>
-                <span style={logiTextStyle}>
+            <button type="button" className="day-detail__logi-row" style={{ ...logiRowStyle, alignItems: 'flex-start' }} onClick={onTransport}>
+                <span style={{ ...logiIconStyle, marginTop: 1 }} aria-hidden="true">{stripTr ? transportModeIcon(stripTr.mode) : '🚌'}</span>
+                <span style={{ minWidth: 0, flex: 1 }}>
                     <span style={{ fontWeight: 700 }}>{stripTr ? transportModeLabel(stripTr.mode) : t('pathTab.transportNotSet')}</span>
-                    {stripTr?.note ? <span style={{ opacity: 0.7 }}> · {stripTr.note}</span> : null}
+                    {/* Full note on its own line below the mode — no truncation
+                        (the note can run to ~200 chars; the day card stays terse,
+                        the full plan shows everything). */}
+                    {stripTr?.note ? (
+                        <span style={{ display: 'block', marginTop: 2, opacity: 0.75, fontWeight: 500, whiteSpace: 'normal', overflowWrap: 'anywhere', lineHeight: 1.35 }}>
+                            {stripTr.note}
+                        </span>
+                    ) : null}
                 </span>
             </button>
             {stripDirUrl ? (
