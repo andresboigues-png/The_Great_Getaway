@@ -892,6 +892,25 @@
     letter-spacing: -0.01em;
 }
 
+/* Day-detail "logistics" list (accommodation · transport · directions),
+   moved out of the crowded Path day card. A clean vertical list — fixed
+   icon column, aligned rows, subtle hover — sits under the header. */
+.day-detail__logistics {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 8px 0 2px;
+}
+.day-detail__logi-row {
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: background 0.14s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+.day-detail__logi-row:hover {
+    background: rgba(0, 113, 227, 0.07);
+}
+
 /* ── Day-detail modal + day-plan tabs / places ───────────────────
    The editable day-detail modal opened by tapping a Path-tab day
    card. Emitted imperatively by pages/home/dayDetailModal.ts.

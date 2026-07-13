@@ -75,6 +75,7 @@ import { openReactModal } from '../reactModal.js';
 import { openTripChecklistModal } from '../../pages/home/tripChecklistModal.js';
 import { openAccommodationModal } from '../../pages/home/accommodationModal.js';
 import { openTransportModal, transportModeIcon, transportModeLabel } from '../../pages/home/transportModal.js';
+import { fetchDaySummary } from '../../pages/home/weather.js';
 import { dayDirectionsUrl } from '../../todoCategories.js';
 import { repaintPathTab } from '../../pages/home/pathSelection.js';
 import { iconSvg } from '../../icons.js';
@@ -216,6 +217,27 @@ export function DayDetailModal({
     // pill set (empty set = "All" — no dedicated All pill needed).
     const [filterQuery, setFilterQuery] = useState('');
     const [activeCategoryFilters, setActiveCategoryFilters] = useState<ReadonlySet<string>>(() => new Set());
+    // This day's weather chip (icon + temp) shown next to the header date,
+    // mirroring the Path day card. The forecast is coord-cached in
+    // googleMapsServices (already fetched by the Path tab), so this read is
+    // free; null when the date is past / beyond the API's ~10-day window.
+    const [weather, setWeather] = useState<{ icon: string; tempC: number; label: string } | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        const lat = trip?.lat;
+        const lng = trip?.lng;
+        if (typeof lat !== 'number' || typeof lng !== 'number' || !day.date) {
+            setWeather(null);
+            return;
+        }
+        void fetchDaySummary(lat, lng, day.date)
+            .then((s) => {
+                if (cancelled) return;
+                setWeather(s && s.tempC != null ? { icon: s.icon, tempC: s.tempC, label: s.label } : null);
+            })
+            .catch(() => { if (!cancelled) setWeather(null); });
+        return () => { cancelled = true; };
+    }, [day.id, day.date, trip?.lat, trip?.lng]);
 
     // Shortlist pool derived LIVE from trip.markedPlaces every render, so a
     // pin added from the map behind the modal, an accepted AI plan, or a
@@ -1702,34 +1724,41 @@ export function DayDetailModal({
     // Google Maps deep link (zero API billing), omitted when nothing routable.
     const stripTr = day.transport;
     const stripDirUrl = trip ? dayDirectionsUrl(day, trip) : null;
-    const stripLinkStyle: CSSProperties = {
-        display: 'inline-flex', alignItems: 'center', gap: 5,
-        background: 'none', border: 'none', padding: 0, margin: 0,
-        font: 'inherit', color: '#005bb8', cursor: 'pointer', textDecoration: 'none',
+    // Clean vertical list (was a horizontal flex-wrap that stacked
+    // unevenly). Each row: fixed-width icon column · label · optional
+    // trailing marker — aligned, hover-highlighted (CSS .day-detail__logi-row).
+    const logiRowStyle: CSSProperties = {
+        display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+        textAlign: 'left', background: 'none', border: 'none',
+        padding: '9px 10px', borderRadius: 12, font: 'inherit',
+        color: 'var(--text-brand-navy)', cursor: 'pointer', textDecoration: 'none',
+    };
+    const logiIconStyle: CSSProperties = {
+        fontSize: '1.05rem', lineHeight: 1, flexShrink: 0, width: 22, textAlign: 'center',
+    };
+    const logiTextStyle: CSSProperties = {
+        minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
     };
     const logisticsStrip = (
-        <div className="day-detail__logistics" style={{
-            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 16px',
-            padding: '10px var(--space-6) 0', fontSize: '0.9rem', fontWeight: 600,
-        }}>
-            <button type="button" style={stripLinkStyle} onClick={onAccommodation}>
-                🛏️ <span style={{ textDecoration: 'underline' }}>{day.accommodation || t('pathTab.stayNotSet')}</span>
+        <div className="day-detail__logistics">
+            <button type="button" className="day-detail__logi-row" style={logiRowStyle} onClick={onAccommodation}>
+                <span style={logiIconStyle} aria-hidden="true">🛏️</span>
+                <span style={logiTextStyle}>{day.accommodation || t('pathTab.stayNotSet')}</span>
             </button>
-            <button type="button" style={stripLinkStyle} onClick={onTransport}
-                title={stripTr?.note || (stripTr ? transportModeLabel(stripTr.mode) : t('pathTab.transportNotSet'))}>
-                <span aria-hidden="true">{stripTr ? transportModeIcon(stripTr.mode) : '🚌'}</span>{' '}
-                <span style={{ textDecoration: 'underline' }}>
-                    {stripTr ? transportModeLabel(stripTr.mode) : t('pathTab.transportNotSet')}
+            <button type="button" className="day-detail__logi-row" style={logiRowStyle} onClick={onTransport}
+                title={stripTr?.note || ''}>
+                <span style={logiIconStyle} aria-hidden="true">{stripTr ? transportModeIcon(stripTr.mode) : '🚌'}</span>
+                <span style={logiTextStyle}>
+                    <span style={{ fontWeight: 700 }}>{stripTr ? transportModeLabel(stripTr.mode) : t('pathTab.transportNotSet')}</span>
+                    {stripTr?.note ? <span style={{ opacity: 0.7 }}> · {stripTr.note}</span> : null}
                 </span>
-                {stripTr?.note
-                    ? <span style={{ opacity: 0.7, fontWeight: 600, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>· {stripTr.note}</span>
-                    : null}
             </button>
             {stripDirUrl ? (
                 <a href={stripDirUrl} target="_blank" rel="noopener noreferrer"
-                    style={stripLinkStyle} title={t('transport.directionsTitle')}>
-                    🧭 <span style={{ textDecoration: 'underline' }}>{t('transport.directionsLabel')}</span>
-                    <span aria-hidden="true" style={{ fontSize: '0.7rem', opacity: 0.7 }}>↗</span>
+                    className="day-detail__logi-row" style={logiRowStyle} title={t('transport.directionsTitle')}>
+                    <span style={logiIconStyle} aria-hidden="true">🧭</span>
+                    <span style={logiTextStyle}>{t('transport.directionsLabel')}</span>
+                    <span aria-hidden="true" style={{ opacity: 0.55, flexShrink: 0 }}>↗</span>
                 </a>
             ) : null}
         </div>
@@ -1743,7 +1772,14 @@ export function DayDetailModal({
                         <div style={{ background: 'var(--accent-blue)', color: 'white', padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-sm)', fontWeight: 800, fontSize: 'var(--font-xs)', textTransform: 'uppercase' }}>
                             {t('dayDetail.headerChipDay', { n: day.dayNumber })}
                         </div>
-                        <div className="day-detail-header__subtitle">{formatDayDate(day.date) || ''}</div>
+                        <div className="day-detail-header__subtitle" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span>{formatDayDate(day.date) || ''}</span>
+                            {weather ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 700, color: 'var(--text-brand-navy)' }} title={weather.label}>
+                                    <span aria-hidden="true">{weather.icon}</span>{weather.tempC}°
+                                </span>
+                            ) : null}
+                        </div>
                     </div>
                     <h2 className="day-detail-header__title">{day.name}</h2>
                 </div>

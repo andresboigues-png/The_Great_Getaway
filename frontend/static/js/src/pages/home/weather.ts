@@ -84,6 +84,43 @@ export function paintWeatherChips(
 }
 
 
+/** The forecast row whose date matches `iso` (YYYY-MM-DD), or null.
+ *  Mirrors the date-normalisation paintWeatherChips does per slot, so a
+ *  single-date lookup (e.g. the day-detail modal header) matches the
+ *  chips exactly. */
+export function forecastRowForDate(
+    forecast: WeatherForecast,
+    iso: string,
+): WeatherForecastDay | null {
+    if (!forecast || !iso) return null;
+    for (const fd of forecast) {
+        const dd = fd?.displayDate || fd?.interval?.startTime?.slice(0, 10);
+        if (!dd) continue;
+        const rowIso = (typeof dd === 'string')
+            ? dd
+            : `${dd.year}-${String(dd.month).padStart(2, '0')}-${String(dd.day).padStart(2, '0')}`;
+        if (rowIso === iso) return fd;
+    }
+    return null;
+}
+
+/** One day's `{icon,label,tempC,tempF}` summary for a coordinate + date, or
+ *  null when there's no forecast row (past date / beyond the API window) or
+ *  no temperature. fetchWeatherForecast caches by rounded coordinate, so this
+ *  is free once the Path tab has already loaded the trip's forecast — the
+ *  day-detail modal reuses that cache rather than plumbing the ref across the
+ *  openReactModal boundary. */
+export async function fetchDaySummary(
+    lat: number,
+    lng: number,
+    isoDate: string,
+): Promise<ReturnType<typeof pickDaySummary>> {
+    if (!isoDate) return null;
+    const forecast = await fetchWeatherForecast(lat, lng);
+    const row = forecastRowForDate(forecast as WeatherForecast, isoDate);
+    return row ? pickDaySummary(row) : null;
+}
+
 /** Fetch the forecast for the given coordinate and immediately paint
  *  the chips. Returns the forecast so the caller can cache it and
  *  re-paint later (e.g. on subsequent path-tab rebuilds without a
