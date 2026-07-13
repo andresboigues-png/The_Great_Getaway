@@ -238,6 +238,10 @@ export function DayDetailModal({
             .catch(() => { if (!cancelled) setWeather(null); });
         return () => { cancelled = true; };
     }, [day.id, day.date, trip?.lat, trip?.lng]);
+    // Transport note disclosure: collapsed by default — tapping the mode row
+    // drops the full note down (it can run ~200 chars). Reset per day.
+    const [transportOpen, setTransportOpen] = useState(false);
+    useEffect(() => { setTransportOpen(false); }, [day.id]);
 
     // Shortlist pool derived LIVE from trip.markedPlaces every render, so a
     // pin added from the map behind the modal, an accepted AI plan, or a
@@ -1739,26 +1743,48 @@ export function DayDetailModal({
     const logiTextStyle: CSSProperties = {
         minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
     };
+    // Transport row is a disclosure when it has a note: tapping the mode
+    // toggles the note open/closed (chevron flips). No note → the row just
+    // opens the editor. When open, an "Editar" link opens the editor (the
+    // tap no longer does, since it now owns the expand/collapse).
+    const transportLabel = stripTr ? transportModeLabel(stripTr.mode) : t('pathTab.transportNotSet');
+    const transportIcon = stripTr ? transportModeIcon(stripTr.mode) : '🚌';
+    const transportRow = stripTr?.note ? (
+        <div>
+            <button type="button" className="day-detail__logi-row" style={logiRowStyle}
+                aria-expanded={transportOpen} onClick={() => setTransportOpen((o) => !o)}>
+                <span style={logiIconStyle} aria-hidden="true">{transportIcon}</span>
+                <span style={{ ...logiTextStyle, fontWeight: 700 }}>{transportLabel}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+                    style={{ flexShrink: 0, opacity: 0.5, transition: 'transform 0.15s ease', transform: transportOpen ? 'rotate(180deg)' : 'none' }}>
+                    <polyline points="6 9 12 15 18 9" />
+                </svg>
+            </button>
+            {transportOpen ? (
+                <div style={{ padding: '2px 12px 8px 42px' }}>
+                    <p style={{ margin: '0 0 8px', fontWeight: 500, opacity: 0.82, lineHeight: 1.4, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+                        {stripTr.note}
+                    </p>
+                    <button type="button" onClick={onTransport}
+                        style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: '#005bb8', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
+                        {t('common.edit')}
+                    </button>
+                </div>
+            ) : null}
+        </div>
+    ) : (
+        <button type="button" className="day-detail__logi-row" style={logiRowStyle} onClick={onTransport}>
+            <span style={logiIconStyle} aria-hidden="true">{transportIcon}</span>
+            <span style={{ ...logiTextStyle, fontWeight: 700 }}>{transportLabel}</span>
+        </button>
+    );
     const logisticsStrip = (
         <div className="day-detail__logistics">
             <button type="button" className="day-detail__logi-row" style={logiRowStyle} onClick={onAccommodation}>
                 <span style={logiIconStyle} aria-hidden="true">🛏️</span>
                 <span style={logiTextStyle}>{day.accommodation || t('pathTab.stayNotSet')}</span>
             </button>
-            <button type="button" className="day-detail__logi-row" style={{ ...logiRowStyle, alignItems: 'flex-start' }} onClick={onTransport}>
-                <span style={{ ...logiIconStyle, marginTop: 1 }} aria-hidden="true">{stripTr ? transportModeIcon(stripTr.mode) : '🚌'}</span>
-                <span style={{ minWidth: 0, flex: 1 }}>
-                    <span style={{ fontWeight: 700 }}>{stripTr ? transportModeLabel(stripTr.mode) : t('pathTab.transportNotSet')}</span>
-                    {/* Full note on its own line below the mode — no truncation
-                        (the note can run to ~200 chars; the day card stays terse,
-                        the full plan shows everything). */}
-                    {stripTr?.note ? (
-                        <span style={{ display: 'block', marginTop: 2, opacity: 0.75, fontWeight: 500, whiteSpace: 'normal', overflowWrap: 'anywhere', lineHeight: 1.35 }}>
-                            {stripTr.note}
-                        </span>
-                    ) : null}
-                </span>
-            </button>
+            {transportRow}
             {stripDirUrl ? (
                 <a href={stripDirUrl} target="_blank" rel="noopener noreferrer"
                     className="day-detail__logi-row" style={logiRowStyle} title={t('transport.directionsTitle')}>
