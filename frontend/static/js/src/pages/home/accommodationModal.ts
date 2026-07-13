@@ -39,7 +39,10 @@ export function consumePendingAccommodationOpen(): boolean {
 }
 
 
-export const openAccommodationModal = (trip: Trip, opts?: { preselectDayId?: string }): void => {
+export const openAccommodationModal = (
+    trip: Trip,
+    opts?: { preselectDayId?: string; onClose?: () => void },
+): void => {
     if (!trip) return;
     const editable = canEdit(trip);
 
@@ -117,6 +120,9 @@ export const openAccommodationModal = (trip: Trip, opts?: { preselectDayId?: str
     `;
 
     const { root, close } = showModal({
+        // Fires on every close path — lets the day-detail modal (which opens
+        // this on TOP of itself) repaint its logistics strip on dismiss.
+        ...(opts?.onClose ? { onClose: opts.onClose } : {}),
         cardClass: 'card glass',
         cardStyle: 'width: 560px; max-width: calc(100vw - 32px); max-height: 86vh; overflow:hidden; padding: 26px 28px; border-radius: 28px; background: white; display:flex; flex-direction:column;',
         innerHTML: '',

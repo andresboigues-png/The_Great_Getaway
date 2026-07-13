@@ -915,22 +915,19 @@ export function DayDetailModal({
     //     same way everywhere. Close this modal first so we don't stack.
     //   • Edit — change the day's name + date in a small sub-form.
     const onAccommodation = () => {
-        void (async () => {
-            if (saveTimerRef.current || pendingSaveRef.current) await persistNow();
-            close();
-            if (trip) openAccommodationModal(trip, { preselectDayId: day.id });
-        })();
+        // Open on TOP of this modal (same as onTransport) so a backdrop / ✕ /
+        // Esc dismiss returns HERE, and repaint the strip on close.
+        if (trip) openAccommodationModal(trip, { preselectDayId: day.id, onClose: forceRender });
     };
-    //   • Transport — how to get around this day. Same close-first pattern as
-    //     accommodation so the small editor isn't stacked and its save (which
-    //     mutates day.transport + emits) is reflected by the Path-tab repaint
-    //     when the user returns, not a stale strip in a still-open modal.
+    //   • Transport — how to get around this day. Open the editor ON TOP of
+    //     this modal (Modal.ts stacks + closes top-down): a backdrop / ✕ / Esc
+    //     dismiss then returns HERE instead of closing us and stranding the
+    //     user on the Path tab (and it avoids the close-then-reopen history
+    //     sentinel juggling that could pop back to a prior route). onClose
+    //     repaints the logistics strip — this modal doesn't subscribe to
+    //     state:changed, and the editor mutates day.transport before closing.
     const onTransport = () => {
-        void (async () => {
-            if (saveTimerRef.current || pendingSaveRef.current) await persistNow();
-            close();
-            if (trip) openTransportModal(trip, day.id);
-        })();
+        if (trip) openTransportModal(trip, day.id, { onClose: forceRender });
     };
     const openDayEdit = () => {
         openReactModal({

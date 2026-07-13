@@ -44,7 +44,11 @@ export function transportModeLabel(mode: TransportMode): string {
     return t(`transport.mode_${mode}` as Parameters<typeof t>[0]);
 }
 
-export const openTransportModal = (trip: Trip, dayId: string): void => {
+export const openTransportModal = (
+    trip: Trip,
+    dayId: string,
+    opts?: { onClose?: () => void },
+): void => {
     if (!trip) return;
     const day = (STATE.tripDays || []).find((d) => d.id === dayId && d.tripId === trip.id);
     if (!day) return;
@@ -62,6 +66,10 @@ export const openTransportModal = (trip: Trip, dayId: string): void => {
         </button>`;
 
     const { root, close } = showModal({
+        // Fires on EVERY close path (✕, Save, Clear, backdrop, Esc, hardware
+        // back) — used by the day-detail modal (which opens this on TOP of
+        // itself) to repaint its logistics strip when the editor dismisses.
+        ...(opts?.onClose ? { onClose: opts.onClose } : {}),
         cardStyle:
             'width: 460px; max-width: calc(100vw - 32px); max-height: 86vh; padding: 22px; border-radius: 24px; background: white; display:flex; flex-direction:column; overflow:auto;',
         innerHTML: `
