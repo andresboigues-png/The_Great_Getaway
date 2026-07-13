@@ -24,7 +24,6 @@
 
 import { esc, formatDayDate, shortPlaceName, localTodayIso } from '../../utils.js';
 import { resolveSelectedDayId } from './pathSelection.js';
-import { dayDirectionsUrl } from '../../todoCategories.js';
 import { transportModeIcon, transportModeLabel } from './transportModal.js';
 import { t, tn } from '../../i18n.js';
 // 4.8 design (DSGN-2): inline-SVG line icons replace the emoji prefixes
@@ -163,59 +162,20 @@ function buildDayCardBody(
         // `cursor:pointer` span with no handler, and there was no way to set an
         // existing day's date anywhere. Now it's a button that opens a date
         // picker (wired in TripBody.tsx → openDayDatePicker).
-        subtitleParts.push(`<button type="button" class="day-card__date-btn" data-day-id="${esc(day.id)}" aria-label="${esc(t('pathTab.setDatePlaceholder'))}" style="display:inline-flex; align-items:center; gap:5px; background:none; border:none; padding:0; margin:0; font:inherit; color:inherit; cursor:pointer;">${iconSvg('calendar', { size: 14 })}${formatDayDate(day.date) || t('pathTab.setDatePlaceholder')}</button>`);
-        // Where you're staying (accommodation) drives this slot now, not the
-        // raw map pin — per user, the day should surface the place they're
-        // staying at if set, else a muted "not set". (Pins/POIs are still set
-        // via the day's option buttons + shown on the map; they're decoupled
-        // from accommodation.)
-        if (day.accommodation) {
-            // Link to the accommodation's Google Maps place page when we have
-            // a placeId (set via the Places picker); fall back to plain text
-            // for free-text/legacy entries with no placeId.
-            const accUrl = day.accommodationPlaceId
-                ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(day.accommodationPlaceId)}`
-                : null;
-            subtitleParts.push(accUrl
-                ? `<a class="day-card__accom-link" href="${esc(accUrl)}" target="_blank" rel="noopener noreferrer" title="${esc(t('todo.openInMapsTitle', { place: day.accommodation }))}" style="color:#005bb8; display:inline-flex; align-items:center; gap:4px; text-decoration:none;">🛏️ <span style="text-decoration:underline;">${esc(day.accommodation)}</span><span aria-hidden="true" style="font-size:0.7rem; opacity:0.7;">↗</span></a>`
-                : `<span style="color: #005bb8; display:inline-flex; align-items:center; gap:4px;">🛏️ ${esc(day.accommodation)}</span>`);
-        } else {
-            subtitleParts.push(`<button type="button" class="day-card__accom-set" data-day-id="${esc(day.id)}" style="display:inline-flex; align-items:center; gap:4px; background:none; border:none; padding:0; margin:0; font:inherit; color:#005bb8; cursor:pointer;">🛏️ <span style="text-decoration:underline;">${esc(t('pathTab.stayNotSet'))}</span></button>`);
-        }
-        // Transportation P1: how to get around this day. Set → a pill (mode
-        // icon + label + note, tap to edit); unset → a muted set-button
-        // (mirrors the accommodation slot; the modal gates editability, so
-        // viewers get a read-only view). The delegated dispatcher in
-        // TripBody.tsx handles both classes.
-        const tr = day.transport;
-        if (tr) {
-            const noteHtml = tr.note
-                ? ` <span style="opacity:.75; font-weight:600; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">· ${esc(tr.note)}</span>`
-                : '';
-            subtitleParts.push(
-                `<button type="button" class="day-card__transport-pill" data-day-id="${esc(day.id)}" title="${esc(tr.note || transportModeLabel(tr.mode))}" style="display:inline-flex; align-items:center; gap:4px; background:none; border:none; padding:0; margin:0; font:inherit; color:#005bb8; cursor:pointer;">${transportModeIcon(tr.mode)} <span style="text-decoration:underline;">${esc(transportModeLabel(tr.mode))}</span>${noteHtml}</button>`,
-            );
-        } else {
-            subtitleParts.push(
-                `<button type="button" class="day-card__transport-set" data-day-id="${esc(day.id)}" style="display:inline-flex; align-items:center; gap:4px; background:none; border:none; padding:0; margin:0; font:inherit; color:#005bb8; cursor:pointer;">🚌 <span style="text-decoration:underline;">${esc(t('pathTab.transportNotSet'))}</span></button>`,
-            );
-        }
-        // Free Google Maps directions deep link for the day's route (stored
-        // coords only — zero Directions-API billing). Omitted when the day
-        // has nothing routable.
-        const dirUrl = dayDirectionsUrl(day, activeTrip);
-        if (dirUrl) {
-            subtitleParts.push(
-                `<a class="day-card__directions" href="${esc(dirUrl)}" target="_blank" rel="noopener noreferrer" title="${esc(t('transport.directionsTitle'))}" style="color:#005bb8; display:inline-flex; align-items:center; gap:4px; text-decoration:none;">🧭 <span style="text-decoration:underline;">${esc(t('transport.directionsLabel'))}</span><span aria-hidden="true" style="font-size:0.7rem; opacity:0.7;">↗</span></a>`,
-            );
-        }
-        // Weather slot — populated async by applyWeatherChips() after
-        // the trip's forecast lands. Empty by default so days that have
-        // no forecast (past dates, beyond the API's 10-day window) just
-        // don't show a chip.
-        if (day.date) {
-            subtitleParts.push(`<span class="day-card__weather" data-weather-date="${esc(day.date)}"></span>`);
-        }
+        // Date + weather sit TOGETHER as a single meta part — weather right
+        // next to the date, no "·" separator between them (and none dangling
+        // when the forecast is empty for far-out / past dates). Accommodation,
+        // the transport pill, and the directions link used to sit here too,
+        // but the card got crowded (user 2026-07-13) — they moved to the FULL
+        // day plan (openDayDetail → DayDetailModal "logistics" strip).
+        const dateBtnHtml = `<button type="button" class="day-card__date-btn" data-day-id="${esc(day.id)}" aria-label="${esc(t('pathTab.setDatePlaceholder'))}" style="display:inline-flex; align-items:center; gap:5px; background:none; border:none; padding:0; margin:0; font:inherit; color:inherit; cursor:pointer;">${iconSvg('calendar', { size: 14 })}${formatDayDate(day.date) || t('pathTab.setDatePlaceholder')}</button>`;
+        // Weather span — populated async by applyWeatherChips() once the
+        // trip's forecast lands; stays empty (no chip) for days with no
+        // forecast (past dates, beyond the API's 10-day window).
+        const weatherHtml = day.date
+            ? `<span class="day-card__weather" data-weather-date="${esc(day.date)}"></span>`
+            : '';
+        subtitleParts.push(`<span style="display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap;">${dateBtnHtml}${weatherHtml}</span>`);
     }
     // Chevron button — clicking this collapses / expands the options
     // stack below this day card. Aria-label includes the day name so

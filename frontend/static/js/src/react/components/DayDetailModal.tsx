@@ -74,6 +74,8 @@ import { navigate } from '../../router.js';
 import { openReactModal } from '../reactModal.js';
 import { openTripChecklistModal } from '../../pages/home/tripChecklistModal.js';
 import { openAccommodationModal } from '../../pages/home/accommodationModal.js';
+import { openTransportModal, transportModeIcon, transportModeLabel } from '../../pages/home/transportModal.js';
+import { dayDirectionsUrl } from '../../todoCategories.js';
 import { repaintPathTab } from '../../pages/home/pathSelection.js';
 import { iconSvg } from '../../icons.js';
 import { sizedUploadUrl } from '../../utils/mediaUrl';
@@ -893,6 +895,17 @@ export function DayDetailModal({
             if (trip) openAccommodationModal(trip, { preselectDayId: day.id });
         })();
     };
+    //   • Transport — how to get around this day. Same close-first pattern as
+    //     accommodation so the small editor isn't stacked and its save (which
+    //     mutates day.transport + emits) is reflected by the Path-tab repaint
+    //     when the user returns, not a stale strip in a still-open modal.
+    const onTransport = () => {
+        void (async () => {
+            if (saveTimerRef.current || pendingSaveRef.current) await persistNow();
+            close();
+            if (trip) openTransportModal(trip, day.id);
+        })();
+    };
     const openDayEdit = () => {
         openReactModal({
             ariaLabel: t('dayDetail.editDayTitle'),
@@ -1679,6 +1692,49 @@ export function DayDetailModal({
         </div>
     );
 
+    // ── Logistics strip (accommodation · transport · directions) ──────
+    // Moved out of the crowded Path day card (user 2026-07-13): the card now
+    // shows only date + weather, and "where you stay / how you get around /
+    // directions" live here in the full plan. Editors only reach this modal
+    // (viewers get the read-only DayViewModal), so these are always live edit
+    // affordances. Accommodation + transport close-first before opening their
+    // small editors (see onAccommodation / onTransport); directions is a plain
+    // Google Maps deep link (zero API billing), omitted when nothing routable.
+    const stripTr = day.transport;
+    const stripDirUrl = trip ? dayDirectionsUrl(day, trip) : null;
+    const stripLinkStyle: CSSProperties = {
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        background: 'none', border: 'none', padding: 0, margin: 0,
+        font: 'inherit', color: '#005bb8', cursor: 'pointer', textDecoration: 'none',
+    };
+    const logisticsStrip = (
+        <div className="day-detail__logistics" style={{
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 16px',
+            padding: '10px var(--space-6) 0', fontSize: '0.9rem', fontWeight: 600,
+        }}>
+            <button type="button" style={stripLinkStyle} onClick={onAccommodation}>
+                🛏️ <span style={{ textDecoration: 'underline' }}>{day.accommodation || t('pathTab.stayNotSet')}</span>
+            </button>
+            <button type="button" style={stripLinkStyle} onClick={onTransport}
+                title={stripTr?.note || (stripTr ? transportModeLabel(stripTr.mode) : t('pathTab.transportNotSet'))}>
+                <span aria-hidden="true">{stripTr ? transportModeIcon(stripTr.mode) : '🚌'}</span>{' '}
+                <span style={{ textDecoration: 'underline' }}>
+                    {stripTr ? transportModeLabel(stripTr.mode) : t('pathTab.transportNotSet')}
+                </span>
+                {stripTr?.note
+                    ? <span style={{ opacity: 0.7, fontWeight: 600, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>· {stripTr.note}</span>
+                    : null}
+            </button>
+            {stripDirUrl ? (
+                <a href={stripDirUrl} target="_blank" rel="noopener noreferrer"
+                    style={stripLinkStyle} title={t('transport.directionsTitle')}>
+                    🧭 <span style={{ textDecoration: 'underline' }}>{t('transport.directionsLabel')}</span>
+                    <span aria-hidden="true" style={{ fontSize: '0.7rem', opacity: 0.7 }}>↗</span>
+                </a>
+            ) : null}
+        </div>
+    );
+
     return (
         <>
             <div className="day-detail-header">
@@ -1692,11 +1748,9 @@ export function DayDetailModal({
                     <h2 className="day-detail-header__title">{day.name}</h2>
                 </div>
                 <div className="day-detail-header__actions">
-                    <button id="dayAccommodationBtn" className="day-detail-header__act" type="button"
-                        title={t('dayDetail.accommodationHeading')} aria-label={t('dayDetail.accommodationHeading')}
-                        onClick={onAccommodation}>
-                        🛏️
-                    </button>
+                    {/* Accommodation moved into the logistics strip below the
+                        header (with transport + directions), so it shows its
+                        value rather than a bare icon. */}
                     <button id="dayEditBtn" className="day-detail-header__act" type="button"
                         title={t('common.edit')} aria-label={t('dayDetail.editDayAria')}
                         onClick={openDayEdit}>
@@ -1711,6 +1765,7 @@ export function DayDetailModal({
                     </button>
                 </div>
             </div>
+            {logisticsStrip}
             {/* Numbered-day body — the plan (AM/PM/Eve tab strip) takes the
                 full width; Notes + Checklist + media live in the collapsible
                 bookmark drawer pinned to the right edge. The To-do list

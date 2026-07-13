@@ -35,8 +35,6 @@ import {
 } from '../../modals.js';
 import { openTripChecklistModal } from '../home/tripChecklistModal.js';
 import { openTripDocumentsModal, openTripPhotosModal } from '../home/tripMediaModals.js';
-import { openAccommodationModal } from '../home/accommodationModal.js';
-import { openTransportModal } from '../home/transportModal.js';
 import { openDayPinPlaceModal } from '../home/dayPinPlaceModal.js';
 import { openDayDetail as _openDayDetailRaw, type HomeTab } from '../home/dayDetailModal.js';
 import { buildPathTabHtml, togglePathCardCollapsed } from '../home/pathTab.js';
@@ -328,22 +326,9 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                 openDayPinPlaceModal(placePinBtn.dataset.dayId);
                 return;
             }
-            // "No accommodation" hint → open the accommodation manager focused
-            // on this day (pre-ticks it; Places + free-text address picker).
-            const accomSetBtn = target.closest('.day-card__accom-set') as HTMLElement | null;
-            if (accomSetBtn?.dataset.dayId) {
-                openAccommodationModal(activeTrip, { preselectDayId: accomSetBtn.dataset.dayId });
-                return;
-            }
-            // Transportation P1: both the "not set" hint and the set pill open
-            // the per-day transport editor (read-only inside for viewers).
-            const transportBtn = target.closest(
-                '.day-card__transport-set, .day-card__transport-pill',
-            ) as HTMLElement | null;
-            if (transportBtn?.dataset.dayId) {
-                openTransportModal(activeTrip, transportBtn.dataset.dayId);
-                return;
-            }
+            // Accommodation + transport moved off the day card (2026-07-13)
+            // into the full-plan modal's logistics strip — their in-card set/
+            // pill handlers went with them.
             if (target.closest('.path-checklist-btn')) {
                 openTripChecklistModal(activeTrip);
                 return;
@@ -384,10 +369,6 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                 setSelectedDay(activeTrip.id, chip.dataset.pathChipDayId);
                 return;
             }
-            // Accommodation / directions links open Google Maps in a new tab —
-            // let the <a> handle it; don't also re-select the card (which would
-            // repaint the Path inner and detach the anchor mid-dispatch).
-            if (target.closest('.day-card__accom-link, .day-card__directions')) return;
             // Card body click — selects that card.
             const pathCard = target.closest(
                 '.path-card[data-day-id]',
