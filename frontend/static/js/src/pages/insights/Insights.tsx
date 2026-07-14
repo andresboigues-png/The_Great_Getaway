@@ -44,14 +44,8 @@ import { esc } from '../../utils.js';
 
 // Chart is loaded via CDN in index.html and declared as a global in types.d.ts.
 
-/** Minimal Chart.js tooltip-context shape the doughnut callbacks below read.
- *  The line/bar callbacks use chart.js's own `TooltipItem<'line'|'bar'>`
- *  (imported above); the doughnut ones only touch `label` + a scalar
- *  `parsed`, so this narrow local shape stays. */
-interface PieTooltipCtx {
-    label: string;
-    parsed: number;
-}
+// (The old PieTooltipCtx shape is gone with the donut tooltips — the pies
+// have no on-canvas labels now; the right-side rows cross-highlight instead.)
 
 interface ConvertedExpense {
     id: string;
@@ -105,6 +99,152 @@ function timelineDateLabel(isoKey: string, includeYear: boolean): string {
 
 // Donut/legend slice colours (distinct hues; the list dot mirrors the slice).
 const DASH_PALETTE = ['#0071e3', '#34c759', '#ff9500', '#af52de', '#ff2d55', '#5ac8fa', '#ffcc00', '#ff6482', '#30b0c7', '#a2845e', '#bf5af2', '#ff9f0a'];
+
+/** Soft per-slice halo shared by every Insights donut: pre-draw each arc with
+ *  its own colour as a canvas shadow, so a coloured glow bleeds out behind the
+ *  crisp slice Chart.js paints on top. Pair with `layout.padding` on the chart
+ *  so the halo isn't clipped by the canvas edge. */
+const DONUT_GLOW: Plugin<'doughnut'> = {
+    id: 'ggDonutGlow',
+    beforeDatasetsDraw(c) {
+        const meta = c.getDatasetMeta(0);
+        const bg = (c.data.datasets[0]?.backgroundColor as string[]) || [];
+        if (!meta?.data) return;
+        const ctx = c.ctx;
+        ctx.save();
+        meta.data.forEach((arc, i) => {
+            ctx.shadowColor = bg[i] ?? 'rgba(0,113,227,0.5)';
+            ctx.shadowBlur = 10;
+            (arc as unknown as { draw: (x: CanvasRenderingContext2D) => void }).draw(ctx);
+        });
+        ctx.restore();
+    },
+};
+
+/** rgba() of a #rrggbb colour at the given alpha — donut hover dimming. */
+const dimHex = (hex: string, alpha: number): string => {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+    if (!m) return hex;
+    const n = parseInt(m[1]!, 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+};
+
+/** GG-styled dropdown replacing the native <select>s on Insights — mirrors
+ *  the navbar trip picker: blue-bordered pill trigger + white panel with a
+ *  check on the selected row. Outside-click + Escape close. */
+function GGSelect({
+    value,
+    options,
+    onChange,
+    ariaLabel,
+}: {
+    value: string;
+    options: { value: string; label: string }[];
+    onChange: (v: string) => void;
+    ariaLabel?: string;
+}) {
+    const [open, setOpen] = useState(false);
+    const rootRef = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+        if (!open) return;
+        const onDown = (e: MouseEvent) => {
+            if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+        };
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setOpen(false);
+        };
+        document.addEventListener('mousedown', onDown);
+        document.addEventListener('keydown', onKey);
+        return () => {
+            document.removeEventListener('mousedown', onDown);
+            document.removeEventListener('keydown', onKey);
+        };
+    }, [open]);
+    const cur = options.find((o) => o.value === value) ?? options[0];
+    return (
+        <div ref={rootRef} style={{ position: 'relative' }}>
+            <button
+                type="button"
+                aria-haspopup="listbox"
+                aria-expanded={open}
+                {...(ariaLabel ? { 'aria-label': ariaLabel } : {})}
+                onClick={() => setOpen((v) => !v)}
+                className="inline-flex items-center gap-1.5"
+                style={{
+                    border: '1.5px solid var(--accent-blue, #0071e3)',
+                    color: 'var(--accent-blue, #0071e3)',
+                    background: 'transparent',
+                    borderRadius: 999,
+                    padding: '4px 12px',
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                }}
+            >
+                <span style={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cur?.label}</span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }}>
+                    <polyline points="6 9 12 15 18 9" />
+                </svg>
+            </button>
+            {open ? (
+                <div
+                    role="listbox"
+                    style={{
+                        position: 'absolute',
+                        top: 'calc(100% + 6px)',
+                        right: 0,
+                        zIndex: 70,
+                        minWidth: 190,
+                        background: 'white',
+                        border: '1px solid rgba(0,45,91,0.12)',
+                        borderRadius: 14,
+                        boxShadow: '0 14px 34px rgba(0,45,91,0.16)',
+                        padding: 4,
+                        maxHeight: 280,
+                        overflow: 'auto',
+                    }}
+                >
+                    {options.map((o) => {
+                        const sel = o.value === value;
+                        return (
+                            <button
+                                key={o.value}
+                                type="button"
+                                role="option"
+                                aria-selected={sel}
+                                onClick={() => {
+                                    onChange(o.value);
+                                    setOpen(false);
+                                }}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    width: '100%',
+                                    textAlign: 'left',
+                                    border: 0,
+                                    cursor: 'pointer',
+                                    padding: '8px 10px',
+                                    borderRadius: 9,
+                                    font: 'inherit',
+                                    fontSize: '0.84rem',
+                                    fontWeight: sel ? 800 : 600,
+                                    color: '#002d5b',
+                                    background: sel ? 'rgba(0,113,227,0.1)' : 'transparent',
+                                }}
+                            >
+                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.label}</span>
+                                {sel ? (
+                                    <span style={{ display: 'inline-flex', color: 'var(--accent-blue, #0071e3)' }} dangerouslySetInnerHTML={{ __html: iconSvg('check', { size: 14 }) }} />
+                                ) : null}
+                            </button>
+                        );
+                    })}
+                </div>
+            ) : null}
+        </div>
+    );
+}
 
 /** iOS-style segmented control: a white "lens" slides + resizes under the
  *  active segment. Segments are CONTENT-sized (so unequal-length labels never
@@ -564,13 +704,18 @@ export function Insights() {
                 .map(([label, value]) => ({ label, value, color: colorOf[label] || '#0071e3' }))
                 .sort((a, b) => b.value - a.value),
         }));
+        // STABLE slice colour by spend-order (value desc), so a person keeps
+        // the same hue across sort/metric switches — mirrors perRows.
+        const spendOrder = [...rows].sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
+        const sliceColorOf = new Map<string, string>();
+        spendOrder.forEach((r, i) => sliceColorOf.set(r.name, DASH_PALETTE[i % DASH_PALETTE.length] ?? '#0071e3'));
         rows.sort((a, b) => {
             if (spenderSort === 'amount_asc') return a.value - b.value;
             if (spenderSort === 'count_desc') return b.count - a.count || b.value - a.value;
             if (spenderSort === 'name_asc') return a.name.localeCompare(b.name);
             return b.value - a.value;
         });
-        return rows;
+        return rows.map((r) => ({ ...r, sliceColor: sliceColorOf.get(r.name) ?? '#0071e3' }));
     }, [convertedExps, spenderSort, spenderDim]);
 
     // Shared legend for the secondary dimension (unique value → colour across
@@ -629,8 +774,19 @@ export function Insights() {
         const all = Object.values(m);
         const totalVal = all.reduce((sm, r) => sm + r.value, 0);
         const totalCnt = all.reduce((sm, r) => sm + r.count, 0);
+        // STABLE slice colour: assign the palette by spend-order (value desc,
+        // label tiebreak) BEFORE the metric sort, so a category keeps the same
+        // hue when the user flips Spent ↔ Transactions — the donut + row icon
+        // + bar all read as one identity.
+        const byValue = [...all].sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+        const sliceColorOf = new Map<string, string>();
+        byValue.forEach((r, i) => sliceColorOf.set(r.label, DASH_PALETTE[i % DASH_PALETTE.length] ?? '#0071e3'));
         all.sort((a, b) => (perMetric === 'count' ? b.count - a.count || b.value - a.value : b.value - a.value));
-        return { rows: all.slice(0, 14), totalVal, totalCnt };
+        return {
+            rows: all.slice(0, 14).map((r) => ({ ...r, sliceColor: sliceColorOf.get(r.label) ?? '#0071e3' })),
+            totalVal,
+            totalCnt,
+        };
     }, [convertedExps, perDim, perMetric]);
 
     // Filter-dropdown option lists (payers + categories actually present).
@@ -826,6 +982,14 @@ export function Insights() {
     const currencyTimeRef = useRef<HTMLCanvasElement | null>(null);
     const spenderPieRef = useRef<HTMLCanvasElement | null>(null);
     const perPieRef = useRef<HTMLCanvasElement | null>(null);
+    // Donut ↔ legend hover cross-highlight: hovering a slice dims every OTHER
+    // right-side row (and vice versa — hovering a row dims the other slices).
+    // The chart instances live on refs so the dim effect can repaint without
+    // rebuilding the chart.
+    const spenderChartRef = useRef<InstanceType<typeof Chart> | null>(null);
+    const perChartRef = useRef<InstanceType<typeof Chart> | null>(null);
+    const [spenderHover, setSpenderHover] = useState<number | null>(null);
+    const [perHover, setPerHover] = useState<number | null>(null);
 
     // ── Timeline zoom ─────────────────────────────────────────────────────
     // Default is zoomed OUT: every point fits the visible width, no scroll.
@@ -1130,46 +1294,83 @@ export function Insights() {
     useEffect(() => {
         if (!chartLibReady) return;
         if (!spenderPieRef.current || spenderRows.length < 2) return;
+        // No tooltip on the pie — the right-side list IS the label surface; a
+        // hover cross-highlights it instead. layout.padding gives the glow halo
+        // room so it isn't clipped at the canvas edge.
         const chart = new Chart(spenderPieRef.current, {
             type: 'doughnut',
-            data: { labels: spenderRows.map((r) => r.name), datasets: [{ data: spenderRows.map((r) => r.value), backgroundColor: spenderRows.map((_, i) => DASH_PALETTE[i % DASH_PALETTE.length] ?? '#0071e3'), borderWidth: 0 }] },
-            options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { display: false }, tooltip: { displayColors: false, backgroundColor: 'rgba(17,24,39,0.92)', padding: 10, cornerRadius: 10, titleColor: '#ffffff', bodyColor: 'rgba(255,255,255,0.82)', titleFont: { size: 13, weight: 700 }, bodyFont: { size: 13 }, callbacks: { title: (items: PieTooltipCtx[]) => items[0]?.label ?? '', label: (ctx: PieTooltipCtx) => `${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}` } } } },
+            plugins: [DONUT_GLOW],
+            data: { labels: spenderRows.map((r) => r.name), datasets: [{ data: spenderRows.map((r) => r.value), backgroundColor: spenderRows.map((r) => r.sliceColor), borderWidth: 0 }] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '62%',
+                layout: { padding: 14 },
+                onHover: (_evt, els) => setSpenderHover(els.length ? (els[0]?.index ?? null) : null),
+                plugins: { legend: { display: false }, tooltip: { enabled: false } },
+            },
         });
-        return () => chart.destroy();
+        spenderChartRef.current = chart;
+        setSpenderHover(null);
+        return () => {
+            spenderChartRef.current = null;
+            chart.destroy();
+        };
     }, [chartLibReady, targetCurr, targetSym, spenderRows.map((r) => `${r.name}:${r.value.toFixed(2)}`).join('|')]);
+
+    // Repaint the spender donut on hover: the hovered slice keeps its colour,
+    // every other slice fades. update('none') = no animation churn.
+    useEffect(() => {
+        const ch = spenderChartRef.current;
+        if (!ch) return;
+        const ds = ch.data.datasets[0];
+        if (!ds) return;
+        ds.backgroundColor = spenderRows.map((r, i) =>
+            spenderHover == null || i === spenderHover ? r.sliceColor : dimHex(r.sliceColor, 0.16),
+        );
+        ch.update('none');
+    }, [spenderHover, spenderRows]);
 
     // "Expenses per…" share donut — slices follow the active metric (spent / count).
     useEffect(() => {
         if (!chartLibReady) return;
         if (!perPieRef.current || perRows.rows.length < 2) return;
         const isCount = perMetric === 'count';
-        // Soft per-slice glow: before Chart draws the arcs, pre-draw each one with
-        // its own colour as a canvas shadow, so a coloured halo bleeds out behind
-        // the crisp slice that draws on top — a subtle aesthetic lift.
-        const donutGlow: Plugin<'doughnut'> = {
-            id: 'perDonutGlow',
-            beforeDatasetsDraw(c) {
-                const meta = c.getDatasetMeta(0);
-                const bg = (c.data.datasets[0]?.backgroundColor as string[]) || [];
-                if (!meta?.data) return;
-                const ctx = c.ctx;
-                ctx.save();
-                meta.data.forEach((arc, i) => {
-                    ctx.shadowColor = bg[i] ?? 'rgba(0,113,227,0.5)';
-                    ctx.shadowBlur = 11;
-                    (arc as unknown as { draw: (x: CanvasRenderingContext2D) => void }).draw(ctx);
-                });
-                ctx.restore();
-            },
-        };
+        // Shared glow plugin + no tooltip (the right-side rows are the labels;
+        // hover cross-highlights them). Stable per-row sliceColor keeps a
+        // category's hue identical across the Spent ↔ Transactions toggle.
         const chart = new Chart(perPieRef.current, {
             type: 'doughnut',
-            plugins: [donutGlow],
-            data: { labels: perRows.rows.map((r) => r.label), datasets: [{ data: perRows.rows.map((r) => (isCount ? r.count : r.value)), backgroundColor: perRows.rows.map((_, i) => DASH_PALETTE[i % DASH_PALETTE.length] ?? '#0071e3'), borderWidth: 0 }] },
-            options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { display: false }, tooltip: { displayColors: false, backgroundColor: 'rgba(17,24,39,0.92)', padding: 10, cornerRadius: 10, titleColor: '#ffffff', bodyColor: 'rgba(255,255,255,0.82)', titleFont: { size: 13, weight: 700 }, bodyFont: { size: 13 }, callbacks: { title: (items: PieTooltipCtx[]) => items[0]?.label ?? '', label: (ctx: PieTooltipCtx) => (isCount ? `${ctx.parsed} ${t('insights.transactionsAbbrev')}` : `${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}`) } } } },
+            plugins: [DONUT_GLOW],
+            data: { labels: perRows.rows.map((r) => r.label), datasets: [{ data: perRows.rows.map((r) => (isCount ? r.count : r.value)), backgroundColor: perRows.rows.map((r) => r.sliceColor), borderWidth: 0 }] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '62%',
+                layout: { padding: 14 },
+                onHover: (_evt, els) => setPerHover(els.length ? (els[0]?.index ?? null) : null),
+                plugins: { legend: { display: false }, tooltip: { enabled: false } },
+            },
         });
-        return () => chart.destroy();
+        perChartRef.current = chart;
+        setPerHover(null);
+        return () => {
+            perChartRef.current = null;
+            chart.destroy();
+        };
     }, [chartLibReady, targetCurr, targetSym, perMetric, perRows.rows.map((r) => `${r.label}:${(perMetric === 'count' ? r.count : r.value).toFixed(2)}`).join('|')]);
+
+    // Hover repaint for the "Expenses per…" donut (mirrors the spender one).
+    useEffect(() => {
+        const ch = perChartRef.current;
+        if (!ch) return;
+        const ds = ch.data.datasets[0];
+        if (!ds) return;
+        ds.backgroundColor = perRows.rows.map((r, i) =>
+            perHover == null || i === perHover ? r.sliceColor : dimHex(r.sliceColor, 0.16),
+        );
+        ch.update('none');
+    }, [perHover, perRows.rows]);
 
     // Currency-over-time stacked bars — home-equivalent spend per
     // original currency per day, so the currency mix shift across the
@@ -1635,7 +1836,7 @@ export function Insights() {
                                 type="button"
                                 onClick={() => setShowBudgetVs((v) => !v)}
                                 aria-expanded={showBudgetVs}
-                                className="inline-flex items-center gap-1.5 bg-[linear-gradient(135deg,_#ffd60a,_#ff9f0a)] text-[#5e3c00] border-0 py-2 px-3.5 rounded-full font-extrabold text-[0.78rem] cursor-pointer shadow-[0_6px_18px_rgba(255,159,10,0.3)]"
+                                className="inline-flex items-center gap-1.5 bg-[linear-gradient(135deg,_#ffd60a,_#ff9f0a)] text-white border-0 py-2 px-3.5 rounded-full font-extrabold text-[0.78rem] cursor-pointer shadow-[0_6px_18px_rgba(255,159,10,0.3)]"
                             >
                                 {t('insights.budgetPill')}
                                 <span aria-hidden="true">{showBudgetVs ? '▴' : '▾'}</span>
@@ -1727,26 +1928,24 @@ export function Insights() {
                     <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
                         <h2 className="card-title metric-label m-0">{t('insights.avgDaily')}</h2>
                         <div className="flex gap-1.5 flex-wrap">
-                            <select
-                                className="glass-input"
-                                style={{ width: 'auto', maxWidth: '100%', padding: '4px 8px', fontSize: '0.76rem' }}
+                            <GGSelect
                                 value={avgWho}
-                                onChange={(e) => setAvgWho(e.target.value)}
-                                aria-label={t('insights.filterPayer')}
-                            >
-                                <option value="all">{t('insights.allPayers')}</option>
-                                {payerOptions.map((pp) => <option key={pp} value={pp}>{pp}</option>)}
-                            </select>
-                            <select
-                                className="glass-input"
-                                style={{ width: 'auto', maxWidth: '100%', padding: '4px 8px', fontSize: '0.76rem' }}
+                                onChange={setAvgWho}
+                                ariaLabel={t('insights.filterPayer')}
+                                options={[
+                                    { value: 'all', label: t('insights.allPayers') },
+                                    ...payerOptions.map((pp) => ({ value: pp, label: pp })),
+                                ]}
+                            />
+                            <GGSelect
                                 value={avgCat}
-                                onChange={(e) => setAvgCat(e.target.value)}
-                                aria-label={t('insights.filterCategory')}
-                            >
-                                <option value="all">{t('insights.allCategories')}</option>
-                                {catOptions.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-                            </select>
+                                onChange={setAvgCat}
+                                ariaLabel={t('insights.filterCategory')}
+                                options={[
+                                    { value: 'all', label: t('insights.allCategories') },
+                                    ...catOptions.map((c) => ({ value: c.id, label: c.label })),
+                                ]}
+                            />
                         </div>
                     </div>
                     {/* B7-I2: the average is computed only over PAST, dated days.
@@ -1820,7 +2019,7 @@ export function Insights() {
                 </div>
                 <div className={spenderRows.length >= 2 ? 'grid-2 grid-cols-2 gap-6 items-center' : ''}>
                     {spenderRows.length >= 2 ? (
-                        <div className="relative h-[220px] w-full min-w-0"><canvas ref={spenderPieRef}></canvas></div>
+                        <div className="relative h-[220px] w-full min-w-0" onMouseLeave={() => setSpenderHover(null)}><canvas ref={spenderPieRef}></canvas></div>
                     ) : null}
                     <div className="flex flex-col gap-1">
                         {(() => {
@@ -1832,11 +2031,17 @@ export function Insights() {
                                     <div
                                         key={r.name}
                                         className="flex flex-col gap-1 py-1.5"
-                                        style={index < spenderRows.length - 1 ? { borderBottom: '1px solid var(--border-subtle)' } : undefined}
+                                        onMouseEnter={() => setSpenderHover(index)}
+                                        onMouseLeave={() => setSpenderHover(null)}
+                                        style={{
+                                            ...(index < spenderRows.length - 1 ? { borderBottom: '1px solid var(--border-subtle)' } : {}),
+                                            opacity: spenderHover != null && spenderHover !== index ? 0.35 : 1,
+                                            transition: 'opacity 0.15s ease',
+                                        }}
                                     >
                                         <div className="flex items-baseline justify-between gap-3 min-w-0">
                                             <span className="font-bold text-primary break-words min-w-0 flex items-center gap-2">
-                                                <span className="inline-block rounded-full" style={{ width: 10, height: 10, flexShrink: 0, background: DASH_PALETTE[index % DASH_PALETTE.length] ?? '#0071e3' }} />
+                                                <span className="inline-block rounded-full" style={{ width: 10, height: 10, flexShrink: 0, background: r.sliceColor }} />
                                                 {r.name}
                                             </span>
                                             <span className="font-extrabold text-accent-blue tabular-nums whitespace-nowrap">
@@ -1849,7 +2054,7 @@ export function Insights() {
                                                 ? r.segs.map((s) => (
                                                     <div key={s.label} title={`${s.label}: ${targetSym}${formatNumberForCurrency(s.value, targetCurr)}`} style={{ width: `${maxV > 0 ? (s.value / maxV) * 100 : 0}%`, background: s.color, transition: 'width 0.3s ease' }} />
                                                   ))
-                                                : <div style={{ width: `${Math.min(100, Math.max(0, barPct))}%`, background: 'linear-gradient(90deg, #0071e3, #5856d6)', borderRadius: 999, transition: 'width 0.3s ease' }} />}
+                                                : <div style={{ width: `${Math.min(100, Math.max(0, barPct))}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${r.sliceColor} 70%, #fff), ${r.sliceColor})`, borderRadius: 999, transition: 'width 0.3s ease' }} />}
                                         </div>
                                     </div>
                                 );
@@ -1904,7 +2109,7 @@ export function Insights() {
                 ) : (
                     <div className={perRows.rows.length >= 2 ? 'grid-2 grid-cols-2 gap-6 items-center' : ''}>
                         {perRows.rows.length >= 2 ? (
-                            <div className="relative h-[240px] w-full min-w-0"><canvas ref={perPieRef}></canvas></div>
+                            <div className="relative h-[240px] w-full min-w-0" onMouseLeave={() => setPerHover(null)}><canvas ref={perPieRef}></canvas></div>
                         ) : null}
                         <div className="flex flex-col gap-[10px]">
                             {(() => {
@@ -1914,12 +2119,22 @@ export function Insights() {
                                     const metricVal = perMetric === 'count' ? r.count : r.value;
                                     const barPct = maxV > 0 ? (metricVal / maxV) * 100 : 0;
                                     const sharePct = denom > 0 ? (metricVal / denom) * 100 : 0;
-                                    // Slice colour = the donut's own hue for this row (index-based,
-                                    // matching perPie's backgroundColor) so the icon + bar read as
-                                    // the same category the pie slice represents.
-                                    const catColor = DASH_PALETTE[index % DASH_PALETTE.length] ?? '#0071e3';
+                                    // r.sliceColor is the donut's hue for this row — STABLE
+                                    // across the Spent ↔ Transactions toggle (assigned by
+                                    // spend-order in perRows), so icon + bar + slice always
+                                    // read as one category.
+                                    const catColor = r.sliceColor;
                                     return (
-                                        <div key={r.label} className="flex flex-col gap-1">
+                                        <div
+                                            key={r.label}
+                                            className="flex flex-col gap-1"
+                                            onMouseEnter={() => setPerHover(index)}
+                                            onMouseLeave={() => setPerHover(null)}
+                                            style={{
+                                                opacity: perHover != null && perHover !== index ? 0.35 : 1,
+                                                transition: 'opacity 0.15s ease',
+                                            }}
+                                        >
                                             <div className="flex justify-between items-baseline gap-3 min-w-0">
                                                 <span className="font-bold text-[0.95rem] text-primary break-words min-w-0 flex items-center gap-2">
                                                     {perDim === 'category' && r.icon ? (
