@@ -90,14 +90,26 @@ export const openTripPhotosModal = (trip: Trip): void => {
 };
 
 /** Add-document sub-modal. Opened from openTripDocumentsModal's
- *  ➕ Add document button (which closes the list modal first). */
-export const openAddTripDocumentModal = (trip: Trip): void => {
+ *  ➕ Add document button (which closes the list modal first). `opts.legRef`
+ *  ties the new doc to an arrival/departure travel leg (Transport tab attach);
+ *  `opts.onSaved` runs after a successful save instead of navigate('home') so
+ *  the caller can repaint in place. */
+export const openAddTripDocumentModal = (
+    trip: Trip,
+    opts?: { legRef?: 'arrival' | 'departure'; onSaved?: () => void },
+): void => {
     if (!trip) return;
     openReactModal({
         ariaLabel: t('tripMedia.addDocTitle'),
         variant: 'glass-light',
         cardStyle: DOC_FORM_CARD_STYLE,
-        render: close => createElement(AddTripDocumentModal, { trip, close }),
+        render: close =>
+            createElement(AddTripDocumentModal, {
+                trip,
+                close,
+                ...(opts?.legRef ? { legRef: opts.legRef } : {}),
+                ...(opts?.onSaved ? { onSaved: opts.onSaved } : {}),
+            }),
     });
 };
 

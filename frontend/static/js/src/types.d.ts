@@ -378,6 +378,12 @@ export interface TripDocument {
     name: string;
     url: string;
     dayId?: string | null;
+    /** Optional link to an arrival/departure travel leg (Transport tab
+     *  attachments — tickets, boarding passes). Independent of `dayId`: a
+     *  leg-linked doc is still a trip-wide document (kept in the Anchor
+     *  bucket) but ALSO surfaces under its leg in the Transport tab + Trip
+     *  Hub. Rides the media write path like every other document field. */
+    legRef?: 'arrival' | 'departure' | null;
     addedAt?: string;
 }
 

@@ -1632,6 +1632,8 @@ export const pt: Translations = {
         findTerminals: 'Ver terminais perto',
         seeTerminals: 'Ver terminais',
         terminalRouteTitle: 'Como chegar em transporte ao teu alojamento',
+        attachDoc: 'Anexar bilhete',
+        removeDoc: 'Remover documento',
         terminalsLoading: 'A procurar terminais…',
         terminalsError: 'Não foi possível carregar os terminais.',
     },

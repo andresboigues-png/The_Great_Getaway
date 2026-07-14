@@ -968,6 +968,13 @@ def update_trip_media(trip_id):
                 for it in value
                 if not isinstance(it, dict) or is_safe_media_url(it.get(url_field))
             ]
+            if key == "documents":
+                # `legRef` ties a document to the arrival/departure travel leg
+                # (Transport tab attachments). Keep it a strict enum — drop any
+                # other value so junk can't accumulate in stored media.
+                for it in value:
+                    if isinstance(it, dict) and it.get("legRef") not in ("arrival", "departure"):
+                        it.pop("legRef", None)
         payload = json.dumps(value)
         if len(payload.encode("utf-8")) > _MEDIA_FIELD_MAX_BYTES:
             return jsonify({"error": f"{key} payload too large"}), 413

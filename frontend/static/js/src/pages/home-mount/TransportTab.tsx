@@ -21,6 +21,8 @@ import { TransportModeIcon } from '../../react/components/TransportModeIcon.js';
 import { iconSvg } from '../../icons.js';
 import { dayDirectionsUrl } from '../../todoCategories.js';
 import { readCachedAirport } from '../home/airportMarker.js';
+import { openAddTripDocumentModal } from '../home/tripMediaModals.js';
+import { getDocumentsForLeg, removeTripDocument } from '../../tripMedia.js';
 import {
     suggestableDays,
     applyHeuristicTransports,
@@ -231,6 +233,24 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
     const [openRanges, setOpenRanges] = useState<ReadonlySet<string>>(() => new Set());
     const toggleRange = (k: string) =>
         setOpenRanges((prev) => {
+            const next = new Set(prev);
+            if (next.has(k)) next.delete(k);
+            else next.add(k);
+            return next;
+        });
+
+    // Which of the two zones ("legs" = getting to & from, "daily" = getting
+    // around each day) are collapsed. Both start expanded; the header toggles.
+    const [collapsedZones, setCollapsedZones] = useState<ReadonlySet<'legs' | 'daily'>>(() => new Set());
+    // Trip switches re-render this instance IN PLACE (no remount — see
+    // Home.tsx's useActiveTrip note), so per-trip UI state would leak from
+    // Trip A onto Trip B. Reset collapse + expanded-ranges on trip change.
+    useEffect(() => {
+        setCollapsedZones(new Set());
+        setOpenRanges(new Set());
+    }, [activeTrip.id]);
+    const toggleZone = (k: 'legs' | 'daily') =>
+        setCollapsedZones((prev) => {
             const next = new Set(prev);
             if (next.has(k)) next.delete(k);
             else next.add(k);
@@ -528,6 +548,51 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
         return null;
     };
 
+    // Remove a leg-attached document (always trip-level → media write path via
+    // upsertTrip). Optimistic repaint. NOTE: like every media mutation in the
+    // app (TripDocumentsModal.removeDoc etc.), there is NO rollback on a hard
+    // server rejection — persistTripMedia's result isn't surfaced by
+    // upsertTrip. Network failures are outbox-queued; a rare 500-class
+    // rejection means the doc reappears on next trip-open. Fixing that class
+    // properly means changing _postTripMedia's error envelope app-wide.
+    const removeLegDoc = (id: string) => {
+        if (removeTripDocument(activeTrip, id) === 'trip') {
+            emit('state:changed');
+            bump();
+            void upsertTrip(activeTrip);
+        }
+    };
+
+    // Documents (tickets, boarding passes) tied to an arrival/departure leg.
+    // Editable trips get an Attach button + per-doc remove; viewers get
+    // open-only links. Rendered under both slots regardless of whether a mode
+    // is set, so a doc is never visually orphaned by clearing the mode.
+    const renderLegDocs = (which: 'arrival' | 'departure') => {
+        const docs = getDocumentsForLeg(activeTrip, which);
+        if (!tripIsEditable && !docs.length) return null;
+        return (
+            <div className="trip-travel__docs">
+                {docs.map((d, i) => (
+                    <span key={d.id || `${which}-${i}`} className="trip-travel__doc">
+                        <a className="trip-travel__doc-link" href={d.url} target="_blank" rel="noopener noreferrer" title={d.name}>
+                            <span aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconSvg('document', { size: 13 }) }} />
+                            <span className="trip-travel__doc-name">{d.name}</span>
+                        </a>
+                        {tripIsEditable && d.id ? (
+                            <button type="button" className="trip-travel__doc-remove" aria-label={t('transport.removeDoc')} title={t('transport.removeDoc')} onClick={() => removeLegDoc(d.id!)}>×</button>
+                        ) : null}
+                    </span>
+                ))}
+                {tripIsEditable ? (
+                    <button type="button" className="trip-travel__doc-add" onClick={() => openAddTripDocumentModal(activeTrip, { legRef: which, onSaved: bump })}>
+                        <span aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconSvg('plus', { size: 13 }) }} />
+                        {t('transport.attachDoc')}
+                    </button>
+                ) : null}
+            </div>
+        );
+    };
+
     // One editable leg: label + mode dropdown + smart body + note. Note + `from`
     // survive a mode switch (kept per the "stays saved" requirement).
     const renderLeg = (which: 'arrival' | 'departure', leg: TravelLeg | null) => {
@@ -578,28 +643,51 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
                             change({ mode: leg.mode, ...(note ? { note } : {}), ...carryFrom(leg) });
                         }} />
                 ) : null}
+                {renderLegDocs(which)}
             </div>
         );
     };
 
-    // Read-only (viewer) leg: mode + any saved from/note.
+    // Read-only (viewer) leg: mode + any saved from/note + attached docs.
     const renderLegRO = (which: 'arrival' | 'departure', leg: TravelLeg | null) => {
-        if (!leg) return null;
+        // Show the slot if there's a leg OR any doc linked to it (a doc must
+        // never be hidden from a viewer just because the mode is unset).
+        if (!leg && !getDocumentsForLeg(activeTrip, which).length) return null;
         const label = which === 'arrival' ? t('transport.arrival') : t('transport.departure');
         return (
             <div className="trip-travel__leg trip-travel__leg--ro" key={which}>
                 <span className="trip-travel__leg-label">{label}</span>
-                <span className="trip-travel__leg-mode">
-                    <TransportModeIcon mode={leg.mode} size={16} />
-                    <span>{' '}{transportModeLabel(leg.mode)}</span>
-                </span>
-                {leg.from ? <span className="trip-travel__leg-notetext">{leg.from}</span> : null}
-                {leg.note ? <span className="trip-travel__leg-notetext">{leg.note}</span> : null}
+                {leg ? (
+                    <span className="trip-travel__leg-mode">
+                        <TransportModeIcon mode={leg.mode} size={16} />
+                        <span>{' '}{transportModeLabel(leg.mode)}</span>
+                    </span>
+                ) : null}
+                {leg?.from ? <span className="trip-travel__leg-notetext">{leg.from}</span> : null}
+                {leg?.note ? <span className="trip-travel__leg-notetext">{leg.note}</span> : null}
+                {renderLegDocs(which)}
             </div>
         );
     };
 
-    const showLegsZone = tripIsEditable || arrival || departure;
+    // A collapsible zone header: the uppercase label + a chevron that rotates
+    // when the zone is collapsed. Click toggles.
+    const zoneHeader = (k: 'legs' | 'daily', label: string) => {
+        const isCollapsed = collapsedZones.has(k);
+        return (
+            <button type="button" className="trip-travel__zone-header" aria-expanded={!isCollapsed} onClick={() => toggleZone(k)}>
+                <span className="trip-travel__zone-label">{label}</span>
+                <svg className="trip-travel__zone-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'none' }}>
+                    <polyline points="6 9 12 15 18 9" />
+                </svg>
+            </button>
+        );
+    };
+
+    const anyLegDocs =
+        getDocumentsForLeg(activeTrip, 'arrival').length > 0 ||
+        getDocumentsForLeg(activeTrip, 'departure').length > 0;
+    const showLegsZone = tripIsEditable || arrival || departure || anyLegDocs;
     return (
         <div className={`home-tab-content${isActive ? ' is-active' : ''}`} data-home-tab="transport">
             <div className="trip-companions-card" ref={travelRef}>
@@ -612,19 +700,22 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
 
                 {showLegsZone ? (
                     <div className="trip-travel__zone">
-                        <div className="trip-travel__zone-label">{t('transport.legsTitle')}</div>
-                        <div className="trip-travel__legs">
-                            {tripIsEditable
-                                ? [renderLeg('arrival', arrival), renderLeg('departure', departure)]
-                                : [renderLegRO('arrival', arrival), renderLegRO('departure', departure)]}
-                        </div>
+                        {zoneHeader('legs', t('transport.legsTitle'))}
+                        {!collapsedZones.has('legs') ? (
+                            <div className="trip-travel__legs">
+                                {tripIsEditable
+                                    ? [renderLeg('arrival', arrival), renderLeg('departure', departure)]
+                                    : [renderLegRO('arrival', arrival), renderLegRO('departure', departure)]}
+                            </div>
+                        ) : null}
                     </div>
                 ) : null}
 
                 {showLegsZone ? <div className="trip-travel__divider" /> : null}
 
                 <div className="trip-travel__zone">
-                    <div className="trip-travel__zone-label">{t('transport.dailyLabel')}</div>
+                    {zoneHeader('daily', t('transport.dailyLabel'))}
+                    {!collapsedZones.has('daily') ? (
                     <div className="trip-transport__body">
                         {ranges.length ? (
                             <div className="trip-transport__rows">{ranges.map(renderRange)}</div>
@@ -654,6 +745,7 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
                             </div>
                         ) : null}
                     </div>
+                    ) : null}
                 </div>
             </div>
         </div>

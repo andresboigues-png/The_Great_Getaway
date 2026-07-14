@@ -25,6 +25,9 @@ import { upsertTrip } from '../../api.js';
 import { openAccommodationModal, consumePendingAccommodationOpen } from '../home/accommodationModal.js';
 import { openTripChecklistModal } from '../home/tripChecklistModal.js';
 import { openTripDocumentsModal, openTripPhotosModal } from '../home/tripMediaModals.js';
+import { getDocumentsForLeg } from '../../tripMedia.js';
+import { transportModeLabel } from '../home/transportModal.js';
+import { TransportModeIcon } from '../../react/components/TransportModeIcon.js';
 import type { Trip, Expense } from '../../types';
 
 
@@ -64,6 +67,19 @@ export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
         .reduce((sum: number, e: Expense) => sum + (e.euroValue || 0), 0);
 
     const destination = activeTrip.country ? shortPlaceName(activeTrip.country) : '';
+
+    // "Getting to & from" — a read-only Hub summary of the arrival/departure
+    // travel legs and the documents (tickets) attached to each. Editing lives
+    // in the Transport tab; here the docs are just openable links. Only legs
+    // that have a mode OR an attached doc are shown; the whole section hides
+    // when there's nothing to show.
+    const legSummaries = (['arrival', 'departure'] as const)
+        .map((which) => ({
+            which,
+            leg: (which === 'arrival' ? activeTrip.travel?.arrival : activeTrip.travel?.departure) ?? null,
+            docs: getDocumentsForLeg(activeTrip, which),
+        }))
+        .filter((r) => r.leg || r.docs.length);
 
     // ── Notes save — on blur, only when the value actually changed.
     // Rides upsertTrip (the metadata write path); the trip is fully
@@ -158,7 +174,52 @@ export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
 
                 {/* Transportation moved to its own tab (the "two parallel
                     lines" Transport tab) — the trip-wide ranges summary was too
-                    cramped to follow, especially on mobile. */}
+                    cramped to follow, especially on mobile. What DOES live here
+                    is a read-only "Getting to & from" summary: the arrival /
+                    departure legs and their attached tickets, so a traveller
+                    finds their boarding docs from the Hub without hunting. */}
+                {legSummaries.length ? (
+                    <div className="trip-hub__section">
+                        <div className="trip-hub__section-head">
+                            <span dangerouslySetInnerHTML={{ __html: iconSvg('route', { size: 16 }) }} />
+                            <span>{t('transport.legsTitle')}</span>
+                        </div>
+                        <div className="trip-hub__legs">
+                            {legSummaries.map(({ which, leg, docs }) => (
+                                <div key={which} className="trip-hub__leg">
+                                    <div className="trip-hub__leg-head">
+                                        <span className="trip-hub__leg-label">
+                                            {which === 'arrival' ? t('transport.arrival') : t('transport.departure')}
+                                        </span>
+                                        {leg ? (
+                                            <span className="trip-hub__leg-mode">
+                                                <TransportModeIcon mode={leg.mode} size={15} />
+                                                <span>{' '}{transportModeLabel(leg.mode)}</span>
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                    {docs.length ? (
+                                        <div className="trip-hub__leg-docs">
+                                            {docs.map((d, i) => (
+                                                <a
+                                                    key={d.id || `${which}-${i}`}
+                                                    className="trip-hub__leg-doc"
+                                                    href={d.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    title={d.name}
+                                                >
+                                                    <span aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconSvg('document', { size: 13 }) }} />
+                                                    {d.name}
+                                                </a>
+                                            ))}
+                                        </div>
+                                    ) : null}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : null}
 
                 {/* Accommodation — dedicated entry point (the 2026-06
                     redesign moved this out of the per-day modal). Opens the

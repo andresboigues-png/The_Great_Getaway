@@ -582,6 +582,59 @@ def test_trip_media_post_writes_each_field(client, seed_user, auth_headers):
     assert got["checklist"][0]["body"] == "Pack"
 
 
+def test_trip_media_document_legref_round_trips(client, seed_user, auth_headers):
+    """A document tied to an arrival/departure travel leg (Transport tab
+    attachments) round-trips its `legRef` through the media write path — the
+    feature relies on it to filter docs per leg in the Transport tab + Hub."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-legdoc")
+    res = client.post(
+        f"/api/trips/{trip_id}/media",
+        headers=auth_headers,
+        json={
+            "documents": [
+                {"id": "d1", "name": "Flight ticket", "url": "/uploads/a.pdf", "legRef": "arrival"},
+                {
+                    "id": "d2",
+                    "name": "Return ticket",
+                    "url": "/uploads/b.pdf",
+                    "legRef": "departure",
+                },
+            ],
+        },
+    )
+    assert res.status_code == 200
+    docs = client.get(f"/api/trips/{trip_id}/media", headers=auth_headers).get_json()["documents"]
+    by_id = {d["id"]: d for d in docs}
+    assert by_id["d1"]["legRef"] == "arrival"
+    assert by_id["d2"]["legRef"] == "departure"
+
+
+def test_trip_media_document_bad_legref_dropped(client, seed_user, auth_headers):
+    """A junk `legRef` (anything but arrival/departure) is stripped so it can't
+    accumulate — the doc itself survives, just without the bogus link."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-legdoc-bad")
+    res = client.post(
+        f"/api/trips/{trip_id}/media",
+        headers=auth_headers,
+        json={
+            "documents": [
+                {"id": "d1", "name": "Doc", "url": "/uploads/a.pdf", "legRef": "somewhere-else"},
+                {"id": "d2", "name": "Doc2", "url": "/uploads/b.pdf", "legRef": "arrival"},
+            ],
+        },
+    )
+    assert res.status_code == 200
+    by_id = {
+        d["id"]: d
+        for d in client.get(f"/api/trips/{trip_id}/media", headers=auth_headers).get_json()[
+            "documents"
+        ]
+    }
+    assert "legRef" not in by_id["d1"], "junk legRef must be dropped"
+    assert by_id["d1"]["name"] == "Doc", "the document itself must survive"
+    assert by_id["d2"]["legRef"] == "arrival", "valid legRef untouched"
+
+
 def test_trip_media_post_partial_leaves_other_fields_untouched(
     client,
     seed_user,

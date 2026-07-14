@@ -22,7 +22,22 @@ import { navigate } from '../../router.js';
 import { addTripDocument } from '../../tripMedia.js';
 import type { Trip } from '../../types';
 
-export function AddTripDocumentModal({ trip, close }: { trip: Trip; close: () => void }) {
+export function AddTripDocumentModal({
+    trip,
+    close,
+    legRef,
+    onSaved,
+}: {
+    trip: Trip;
+    close: () => void;
+    /** When set, the new document is tied to this arrival/departure travel leg
+     *  (Transport tab attach flow) — the day picker is hidden and the doc lands
+     *  trip-wide (Anchor) but surfaces under its leg. */
+    legRef?: 'arrival' | 'departure';
+    /** Called after a successful save INSTEAD of navigate('home') — lets the
+     *  caller (Transport tab) repaint in place rather than rebuild the page. */
+    onSaved?: () => void;
+}) {
     const [statusText, setStatusText] = useState('');
     const nameRef = useRef<HTMLInputElement>(null);
     const urlRef = useRef<HTMLInputElement>(null);
@@ -69,7 +84,14 @@ export function AddTripDocumentModal({ trip, close }: { trip: Trip; close: () =>
             setStatusText(t('tripMedia.addDocValidationRequired'));
             return;
         }
-        const added = addTripDocument(trip, { name, url, dayId: dayRef.current?.value || null });
+        // Leg attachments land in the Anchor (trip-wide) bucket + carry legRef;
+        // day attachments use the picked day.
+        const added = addTripDocument(trip, {
+            name,
+            url,
+            dayId: legRef ? (anchorDay?.id ?? null) : (dayRef.current?.value || null),
+            ...(legRef ? { legRef } : {}),
+        });
         if (!added) {
             setStatusText(t('tripMedia.addDocValidationInvalidUrl'));
             return;
@@ -78,7 +100,8 @@ export function AddTripDocumentModal({ trip, close }: { trip: Trip; close: () =>
         await upsertTrip(trip);
         close();
         showLiquidAlert(t('tripMedia.addDocToastAdded'), 'success');
-        navigate('home');
+        if (onSaved) onSaved();
+        else navigate('home');
     };
 
     return (
@@ -133,20 +156,31 @@ export function AddTripDocumentModal({ trip, close }: { trip: Trip; close: () =>
                         __html: `<strong style="color: #005bb8;">${esc(t('tripMedia.addDocGmailHelpTitle'))}</strong><br>${t('tripMedia.addDocGmailHelpBody')}`,
                     }}
                 />
-                <label className="tmm-section-label--mt-8">{t('tripMedia.addDocLabelWhere')}</label>
-                <select
-                    id="newDocDay"
-                    ref={dayRef}
-                    className="glass-input p-3 rounded-md bg-white"
-                    defaultValue={anchorDay ? anchorDay.id : undefined}
-                >
-                    {anchorDay && <option value={anchorDay.id}>{t('tripMedia.addDocOptionAnchor')}</option>}
-                    {numberedDays.map(d => (
-                        <option key={d.id} value={d.id}>
-                            {t('tripMedia.dayBucketDay', { n: d.dayNumber })}{d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}
-                        </option>
-                    ))}
-                </select>
+                {legRef ? (
+                    <>
+                        <label className="tmm-section-label--mt-8">{t('tripMedia.addDocLabelWhere')}</label>
+                        <div className="tmm-status-hint" style={{ marginTop: 0 }}>
+                            {legRef === 'arrival' ? t('transport.arrival') : t('transport.departure')}
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <label className="tmm-section-label--mt-8">{t('tripMedia.addDocLabelWhere')}</label>
+                        <select
+                            id="newDocDay"
+                            ref={dayRef}
+                            className="glass-input p-3 rounded-md bg-white"
+                            defaultValue={anchorDay ? anchorDay.id : undefined}
+                        >
+                            {anchorDay && <option value={anchorDay.id}>{t('tripMedia.addDocOptionAnchor')}</option>}
+                            {numberedDays.map(d => (
+                                <option key={d.id} value={d.id}>
+                                    {t('tripMedia.dayBucketDay', { n: d.dayNumber })}{d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}
+                                </option>
+                            ))}
+                        </select>
+                    </>
+                )}
             </div>
             <div className="flex gap-3">
                 <button id="newDocCancelBtn" className="btn-neutral flex-1 rounded-lg" onClick={close}>

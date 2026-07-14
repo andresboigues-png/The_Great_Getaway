@@ -1633,6 +1633,8 @@ export const fr: Translations = {
         findTerminals: 'Terminaux à proximité',
         seeTerminals: 'Voir les gares',
         terminalRouteTitle: 'Itinéraire en transport vers votre hébergement',
+        attachDoc: 'Joindre un billet',
+        removeDoc: 'Supprimer le document',
         terminalsLoading: 'Recherche des gares…',
         terminalsError: 'Impossible de charger les gares.',
     },

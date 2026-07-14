@@ -86,6 +86,15 @@ export function getAllTripPhotos(trip: MaybeTrip): TripPhoto[] {
 export function getDocumentsForDay(trip: MaybeTrip, dayId: string | null): TripDocument[] {
     return getAllTripDocuments(trip).filter((d) => d.dayId === dayId);
 }
+/** Documents attached to an arrival/departure travel leg (Transport tab
+ *  tickets). Only the trip-level store carries `legRef`; legacy day.tickets
+ *  never do, so they're naturally excluded. */
+export function getDocumentsForLeg(
+    trip: MaybeTrip,
+    which: 'arrival' | 'departure',
+): TripDocument[] {
+    return getAllTripDocuments(trip).filter((d) => d.legRef === which);
+}
 export function getPhotosForDay(trip: MaybeTrip, dayId: string | null): TripPhoto[] {
     return getAllTripPhotos(trip).filter((p) => p.dayId === dayId);
 }
@@ -110,7 +119,17 @@ function isSafeMediaUrl(value: string): boolean {
  *  callers can use the assigned id for follow-up actions. */
 export function addTripDocument(
     trip: MaybeTrip,
-    { name, url, dayId = null }: { name: string; url: string; dayId?: string | null },
+    {
+        name,
+        url,
+        dayId = null,
+        legRef = null,
+    }: {
+        name: string;
+        url: string;
+        dayId?: string | null;
+        legRef?: 'arrival' | 'departure' | null;
+    },
 ): TripDocument | null {
     if (!trip || !name || !url || !isSafeMediaUrl(url)) return null;
     if (!Array.isArray(trip.documents)) trip.documents = [];
@@ -119,6 +138,7 @@ export function addTripDocument(
         name,
         url,
         dayId: dayId || null,
+        ...(legRef ? { legRef } : {}),
         addedAt: new Date().toISOString(),
     };
     trip.documents.push(entry);

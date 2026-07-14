@@ -1628,6 +1628,8 @@ export const es: Translations = {
         findTerminals: 'Ver terminales cerca',
         seeTerminals: 'Ver terminales',
         terminalRouteTitle: 'Cómo llegar en transporte a tu alojamiento',
+        attachDoc: 'Adjuntar billete',
+        removeDoc: 'Quitar documento',
         terminalsLoading: 'Buscando terminales…',
         terminalsError: 'No se pudieron cargar los terminales.',
     },

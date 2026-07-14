@@ -1964,6 +1964,8 @@ export const en = {
         findTerminals: 'Find terminals nearby',
         seeTerminals: 'See terminals',
         terminalRouteTitle: 'Transit directions to/from your stay',
+        attachDoc: 'Attach ticket',
+        removeDoc: 'Remove document',
         terminalsLoading: 'Finding terminals…',
         terminalsError: "Couldn't load terminals.",
     },
