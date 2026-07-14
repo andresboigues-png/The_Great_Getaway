@@ -1601,6 +1601,7 @@ export const pt: Translations = {
         modalSub: 'Escolhe a forma principal de te deslocares neste dia, com uma nota prática opcional.',
         noteLabel: 'Nota',
         notePlaceholder: 'ex.: passe de metro 24h 7,50 €',
+        choosePlaceholder: 'Escolhe o modo',
         clearBtn: 'Limpar',
         directionsLabel: 'Direções',
         directionsTitle: 'Abrir o percurso deste dia no Google Maps',

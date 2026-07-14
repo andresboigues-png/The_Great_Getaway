@@ -1933,6 +1933,7 @@ export const en = {
         modalSub: 'Pick the main way to get around this day, plus an optional practical note.',
         noteLabel: 'Note',
         notePlaceholder: 'e.g. 24h metro pass €7.50',
+        choosePlaceholder: 'Choose a mode',
         clearBtn: 'Clear',
         directionsLabel: 'Directions',
         directionsTitle: "Open this day's route in Google Maps",

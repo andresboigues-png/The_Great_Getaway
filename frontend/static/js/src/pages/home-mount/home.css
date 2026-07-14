@@ -405,8 +405,8 @@
     position: relative;
     z-index: 1;
     flex-shrink: 0;
-    width: 32px;
-    height: 32px;
+    width: 38px;
+    height: 38px;
     padding: 0;
     border-radius: 50%;
     border: 2px solid var(--accent-blue);
@@ -414,7 +414,7 @@
     color: var(--accent-blue);
     cursor: pointer;
     font-weight: 800;
-    font-size: 0.78rem;
+    font-size: 0.88rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -2318,47 +2318,102 @@
 
 /* ── Transportation P1 ──────────────────────────────────────────────
    Mode picker grid inside the per-day transport editor modal. */
-.transport-mode-btn {
+/* Transport mode DROPDOWN (replaced the 3×4 grid). Collapsed = one trigger
+   row so the note textarea has room; open = a compact 2-col list of GG-icon
+   options. */
+.transport-dd {
+    position: relative;
+}
+.transport-dd__trigger {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 4px;
-    padding: 10px 6px;
-    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.12));
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.14));
     border-radius: 14px;
-    background: transparent;
-    cursor: pointer;
+    background: #fff;
     font: inherit;
-    color: var(--text-secondary);
-    transition:
-        border-color 0.14s ease,
-        background 0.14s ease,
-        color 0.14s ease;
+    font-weight: 700;
+    color: var(--text-brand-navy);
+    cursor: pointer;
+    transition: border-color 0.14s ease;
     -webkit-tap-highlight-color: transparent;
 }
-.transport-mode-btn:hover:not(:disabled) {
-    background: rgba(0, 113, 227, 0.06);
-}
-.transport-mode-btn[data-active='true'] {
+.transport-dd__trigger:hover:not(:disabled),
+.transport-dd__trigger[aria-expanded='true'] {
     border-color: var(--accent-blue, #0071e3);
-    background: rgba(0, 113, 227, 0.09);
-    color: var(--text-brand-navy);
 }
-.transport-mode-btn:disabled {
-    opacity: 0.55;
+.transport-dd__trigger:disabled {
+    opacity: 0.6;
     cursor: default;
 }
-.transport-mode-btn__icon {
+.transport-dd__cur {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    /* GG-blue line icon (replaced the emoji glyph). Selected state uses a
-       light-blue bg + navy text, so blue reads well in both states. */
+    gap: 10px;
+    min-width: 0;
+}
+.transport-dd__icon {
+    display: inline-flex;
+    flex-shrink: 0;
     color: var(--accent-blue, #0071e3);
 }
-.transport-mode-btn__label {
-    font-size: 0.72rem;
-    font-weight: 700;
+.transport-dd__label {
+    font-size: 0.95rem;
+}
+.transport-dd__label--ph {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+.transport-dd__chev {
+    flex-shrink: 0;
+    opacity: 0.5;
+    transition: transform 0.15s ease;
+}
+.transport-dd__trigger[aria-expanded='true'] .transport-dd__chev {
+    transform: rotate(180deg);
+}
+.transport-dd__panel {
+    margin-top: 6px;
+    padding: 4px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    border: 1px solid var(--glass-border, rgba(0, 45, 91, 0.12));
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 10px 28px rgba(0, 45, 91, 0.14);
+}
+.transport-dd__opt {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px;
+    border: 0;
+    border-radius: 10px;
+    background: none;
+    font: inherit;
+    color: var(--text-brand-navy);
+    cursor: pointer;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+}
+.transport-dd__opt:hover:not(:disabled) {
+    background: rgba(0, 113, 227, 0.08);
+}
+.transport-dd__opt[aria-selected='true'] {
+    background: rgba(0, 113, 227, 0.1);
+    font-weight: 800;
+}
+.transport-dd__oicon {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--accent-blue, #0071e3);
+}
+.transport-dd__olabel {
+    font-size: 0.86rem;
 }
 
 /* Trip Hub "Getting around" summary — run-length ranges of day modes. */
@@ -2571,7 +2626,7 @@
     color: var(--accent-blue, #0071e3);
     background: var(--surface-1, #fff);
     border-radius: 999px;
-    padding: 2px;
+    padding: 3px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
     pointer-events: none;
 }

@@ -130,8 +130,10 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
     };
 
     // One day's row (mode + 2-line note preview + directions). Used inline for
-    // single-day ranges and inside an expanded multi-day range.
-    const renderDayRow = (d: TripDay) => {
+    // single-day ranges and inside an expanded multi-day range. `hideLabel`
+    // drops the mode text for days inside a group (the range header already
+    // says "Metro · Días 2–4") — just the symbol.
+    const renderDayRow = (d: TripDay, hideLabel = false) => {
         const tr = d.transport;
         return (
             <div key={d.id} className="trip-transport__row">
@@ -142,11 +144,13 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
                         </span>
                         {tr ? (
                             <span className="trip-transport__mode">
-                                <TransportModeIcon mode={tr.mode} size={17} /> {transportModeLabel(tr.mode)}
+                                <TransportModeIcon mode={tr.mode} size={17} />
+                                {hideLabel ? '' : <> {transportModeLabel(tr.mode)}</>}
                             </span>
                         ) : (
                             <span className="trip-transport__unset">
-                                <TransportModeIcon mode={null} size={17} /> {t('pathTab.transportNotSet')}
+                                <TransportModeIcon mode={null} size={17} />
+                                {hideLabel ? '' : <> {t('pathTab.transportNotSet')}</>}
                             </span>
                         )}
                     </span>
@@ -179,7 +183,7 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
                         <polyline points="6 9 12 15 18 9" />
                     </svg>
                 </button>
-                {isOpen ? <div className="trip-transport__range-body">{rng.days.map(renderDayRow)}</div> : null}
+                {isOpen ? <div className="trip-transport__range-body">{rng.days.map((d) => renderDayRow(d, true))}</div> : null}
             </div>
         );
     };

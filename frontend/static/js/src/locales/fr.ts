@@ -1602,6 +1602,7 @@ export const fr: Translations = {
         modalSub: 'Choisissez le principal moyen de vous déplacer ce jour-là, avec une note pratique facultative.',
         noteLabel: 'Note',
         notePlaceholder: 'ex. : pass métro 24h 7,50 €',
+        choosePlaceholder: 'Choisir le mode',
         clearBtn: 'Effacer',
         directionsLabel: 'Itinéraire',
         directionsTitle: "Ouvrir l'itinéraire de ce jour dans Google Maps",

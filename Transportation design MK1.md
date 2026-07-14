@@ -2,7 +2,7 @@
 
 _2026-07-11 · design doc. Grounded in a 4-reader codebase map (AI planner, tab structure, Maps billing, day data model)._
 
-**STATUS: Phases 1–3 SHIPPED 2026-07-11** (P1 `bfa3a168` — migration `a8d2c4f6b1e3`, adversarially reviewed; P2+P3 `576c72a6` — AI planner emits transport, Suggest heuristic + `/api/suggest_transport` refine, both verified live incl. a real Gemini round-trip). Phase 4 (billed polylines, PDF/share exposure, chip glyphs) demand-gated, not started. Share page STRIPS transport_json; clone carries it under the include_plans gate.
+**STATUS: CAMPAIGN COMPLETE 2026-07-11.** P1 `bfa3a168` (migration `a8d2c4f6b1e3`); P2+P3 `576c72a6` (AI emits transport; Suggest heuristic + `/api/suggest_transport` refine); P2+P3 review fixes `c763d315` (15 findings); **P4 free surfaces `d17d18f6`** — chip mode glyphs, PDF per-day line (i18n ×4), share-page exposure under `share_show_plans`, public-trip + read-only DayViewModal (mode public, note member-gated, source never shipped). **The one billed P4 item — the in-app Routes-API per-day polyline — was DROPPED by user decision** (every day already routes free via the P1 "Directions" deep link), so the whole feature is ZERO marginal Google-API cost. Only reopen P4-polyline if a billed in-map route line is ever explicitly wanted.
 
 ## Product goal
 
@@ -98,6 +98,6 @@ Phase 1 alone already delivers the user-visible feature for **all** users; the A
 
 ## Decisions (locked 2026-07-11)
 
-1. **Surface**: ✅ Path day-card pill + Trip Hub "Getting around" summary card. **No 4th tab.**
+1. **Surface**: ✅ Path day-card pill + ~~Trip Hub "Getting around" summary card~~ → **REVISED 2026-07-11 (`5451d51d`): promoted to a dedicated 4th "Transport" tab** (glyph = two parallel lines, next to Path) after the Hub summary proved too cramped to follow on mobile. The Hub transport section was removed; the tab hosts the per-day list + Suggest/Refine.
 2. **Manual-user filler**: ✅ Heuristic prefill + optional one-tap AI refine (existing Gemini pool + 20/day cap).
 3. Still open (decide at Phase 4): public share page / PDF exposure.

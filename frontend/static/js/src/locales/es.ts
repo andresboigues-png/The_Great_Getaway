@@ -1597,6 +1597,7 @@ export const es: Translations = {
         modalSub: 'Elige la forma principal de moverte este día, con una nota práctica opcional.',
         noteLabel: 'Nota',
         notePlaceholder: 'p. ej., abono de metro 24h 7,50 €',
+        choosePlaceholder: 'Elige el modo',
         clearBtn: 'Borrar',
         directionsLabel: 'Indicaciones',
         directionsTitle: 'Abrir la ruta de este día en Google Maps',

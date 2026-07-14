@@ -62,13 +62,20 @@ export const openTransportModal = (
 
     let selected: TransportMode | null = day.transport?.mode ?? null;
 
-    const modeBtnHtml = (m: TransportMode): string => `
-        <button type="button" class="transport-mode-btn" data-mode="${esc(m)}" role="radio"
-            aria-checked="${selected === m ? 'true' : 'false'}" data-active="${selected === m}"
-            ${editable ? '' : 'disabled'}
-            title="${esc(transportModeLabel(m))}">
-            <span class="transport-mode-btn__icon" aria-hidden="true">${transportModeIcon(m, 24)}</span>
-            <span class="transport-mode-btn__label">${esc(transportModeLabel(m))}</span>
+    // Styled dropdown (replaced the 3×4 grid): collapsed it's one row, so the
+    // note textarea below gets real room; open it to pick from a compact
+    // 2-column list of GG-icon options.
+    const curHtml = (m: TransportMode | null): string =>
+        m
+            ? `<span class="transport-dd__icon" aria-hidden="true">${transportModeIcon(m, 22)}</span>` +
+              `<span class="transport-dd__label">${esc(transportModeLabel(m))}</span>`
+            : `<span class="transport-dd__label transport-dd__label--ph">${esc(t('transport.choosePlaceholder'))}</span>`;
+
+    const optHtml = (m: TransportMode): string => `
+        <button type="button" class="transport-dd__opt" role="option" data-mode="${esc(m)}"
+            aria-selected="${selected === m ? 'true' : 'false'}" ${editable ? '' : 'disabled'}>
+            <span class="transport-dd__oicon" aria-hidden="true">${transportModeIcon(m, 20)}</span>
+            <span class="transport-dd__olabel">${esc(transportModeLabel(m))}</span>
         </button>`;
 
     const { root, close } = showModal({
@@ -84,14 +91,19 @@ export const openTransportModal = (
                 <button id="transportClose" class="close-x-btn" aria-label="${esc(t('common.close'))}">✕</button>
             </div>
             <p style="margin:0 0 14px; font-size:0.84rem; color:var(--text-secondary);">${esc(t('transport.modalSub'))}</p>
-            <div id="transportModes" role="radiogroup" aria-label="${esc(t('transport.modalTitle', { n: day.dayNumber }))}"
-                style="display:grid; grid-template-columns:repeat(auto-fill, minmax(88px, 1fr)); gap:8px;">
-                ${MODES.map(modeBtnHtml).join('')}
+            <div class="transport-dd" id="transportDd">
+                <button type="button" id="transportDdTrigger" class="transport-dd__trigger" aria-haspopup="listbox" aria-expanded="false" ${editable ? '' : 'disabled'}>
+                    <span class="transport-dd__cur" id="transportDdCur">${curHtml(selected)}</span>
+                    <svg class="transport-dd__chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="transport-dd__panel" id="transportDdPanel" role="listbox" aria-label="${esc(t('transport.modalTitle', { n: day.dayNumber }))}" hidden>
+                    ${MODES.map(optHtml).join('')}
+                </div>
             </div>
             <label style="display:block; margin-top:16px; font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-secondary);" for="transportNote">${esc(t('transport.noteLabel'))}</label>
-            <textarea id="transportNote" maxlength="200" rows="3" ${editable ? '' : 'disabled'}
+            <textarea id="transportNote" maxlength="200" rows="5" ${editable ? '' : 'disabled'}
                 placeholder="${esc(t('transport.notePlaceholder'))}"
-                style="margin-top:6px; width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid var(--glass-border, rgba(0,45,91,0.14)); border-radius:12px; font:inherit; font-size:0.9rem; line-height:1.4; resize:vertical; min-height:64px;">${esc(day.transport?.note || '')}</textarea>
+                style="margin-top:6px; width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid var(--glass-border, rgba(0,45,91,0.14)); border-radius:12px; font:inherit; font-size:0.9rem; line-height:1.4; resize:vertical; min-height:110px;">${esc(day.transport?.note || '')}</textarea>
             ${
                 editable
                     ? `<div style="display:flex; gap:8px; margin-top:18px; justify-content:flex-end;">
@@ -140,14 +152,39 @@ export const openTransportModal = (
     };
     syncSave();
 
-    root.querySelectorAll<HTMLButtonElement>('.transport-mode-btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            selected = (btn.dataset.mode as TransportMode) || null;
-            root.querySelectorAll<HTMLButtonElement>('.transport-mode-btn').forEach((b) => {
-                const on = b === btn;
-                b.dataset.active = on ? 'true' : 'false';
-                b.setAttribute('aria-checked', on ? 'true' : 'false');
-            });
+    // Dropdown: trigger toggles the panel; picking an option updates the
+    // trigger + `selected` and closes. Outside-click (anywhere in the modal
+    // that isn't the dropdown) closes the panel — the listener lives on the
+    // overlay `root`, so it dies with the modal (no document-listener leak).
+    const dd = root.querySelector('#transportDd') as HTMLElement | null;
+    const ddTrigger = root.querySelector('#transportDdTrigger') as HTMLButtonElement | null;
+    const ddPanel = root.querySelector('#transportDdPanel') as HTMLElement | null;
+    const ddCur = root.querySelector('#transportDdCur') as HTMLElement | null;
+    const closePanel = () => {
+        if (ddPanel) ddPanel.hidden = true;
+        ddTrigger?.setAttribute('aria-expanded', 'false');
+    };
+    ddTrigger?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!ddPanel) return;
+        if (ddPanel.hidden) {
+            ddPanel.hidden = false;
+            ddTrigger.setAttribute('aria-expanded', 'true');
+        } else {
+            closePanel();
+        }
+    });
+    root.addEventListener('click', (e) => {
+        if (dd && !dd.contains(e.target as Node)) closePanel();
+    });
+    root.querySelectorAll<HTMLButtonElement>('.transport-dd__opt').forEach((opt) => {
+        opt.addEventListener('click', () => {
+            selected = (opt.dataset.mode as TransportMode) || null;
+            root.querySelectorAll<HTMLButtonElement>('.transport-dd__opt').forEach((o) =>
+                o.setAttribute('aria-selected', o === opt ? 'true' : 'false'),
+            );
+            if (ddCur) ddCur.innerHTML = curHtml(selected);
+            closePanel();
             syncSave();
         });
     });
