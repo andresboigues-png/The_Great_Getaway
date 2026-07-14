@@ -72,6 +72,7 @@ _INTENTIONAL_ENGLISH = {
     'transport.mode_taxi': 'es/fr: "Taxi" identical (same word)',
     'transport.mode_train': 'fr: "Train" identical (same word)',
     'transport.noteLabel': 'fr: "Note" identical (same word)',
+    'transport.destination': 'fr: "Destination" identical (same word)',
     'home.tabTransport': 'fr: "Transport" identical (same word)',
     'poi.restaurants': 'fr: identical (same word)',
     'poi.pharmacies': 'fr: identical (same word)',

@@ -247,6 +247,10 @@ export interface TravelLeg {
     mode: TransportMode;
     /** Optional practical note (flight number, pickup point, ferry time). */
     note?: string;
+    /** The traveller-entered "other end" for a car leg — where they're driving
+     *  FROM (arrival) or TO (departure). Free text; geocoded by the Google Maps
+     *  route link. Persisted so it survives a tab switch or mode change. */
+    from?: string;
 }
 
 /** Single row in `Trip.checklist`. `id` is a stable client-generated

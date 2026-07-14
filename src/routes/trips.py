@@ -109,6 +109,16 @@ def _clean_travel_leg(raw):
             cleaned = note.strip()[:200]
         if cleaned:
             leg["note"] = cleaned
+    # `from`: the car leg's other-end free text (where driving from/to). Same
+    # forgiving handling as note — truncate, never 400 the whole trip.
+    frm = raw.get("from")
+    if isinstance(frm, str):
+        try:
+            cleaned_from = clean_text(frm, max_len=160, allow_newlines=False, field_name="from")
+        except ValidationError:
+            cleaned_from = frm.strip()[:160]
+        if cleaned_from:
+            leg["from"] = cleaned_from
     return leg
 
 
