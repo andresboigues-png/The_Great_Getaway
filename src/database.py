@@ -981,6 +981,24 @@ def init_db():
             )
         ''')
 
+        # visits: privacy-respecting first-party landing log (see
+        # services/visits.py). ANONYMOUS — never linked to an account. Raw
+        # IPs are never stored (only a salted hash); we keep the referrer
+        # HOST only. Powers the developer dashboard's traffic panel (unique
+        # visitors, LinkedIn referrals). Migration b9e3d5c7a1f4.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS visits (
+                id TEXT PRIMARY KEY,
+                visitor_id TEXT,
+                ip_hash TEXT,
+                referrer_host TEXT,
+                region TEXT,
+                device TEXT,
+                browser TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
         # FIXING_ROADMAP §2.1 — indexes on hot tables. Must come AFTER
         # all CREATE TABLE statements above (the table needs to exist
         # before the index can reference it). All CREATE INDEX IF NOT
@@ -989,6 +1007,8 @@ def init_db():
         # — same idempotency story, dual-write is a tiny price for the
         # belt-and-braces of "indexes can't disappear on fresh DBs".
         for ddl in (
+            "CREATE INDEX IF NOT EXISTS idx_visits_created ON visits(created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_visits_visitor ON visits(visitor_id)",
             "CREATE INDEX IF NOT EXISTS idx_feed_likes_event ON feed_likes(event_id)",
             "CREATE INDEX IF NOT EXISTS idx_feed_bookmarks_event ON feed_bookmarks(event_id)",
             "CREATE INDEX IF NOT EXISTS idx_feed_posts_user ON feed_posts(user_id)",
@@ -1174,6 +1194,18 @@ def init_db():
 # trip_days) are listed for completeness so a regression that
 # DROPS a column gets caught too.
 _EXPECTED_COLUMNS = {
+    # Anonymous first-party visit log (migration b9e3d5c7a1f4). Read by the
+    # admin traffic panel; written best-effort on GET "/" (services/visits.py).
+    "visits": [
+        "id",
+        "visitor_id",
+        "ip_hash",
+        "referrer_host",
+        "region",
+        "device",
+        "browser",
+        "created_at",
+    ],
     "users": [
         "id",
         "email",

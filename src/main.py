@@ -1,7 +1,7 @@
 import os
 
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, send_from_directory
+from flask import Flask, make_response, render_template, request, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from auth import current_user_id
@@ -36,6 +36,7 @@ from routes.settlements import bp as settlements_bp
 from routes.templates import bp as templates_bp
 from routes.trip_io import bp as trip_io_bp
 from routes.trips import bp as trips_bp
+from services.visits import record_visit
 
 # Load environment variables
 load_dotenv()
@@ -270,19 +271,25 @@ def home():
     """Serve the main Single Page Application (SPA) index file."""
     # ?dev=1 loads source modules directly (live edits, no rebuild) instead of the bundle.
     dev_mode = request.args.get("dev") == "1"
-    return render_template(
-        "index.html",
-        google_client_id=os.getenv("CLIENT_ID_GOOGLE_AUTH"),
-        google_maps_api_key=os.getenv("GOOGLE_MAPS_API_KEY"),
-        dev_mode=dev_mode,
-        bundle_version=_asset_version("js/app.bundle.js"),
-        css_version=_asset_version("css/index.css"),
-        # §0.4 follow-up: Tailwind v4 bundled CSS lives
-        # at /static/js/assets/main.css (stable name
-        # via vite.config's assetFileNames). Same
-        # mtime-based cache-buster pattern.
-        tailwind_css_version=_asset_version("js/assets/main.css"),
+    resp = make_response(
+        render_template(
+            "index.html",
+            google_client_id=os.getenv("CLIENT_ID_GOOGLE_AUTH"),
+            google_maps_api_key=os.getenv("GOOGLE_MAPS_API_KEY"),
+            dev_mode=dev_mode,
+            bundle_version=_asset_version("js/app.bundle.js"),
+            css_version=_asset_version("css/index.css"),
+            # §0.4 follow-up: Tailwind v4 bundled CSS lives
+            # at /static/js/assets/main.css (stable name
+            # via vite.config's assetFileNames). Same
+            # mtime-based cache-buster pattern.
+            tailwind_css_version=_asset_version("js/assets/main.css"),
+        )
     )
+    # Anonymous, best-effort landing log (+ first-party gg_vid cookie). Powers
+    # the developer dashboard's traffic panel; never blocks the page render.
+    record_visit(request, resp)
+    return resp
 
 
 # MK1 Wave G (T2-1): /share/<token> lives in routes/public.py;

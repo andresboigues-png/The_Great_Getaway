@@ -125,10 +125,154 @@ export function Developer() {
             ) : (
                 <>
                     <StatsGrid stats={stats} />
+                    <TrafficSection />
                     <ProcessInfo stats={stats} />
                     <UsersTable users={stats.users} onToggleCreator={(u) => void toggleCreator(u)} />
                 </>
             )}
+        </div>
+    );
+}
+
+
+// ── Traffic panel (anonymous visitor analytics) ────────────────────
+// Self-contained: its own fetch of /api/admin/visits (the roster fetch
+// stays lean). Answers "how many curious people clicked the LinkedIn
+// link" from the privacy-respecting visits log — unique visitors,
+// referrer breakdown, a 30-day timeline, rough region/device/browser.
+interface TrafficBucket {
+    key: string;
+    count: number;
+}
+interface TrafficData {
+    totalVisits: number;
+    uniqueVisitors: number;
+    visitsLast7d: number;
+    uniqueLast7d: number;
+    visitsLast30d: number;
+    uniqueLast30d: number;
+    referrers: TrafficBucket[];
+    regions: TrafficBucket[];
+    devices: TrafficBucket[];
+    browsers: TrafficBucket[];
+    byDay: Array<{ date: string; visits: number; uniques: number }>;
+}
+
+function TrafficSection() {
+    const [data, setData] = useState<TrafficData | null>(null);
+    const [failed, setFailed] = useState(false);
+
+    useEffect(() => {
+        void (async () => {
+            try {
+                const res = await apiFetch('/api/admin/visits');
+                if (!res.ok) { setFailed(true); return; }
+                setData((await res.json()) as TrafficData);
+            } catch {
+                setFailed(true);
+            }
+        })();
+    }, []);
+
+    if (failed || !data) return null;
+
+    const cells: Array<{ label: string; value: number }> = [
+        { label: t('settings.devUniqueVisitors'), value: data.uniqueVisitors },
+        { label: t('settings.devTotalVisits'), value: data.totalVisits },
+        { label: t('settings.devUnique7d'), value: data.uniqueLast7d },
+        { label: t('settings.devUnique30d'), value: data.uniqueLast30d },
+    ];
+    const maxDay = Math.max(1, ...data.byDay.map((d) => d.visits));
+
+    return (
+        <div className="mb-6">
+            <h3 className="text-[0.85rem] uppercase tracking-[0.08em] text-secondary font-extrabold mb-1">
+                {t('settings.devTraffic')}
+            </h3>
+            <p className="text-secondary text-[0.72rem] mb-3">{t('settings.devTrafficNote')}</p>
+
+            {data.totalVisits === 0 ? (
+                <p className="text-secondary text-[0.85rem]">{t('settings.devTrafficEmpty')}</p>
+            ) : (
+                <>
+                    <div className="grid grid-cols-[repeat(auto-fill,_minmax(140px,_1fr))] gap-3 mb-4">
+                        {cells.map((c) => (
+                            <div
+                                key={c.label}
+                                className="py-3 px-4 bg-card-elevated border border-[var(--border-subtle)] rounded-[14px]"
+                            >
+                                <div className="text-[0.7rem] font-bold uppercase tracking-[0.06em] text-secondary mb-1.5">
+                                    {c.label}
+                                </div>
+                                <div className="text-[1.5rem] font-extrabold text-primary leading-none">
+                                    {c.value}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {data.byDay.length ? (
+                        <div className="mb-4">
+                            <div className="text-[0.7rem] font-bold uppercase tracking-[0.06em] text-secondary mb-2">
+                                {t('settings.devWhen')}
+                            </div>
+                            <div className="flex items-end gap-[3px] h-16 bg-card-elevated border border-[var(--border-subtle)] rounded-[12px] p-2.5">
+                                {data.byDay.map((d) => (
+                                    <div
+                                        key={d.date}
+                                        title={`${d.date}: ${d.visits} (${d.uniques} unique)`}
+                                        className="flex-1 min-w-[3px] rounded-t-sm bg-accent-blue"
+                                        style={{ height: `${Math.max(4, Math.round((d.visits / maxDay) * 100))}%` }}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
+
+                    <Breakdown title={t('settings.devReferrers')} items={data.referrers} highlight="linkedin.com" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
+                        <Breakdown title={t('settings.devDevices')} items={data.devices} />
+                        <Breakdown title={t('settings.devRegions')} items={data.regions} />
+                    </div>
+                    <Breakdown title={t('settings.devBrowsers')} items={data.browsers} />
+                </>
+            )}
+        </div>
+    );
+}
+
+function Breakdown({ title, items, highlight }: { title: string; items: TrafficBucket[]; highlight?: string }) {
+    if (!items.length) return null;
+    const max = Math.max(1, ...items.map((i) => i.count));
+    return (
+        <div className="mb-4">
+            <div className="text-[0.7rem] font-bold uppercase tracking-[0.06em] text-secondary mb-2">
+                {title}
+            </div>
+            <div className="flex flex-col gap-1.5">
+                {items.map((it) => {
+                    const on = highlight && it.key === highlight;
+                    return (
+                        <div key={it.key} className="flex items-center gap-3 text-[0.82rem]">
+                            <span
+                                className={`w-[130px] shrink-0 overflow-hidden overflow-ellipsis whitespace-nowrap ${on ? 'font-extrabold text-accent-blue' : 'text-primary'}`}
+                            >
+                                {it.key}
+                            </span>
+                            <span className="flex-1 h-2 rounded-full bg-[var(--border-subtle)] overflow-hidden">
+                                <span
+                                    className="block h-full rounded-full"
+                                    style={{
+                                        width: `${Math.max(4, Math.round((it.count / max) * 100))}%`,
+                                        background: on ? 'var(--accent-blue)' : 'var(--accent-purple)',
+                                    }}
+                                />
+                            </span>
+                            <span className="w-9 text-right font-bold text-primary tabular-nums">{it.count}</span>
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }

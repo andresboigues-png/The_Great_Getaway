@@ -62,6 +62,103 @@ def _is_admin(user_id: str) -> bool:
         return (row["email"] or "").strip().lower() in ADMIN_EMAILS
 
 
+@bp.route("/api/admin/visits", methods=["GET"])
+@limiter.limit("60/minute")
+@require_auth
+def admin_visits():
+    """Anonymous traffic analytics for the developer dashboard.
+
+    Answers "how many curious people clicked the LinkedIn link" from the
+    privacy-respecting `visits` table (services/visits.py) — unique visitors,
+    referrer breakdown (LinkedIn vs direct/Google), a 30-day timeline, and
+    rough region / device / browser mixes. No personal data; never linked to
+    an account. 403 for non-admins.
+
+    Returns JSON: totalVisits, uniqueVisitors, {visits,unique}Last{7,30}d,
+    referrers[], regions[], devices[], browsers[] (each {key,count}), byDay[]
+    ({date,visits,uniques}).
+    """
+    user_id = current_user_id()
+    if not _is_admin(user_id):
+        logger.warning(
+            "admin_visits forbidden",
+            extra={"user_id": user_id, "endpoint": "admin_visits"},
+        )
+        return jsonify({"error": "Forbidden"}), 403
+    logger.info(
+        "admin_visits accessed",
+        extra={"user_id": user_id, "endpoint": "admin_visits"},
+    )
+
+    # Unique = distinct first-party cookie, falling back to the IP hash for
+    # cookie-less clients, then the row id (so distinct rows never collapse).
+    uniq = "COUNT(DISTINCT COALESCE(NULLIF(visitor_id, ''), NULLIF(ip_hash, ''), id))"
+
+    with get_db() as conn:
+        cur = conn.cursor()
+
+        def _scalar(sql: str) -> int:
+            cur.execute(sql)
+            row = cur.fetchone()
+            return (row[0] if row else 0) or 0
+
+        total_visits = _scalar("SELECT COUNT(*) FROM visits")
+        unique_visitors = _scalar(f"SELECT {uniq} FROM visits")
+        visits_7d = _scalar(
+            "SELECT COUNT(*) FROM visits WHERE created_at >= datetime('now', '-7 days')"
+        )
+        unique_7d = _scalar(
+            f"SELECT {uniq} FROM visits WHERE created_at >= datetime('now', '-7 days')"
+        )
+        visits_30d = _scalar(
+            "SELECT COUNT(*) FROM visits WHERE created_at >= datetime('now', '-30 days')"
+        )
+        unique_30d = _scalar(
+            f"SELECT {uniq} FROM visits WHERE created_at >= datetime('now', '-30 days')"
+        )
+
+        def _breakdown(col: str, direct_label: str, limit: int = 8) -> list[dict]:
+            cur.execute(
+                f"SELECT COALESCE(NULLIF({col}, ''), ?) AS k, COUNT(*) AS n "
+                f"FROM visits GROUP BY k ORDER BY n DESC LIMIT ?",
+                (direct_label, limit),
+            )
+            return [{"key": r["k"], "count": r["n"]} for r in cur.fetchall()]
+
+        referrers = _breakdown("referrer_host", "direct")
+        regions = _breakdown("region", "—")
+        devices = _breakdown("device", "—", limit=5)
+        browsers = _breakdown("browser", "—", limit=6)
+
+        cur.execute(
+            f"""
+            SELECT date(created_at) AS d, COUNT(*) AS visits, {uniq} AS uniques
+            FROM visits
+            WHERE created_at >= datetime('now', '-29 days')
+            GROUP BY d ORDER BY d ASC
+            """
+        )
+        by_day = [
+            {"date": r["d"], "visits": r["visits"], "uniques": r["uniques"]} for r in cur.fetchall()
+        ]
+
+    return jsonify(
+        {
+            "totalVisits": total_visits,
+            "uniqueVisitors": unique_visitors,
+            "visitsLast7d": visits_7d,
+            "uniqueLast7d": unique_7d,
+            "visitsLast30d": visits_30d,
+            "uniqueLast30d": unique_30d,
+            "referrers": referrers,
+            "regions": regions,
+            "devices": devices,
+            "browsers": browsers,
+            "byDay": by_day,
+        }
+    )
+
+
 @bp.route("/api/admin/stats", methods=["GET"])
 @limiter.limit("60/minute")
 @require_auth
