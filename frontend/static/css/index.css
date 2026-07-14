@@ -3468,6 +3468,14 @@ body.is-signed-out .trip-controls-popover {
     font-size: 1.5rem;
     cursor: pointer;
     transition: background-color 0.2s ease;
+    /* Centre the inline close SVG. These buttons were sized for a text "✕"
+       glyph; after the emoji-strip they hold an iconSvg('close'), which
+       without flex-centring sat off-centre at the baseline. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary, #6b6b70);
+    line-height: 0;
 }
 .close-x-btn:hover , .close-x-btn:active , .close-x-btn:focus-visible { background: rgba(0,0,0,0.1); }
 .close-x-btn:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }

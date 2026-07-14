@@ -727,6 +727,28 @@ export function Insights() {
         return [...seen.entries()].map(([label, color]) => ({ label, color }));
     }, [spenderRows, spenderDim]);
 
+    // What the SPENDERS donut represents: per-PERSON when there's no secondary
+    // dimension, else per DIMENSION-VALUE (currency/category/country) totalled
+    // across everyone — so on the Moneda tab the pie actually shows USD vs CAD
+    // (matching the legend + bar segments) instead of the people, whose colours
+    // used to collide with the currency legend. `key` distinguishes people from
+    // dimension values for the hover cross-highlight.
+    const spenderDonut = useMemo(() => {
+        if (spenderDim === 'general') {
+            return spenderRows.map((r) => ({ key: `p:${r.name}`, label: r.name, value: r.value, color: r.sliceColor }));
+        }
+        const agg = new Map<string, { value: number; color: string }>();
+        for (const r of spenderRows)
+            for (const s of r.segs) {
+                const cur = agg.get(s.label);
+                if (cur) cur.value += s.value;
+                else agg.set(s.label, { value: s.value, color: s.color });
+            }
+        return [...agg.entries()]
+            .map(([label, v]) => ({ key: `d:${label}`, label, value: v.value, color: v.color }))
+            .sort((a, b) => b.value - a.value);
+    }, [spenderRows, spenderDim]);
+
     // ── Avg-per-day dashboard: average over the days that actually had spend,
     // past + dated only (same window as before), now narrowable by payer/category.
     const avgDailyData = useMemo(() => {
@@ -1293,20 +1315,25 @@ export function Insights() {
     // Spenders share donut — per-person spend. The list beside it is the legend.
     useEffect(() => {
         if (!chartLibReady) return;
-        if (!spenderPieRef.current || spenderRows.length < 2) return;
+        if (!spenderPieRef.current || spenderDonut.length < 2) return;
         // No tooltip on the pie — the right-side list IS the label surface; a
         // hover cross-highlights it instead. layout.padding gives the glow halo
-        // room so it isn't clipped at the canvas edge.
+        // room so it isn't clipped at the canvas edge. The donut represents
+        // people (general) OR the active dimension (currency/category/country).
+        // Row cross-highlight only makes sense when the slices ARE the people.
+        const isPeople = spenderDim === 'general';
         const chart = new Chart(spenderPieRef.current, {
             type: 'doughnut',
             plugins: [DONUT_GLOW],
-            data: { labels: spenderRows.map((r) => r.name), datasets: [{ data: spenderRows.map((r) => r.value), backgroundColor: spenderRows.map((r) => r.sliceColor), borderWidth: 0 }] },
+            data: { labels: spenderDonut.map((d) => d.label), datasets: [{ data: spenderDonut.map((d) => d.value), backgroundColor: spenderDonut.map((d) => d.color), borderWidth: 0 }] },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 cutout: '62%',
                 layout: { padding: 14 },
-                onHover: (_evt, els) => setSpenderHover(els.length ? (els[0]?.index ?? null) : null),
+                ...(isPeople
+                    ? { onHover: (_evt: unknown, els: { index?: number }[]) => setSpenderHover(els.length ? (els[0]?.index ?? null) : null) }
+                    : {}),
                 plugins: { legend: { display: false }, tooltip: { enabled: false } },
             },
         });
@@ -1316,20 +1343,21 @@ export function Insights() {
             spenderChartRef.current = null;
             chart.destroy();
         };
-    }, [chartLibReady, targetCurr, targetSym, spenderRows.map((r) => `${r.name}:${r.value.toFixed(2)}`).join('|')]);
+    }, [chartLibReady, targetCurr, targetSym, spenderDim, spenderDonut.map((d) => `${d.key}:${d.value.toFixed(2)}`).join('|')]);
 
     // Repaint the spender donut on hover: the hovered slice keeps its colour,
-    // every other slice fades. update('none') = no animation churn.
+    // every other slice fades. Only when the donut IS the people (general) —
+    // the row-hover index maps to a slice only then. update('none') = no churn.
     useEffect(() => {
         const ch = spenderChartRef.current;
         if (!ch) return;
         const ds = ch.data.datasets[0];
         if (!ds) return;
-        ds.backgroundColor = spenderRows.map((r, i) =>
-            spenderHover == null || i === spenderHover ? r.sliceColor : dimHex(r.sliceColor, 0.16),
+        ds.backgroundColor = spenderDonut.map((d, i) =>
+            spenderDim !== 'general' || spenderHover == null || i === spenderHover ? d.color : dimHex(d.color, 0.16),
         );
         ch.update('none');
-    }, [spenderHover, spenderRows]);
+    }, [spenderHover, spenderDonut, spenderDim]);
 
     // "Expenses per…" share donut — slices follow the active metric (spent / count).
     useEffect(() => {
@@ -2017,8 +2045,8 @@ export function Insights() {
                         ]}
                     />
                 </div>
-                <div className={spenderRows.length >= 2 ? 'grid-2 grid-cols-2 gap-6 items-center' : ''}>
-                    {spenderRows.length >= 2 ? (
+                <div className={spenderDonut.length >= 2 ? 'grid-2 grid-cols-2 gap-6 items-center' : ''}>
+                    {spenderDonut.length >= 2 ? (
                         <div className="relative h-[220px] w-full min-w-0" onMouseLeave={() => setSpenderHover(null)}><canvas ref={spenderPieRef}></canvas></div>
                     ) : null}
                     <div className="flex flex-col gap-1">
@@ -2041,7 +2069,12 @@ export function Insights() {
                                     >
                                         <div className="flex items-baseline justify-between gap-3 min-w-0">
                                             <span className="font-bold text-primary break-words min-w-0 flex items-center gap-2">
-                                                <span className="inline-block rounded-full" style={{ width: 10, height: 10, flexShrink: 0, background: r.sliceColor }} />
+                                                {/* Person colour dot only in 'general' mode — with a secondary
+                                                    dimension the donut + bars + legend carry the dimension's
+                                                    colours, so a person-coloured dot here would clash. */}
+                                                {spenderDim === 'general' ? (
+                                                    <span className="inline-block rounded-full" style={{ width: 10, height: 10, flexShrink: 0, background: r.sliceColor }} />
+                                                ) : null}
                                                 {r.name}
                                             </span>
                                             <span className="font-extrabold text-accent-blue tabular-nums whitespace-nowrap">

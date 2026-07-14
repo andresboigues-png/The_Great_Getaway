@@ -325,8 +325,13 @@ export function paintAirportMarker(ctx: AirportMarkerContext): void {
 
     const svc = getPlacesService();
     if (!svc) return;
+    // PROMINENCE-ranked (a radius, no rankBy) so the busiest COMMERCIAL airport
+    // wins — rankBy DISTANCE used to pin whatever `airport`-typed place was
+    // nearest, which in a city is often a downtown helipad, not the main
+    // airport (e.g. Atlanta returned a helipad instead of Hartsfield-Jackson).
+    // 60 km covers a metro area's primary airport.
     svc.nearbySearch(
-        { location: anchor, rankBy: google.maps.places.RankBy.DISTANCE, type: 'airport' },
+        { location: anchor, radius: 60000, type: 'airport' },
         (results, status) => {
             if (status !== google.maps.places.PlacesServiceStatus.OK || !results) {
                 // ZERO_RESULTS is a real answer — cache the miss so this
@@ -338,11 +343,21 @@ export function paintAirportMarker(ctx: AirportMarkerContext): void {
                 }
                 return;
             }
-            // rankBy DISTANCE returns nearest-first; take the first result
-            // that is genuinely typed `airport` (the type filter can still
-            // surface heliports / airstrips tagged secondary).
+            // Google tags heliports / airstrips / seaplane bases as `airport`
+            // too — exclude them by name so we only ever pin a commercial
+            // airport. Prominence already ranks the big airport first; this is
+            // the belt-and-braces filter.
+            const isNotCommercial = (p: google.maps.places.PlaceResult) =>
+                /heli(pad|port|copter)?|airstrip|airfield|aerodrome|seaplane|gliderport|air\s?base/i.test(
+                    p.name || '',
+                );
             const hit = results.find(
-                (p) => p.place_id && p.name && p.geometry?.location && (p.types || []).includes('airport'),
+                (p) =>
+                    p.place_id
+                    && p.name
+                    && p.geometry?.location
+                    && (p.types || []).includes('airport')
+                    && !isNotCommercial(p),
             );
             if (!hit) {
                 writeJson(cacheKey, { none: true });
