@@ -1011,6 +1011,10 @@ export function Insights() {
     const spenderChartRef = useRef<InstanceType<typeof Chart> | null>(null);
     const perChartRef = useRef<InstanceType<typeof Chart> | null>(null);
     const [spenderHover, setSpenderHover] = useState<number | null>(null);
+    // Dimension-mode: hovering a bottom legend chip (a currency/category/country)
+    // highlights its donut slice. Keyed by the legend label since the donut then
+    // represents dimension values, not people.
+    const [legendHover, setLegendHover] = useState<string | null>(null);
     const [perHover, setPerHover] = useState<number | null>(null);
 
     // ── Timeline zoom ─────────────────────────────────────────────────────
@@ -1346,18 +1350,23 @@ export function Insights() {
     }, [chartLibReady, targetCurr, targetSym, spenderDim, spenderDonut.map((d) => `${d.key}:${d.value.toFixed(2)}`).join('|')]);
 
     // Repaint the spender donut on hover: the hovered slice keeps its colour,
-    // every other slice fades. Only when the donut IS the people (general) —
-    // the row-hover index maps to a slice only then. update('none') = no churn.
+    // every other fades. General mode = people (row / slice hover, by index);
+    // dimension mode = currency/etc. (legend-chip hover, by label). update('none')
+    // = no animation churn.
     useEffect(() => {
         const ch = spenderChartRef.current;
         if (!ch) return;
         const ds = ch.data.datasets[0];
         if (!ds) return;
-        ds.backgroundColor = spenderDonut.map((d, i) =>
-            spenderDim !== 'general' || spenderHover == null || i === spenderHover ? d.color : dimHex(d.color, 0.16),
-        );
+        ds.backgroundColor = spenderDonut.map((d, i) => {
+            const active =
+                spenderDim === 'general'
+                    ? spenderHover == null || i === spenderHover
+                    : legendHover == null || d.label === legendHover;
+            return active ? d.color : dimHex(d.color, 0.16);
+        });
         ch.update('none');
-    }, [spenderHover, spenderDonut, spenderDim]);
+    }, [spenderHover, legendHover, spenderDonut, spenderDim]);
 
     // "Expenses per…" share donut — slices follow the active metric (spent / count).
     useEffect(() => {
@@ -2100,7 +2109,13 @@ export function Insights() {
                 {spenderLegend.length > 0 ? (
                     <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-4 pt-4 border-t border-[var(--border-subtle)]">
                         {spenderLegend.map((l) => (
-                            <span key={l.label} className="inline-flex items-center gap-1.5 text-[0.74rem] font-semibold text-secondary">
+                            <span
+                                key={l.label}
+                                className="inline-flex items-center gap-1.5 text-[0.74rem] font-semibold text-secondary cursor-default rounded-full px-1.5 py-0.5 transition-opacity"
+                                style={{ opacity: legendHover == null || legendHover === l.label ? 1 : 0.4 }}
+                                onMouseEnter={() => setLegendHover(l.label)}
+                                onMouseLeave={() => setLegendHover(null)}
+                            >
                                 <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ background: l.color }} />
                                 {l.label}
                             </span>

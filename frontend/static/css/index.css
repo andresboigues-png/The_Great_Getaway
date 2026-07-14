@@ -2495,7 +2495,9 @@ body.is-signed-out .trip-controls-popover {
    accent left border + uppercase tracked title + huge value. */
 .hero-stat-card {
     background: linear-gradient(135deg, var(--glass-bg), rgba(0,113,227,0.03));
-    border-left: 4px solid var(--accent-blue);
+    /* Full accent-blue border on all four sides (was a lone 4px left accent,
+       which read as an unfinished/partial border against the rounded corners). */
+    border: 2px solid var(--accent-blue);
 }
 .hero-stat-card__title {
     font-size: var(--font-lg);
