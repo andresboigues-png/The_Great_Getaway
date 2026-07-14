@@ -316,7 +316,11 @@ export function paintAirportMarker(ctx: AirportMarkerContext): void {
     const anchor = resolveAnchor(activeTrip, days);
     if (!anchor) return;
 
-    const cacheKey = `gg_airport_${activeTrip.id}_${anchor.lat.toFixed(2)}_${anchor.lng.toFixed(2)}`;
+    // `v2`: the query changed from nearest-airport (which pinned downtown
+    // helipads) to prominence + heliport filter. Bumping the key discards
+    // every stale v1 cache entry (e.g. a saved "Helipad") so trips re-resolve
+    // to the real commercial airport on next load.
+    const cacheKey = `gg_airport_v2_${activeTrip.id}_${anchor.lat.toFixed(2)}_${anchor.lng.toFixed(2)}`;
     const cached = readAirportCache(cacheKey);
     if (cached) {
         if (!('none' in cached)) dropAirportMarker(ctx, anchor, cached);
