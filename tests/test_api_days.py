@@ -1108,14 +1108,16 @@ def test_airport_routes_filters_junk_and_caps(client, seed_user, auth_headers, m
 
 
 def test_arrival_terminals_rejects_bad_mode(client, seed_user, auth_headers):
-    """A mode outside the station-based allowlist (or a missing one) is a 400,
-    never a Gemini call."""
-    r = client.post(
-        "/api/arrival_terminals",
-        headers=auth_headers,
-        json={"city": "Lisbon", "mode": "flight"},  # flight is not a terminal mode
-    )
-    assert r.status_code == 400
+    """A mode outside the intercity station allowlist (or a missing one) is a
+    400, never a Gemini call. metro & tram are intra-city → rejected too (no
+    'arrive from another city' terminal exists for them)."""
+    for bad in ("flight", "metro", "tram", "car", "walk"):
+        r = client.post(
+            "/api/arrival_terminals",
+            headers=auth_headers,
+            json={"city": "Lisbon", "mode": bad},
+        )
+        assert r.status_code == 400, f"{bad} must be rejected as a terminal mode"
     r = client.post(
         "/api/arrival_terminals",
         headers=auth_headers,

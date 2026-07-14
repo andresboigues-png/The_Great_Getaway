@@ -11,6 +11,7 @@ sweep.
 """
 
 import json
+import re
 import secrets
 
 from flask import Blueprint, jsonify
@@ -90,10 +91,12 @@ _TRAVEL_MODES = frozenset(
 
 
 def _clean_travel_leg(raw):
-    """Coerce one raw leg to {mode, note?} or None. Non-dict / empty →
-    None (leg cleared). Unknown mode → 'mixed'. Note is clamped to 200
-    chars and control-stripped; junk (non-string) note is dropped.
-    Never raises — a bad leg is dropped/coerced, not a 400."""
+    """Coerce one raw leg to {mode, note?, from?, fromPlaceId?, fromCoords?}
+    or None. Non-dict / empty → None (leg cleared). Unknown mode → 'mixed'.
+    Note/from are clamped + control-stripped; fromPlaceId/fromCoords (the
+    precise Google Places origin of a car leg) are charset/format-validated
+    and dropped when malformed. Never raises — a bad leg is dropped/coerced,
+    not a 400."""
     if not isinstance(raw, dict):
         return None
     mode = raw.get("mode")
@@ -119,6 +122,30 @@ def _clean_travel_leg(raw):
             cleaned_from = frm.strip()[:160]
         if cleaned_from:
             leg["from"] = cleaned_from
+    # `fromPlaceId` / `fromCoords`: the PRECISE Google Places identity of the
+    # car origin when the user PICKED it from autocomplete (vs free-typed). They
+    # only make the Maps route resolve the exact spot — a malformed value is
+    # dropped (the route falls back to geocoding `from`), never a 400. Only
+    # meaningful alongside a `from` label, so gate on it.
+    if leg.get("from"):
+        fpid = raw.get("fromPlaceId")
+        # Google place IDs are opaque tokens over [A-Za-z0-9_-]; reject anything
+        # else as junk / injection rather than store it.
+        if isinstance(fpid, str):
+            fpid = fpid.strip()
+            if 0 < len(fpid) <= 512 and re.fullmatch(r"[A-Za-z0-9_-]+", fpid):
+                leg["fromPlaceId"] = fpid
+        fcoords = raw.get("fromCoords")
+        if isinstance(fcoords, str):
+            parts = fcoords.strip().split(",")
+            if len(parts) == 2:
+                try:
+                    lat = float(parts[0])
+                    lng = float(parts[1])
+                except ValueError:
+                    lat = lng = None
+                if lat is not None and -90 <= lat <= 90 and -180 <= lng <= 180:
+                    leg["fromCoords"] = f"{lat:.6f},{lng:.6f}"
     return leg
 
 

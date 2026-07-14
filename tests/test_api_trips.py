@@ -2773,3 +2773,98 @@ def test_trip_travel_unknown_mode_coerced_not_400(client, seed_user, auth_header
     data = client.get("/api/data", headers=auth_headers).get_json()
     trip = next(t for t in data["trips"] if t["id"] == "trip-travel4")
     assert trip["travel"]["arrival"]["mode"] == "mixed", "unknown mode coerces to 'mixed'"
+
+
+def test_trip_travel_car_precise_origin_round_trips(client, seed_user, auth_headers):
+    """A car leg's PICKED origin (from + fromPlaceId + fromCoords) round-trips
+    so the Maps route can resolve the exact spot (origin_place_id / lat,lng)."""
+    res = client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {
+                "id": "trip-carfrom",
+                "name": "T",
+                "country": "GB",
+                "travel": {
+                    "arrival": {
+                        "mode": "car",
+                        "from": "Coimbra, Portugal",
+                        "fromPlaceId": "ChIJ_coimbra-123_ID",
+                        "fromCoords": "40.203100,-8.410100",
+                    },
+                    "departure": None,
+                },
+            },
+        },
+    )
+    assert res.status_code == 200, res.get_data(as_text=True)
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in data["trips"] if t["id"] == "trip-carfrom")
+    assert trip["travel"]["arrival"] == {
+        "mode": "car",
+        "from": "Coimbra, Portugal",
+        "fromPlaceId": "ChIJ_coimbra-123_ID",
+        "fromCoords": "40.203100,-8.410100",
+    }, f"precise car origin must round-trip; got {trip['travel']['arrival']!r}"
+
+
+def test_trip_travel_bad_place_id_and_coords_dropped_not_400(client, seed_user, auth_headers):
+    """Malformed fromPlaceId (illegal chars) / fromCoords (out of range,
+    non-numeric, wrong arity) are DROPPED, not stored — the route falls back to
+    geocoding `from`. The trip upsert never 400s over it."""
+    res = client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {
+                "id": "trip-carbad",
+                "name": "T",
+                "country": "GB",
+                "travel": {
+                    "arrival": {
+                        "mode": "car",
+                        "from": "Somewhere",
+                        "fromPlaceId": "not a <valid> id",  # spaces + angle brackets
+                        "fromCoords": "999,0",  # lat out of range
+                    },
+                    "departure": None,
+                },
+            },
+        },
+    )
+    assert res.status_code == 200, res.get_data(as_text=True)
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    arr = next(t for t in data["trips"] if t["id"] == "trip-carbad")["travel"]["arrival"]
+    assert arr["from"] == "Somewhere"
+    assert "fromPlaceId" not in arr, "illegal place-id chars must be dropped"
+    assert "fromCoords" not in arr, "out-of-range coords must be dropped"
+
+
+def test_trip_travel_precise_origin_requires_a_from_label(client, seed_user, auth_headers):
+    """fromPlaceId/fromCoords are meaningless without a `from` label (the UI
+    only routes when `from` is set), so they're gated on it and dropped when
+    it's absent."""
+    res = client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {
+                "id": "trip-carnofrom",
+                "name": "T",
+                "country": "GB",
+                "travel": {
+                    "arrival": {
+                        "mode": "car",
+                        "fromPlaceId": "ChIJ_orphan",
+                        "fromCoords": "10.0,20.0",
+                    },
+                    "departure": None,
+                },
+            },
+        },
+    )
+    assert res.status_code == 200, res.get_data(as_text=True)
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    arr = next(t for t in data["trips"] if t["id"] == "trip-carnofrom")["travel"]["arrival"]
+    assert arr == {"mode": "car"}, f"orphan place id/coords must be dropped; got {arr!r}"

@@ -27,12 +27,28 @@ import {
     refineTransportsWithAI,
 } from '../home/transportSuggest.js';
 import type { Trip, TripDay, TransportMode, TravelLeg } from '../../types';
+import { PlaceAutocompleteInput } from '../../react/components/PlaceAutocompleteInput.js';
+import type { PlacePick } from '../../react/components/PlaceAutocompleteInput.js';
+import { type Pt, TRAVELMODE, buildDirUrl, mapsSearch, terminalHref } from './transportLinks.js';
 
 /** The full mode union, in the day-editor's order — arrival/departure accept
  *  every mode (realistically flight/car/bus/train/ferry/taxi/mixed). */
 const TRAVEL_MODES: TransportMode[] = [
     'walk', 'metro', 'bus', 'train', 'tram', 'car', 'taxi', 'bike', 'ferry', 'flight', 'mixed',
 ];
+
+/** Preserve a car leg's saved origin (label + precise placeId/coords) when the
+ *  leg is rebuilt for an unrelated edit (mode switch, note change) — otherwise
+ *  those fields would silently drop. One place to extend if the leg grows more
+ *  origin fields. */
+function carryFrom(l: TravelLeg | null | undefined): Partial<TravelLeg> {
+    if (!l) return {};
+    return {
+        ...(l.from ? { from: l.from } : {}),
+        ...(l.fromPlaceId ? { fromPlaceId: l.fromPlaceId } : {}),
+        ...(l.fromCoords ? { fromCoords: l.fromCoords } : {}),
+    };
+}
 
 /** A run of consecutive days sharing one mode ("Días 1–3 · Metro"), so a
  *  long trip collapses instead of a per-day wall. Multi-day ranges expand;
@@ -44,27 +60,6 @@ interface DayRange {
     to: number;
     days: TripDay[];
 }
-
-/** A directions endpoint — a display label + optional exact place_id / coords. */
-type Pt = { label: string; placeId?: string; coords?: string };
-
-/** Build a Google Maps directions deep link (the whole point of this tab:
- *  one tap opens Maps already set to the right route + travel mode, no manual
- *  filters). `null`/'current' origin = the device's current location. */
-function buildDirUrl(origin: Pt | 'current' | null, dest: Pt | null, travelmode?: string): string | null {
-    if (!dest) return null;
-    const p = new URLSearchParams();
-    p.set('api', '1');
-    p.set('destination', dest.coords || dest.label);
-    if (dest.placeId) p.set('destination_place_id', dest.placeId);
-    if (origin && origin !== 'current') {
-        p.set('origin', origin.coords || origin.label);
-        if (origin.placeId) p.set('origin_place_id', origin.placeId);
-    }
-    if (travelmode) p.set('travelmode', travelmode);
-    return `https://www.google.com/maps/dir/?${p.toString()}`;
-}
-
 
 /** One curated arrival terminal from /api/arrival_terminals. */
 interface TerminalItem {
@@ -170,22 +165,13 @@ function TerminalsInline({
         // geocoded as "<name>, <city>". No base (no accommodation/place yet) →
         // fall back to a plain Maps search so the pill is still useful. THIS is
         // the time-saver — one tap opens the ready-made route, no manual filters.
-        const termHref = (name: string): string => {
-            const term: Pt = { label: `${name}, ${city}` };
-            if (!base) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name} ${city}`)}`;
-            return (
-                which === 'arrival'
-                    ? buildDirUrl(term, base, 'transit')
-                    : buildDirUrl(base, term, 'transit')
-            ) as string;
-        };
         return (
             <div className="trip-travel__actions-row">
                 {terminals.map((term, i) => (
                     <a
                         key={`${term.name}-${i}`}
                         className="trip-travel__action"
-                        href={termHref(term.name)}
+                        href={terminalHref(term.name, city, base, which)}
                         target="_blank"
                         rel="noopener noreferrer"
                         title={term.note || (base ? t('transport.terminalRouteTitle') : term.name)}
@@ -433,21 +419,15 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
     const _today = localTodayIso();
     const tripOngoing = _dates.length > 0 && _today >= _dates[0]! && _today <= _dates[_dates.length - 1]!;
 
-    const _TRAVELMODE: Partial<Record<TransportMode, string>> = {
-        walk: 'walking', bike: 'bicycling', car: 'driving', taxi: 'driving',
-        metro: 'transit', bus: 'transit', train: 'transit', tram: 'transit', ferry: 'transit', flight: 'transit',
-    };
     const mapsDir = (origin: Pt | 'current' | null, dest: Pt | null, mode?: TransportMode): string | null =>
-        buildDirUrl(origin, dest, mode ? _TRAVELMODE[mode] : undefined);
-    const mapsSearch = (query: string, near: Pt | null): string => {
-        const q = near ? `${query} ${near.coords || near.label}` : query;
-        return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
-    };
-    // Google Maps search term per station-based mode (English — Maps resolves
-    // it in any locale; the BUTTON label is localised).
+        buildDirUrl(origin, dest, mode ? TRAVELMODE[mode] : undefined);
+    // The INTERCITY station-based modes that have a meaningful "where you
+    // arrive from another city" terminal list. metro & tram are deliberately
+    // EXCLUDED: they're purely intra-city, so nobody arrives from another city
+    // by them and a terminals list would be noise (expert-graded, MK1). The
+    // value is the English Maps search term for the no-base fallback.
     const TERMINAL_Q: Partial<Record<TransportMode, string>> = {
-        bus: 'bus station', train: 'train station', tram: 'tram stop',
-        metro: 'metro station', ferry: 'ferry terminal',
+        bus: 'bus station', train: 'train station', ferry: 'ferry terminal',
     };
 
     const actionLink = (href: string, label: string, key?: string) => (
@@ -481,23 +461,47 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
         }
         if (mode === 'car') {
             const from = (leg.from || '').trim();
-            const routeHref = from
-                ? (which === 'arrival' ? mapsDir({ label: from }, base, 'car') : mapsDir(base, { label: from }, 'car'))
+            // A precise origin when the user picked a real place (placeId /
+            // coords persisted) — Maps resolves the EXACT spot instead of
+            // geocoding the raw text, so the route is right the first time.
+            const fromPt: Pt | null = from
+                ? {
+                      label: from,
+                      ...(leg.fromPlaceId ? { placeId: leg.fromPlaceId } : {}),
+                      ...(leg.fromCoords ? { coords: leg.fromCoords } : {}),
+                  }
                 : null;
+            const routeHref = fromPt
+                ? which === 'arrival'
+                    ? mapsDir(fromPt, base, 'car')
+                    : mapsDir(base, fromPt, 'car')
+                : null;
+            // Persist the picked place onto the leg (label + optional
+            // placeId/coords), skipping a no-op write. Empty → clears `from`.
+            const persistFrom = (pick: PlacePick | null) => {
+                const nf = (pick?.label || '').trim().slice(0, 160);
+                const npid = pick?.placeId || '';
+                const ncoord = pick?.coords || '';
+                if (nf === from && npid === (leg.fromPlaceId || '') && ncoord === (leg.fromCoords || '')) return;
+                change({
+                    mode,
+                    ...(leg.note ? { note: leg.note } : {}),
+                    ...(nf ? { from: nf } : {}),
+                    ...(npid ? { fromPlaceId: npid } : {}),
+                    ...(ncoord ? { fromCoords: ncoord } : {}),
+                });
+            };
             return (
                 <div className="trip-travel__car">
-                    <input
-                        type="text"
+                    <PlaceAutocompleteInput
+                        key={`from-${which}-${from}`}
                         className="trip-travel__leg-note"
                         maxLength={160}
+                        initialValue={from}
                         placeholder={which === 'arrival' ? t('transport.carFromArrival') : t('transport.carFromDeparture')}
-                        defaultValue={from}
-                        key={`from-${which}-${from}`}
-                        onBlur={(e) => {
-                            const v = e.target.value.trim().slice(0, 160);
-                            if ((leg.from || '') === v) return;
-                            change({ mode, ...(leg.note ? { note: leg.note } : {}), ...(v ? { from: v } : {}) });
-                        }}
+                        aria-label={which === 'arrival' ? t('transport.carFromArrival') : t('transport.carFromDeparture')}
+                        onSelect={persistFrom}
+                        onCommit={persistFrom}
                     />
                     {routeHref ? actionLink(routeHref, t('transport.seeRoute')) : null}
                 </div>
@@ -553,7 +557,7 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
                             {TRAVEL_MODES.map((m) => (
                                 <button key={m} type="button" role="option" aria-selected={leg?.mode === m} className="trip-travel__dd-opt"
                                     onClick={() => {
-                                        change({ mode: m, ...(leg?.note ? { note: leg.note } : {}), ...(leg?.from ? { from: leg.from } : {}) });
+                                        change({ mode: m, ...(leg?.note ? { note: leg.note } : {}), ...carryFrom(leg) });
                                         setTravelOpen(null);
                                     }}>
                                     <TransportModeIcon mode={m} size={18} />
@@ -571,7 +575,7 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
                         onBlur={(e) => {
                             const note = e.target.value.trim().slice(0, 200);
                             if ((leg.note || '') === note) return;
-                            change({ mode: leg.mode, ...(note ? { note } : {}), ...(leg.from ? { from: leg.from } : {}) });
+                            change({ mode: leg.mode, ...(note ? { note } : {}), ...carryFrom(leg) });
                         }} />
                 ) : null}
             </div>

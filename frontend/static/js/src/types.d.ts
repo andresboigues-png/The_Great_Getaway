@@ -248,9 +248,16 @@ export interface TravelLeg {
     /** Optional practical note (flight number, pickup point, ferry time). */
     note?: string;
     /** The traveller-entered "other end" for a car leg — where they're driving
-     *  FROM (arrival) or TO (departure). Free text; geocoded by the Google Maps
-     *  route link. Persisted so it survives a tab switch or mode change. */
+     *  FROM (arrival) or TO (departure). Free text OR the display label of a
+     *  Google Places pick. Persisted so it survives a tab switch or mode change. */
     from?: string;
+    /** Google place_id for `from` when it was chosen from Places autocomplete
+     *  (not free-typed). Lets the Maps route link resolve the EXACT origin via
+     *  origin_place_id instead of geocoding the label. */
+    fromPlaceId?: string;
+    /** "lat,lng" for `from` when picked from Places — the precise origin the
+     *  route link uses. */
+    fromCoords?: string;
 }
 
 /** Single row in `Trip.checklist`. `id` is a stable client-generated

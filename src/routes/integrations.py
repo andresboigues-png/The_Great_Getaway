@@ -1093,7 +1093,10 @@ def airport_routes():
 # Station-based modes the arrival-terminals answer accepts. A traveller
 # "arrives" at these on an intercity leg; flight/car/bike/etc. are handled by
 # their own affordances on the Transport tab, so they're rejected here (400).
-_ARRIVAL_TERMINAL_MODES = ("bus", "train", "tram", "metro", "ferry")
+# The INTERCITY station-based modes. metro & tram are EXCLUDED on purpose:
+# they're purely intra-city, so "terminals where you arrive from another city"
+# is a meaningless (noise-producing) question for them — expert-graded, MK1.
+_ARRIVAL_TERMINAL_MODES = ("bus", "train", "ferry")
 
 
 @bp.route("/api/arrival_terminals", methods=["POST"])
@@ -1153,8 +1156,11 @@ def arrival_terminals():
     THEN list the MAIN {mode} terminals/stations IN THAT CITY where a traveller ARRIVES from ANOTHER city — the major intercity/mainline hubs ONLY. NEVER include local, minor, suburban, commuter, or metro stops that only serve trips WITHIN the city.
 
     RULES:
-      - Return 3-5 terminals MAX, the most important first.
-      - If the resolved city has NO significant intercity {mode} terminal (a small town, or {mode} is not used for intercity arrival there), return an EMPTY array. NEVER invent, guess, or pad with minor stops — a wrong or made-up terminal is worse than none.
+      - Return only GENUINE major intercity {mode} hubs, in importance order (busiest / highest intercity service first). Most cities have 1-4; the hard cap is 5. Do NOT pad to reach a number — if you are not CERTAIN a candidate carries real scheduled intercity {mode} service TODAY, OMIT it. A list of 2 all-correct terminals is far better than 5 with one minor or wrong entry: precision matters more than completeness here.
+      - Judge each terminal by the SCHEDULED INTERCITY {mode} SERVICE it carries TODAY, not by its fame, size, CENTRALITY, or history. Many big, central, famous stations are actually commuter/suburban termini that only serve their own metro area (e.g. Cercanías / Metro-North / S-Bahn-only stations, city-line termini, metropolitan-belt coach interchanges, park-and-ride stops) — EXCLUDE them even if iconic or a former mainline terminus. Include a terminal ONLY if long-distance {mode} services FROM OTHER CITIES actually terminate or call there today.
+      - Deduplicate by PHYSICAL terminal, not by name: if two names are the SAME station/port/pier (full vs. short, historic vs. current, street-name vs. official), list it ONCE under its most recognisable current name. (e.g. Madrid's "Estación Sur de Autobuses" IS "Méndez Álvaro" — ONE terminal; Naples' "Porta di Massa" IS "Calata Porta di Massa" — ONE pier.)
+      - For ferry, count ONLY ports with scheduled INTERCITY / inter-island / international passenger crossings. EXCLUDE lake/river sightseeing, cruise, excursion, tourist and pleasure-boat piers, and local within-city river crossings. If a city's only boats are sightseeing or local crossings, return an EMPTY array.
+      - If the resolved city has NO significant intercity {mode} terminal (a small town, or {mode} is simply not used to ARRIVE there from another city), return an EMPTY array. NEVER invent, guess, or pad with minor stops — a wrong or made-up terminal is worse than none.
       - `name` is the terminal/station's real, current proper name (no city prefix unless it's part of the name).
       - `note` is OPTIONAL — ONE short line in {language} (max 16 words) of what it serves (e.g. "Trains from the north and Spain"). Include it ONLY if confident; omit rather than invent.
       - Return ONLY a JSON array of 0-5 objects: {{"name", "note"?}}.
@@ -1195,7 +1201,10 @@ def arrival_terminals():
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
-            "temperature": 0.2,
+            # Terminals is a FACTUAL lookup, not creative writing — temperature 0
+            # for the most deterministic, highest-confidence answer and minimal
+            # run-to-run variance (a station shouldn't flip between reloads).
+            "temperature": 0,
             "responseMimeType": "application/json",
             "maxOutputTokens": 512,
             "thinkingConfig": {"thinkingBudget": 0},
