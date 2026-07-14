@@ -432,6 +432,9 @@ body {
        tactile feel is preserved. */
     opacity: 1;
     transition: all 0.2s ease;
+    /* Never let a link's label wrap to a second line — with 5 page-links the
+       top-nav row is tighter now. */
+    white-space: nowrap;
 }
 
 .nav-item:hover, .nav-item:active, .nav-item:focus-visible,
