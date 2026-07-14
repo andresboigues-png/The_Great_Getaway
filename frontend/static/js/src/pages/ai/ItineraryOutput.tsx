@@ -9,7 +9,8 @@
 import { useState } from 'react';
 import { t } from '../../i18n.js';
 import { showLiquidAlert } from '../../utils.js';
-import { transportModeIcon, transportModeLabel } from '../home/transportModal.js';
+import { transportModeLabel } from '../home/transportModal.js';
+import { TransportModeIcon } from '../../react/components/TransportModeIcon.js';
 import type { TransportMode } from '../../types';
 
 // Transportation P2 (review fix): the preview must SHOW the per-day transport
@@ -221,8 +222,8 @@ export function ItineraryOutput({
                                         const tr = previewTransport(day.transport);
                                         if (!tr) return null;
                                         return (
-                                            <div className="mt-1 text-[0.82rem] font-semibold text-secondary">
-                                                {transportModeIcon(tr.mode)} {transportModeLabel(tr.mode)}
+                                            <div className="mt-1 text-[0.82rem] font-semibold text-secondary flex items-center gap-1.5 flex-wrap">
+                                                <TransportModeIcon mode={tr.mode} size={16} /> {transportModeLabel(tr.mode)}
                                                 {tr.note ? (
                                                     <span className="font-normal opacity-80"> · {tr.note}</span>
                                                 ) : null}

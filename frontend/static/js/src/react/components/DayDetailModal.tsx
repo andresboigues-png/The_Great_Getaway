@@ -74,7 +74,8 @@ import { navigate } from '../../router.js';
 import { openReactModal } from '../reactModal.js';
 import { openTripChecklistModal } from '../../pages/home/tripChecklistModal.js';
 import { openAccommodationModal } from '../../pages/home/accommodationModal.js';
-import { openTransportModal, transportModeIcon, transportModeLabel } from '../../pages/home/transportModal.js';
+import { openTransportModal, transportModeLabel } from '../../pages/home/transportModal.js';
+import { TransportModeIcon } from './TransportModeIcon.js';
 import { fetchDaySummary } from '../../pages/home/weather.js';
 import { dayDirectionsUrl } from '../../todoCategories.js';
 import { repaintPathTab } from '../../pages/home/pathSelection.js';
@@ -1745,7 +1746,6 @@ export function DayDetailModal({
     // opens the editor. When open, an "Editar" link opens the editor (the
     // tap no longer does, since it now owns the expand/collapse).
     const transportLabel = stripTr ? transportModeLabel(stripTr.mode) : t('pathTab.transportNotSet');
-    const transportIcon = stripTr ? transportModeIcon(stripTr.mode) : '🚌';
     const hasTransportNote = !!stripTr?.note;
     // The mode + the free directions link share one row (a plain flex div,
     // not a button — a link can't nest inside a button). The mode is the
@@ -1758,7 +1758,7 @@ export function DayDetailModal({
                     aria-expanded={hasTransportNote ? transportOpen : undefined}
                     onClick={hasTransportNote ? () => setTransportOpen((o) => !o) : onTransport}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0, background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'var(--text-brand-navy)', fontWeight: 700, cursor: 'pointer' }}>
-                    <span style={logiIconStyle} aria-hidden="true">{transportIcon}</span>
+                    <span style={logiIconStyle}><TransportModeIcon mode={stripTr?.mode ?? null} size={18} /></span>
                     <span>{transportLabel}</span>
                     {hasTransportNote ? (
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"

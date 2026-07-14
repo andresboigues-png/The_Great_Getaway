@@ -336,7 +336,7 @@ export function buildPathTabHtml(ctx: PathTabContext): string {
         // "getting around" reads at a glance without opening any day. The
         // glyph also joins the tooltip for AT users.
         const tr = d.transport;
-        const modeGlyph = tr ? transportModeIcon(tr.mode) : '';
+        const modeGlyph = tr ? transportModeIcon(tr.mode, 12) : '';
         const modeLabel = tr ? transportModeLabel(tr.mode) : '';
         const tooltip = `${isToday ? t('pathTab.chipTodayPrefix') + ' · ' : ''}${t('tripMedia.dayBucketDay', { n: d.dayNumber })}${d.name ? ' — ' + d.name : ''}${d.date ? ' · ' + (formatDayDate(d.date) || d.date) : ''}${modeLabel ? ' · ' + modeLabel : ''}`;
         return `<button type="button" class="${cls}" data-path-chip-day-id="${esc(d.id)}" title="${esc(tooltip)}" aria-label="${esc(tooltip)}" aria-pressed="${isSel}">${String(d.dayNumber)}${modeGlyph ? `<span class="path-chip__mode" aria-hidden="true">${modeGlyph}</span>` : ''}</button>`;

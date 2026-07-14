@@ -20,7 +20,8 @@ import { formatDayDate } from '../../utils.js';
 import { openPdfPreview, looksLikePdfUrl } from '../../pages/home/lightbox.js';
 import { t } from '../../i18n.js';
 import { iconSvg } from '../../icons.js';
-import { transportModeIcon, transportModeLabel } from '../../pages/home/transportModal.js';
+import { transportModeLabel } from '../../pages/home/transportModal.js';
+import { TransportModeIcon } from './TransportModeIcon.js';
 import { PlanTextOrEmpty } from './PlanText.js';
 import type { TripDay, TripPhoto, TripDocument } from '../../types';
 
@@ -133,7 +134,7 @@ export function DayViewModal({ day, close }: { day: TripDay; close: () => void }
                         <div style={{ background: 'rgba(0,113,227,0.04)', padding: 'var(--space-6)', borderRadius: 24, border: '1px solid rgba(0,113,227,0.12)' }}>
                             <h4 className="text-tag">{t('tripHub.transportLabel')}</h4>
                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 6 }}>
-                                <span style={{ fontSize: '1.1rem', lineHeight: 1.3 }}>{transportModeIcon(day.transport.mode)}</span>
+                                <span style={{ marginTop: 1 }}><TransportModeIcon mode={day.transport.mode} size={20} /></span>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontWeight: 700, color: '#002d5b', lineHeight: 1.3 }}>{transportModeLabel(day.transport.mode)}</div>
                                     {day.transport.note && (

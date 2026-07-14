@@ -511,9 +511,10 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                             strokeLinejoin="round"
                             aria-hidden="true"
                         >
-                            {/* Winding pathway (not a map-pin — that read as a
-                                duplicate of the Maps button). A snaking trail. */}
-                            <path d="M9 3c0 4 6 5 6 9s-6 5-6 9"></path>
+                            {/* A single straight vertical line — the sibling of
+                                the Transport tab's two-line mark (one line vs two),
+                                so Path · Transport read as a matched geometric pair. */}
+                            <line x1="12" y1="4" x2="12" y2="20"></line>
                         </svg>
                         <span className="trip-tabnav__label">{t('home.tabPath')}</span>
                     </button>

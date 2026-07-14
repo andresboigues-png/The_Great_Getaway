@@ -2349,8 +2349,12 @@
     cursor: default;
 }
 .transport-mode-btn__icon {
-    font-size: 1.35rem;
-    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* GG-blue line icon (replaced the emoji glyph). Selected state uses a
+       light-blue bg + navy text, so blue reads well in both states. */
+    color: var(--accent-blue, #0071e3);
 }
 .transport-mode-btn__label {
     font-size: 0.72rem;
@@ -2491,13 +2495,17 @@
 }
 .path-chip__mode {
     position: absolute;
-    bottom: -4px;
-    right: -4px;
-    font-size: 0.62rem;
-    line-height: 1;
+    bottom: -5px;
+    right: -5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* GG-blue line icon on a white pill — explicit color so it stays visible
+       whether the chip is selected (white text) or not. */
+    color: var(--accent-blue, #0071e3);
     background: var(--surface-1, #fff);
     border-radius: 999px;
-    padding: 1px 2px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+    padding: 2px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
     pointer-events: none;
 }

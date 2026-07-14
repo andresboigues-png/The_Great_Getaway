@@ -14,28 +14,34 @@ import { upsertDay, isUnretryableRejection } from '../../api.js';
 import { canEdit } from '../../permissions.js';
 import { showModal } from '../../components/Modal.js';
 import { esc, showLiquidAlert } from '../../utils.js';
+import { iconSvg } from '../../icons.js';
 import { t } from '../../i18n.js';
 import { repaintPathTab } from './pathSelection.js';
 import type { Trip, TripDay, TransportMode } from '../../types';
 
-/** Mode → emoji glyph. Shared with the day-card pill via transportModeIcon. */
-const MODE_ICONS: Record<TransportMode, string> = {
-    walk: '🚶',
-    metro: '🚇',
-    bus: '🚌',
-    train: '🚆',
-    tram: '🚊',
-    car: '🚗',
-    taxi: '🚕',
-    bike: '🚴',
-    ferry: '⛴️',
-    flight: '✈️',
-    mixed: '🔀',
+/** Mode → GG line-icon key (icons.ts::ICON_PATHS). Replaced the 🚶🚇🚌…
+ *  emoji set — custom symbols in the app's icon language (currentColor). */
+const MODE_ICON_KEY: Record<TransportMode, string> = {
+    walk: 'footprints',
+    metro: 'metro',
+    bus: 'bus',
+    train: 'train',
+    tram: 'tram',
+    car: 'car',
+    taxi: 'taxi',
+    bike: 'bike',
+    ferry: 'ferry',
+    flight: 'plane',
+    mixed: 'shuffle',
 };
-const MODES = Object.keys(MODE_ICONS) as TransportMode[];
+const MODES = Object.keys(MODE_ICON_KEY) as TransportMode[];
 
-export function transportModeIcon(mode: TransportMode): string {
-    return MODE_ICONS[mode] || '🧭';
+/** Inline-SVG icon (HTML string) for a mode — inherits currentColor.
+ *  Vanilla/innerHTML surfaces use this directly; React consumers render it
+ *  via <TransportModeIcon> (dangerouslySetInnerHTML). `route` is the neutral
+ *  fallback (also the transport-not-set glyph). */
+export function transportModeIcon(mode: TransportMode, size = 18): string {
+    return iconSvg(MODE_ICON_KEY[mode] || 'route', { size });
 }
 
 /** Localized label for a mode ("Metro", "A pé", ...). */
@@ -61,7 +67,7 @@ export const openTransportModal = (
             aria-checked="${selected === m ? 'true' : 'false'}" data-active="${selected === m}"
             ${editable ? '' : 'disabled'}
             title="${esc(transportModeLabel(m))}">
-            <span class="transport-mode-btn__icon" aria-hidden="true">${MODE_ICONS[m]}</span>
+            <span class="transport-mode-btn__icon" aria-hidden="true">${transportModeIcon(m, 24)}</span>
             <span class="transport-mode-btn__label">${esc(transportModeLabel(m))}</span>
         </button>`;
 
@@ -83,10 +89,9 @@ export const openTransportModal = (
                 ${MODES.map(modeBtnHtml).join('')}
             </div>
             <label style="display:block; margin-top:16px; font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-secondary);" for="transportNote">${esc(t('transport.noteLabel'))}</label>
-            <input id="transportNote" type="text" maxlength="200" ${editable ? '' : 'disabled'}
-                value="${esc(day.transport?.note || '')}"
+            <textarea id="transportNote" maxlength="200" rows="3" ${editable ? '' : 'disabled'}
                 placeholder="${esc(t('transport.notePlaceholder'))}"
-                style="margin-top:6px; width:100%; padding:10px 12px; border:1px solid var(--glass-border, rgba(0,45,91,0.14)); border-radius:12px; font:inherit; font-size:0.9rem;">
+                style="margin-top:6px; width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid var(--glass-border, rgba(0,45,91,0.14)); border-radius:12px; font:inherit; font-size:0.9rem; line-height:1.4; resize:vertical; min-height:64px;">${esc(day.transport?.note || '')}</textarea>
             ${
                 editable
                     ? `<div style="display:flex; gap:8px; margin-top:18px; justify-content:flex-end;">

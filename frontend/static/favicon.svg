@@ -1,16 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- White rounded-square background. rx=14 (~22% of side) matches iOS-style
-       app icon corners. iOS PWA install will round further; Android keeps it. -->
-  <rect width="64" height="64" rx="14" ry="14" fill="#ffffff" />
-  <!-- Three concentric rings — outer blue (brand), middle yellow, inner green.
-       Outer kept thick for prominence; the two inner rings stay thin so the
-       white centre still reads as the dominant fill rather than the rings
-       crowding into a bullseye. -->
-  <!-- Inner rings: stroke-width=4 + a deeper amber so they read clearly
-       at favicon scale (64-unit SVG rendered at 16-32px in browser tabs).
-       The previous bright #ffd60a vanished into the white centre at small
-       sizes; #ff9500 holds its tone. White core stays r=8 inside green. -->
-  <circle cx="32" cy="32" r="22" fill="none" stroke="#0071e3" stroke-width="6" />
-  <circle cx="32" cy="32" r="15" fill="none" stroke="#ff9500" stroke-width="4" />
-  <circle cx="32" cy="32" r="10" fill="none" stroke="#34c759" stroke-width="4" />
+  <!-- The GG mark: concentric blue / amber / green rings with a soft glow,
+       on a TRANSPARENT background (adapts to light/dark browser tabs). The
+       glow is a layered blurred copy + a radial halo; the crisp rings sit on
+       top. No white fill anywhere — the centre is transparent. -->
+  <defs>
+    <radialGradient id="gg-halo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3aa0ff" stop-opacity="0.5"/>
+      <stop offset="0.6" stop-color="#3aa0ff" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#3aa0ff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="gg-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.2"/>
+    </filter>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#gg-halo)"/>
+  <g fill="none" filter="url(#gg-glow)" opacity="0.6">
+    <circle cx="32" cy="32" r="22" stroke="#0071e3" stroke-width="6"/>
+    <circle cx="32" cy="32" r="15" stroke="#ff9500" stroke-width="4"/>
+    <circle cx="32" cy="32" r="10" stroke="#34c759" stroke-width="4"/>
+  </g>
+  <g fill="none">
+    <circle cx="32" cy="32" r="22" stroke="#0071e3" stroke-width="6"/>
+    <circle cx="32" cy="32" r="15" stroke="#ff9500" stroke-width="4"/>
+    <circle cx="32" cy="32" r="10" stroke="#34c759" stroke-width="4"/>
+  </g>
 </svg>

@@ -14,7 +14,8 @@ import { useState } from 'react';
 import { t, tn } from '../../i18n.js';
 import { canEdit } from '../../permissions.js';
 import { showLiquidAlert } from '../../utils.js';
-import { openTransportModal, transportModeIcon, transportModeLabel } from '../home/transportModal.js';
+import { openTransportModal, transportModeLabel } from '../home/transportModal.js';
+import { TransportModeIcon } from '../../react/components/TransportModeIcon.js';
 import { dayDirectionsUrl } from '../../todoCategories.js';
 import {
     suggestableDays,
@@ -109,12 +110,12 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
                                                 </span>
                                                 {tr ? (
                                                     <span className="trip-transport__mode">
-                                                        <span aria-hidden="true">{transportModeIcon(tr.mode)}</span>{' '}
+                                                        <TransportModeIcon mode={tr.mode} size={17} />{' '}
                                                         {transportModeLabel(tr.mode)}
                                                     </span>
                                                 ) : (
                                                     <span className="trip-transport__unset">
-                                                        🚌 {t('pathTab.transportNotSet')}
+                                                        <TransportModeIcon mode={null} size={17} /> {t('pathTab.transportNotSet')}
                                                     </span>
                                                 )}
                                             </span>
