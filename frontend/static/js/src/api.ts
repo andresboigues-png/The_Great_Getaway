@@ -255,8 +255,9 @@ export async function pullFromServer() {
             // live in the translation; FR/ES/PT users get a localized
             // "Débloqué" / "¡Desbloqueado!" / "Desbloqueado" toast
             // instead of an English "Unlocked: …" string mid-Spanish UI.
+            // Emoji-strip: the toast is textContent-only (can't hold SVG) and
+            // already draws its own success icon — text carries no raw glyph.
             showLiquidAlert(t('toasts.badgeUnlocked', {
-                emoji: b.emoji || '🏅',
                 label: b.label || t('toasts.badgeUnlockedFallback'),
             }), 'success');
         }

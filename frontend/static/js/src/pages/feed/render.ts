@@ -10,7 +10,7 @@
 
 import { STATE } from '../../state.js';
 import { esc } from '../../utils.js';
-import { iconSvg } from '../../icons.js';
+import { iconSvg, iconForEmoji } from '../../icons.js';
 import { t, getLocale, formatCurrency } from '../../i18n.js';
 
 export interface Actor {
@@ -51,7 +51,9 @@ export interface FeedEvent {
     comment_count?: number;
     // achievement_unlocked carries the badge label/emoji on the payload
     // so the renderer doesn't need a separate /api/achievements call.
-    badge?: { id?: string; emoji?: string; label?: string; description?: string };
+    // `iconKey` (GG line-icon key) is served alongside the legacy emoji —
+    // the renderer draws the ICON, never the raw glyph (emoji-strip).
+    badge?: { id?: string; emoji?: string; iconKey?: string; label?: string; description?: string };
     // settled_up carries the recipient on top of the standard `actor`
     // field above (which IS the payer for these events — server
     // emits ev.actor + ev.recipient). R2 audit fix: pre-fix the type
@@ -343,7 +345,12 @@ export function eventLine(ev: FeedEvent) {
             const badgeLabel = ev.badge?.label
                 ? `<strong style="color:#002d5b;">${esc(ev.badge.label)}</strong>`
                 : t('feed.verbABadge');
-            const emoji = ev.badge?.emoji ? ` ${esc(ev.badge.emoji)}` : '';
+            // GG line-icon instead of the raw badge glyph (emoji-strip):
+            // prefer the server-shipped iconKey, else map the legacy emoji.
+            const badgeIcon = ev.badge?.iconKey
+                ? iconSvg(ev.badge.iconKey, { size: 14 })
+                : iconForEmoji(ev.badge?.emoji, { size: 14, fallback: ev.badge ? 'award' : '' });
+            const emoji = badgeIcon ? ` ${badgeIcon}` : '';
             return t('feed.evAchievementUnlocked', { who, badge: badgeLabel, emoji });
         }
         case 'settled_up': {

@@ -1902,7 +1902,7 @@ export const es: Translations = {
         uploadFailed: 'Error al subir — inténtalo de nuevo.',
         uploadTooLarge: 'Archivo demasiado grande.',
         syncFailed: 'No se pudo sincronizar. Trabajando sin conexión.',
-        badgeUnlocked: '{emoji} ¡Desbloqueado: {label}!',
+        badgeUnlocked: '¡Desbloqueado: {label}!',
         badgeUnlockedFallback: 'Nueva medalla',
     },
     validation: {

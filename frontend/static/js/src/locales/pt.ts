@@ -1906,7 +1906,7 @@ export const pt: Translations = {
         uploadFailed: 'Falha no carregamento — tenta novamente.',
         uploadTooLarge: 'Ficheiro demasiado grande.',
         syncFailed: 'Não foi possível sincronizar. A trabalhar offline.',
-        badgeUnlocked: '{emoji} Desbloqueado: {label}',
+        badgeUnlocked: 'Desbloqueado: {label}',
         badgeUnlockedFallback: 'Nova medalha',
     },
     validation: {

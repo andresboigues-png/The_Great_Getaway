@@ -25,6 +25,7 @@ everyone else needs users.is_creator = 1 (granted via POST /api/admin/creator).
 """
 
 import json
+import re
 import secrets
 
 from flask import Blueprint, current_app, jsonify, render_template, url_for
@@ -639,6 +640,32 @@ def delete_template(template_id):
 
 
 # ── Public preview (no auth) ─────────────────────────────────────────
+
+# Leading pictograph/emoji run (+ variation selectors / ZWJ / space) — the
+# Python twin of the frontend's stripLeadingEmoji. Legacy AI plan text stored
+# headers like "🥐 Breakfast:"; the SSR /t/<code> page can't run the JS
+# render-swap, so the preview strips the glyph here (stored snapshot is
+# untouched — render-layer only, per the emoji-strip invariant).
+_LEADING_EMOJI_RE = re.compile("^[\U0001f000-\U0001faff\u2600-\u27bf\u2b00-\u2bff\ufe0f\u200d \t]+")
+_MIDLINE_EMOJI_RE = re.compile(
+    "\n[\U0001f000-\U0001faff\u2600-\u27bf\u2b00-\u2bff\ufe0f\u200d]+[ \t]*"
+)
+
+
+def _strip_plan_emoji(plan):
+    """Render-layer strip of legacy meal-header emoji from a plan dict's
+    day-part strings (leading glyph + glyphs after newlines)."""
+    if not isinstance(plan, dict):
+        return plan
+    out = {}
+    for k, v in plan.items():
+        if isinstance(v, str):
+            v = _LEADING_EMOJI_RE.sub("", v)
+            v = _MIDLINE_EMOJI_RE.sub("\n", v)
+        out[k] = v
+    return out
+
+
 def fetch_template_preview(code):
     """Build the public, read-only preview payload for a template code, or
     None for a bad/dead code. Contains ONLY pre-stripped snapshot content
@@ -674,7 +701,11 @@ def fetch_template_preview(code):
         # Light read-only itinerary preview (safe — plan text is the
         # creator's deliberately-published template content).
         "days": [
-            {"dayNumber": d.get("dayNumber"), "name": d.get("name"), "plan": d.get("plan")}
+            {
+                "dayNumber": d.get("dayNumber"),
+                "name": d.get("name"),
+                "plan": _strip_plan_emoji(d.get("plan")),
+            }
             for d in days
             if isinstance(d, dict)
         ],

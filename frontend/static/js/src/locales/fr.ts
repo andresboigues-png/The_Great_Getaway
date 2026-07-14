@@ -1907,7 +1907,7 @@ export const fr: Translations = {
         uploadFailed: 'Échec du téléversement — réessaie.',
         uploadTooLarge: 'Fichier trop volumineux.',
         syncFailed: 'Impossible de synchroniser. Mode hors ligne.',
-        badgeUnlocked: '{emoji} Débloqué : {label}',
+        badgeUnlocked: 'Débloqué : {label}',
         badgeUnlockedFallback: 'Nouveau badge',
     },
     validation: {

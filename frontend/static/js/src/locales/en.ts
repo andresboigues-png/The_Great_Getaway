@@ -2297,7 +2297,7 @@ export const en = {
         // the human-readable name. Pre-fix both fragments were hardcoded
         // English literals; FR/ES/PT users saw "Unlocked: Bronze
         // Adventurer" mid-Spanish UI.
-        badgeUnlocked: '{emoji} Unlocked: {label}',
+        badgeUnlocked: 'Unlocked: {label}',
         badgeUnlockedFallback: 'New badge',
     },
     validation: {

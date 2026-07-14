@@ -35,11 +35,11 @@ import { computeTripBalances } from '../settlement/balances.js';
 import { budgetStatus, budgetTitle } from '../budgets/helpers.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Expense, Category } from '../../types';
-import type { TooltipItem } from 'chart.js';
+import type { TooltipItem, Plugin } from 'chart.js';
 import { t } from '../../i18n.js';
 import { openNewTripModal } from '../../modals.js';
 import { showModal } from '../../components/Modal.js';
-import { iconSvg } from '../../icons.js';
+import { iconSvg, iconForCategory } from '../../icons.js';
 import { esc } from '../../utils.js';
 
 // Chart is loaded via CDN in index.html and declared as a global in types.d.ts.
@@ -506,7 +506,7 @@ export function Insights() {
     // NB: no `icon` field — the category glyph is never read off this result
     // (only name / color / id are), so the emoji-strip drops it rather than
     // carrying a dead '🏷️' literal that would never render.
-    const findCategory = (catId: string): { id: string; name: string; color: string } => {
+    const findCategory = (catId: string): { id: string; name: string; color: string; icon?: string } => {
         const match =
             categories.find((c: Category) => c.id === catId) ||
             categories.find((c: Category) => c.name.toLowerCase() === String(catId).toLowerCase());
@@ -608,11 +608,12 @@ export function Insights() {
     // ── "Expenses per…" dashboard: group by the chosen dimension; each group
     // carries value AND count so the metric pill can switch between them.
     const perRows = useMemo(() => {
-        const m: Record<string, { label: string; value: number; count: number; color: string }> = {};
+        const m: Record<string, { label: string; value: number; count: number; color: string; icon?: string }> = {};
         for (const e of convertedExps) {
             let key: string;
             let label: string;
             let color = '#0071e3';
+            let icon: string | undefined;
             // B7-I1: bucket no-country expenses under a labeled "No country"
             // slice instead of silently dropping them (which understated the
             // trip while the Spenders "by country" breakdown still counted the
@@ -620,8 +621,8 @@ export function Insights() {
             // explains the bucket for auditability.
             if (perDim === 'country') { key = e.country || '__nocountry__'; label = e.country || t('insights.perNoCountry'); }
             else if (perDim === 'currency') { key = (e.currency || 'EUR').toUpperCase(); label = key; }
-            else { const c = findCategory(e.categoryId); key = c.id || c.name; label = c.name; color = c.color; }
-            if (!m[key]) m[key] = { label, value: 0, count: 0, color };
+            else { const c = findCategory(e.categoryId); key = c.id || c.name; label = c.name; color = c.color; icon = c.icon; }
+            if (!m[key]) m[key] = { label, value: 0, count: 0, color, ...(icon ? { icon } : {}) };
             m[key]!.value += e.displayValue;
             m[key]!.count += 1;
         }
@@ -1142,8 +1143,28 @@ export function Insights() {
         if (!chartLibReady) return;
         if (!perPieRef.current || perRows.rows.length < 2) return;
         const isCount = perMetric === 'count';
+        // Soft per-slice glow: before Chart draws the arcs, pre-draw each one with
+        // its own colour as a canvas shadow, so a coloured halo bleeds out behind
+        // the crisp slice that draws on top — a subtle aesthetic lift.
+        const donutGlow: Plugin<'doughnut'> = {
+            id: 'perDonutGlow',
+            beforeDatasetsDraw(c) {
+                const meta = c.getDatasetMeta(0);
+                const bg = (c.data.datasets[0]?.backgroundColor as string[]) || [];
+                if (!meta?.data) return;
+                const ctx = c.ctx;
+                ctx.save();
+                meta.data.forEach((arc, i) => {
+                    ctx.shadowColor = bg[i] ?? 'rgba(0,113,227,0.5)';
+                    ctx.shadowBlur = 11;
+                    (arc as unknown as { draw: (x: CanvasRenderingContext2D) => void }).draw(ctx);
+                });
+                ctx.restore();
+            },
+        };
         const chart = new Chart(perPieRef.current, {
             type: 'doughnut',
+            plugins: [donutGlow],
             data: { labels: perRows.rows.map((r) => r.label), datasets: [{ data: perRows.rows.map((r) => (isCount ? r.count : r.value)), backgroundColor: perRows.rows.map((_, i) => DASH_PALETTE[i % DASH_PALETTE.length] ?? '#0071e3'), borderWidth: 0 }] },
             options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { display: false }, tooltip: { displayColors: false, backgroundColor: 'rgba(17,24,39,0.92)', padding: 10, cornerRadius: 10, titleColor: '#ffffff', bodyColor: 'rgba(255,255,255,0.82)', titleFont: { size: 13, weight: 700 }, bodyFont: { size: 13 }, callbacks: { title: (items: PieTooltipCtx[]) => items[0]?.label ?? '', label: (ctx: PieTooltipCtx) => (isCount ? `${ctx.parsed} ${t('insights.transactionsAbbrev')}` : `${targetSym}${formatNumberForCurrency(ctx.parsed, targetCurr)}`) } } } },
         });
@@ -1893,11 +1914,19 @@ export function Insights() {
                                     const metricVal = perMetric === 'count' ? r.count : r.value;
                                     const barPct = maxV > 0 ? (metricVal / maxV) * 100 : 0;
                                     const sharePct = denom > 0 ? (metricVal / denom) * 100 : 0;
+                                    // Slice colour = the donut's own hue for this row (index-based,
+                                    // matching perPie's backgroundColor) so the icon + bar read as
+                                    // the same category the pie slice represents.
+                                    const catColor = DASH_PALETTE[index % DASH_PALETTE.length] ?? '#0071e3';
                                     return (
                                         <div key={r.label} className="flex flex-col gap-1">
                                             <div className="flex justify-between items-baseline gap-3 min-w-0">
                                                 <span className="font-bold text-[0.95rem] text-primary break-words min-w-0 flex items-center gap-2">
-                                                    <span className="inline-block rounded-full" style={{ width: 10, height: 10, flexShrink: 0, background: DASH_PALETTE[index % DASH_PALETTE.length] ?? '#0071e3' }} />
+                                                    {perDim === 'category' && r.icon ? (
+                                                        <span style={{ color: catColor, display: 'inline-flex', flexShrink: 0 }} dangerouslySetInnerHTML={{ __html: iconForCategory(r.icon, { size: 16 }) }} />
+                                                    ) : (
+                                                        <span className="inline-block rounded-full" style={{ width: 10, height: 10, flexShrink: 0, background: catColor }} />
+                                                    )}
                                                     {r.label}
                                                 </span>
                                                 <span className="font-extrabold text-accent-blue tabular-nums whitespace-nowrap">
@@ -1908,7 +1937,7 @@ export function Insights() {
                                                 </span>
                                             </div>
                                             <div className="relative h-1.5 rounded-full bg-[rgba(0,113,227,0.08)] overflow-hidden" aria-hidden="true">
-                                                <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: `${Math.min(100, Math.max(0, barPct))}%`, background: 'linear-gradient(90deg, #0071e3, #5856d6)', borderRadius: 999, transition: 'width 0.3s ease' }} />
+                                                <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: `${Math.min(100, Math.max(0, barPct))}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${catColor} 70%, #fff), ${catColor})`, borderRadius: 999, transition: 'width 0.3s ease' }} />
                                             </div>
                                             {/* Currency dimension only: what you actually paid in
                                                 that currency + its own worth-today move (FX then

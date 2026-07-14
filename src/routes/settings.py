@@ -87,8 +87,12 @@ def _apply_category_deltas(user_id: str, data: dict):
             )
             if not name:
                 return jsonify({"error": "category name is required"}), 400
+            # max_len 32 (was 8): category icons now store GG icon KEYS
+            # ('graduationCap', 'shoppingBag', …) as well as legacy 1-2 char
+            # emoji; clean_text RAISES over the cap, so 8 rejected the keys
+            # and the whole upsert batch 400'd (emoji-strip regression).
             icon = clean_text(
-                cat.get("icon", ""), max_len=8, allow_newlines=False, field_name="category icon"
+                cat.get("icon", ""), max_len=32, allow_newlines=False, field_name="category icon"
             )
             color = cat.get("color", "#007aff")
             if not isinstance(color, str) or not _CATEGORY_COLOR_RE.match(color):
@@ -241,9 +245,11 @@ def sync_categories():
             )
             if not name:
                 return jsonify({"error": "category name is required"}), 400
+            # max_len 32 (was 8): see the delta-path comment above — icon
+            # keys like 'graduationCap' must pass.
             icon = clean_text(
                 cat.get("icon", ""),
-                max_len=8,
+                max_len=32,
                 allow_newlines=False,
                 field_name="category icon",
             )

@@ -136,3 +136,28 @@ def test_legacy_full_list_path_still_works(client, auth_headers):
     # Confirm via a no-op delta (returns the reconciled list).
     res2 = _post_delta(client, auth_headers, upserts=[])
     assert set(_cats(res2)) == {"c1", "c2"}
+
+
+def test_icon_key_longer_than_8_chars_saves(client, auth_headers):
+    # Emoji-strip regression tripwire: category icons now store GG icon KEYS
+    # ('graduationCap' = 13 chars) as well as legacy 1-2 char emoji. The old
+    # max_len=8 cap raised ValidationError and 400'd the whole batch, so the
+    # add/edit silently failed client-side. Both /api/categories paths must
+    # accept keys up to 32 chars.
+    res = _post_delta(
+        client,
+        auth_headers,
+        upserts=[_upsert("k1", "School stuff", 1000, icon="graduationCap")],
+    )
+    assert res.status_code == 200
+    assert _cats(res)["k1"]["icon"] == "graduationCap"
+
+    # Legacy full-replace path too.
+    res2 = client.post(
+        "/api/categories",
+        headers=auth_headers,
+        json={
+            "categories": [{"id": "k2", "name": "Bags", "icon": "shoppingBag", "color": "#007aff"}]
+        },
+    )
+    assert res2.status_code == 200
