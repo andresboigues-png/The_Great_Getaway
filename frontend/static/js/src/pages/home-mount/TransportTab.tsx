@@ -10,20 +10,29 @@
 // Mirrors the CompanionsCard / TripHubTab tab-content shell. Mobile-first:
 // rows wrap rather than overflow.
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { t, tn } from '../../i18n.js';
 import { canEdit } from '../../permissions.js';
 import { showLiquidAlert } from '../../utils.js';
+import { STATE, emit } from '../../state.js';
+import { upsertTrip, isUnretryableRejection } from '../../api.js';
 import { openTransportModal, transportModeLabel } from '../home/transportModal.js';
 import { TransportModeIcon } from '../../react/components/TransportModeIcon.js';
 import { iconSvg } from '../../icons.js';
 import { dayDirectionsUrl } from '../../todoCategories.js';
+import { readCachedAirport, resolveAnchor } from '../home/airportMarker.js';
 import {
     suggestableDays,
     applyHeuristicTransports,
     refineTransportsWithAI,
 } from '../home/transportSuggest.js';
-import type { Trip, TripDay, TransportMode } from '../../types';
+import type { Trip, TripDay, TransportMode, TravelLeg } from '../../types';
+
+/** The full mode union, in the day-editor's order — arrival/departure accept
+ *  every mode (realistically flight/car/bus/train/ferry/taxi/mixed). */
+const TRAVEL_MODES: TransportMode[] = [
+    'walk', 'metro', 'bus', 'train', 'tram', 'car', 'taxi', 'bike', 'ferry', 'flight', 'mixed',
+];
 
 /** A run of consecutive days sharing one mode ("Días 1–3 · Metro"), so a
  *  long trip collapses instead of a per-day wall. Multi-day ranges expand;
@@ -53,6 +62,19 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
     const [tick, setTick] = useState(0);
     const bump = () => setTick((n) => n + 1);
     void tick;
+    // Which travel-leg dropdown (arrival / departure) is open, if any.
+    const [travelOpen, setTravelOpen] = useState<'arrival' | 'departure' | null>(null);
+    const travelRef = useRef<HTMLDivElement | null>(null);
+    // Outside-click closes the open mode dropdown (listener dies with the tab).
+    useEffect(() => {
+        if (!travelOpen) return;
+        const onDown = (e: MouseEvent) => {
+            if (travelRef.current && !travelRef.current.contains(e.target as Node)) setTravelOpen(null);
+        };
+        document.addEventListener('mousedown', onDown);
+        return () => document.removeEventListener('mousedown', onDown);
+    }, [travelOpen]);
+
     // Which multi-day ranges are expanded (keyed by range.key).
     const [openRanges, setOpenRanges] = useState<ReadonlySet<string>>(() => new Set());
     const toggleRange = (k: string) =>
@@ -188,8 +210,177 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
         );
     };
 
+    // ── Travel legs (getting to & from) ───────────────────────────────
+    // Nearest airport is READ-ONLY here: the home map owns the (billed)
+    // resolve + cache; we only surface whatever it already found. Anchor is
+    // the same day-0/trip point the marker searches from.
+    const tripDays = (STATE.tripDays || []).filter((d) => d.tripId === activeTrip.id);
+    const airport = readCachedAirport(activeTrip, tripDays);
+    const anchor = resolveAnchor(activeTrip, tripDays);
+    const arrival = activeTrip.travel?.arrival ?? null;
+    const departure = activeTrip.travel?.departure ?? null;
+
+    // Optimistic save + honest-save rollback (mirrors transportModal's persist):
+    // mutate the trip, repaint, then upsert; an unretryable rejection rolls back
+    // and toasts instead of letting the next /api/data poll silently undo it.
+    const saveTravel = (nextArrival: TravelLeg | null, nextDeparture: TravelLeg | null) => {
+        const previous = activeTrip.travel ?? null;
+        const next =
+            nextArrival || nextDeparture
+                ? {
+                      ...(nextArrival ? { arrival: nextArrival } : {}),
+                      ...(nextDeparture ? { departure: nextDeparture } : {}),
+                  }
+                : null;
+        activeTrip.travel = next;
+        emit('state:changed');
+        bump();
+        void upsertTrip(activeTrip)?.then((res) => {
+            if (!isUnretryableRejection(res)) return;
+            activeTrip.travel = previous;
+            emit('state:changed');
+            bump();
+            showLiquidAlert(t('toasts.saveFailed'));
+        });
+    };
+    const changeArrival = (leg: TravelLeg | null) => saveTravel(leg, departure);
+    const changeDeparture = (leg: TravelLeg | null) => saveTravel(arrival, leg);
+
+    const airportRow = () => {
+        if (airport && anchor) {
+            const anchorParam = `${anchor.lat},${anchor.lng}`;
+            const toUrl =
+                'https://www.google.com/maps/dir/?api=1'
+                + `&origin=${encodeURIComponent(anchorParam)}`
+                + `&destination=${encodeURIComponent(airport.name)}`
+                + `&destination_place_id=${encodeURIComponent(airport.placeId)}`
+                + '&travelmode=transit';
+            const fromUrl =
+                'https://www.google.com/maps/dir/?api=1'
+                + `&origin=${encodeURIComponent(airport.name)}`
+                + `&origin_place_id=${encodeURIComponent(airport.placeId)}`
+                + `&destination=${encodeURIComponent(anchorParam)}`
+                + '&travelmode=transit';
+            return (
+                <div className="trip-travel__airport">
+                    <span
+                        className="trip-travel__airport-icon"
+                        aria-hidden="true"
+                        dangerouslySetInnerHTML={{ __html: iconSvg('plane', { size: 18 }) }}
+                    />
+                    <span className="trip-travel__airport-name">{airport.name}</span>
+                    <span className="trip-travel__airport-links">
+                        <a href={toUrl} target="_blank" rel="noopener noreferrer">{t('transport.toAirport')}</a>
+                        <a href={fromUrl} target="_blank" rel="noopener noreferrer">{t('transport.fromAirport')}</a>
+                    </span>
+                </div>
+            );
+        }
+        return <p className="trip-travel__airport-hint">{t('transport.airportHint')}</p>;
+    };
+
+    // One editable leg: a label + a compact mode dropdown + a note input.
+    const renderLegEditor = (which: 'arrival' | 'departure', leg: TravelLeg | null) => {
+        const label = which === 'arrival' ? t('transport.arrival') : t('transport.departure');
+        const change = which === 'arrival' ? changeArrival : changeDeparture;
+        const isOpen = travelOpen === which;
+        return (
+            <div className="trip-travel__leg" key={which}>
+                <span className="trip-travel__leg-label">{label}</span>
+                <div className="trip-travel__dd">
+                    <button
+                        type="button"
+                        className="trip-travel__dd-trigger"
+                        aria-haspopup="listbox"
+                        aria-expanded={isOpen}
+                        onClick={() => setTravelOpen(isOpen ? null : which)}
+                    >
+                        {leg ? (
+                            <span className="trip-travel__dd-cur">
+                                <TransportModeIcon mode={leg.mode} size={18} />
+                                <span>{' '}{transportModeLabel(leg.mode)}</span>
+                            </span>
+                        ) : (
+                            <span className="trip-travel__dd-ph">{t('transport.choosePlaceholder')}</span>
+                        )}
+                        <svg className="trip-travel__dd-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+                            style={{ transform: isOpen ? 'rotate(180deg)' : 'none' }}>
+                            <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                    </button>
+                    {isOpen ? (
+                        <div className="trip-travel__dd-panel" role="listbox" aria-label={label}>
+                            {TRAVEL_MODES.map((m) => (
+                                <button
+                                    key={m}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={leg?.mode === m}
+                                    className="trip-travel__dd-opt"
+                                    onClick={() => {
+                                        change({ mode: m, ...(leg?.note ? { note: leg.note } : {}) });
+                                        setTravelOpen(null);
+                                    }}
+                                >
+                                    <TransportModeIcon mode={m} size={18} />
+                                    <span>{' '}{transportModeLabel(m)}</span>
+                                </button>
+                            ))}
+                        </div>
+                    ) : null}
+                </div>
+                <input
+                    type="text"
+                    className="trip-travel__leg-note"
+                    maxLength={200}
+                    placeholder={t('transport.legNotePlaceholder')}
+                    defaultValue={leg?.note || ''}
+                    disabled={!leg}
+                    onBlur={(e) => {
+                        if (!leg) return;
+                        const note = e.target.value.trim().slice(0, 200);
+                        if ((leg.note || '') === note) return;
+                        change({ mode: leg.mode, ...(note ? { note } : {}) });
+                    }}
+                />
+            </div>
+        );
+    };
+
+    // Read-only leg: just the mode text (nothing when unset).
+    const renderLegText = (which: 'arrival' | 'departure', leg: TravelLeg | null) => {
+        if (!leg) return null;
+        const label = which === 'arrival' ? t('transport.arrival') : t('transport.departure');
+        return (
+            <div className="trip-travel__leg trip-travel__leg--ro" key={which}>
+                <span className="trip-travel__leg-label">{label}</span>
+                <span className="trip-travel__leg-mode">
+                    <TransportModeIcon mode={leg.mode} size={16} />
+                    <span>{' '}{transportModeLabel(leg.mode)}</span>
+                </span>
+                {leg.note ? <span className="trip-travel__leg-notetext">{leg.note}</span> : null}
+            </div>
+        );
+    };
+
     return (
         <div className={`home-tab-content${isActive ? ' is-active' : ''}`} data-home-tab="transport">
+            <div className="trip-companions-card" ref={travelRef}>
+                <div className="trip-companions-card__header">
+                    <div className="trip-companions-card__heading">
+                        <h3 className="trip-companions-card__title">{t('transport.legsTitle')}</h3>
+                    </div>
+                </div>
+                <div className="trip-travel__body">
+                    {airportRow()}
+                    <div className="trip-travel__legs">
+                        {tripIsEditable
+                            ? [renderLegEditor('arrival', arrival), renderLegEditor('departure', departure)]
+                            : [renderLegText('arrival', arrival), renderLegText('departure', departure)]}
+                    </div>
+                </div>
+            </div>
+
             <div className="trip-companions-card">
                 <div className="trip-companions-card__header">
                     <div className="trip-companions-card__heading">

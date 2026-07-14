@@ -2634,3 +2634,142 @@ def test_archive_persists_archivedAt_in_data(client, seed_user, auth_headers):
     assert trip is not None, "archived trip should still be in /api/data"
     assert trip.get("isArchived") is True
     assert trip.get("archivedAt"), "archivedAt must be serialized for an archived trip (A3-B4)"
+
+
+# ── travel legs (arrival/departure transport) ────────────────────────────────
+
+
+def test_trip_travel_round_trips(client, seed_user, auth_headers):
+    """Arrival/departure travel legs persist through /api/trips upsert and
+    surface on /api/data as trip.travel with the {arrival, departure} shape."""
+    res = client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {
+                "id": "trip-travel",
+                "name": "T",
+                "country": "GB",
+                "travel": {
+                    "arrival": {"mode": "flight", "note": "BA249"},
+                    "departure": {"mode": "car"},
+                },
+            },
+        },
+    )
+    assert res.status_code == 200, res.get_data(as_text=True)
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in data["trips"] if t["id"] == "trip-travel")
+    assert trip["travel"] == {
+        "arrival": {"mode": "flight", "note": "BA249"},
+        "departure": {"mode": "car"},
+    }, f"travel legs must round-trip; got {trip['travel']!r}"
+
+
+def test_trip_travel_preserved_when_payload_omits_it(client, seed_user, auth_headers):
+    """A partial metadata edit that OMITS `travel` must preserve the stored
+    legs (COALESCE), not NULL them — same protect-on-absent contract as
+    notes / trip_countries_json."""
+    seed = client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {
+                "id": "trip-travel2",
+                "name": "T",
+                "country": "GB",
+                "travel": {"arrival": {"mode": "train", "note": "Eurostar"}, "departure": None},
+            },
+        },
+    )
+    assert seed.status_code == 200, seed.get_data(as_text=True)
+    # Edit WITHOUT the travel key.
+    client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={"trip": {"id": "trip-travel2", "name": "Renamed", "country": "GB"}},
+    )
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in data["trips"] if t["id"] == "trip-travel2")
+    assert trip["travel"] == {
+        "arrival": {"mode": "train", "note": "Eurostar"},
+        "departure": None,
+    }, "omitted travel must preserve stored legs (COALESCE)"
+
+
+def test_trip_travel_cleared_on_empty_object(client, seed_user, auth_headers):
+    """COALESCE must not over-preserve: an explicit travel={} (or explicit
+    null legs) clears the stored legs — both legs read back as null."""
+    seed = client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {
+                "id": "trip-travel3",
+                "name": "T",
+                "country": "GB",
+                "travel": {"arrival": {"mode": "flight"}, "departure": {"mode": "taxi"}},
+            },
+        },
+    )
+    assert seed.status_code == 200, seed.get_data(as_text=True)
+    # Clear via empty object.
+    client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={"trip": {"id": "trip-travel3", "name": "T", "country": "GB", "travel": {}}},
+    )
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in data["trips"] if t["id"] == "trip-travel3")
+    assert trip["travel"] == {"arrival": None, "departure": None}, "travel={} must clear both legs"
+
+    # Explicit null legs clear too.
+    client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {
+                "id": "trip-travel3",
+                "name": "T",
+                "country": "GB",
+                "travel": {"arrival": None, "departure": None},
+            },
+        },
+    )
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in data["trips"] if t["id"] == "trip-travel3")
+    assert trip["travel"] == {"arrival": None, "departure": None}, "explicit null legs must clear"
+
+
+def test_trip_travel_optional(client, seed_user, auth_headers):
+    """A trip created without travel reads back as travel: null."""
+    res = client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={"trip": {"id": "trip-notravel", "name": "T", "country": "GB"}},
+    )
+    assert res.status_code == 200, res.get_data(as_text=True)
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in data["trips"] if t["id"] == "trip-notravel")
+    assert trip["travel"] is None, "no travel set must serialize as null"
+
+
+def test_trip_travel_unknown_mode_coerced_not_400(client, seed_user, auth_headers):
+    """A junk mode must not 400 the whole trip upsert — it's coerced to
+    'mixed' (do-not-invent-modes contract)."""
+    res = client.post(
+        "/api/trips",
+        headers=auth_headers,
+        json={
+            "trip": {
+                "id": "trip-travel4",
+                "name": "T",
+                "country": "GB",
+                "travel": {"arrival": {"mode": "teleport"}, "departure": None},
+            },
+        },
+    )
+    assert res.status_code == 200, res.get_data(as_text=True)
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in data["trips"] if t["id"] == "trip-travel4")
+    assert trip["travel"]["arrival"]["mode"] == "mixed", "unknown mode coerces to 'mixed'"

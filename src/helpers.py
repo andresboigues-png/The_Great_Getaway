@@ -520,6 +520,11 @@ def serialize_trip_row(row):
     t['documents'] = _safe_json(t.pop('documents_json', None), [])
     t['photos'] = _safe_json(t.pop('photos_json', None), [])
     t['checklist'] = _safe_json(t.pop('checklist_json', None), [])
+    # Arrival/departure travel legs (how the traveller gets to/from the
+    # trip). Object shape {arrival?, departure?} or null; default None so
+    # a legacy row with no legs reads back as `travel: null`, matching the
+    # frontend's `trip.travel = ... | null` contract.
+    t['travel'] = _safe_json(t.pop('travel_json', None), None)
     # §4.3 multi-country: discovered ISO codes the trip touches. Stored
     # as a JSON array of upper-case 2-letter codes (e.g. ["PT", "ES"]).
     # Defensively coerce non-list shapes (legacy bad data) to an empty

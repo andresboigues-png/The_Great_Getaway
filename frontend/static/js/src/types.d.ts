@@ -233,6 +233,20 @@ export interface Trip {
      *  on subsequent writes so a stale tab can't blind-overwrite.
      *  Populated by /api/data + /api/trips POST responses. */
     updatedAt?: string | null;
+    /** Trip travel legs — how you ARRIVE at and DEPART from the trip
+     *  (arrival/departure transport), surfaced on the Transportation tab.
+     *  Trip METADATA (rides the /api/trips upsert path, NOT the media
+     *  write-path); backed by trips.travel_json. NULL / undefined = not set. */
+    travel?: { arrival?: TravelLeg | null; departure?: TravelLeg | null } | null;
+}
+
+/** One trip travel leg (arrival or departure). Reuses the closed
+ *  TransportMode union — arrival/departure realistically use
+ *  flight/car/bus/train/ferry/taxi/mixed but accept the full set. */
+export interface TravelLeg {
+    mode: TransportMode;
+    /** Optional practical note (flight number, pickup point, ferry time). */
+    note?: string;
 }
 
 /** Single row in `Trip.checklist`. `id` is a stable client-generated

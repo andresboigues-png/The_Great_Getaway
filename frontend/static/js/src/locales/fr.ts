@@ -1616,6 +1616,13 @@ export const fr: Translations = {
         directionsTitle: "Ouvrir l'itinéraire de ce jour dans Google Maps",
         tabSubtitle: 'Se déplacer chaque jour',
         tabEmpty: 'Ajoutez des jours au voyage pour planifier vos déplacements.',
+        legsTitle: 'Arrivée et départ',
+        arrival: 'Arrivée',
+        departure: 'Départ',
+        airportHint: "Ouvrez la carte pour détecter l'aéroport le plus proche.",
+        toAirport: "Vers l'aéroport",
+        fromAirport: "Depuis l'aéroport",
+        legNotePlaceholder: 'Note facultative (n° de vol, prise en charge…)',
     },
     tripHub: {
         cardTitle: 'Camp de base',

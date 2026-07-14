@@ -274,6 +274,16 @@ def init_db():
                 trip_countries_json TEXT
                     CHECK(trip_countries_json IS NULL
                           OR json_valid(trip_countries_json)),
+                -- Arrival/departure travel legs (how the traveller gets
+                -- to and from the trip). JSON object:
+                -- {"arrival": {"mode": "flight", "note": "BA249"},
+                --  "departure": {"mode": "car"}} — either leg optional/null.
+                -- `mode` is the existing TransportMode union. Trip METADATA
+                -- (rides the /api/trips upsert path, NOT the media path).
+                -- Null on legacy rows + trips with no legs set. Migration
+                -- b0d4f2e6a8c1 adds it to existing DBs.
+                travel_json TEXT
+                    CHECK(travel_json IS NULL OR json_valid(travel_json)),
                 cover_url TEXT,
                 -- Trip Hub free-text notes (member-only; surfaced in the
                 -- Trip Hub tab). Written via upsert_trip's metadata path,
@@ -1248,6 +1258,9 @@ _EXPECTED_COLUMNS = {
         "photos_json",
         "checklist_json",
         "trip_countries_json",
+        # Arrival/departure travel legs (metadata path; migration
+        # b0d4f2e6a8c1). JSON object of TravelLeg entries.
+        "travel_json",
         "cover_url",
         "notes",
         "actions_hidden",

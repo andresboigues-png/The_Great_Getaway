@@ -68,6 +68,71 @@ def _cleaned_companions(cursor, trip_id, raw):
     return clean_companions(raw, verified_linked_ids=verified)
 
 
+# Arrival/departure travel legs. Mirrors the TransportMode union in the
+# frontend types (frontend/static/js/types.d.ts) — do NOT invent new
+# modes; an unknown mode falls back to 'mixed' rather than 400-ing the
+# whole trip upsert.
+_TRAVEL_MODES = frozenset(
+    {
+        "walk",
+        "metro",
+        "bus",
+        "train",
+        "tram",
+        "car",
+        "taxi",
+        "bike",
+        "ferry",
+        "flight",
+        "mixed",
+    }
+)
+
+
+def _clean_travel_leg(raw):
+    """Coerce one raw leg to {mode, note?} or None. Non-dict / empty →
+    None (leg cleared). Unknown mode → 'mixed'. Note is clamped to 200
+    chars and control-stripped; junk (non-string) note is dropped.
+    Never raises — a bad leg is dropped/coerced, not a 400."""
+    if not isinstance(raw, dict):
+        return None
+    mode = raw.get("mode")
+    if not isinstance(mode, str) or mode not in _TRAVEL_MODES:
+        mode = "mixed"
+    leg = {"mode": mode}
+    note = raw.get("note")
+    if isinstance(note, str):
+        try:
+            cleaned = clean_text(note, max_len=200, allow_newlines=False, field_name="note")
+        except ValidationError:
+            # Over-length note: truncate instead of rejecting the trip.
+            cleaned = note.strip()[:200]
+        if cleaned:
+            leg["note"] = cleaned
+    return leg
+
+
+def _clean_travel(raw):
+    """Coerce the raw `travel` value to a JSON string for travel_json, or
+    None. Contract (mirrors trip_countries / notes COALESCE protection):
+
+      - travel absent (not a dict)   → None  (COALESCE preserves stored)
+      - travel = {}                  → '{}'  (clears both legs)
+      - travel = {"arrival": null}   → '{"departure": null}'-style clear
+      - travel = {"arrival": {...}}  → serialized object (sets the leg)
+
+    A leg present-but-null clears that leg; a leg absent from the object
+    is emitted as null too (a full travel object is authoritative when
+    sent — the frontend always sends both keys)."""
+    if not isinstance(raw, dict):
+        return None
+    out = {
+        "arrival": _clean_travel_leg(raw.get("arrival")),
+        "departure": _clean_travel_leg(raw.get("departure")),
+    }
+    return json.dumps(out)
+
+
 @bp.route("/api/trips", methods=["POST"])
 @limiter.limit("60 per minute")
 @require_auth
@@ -256,6 +321,14 @@ def upsert_trip():
         else:
             countries_payload = None
 
+        # Arrival/departure travel legs. Same absent-vs-explicit-empty
+        # discipline as countries above so the COALESCE below preserves on
+        # a partial metadata payload and clears on an explicit empty:
+        #   - travel absent            → None  (COALESCE preserves)
+        #   - travel = {}              → '{...null legs...}' (clears legs)
+        #   - travel = {"arrival":{…}} → serialized object (sets the leg)
+        travel_payload = _clean_travel(t.get('travel'))
+
         # Audit fix (2026-05-26): COALESCE protection on JSON columns
         # that can be legitimately absent from a partial upsert payload.
         # Pre-fix a frontend that posted a trip edit without sending
@@ -271,8 +344,8 @@ def upsert_trip():
                                place_id, lat, lng, viewport_json, place_types, country_code,
                                companions_json, marked_places_json,
                                documents_json, photos_json, checklist_json,
-                               trip_countries_json, cover_url, notes, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
+                               trip_countries_json, travel_json, cover_url, notes, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
             ON CONFLICT(id) DO UPDATE SET
                 name=excluded.name,
                 country=excluded.country,
@@ -291,6 +364,12 @@ def upsert_trip():
                 photos_json=COALESCE(excluded.photos_json, photos_json),
                 checklist_json=COALESCE(excluded.checklist_json, checklist_json),
                 trip_countries_json=COALESCE(excluded.trip_countries_json, trip_countries_json),
+                -- Arrival/departure travel legs: COALESCE so a partial
+                -- metadata payload that omits `travel` preserves the stored
+                -- legs; an explicit object (incl. {} → cleared legs)
+                -- overwrites. Same protect-on-absent pattern as
+                -- trip_countries_json / notes above.
+                travel_json=COALESCE(excluded.travel_json, travel_json),
                 -- 4.8 audit TRIP-6: distinguish "coverUrl absent from the
                 -- payload" (preserve the stored cover) from "coverUrl
                 -- present and null" (the Edit-Trip "Remove cover" action —
@@ -353,6 +432,7 @@ def upsert_trip():
                 None,  # photos_json
                 None,  # checklist_json
                 countries_payload,
+                travel_payload,
                 t.get('coverUrl'),
                 # Trip Hub notes (metadata path). None when the key is absent →
                 # the COALESCE in the SET clause preserves the stored value.

@@ -1615,6 +1615,13 @@ export const pt: Translations = {
         directionsTitle: 'Abrir o percurso deste dia no Google Maps',
         tabSubtitle: 'Como te deslocas em cada dia',
         tabEmpty: 'Adiciona dias \u00e0 viagem para planear como te deslocas.',
+        legsTitle: 'Chegada e partida',
+        arrival: 'Chegada',
+        departure: 'Partida',
+        airportHint: 'Abre o mapa para detetar o aeroporto mais pr\u00f3ximo.',
+        toAirport: 'Para o aeroporto',
+        fromAirport: 'Do aeroporto',
+        legNotePlaceholder: 'Nota opcional (n.\u00ba do voo, recolha\u2026)',
     },
     tripHub: {
         cardTitle: 'Base da viagem',

@@ -117,7 +117,7 @@ function readRoutesCache(key: string): AirportRoute[] | null {
 
 /** The trip's anchor point: the day-0 (Trip Hub) pin when placed, else the
  *  trip's own destination coords. Null → no marker (nothing to search from). */
-function resolveAnchor(trip: Trip, days: TripDay[]): { lat: number; lng: number } | null {
+export function resolveAnchor(trip: Trip, days: TripDay[]): { lat: number; lng: number } | null {
     const anchorDay = days.find((d) => d.dayNumber === 0 && typeof d.lat === 'number');
     if (anchorDay && typeof anchorDay.lat === 'number') {
         const lng = anchorDay.lng != null ? anchorDay.lng : anchorDay.lon;
@@ -265,6 +265,24 @@ function wireSuggestRoutes(trip: Trip, airport: CachedAirport): void {
             }
         })();
     };
+}
+
+/** READ-ONLY sibling of paintAirportMarker's cache lookup — for the
+ *  Transportation tab's "getting to & from" card. Computes the SAME anchor +
+ *  cache key and returns the already-resolved nearest airport, or null when
+ *  nothing is cached yet (or the cached answer is the "none here" sentinel).
+ *  Deliberately never triggers a Places query: the marker paint on the home
+ *  map owns the (billed) resolve; this just surfaces its result elsewhere. */
+export function readCachedAirport(
+    trip: Trip,
+    days: TripDay[],
+): { name: string; placeId: string; lat: number; lng: number } | null {
+    const anchor = resolveAnchor(trip, days);
+    if (!anchor) return null;
+    const cacheKey = `gg_airport_v2_${trip.id}_${anchor.lat.toFixed(2)}_${anchor.lng.toFixed(2)}`;
+    const cached = readAirportCache(cacheKey);
+    if (!cached || 'none' in cached) return null;
+    return cached;
 }
 
 // ── marker + entry point ───────────────────────────────────────────

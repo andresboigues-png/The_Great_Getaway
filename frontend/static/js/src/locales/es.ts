@@ -1611,6 +1611,13 @@ export const es: Translations = {
         directionsTitle: 'Abrir la ruta de este día en Google Maps',
         tabSubtitle: 'Cómo moverte cada día',
         tabEmpty: 'Añade días al viaje para planificar cómo moverte.',
+        legsTitle: 'Llegada y salida',
+        arrival: 'Llegada',
+        departure: 'Salida',
+        airportHint: 'Abre el mapa para detectar el aeropuerto más cercano.',
+        toAirport: 'Al aeropuerto',
+        fromAirport: 'Desde el aeropuerto',
+        legNotePlaceholder: 'Nota opcional (n.º de vuelo, recogida…)',
     },
     tripHub: {
         cardTitle: 'Centro del viaje',

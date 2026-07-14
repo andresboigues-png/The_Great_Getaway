@@ -1947,6 +1947,13 @@ export const en = {
         directionsTitle: "Open this day's route in Google Maps",
         tabSubtitle: 'How to get around each day',
         tabEmpty: 'Add days to your trip to plan how you\u2019ll get around.',
+        legsTitle: 'Getting to & from',
+        arrival: 'Arrival',
+        departure: 'Departure',
+        airportHint: 'Open the map to detect the nearest airport.',
+        toAirport: 'To airport',
+        fromAirport: 'From airport',
+        legNotePlaceholder: 'Optional note (flight no., pickup\u2026)',
     },
     tripHub: {
         cardTitle: 'Trip Hub',
