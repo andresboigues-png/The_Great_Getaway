@@ -91,6 +91,18 @@ def can_view_profile(cursor, caller_id: str | None, owner_id: str) -> bool:
     own existence check owns the 404 (never 404 differently based on privacy)."""
     if caller_id and caller_id == owner_id:
         return True
+    # Developer/operator override: the admins in ADMIN_EMAILS may view EVERY
+    # profile regardless of privacy, for support/moderation from the Developer
+    # tab. VIEW-ONLY — this helper gates reads; create_follow() is separate, so
+    # the override never lets anyone follow their way past privacy. Local import
+    # avoids an admin↔follows module cycle; cheap one-row email check.
+    if caller_id:
+        from .admin import ADMIN_EMAILS
+
+        cursor.execute("SELECT email FROM users WHERE id = ?", (caller_id,))
+        arow = cursor.fetchone()
+        if arow and (arow["email"] or "").strip().lower() in ADMIN_EMAILS:
+            return True
     cursor.execute("SELECT is_public FROM users WHERE id = ?", (owner_id,))
     row = cursor.fetchone()
     if row is None:

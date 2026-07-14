@@ -366,6 +366,7 @@ function UsersTable({ users, onToggleCreator }: { users: AdminUser[]; onToggleCr
                             <Th align="right">{t('settings.devTrips')}</Th>
                             <Th align="right">{t('settings.devExpenses')}</Th>
                             <Th align="right">{t('settings.devCreatorCol')}</Th>
+                            <Th align="right">Profile</Th>
                         </tr>
                     </thead>
                     <tbody>
@@ -430,6 +431,17 @@ function UsersTable({ users, onToggleCreator }: { users: AdminUser[]; onToggleCr
                                             {u.isCreator ? t('settings.devRevokeCreator') : t('settings.devMakeCreator')}
                                         </button>
                                     )}
+                                </Td>
+                                <Td align="right">
+                                    {/* Admin-only: open any user's profile. The backend
+                                        can_view_profile bypass makes even a PRIVATE one load. */}
+                                    <button
+                                        type="button"
+                                        className="btn-small py-1 px-2.5 rounded-md text-[0.75rem] btn-liquid-glass"
+                                        onClick={() => { location.hash = `profile/${u.id}`; }}
+                                    >
+                                        View
+                                    </button>
                                 </Td>
                             </tr>
                         ))}

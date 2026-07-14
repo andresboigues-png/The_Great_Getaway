@@ -13,11 +13,18 @@ Gated surfaces covered: /api/public-profile (shell), /api/quotes (memories),
 """
 
 from database import get_db
+from src.routes.admin import ADMIN_EMAILS
 
 
 def _set_private(user_id: str) -> None:
     with get_db() as conn:
         conn.execute("UPDATE users SET is_public = 0 WHERE id = ?", (user_id,))
+        conn.commit()
+
+
+def _make_admin(user_id: str) -> None:
+    with get_db() as conn:
+        conn.execute("UPDATE users SET email = ? WHERE id = ?", (sorted(ADMIN_EMAILS)[0], user_id))
         conn.commit()
 
 
@@ -59,6 +66,21 @@ def test_private_profile_404_for_anonymous(client, seed_other_user):
     _set_private(seed_other_user)
     r = client.get(f"/api/public-profile/{seed_other_user}")
     assert r.status_code == 404
+
+
+def test_admin_can_view_private_profile(client, seed_user, seed_other_user, auth_headers):
+    """Developer-tab override: a caller whose email is in ADMIN_EMAILS may view
+    a PRIVATE profile a normal stranger gets 404 for. The bypass lives ONLY in
+    can_view_profile (view), never in create_follow (no privacy back-door)."""
+    _set_private(seed_other_user)
+    # Baseline: as a normal stranger, seed_user is 404'd.
+    r0 = client.get(f"/api/public-profile/{seed_other_user}", headers=auth_headers)
+    assert r0.status_code == 404
+    # Promote seed_user to an admin email → the private profile becomes viewable.
+    _make_admin(seed_user)
+    r1 = client.get(f"/api/public-profile/{seed_other_user}", headers=auth_headers)
+    assert r1.status_code == 200
+    assert r1.get_json()["user"]["id"] == seed_other_user
 
 
 def test_private_profile_visible_to_owner(client, seed_other_user, other_auth_headers):
