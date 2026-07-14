@@ -20,6 +20,7 @@ import {
 import { upsertBudget, deleteBudgetOnServer, isUnretryableRejection } from '../../api.js';
 import { getTripCompanionNames } from '../../companions.js';
 import { showModal } from '../../components/Modal.js';
+import { iconSvg, iconForCategory } from '../../icons.js';
 import { t } from '../../i18n.js';
 import type { Budget } from '../../types';
 
@@ -236,7 +237,9 @@ export function budgetScopeParts(
         const cat = (STATE.categories || []).find((c) => c.id === b.categoryId)
             || (STATE.categories || []).find((c) => c.name.toLowerCase() === String(b.categoryId).toLowerCase());
         if (cat) {
-            category = `${cat.icon ? cat.icon + ' ' : ''}${cat.name}`;
+            // Title is plain text — the category ICON is shown separately on the
+            // budget card (Budgets.tsx CategoryIcon). Name only, no emoji.
+            category = cat.name;
         } else {
             // T3-1: show the raw category key (prettified) instead of dropping
             // it, so a budget scoped to an import/legacy/seed slug still reads
@@ -336,12 +339,29 @@ export const openCreateBudgetModal = (existing?: Budget) => {
                 `<option value="${esc(tr.id)}" ${tr.id === selTripId ? 'selected' : ''}>${esc(tr.name)}</option>`,
         )
         .join('');
-    const catOpts = (STATE.categories || [])
-        .map(
-            (c) =>
-                `<option value="${esc(c.id)}" ${c.id === selCatId ? 'selected' : ''}>${esc(c.icon ? c.icon + ' ' : '')}${esc(c.name)}</option>`,
-        )
-        .join('');
+    // Category picker — a custom GG-icon dropdown (native <option> can't hold
+    // SVG). Options = "All categories" (no icon) + each category rendered via
+    // iconForCategory (legacy emoji OR icon key). Mirrors the expense-form
+    // CategoryListbox so the category picker looks the same everywhere.
+    type CatOpt = { id: string; name: string; icon: string | null };
+    const catOptList: CatOpt[] = [
+        { id: 'all', name: t('budgets.createCategoryAll'), icon: null },
+        ...(STATE.categories || []).map((c) => ({ id: c.id, name: c.name, icon: c.icon || null })),
+    ];
+    const catRowInner = (o: CatOpt): string =>
+        `<span style="display:inline-flex;width:20px;justify-content:center;color:var(--accent-blue,#0071e3);">${o.icon ? iconForCategory(o.icon, { size: 18 }) : ''}</span>` +
+        `<span style="flex:1;">${esc(o.name)}</span>`;
+    const catCurInner = (id: string): string => {
+        const o = catOptList.find((x) => x.id === id) || catOptList[0]!;
+        return catRowInner(o);
+    };
+    const renderCatOptions = (selId: string): string =>
+        catOptList
+            .map(
+                (o) =>
+                    `<button type="button" class="bud-cat-dd__opt" role="option" data-id="${esc(o.id)}" aria-selected="${o.id === selId ? 'true' : 'false'}" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border:0;background:${o.id === selId ? 'color-mix(in srgb, var(--accent-blue,#0071e3) 12%, transparent)' : 'transparent'};border-radius:8px;cursor:pointer;text-align:left;font:inherit;font-size:0.9rem;color:var(--text-brand-navy,#002d5b);">${catRowInner(o)}${o.id === selId ? `<span style="display:inline-flex;color:var(--accent-blue,#0071e3);">${iconSvg('check', { size: 15 })}</span>` : ''}</button>`,
+            )
+            .join('');
     const allCompanionNames = Array.from(
         new Set((STATE.trips || []).flatMap((tr) => getTripCompanionNames(tr))),
     ).sort();
@@ -372,9 +392,13 @@ export const openCreateBudgetModal = (existing?: Budget) => {
                     <option value="all" ${selTripId === 'all' ? 'selected' : ''}>${t('budgets.createTripAll')}</option>${tripOpts}
                 </select>
                 <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">${t('budgets.createCategoryLabel')}</label>
-                <select id="newBudCat" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
-                    <option value="all" ${selCatId === 'all' ? 'selected' : ''}>${t('budgets.createCategoryAll')}</option>${catOpts}
-                </select>
+                <div id="newBudCatDd" style="position:relative;">
+                    <button type="button" id="newBudCatTrigger" class="glass-input" aria-haspopup="listbox" aria-expanded="false" style="width:100%; padding: var(--space-3); border-radius: 12px; background:white; display:flex; align-items:center; gap:8px; text-align:left; cursor:pointer;">
+                        <span id="newBudCatCur" style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">${catCurInner(selCatId)}</span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;color:var(--text-secondary);"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div id="newBudCatPanel" role="listbox" hidden style="position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:60; background:white; border:1px solid var(--glass-border, rgba(0,45,91,0.14)); border-radius:12px; box-shadow:0 12px 32px rgba(0,45,91,0.18); max-height:240px; overflow:auto; padding:4px;">${renderCatOptions(selCatId)}</div>
+                </div>
                 <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">${t('budgets.createPersonLabel')}</label>
                 <select id="newBudUser" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
                     <option value="all" ${selUser === 'all' ? 'selected' : ''}>${t('budgets.createPersonAll')}</option>${userOpts}
@@ -406,6 +430,40 @@ export const openCreateBudgetModal = (existing?: Budget) => {
     });
     const statusEl = q(root, '#newBudStatus') as HTMLElement;
     (q(root, '#newBudCancelBtn') as HTMLButtonElement).onclick = () => close();
+
+    // Custom category dropdown: trigger toggles the panel; picking an option
+    // updates the trigger + `selectedCatId` (read by Save) and closes. The
+    // outside-click listener lives on the overlay `root`, so it dies with the
+    // modal (no document-listener leak).
+    let selectedCatId = selCatId;
+    const catDd = q(root, '#newBudCatDd') as HTMLElement;
+    const catTrigger = q(root, '#newBudCatTrigger') as HTMLButtonElement;
+    const catPanel = q(root, '#newBudCatPanel') as HTMLElement;
+    const catCur = q(root, '#newBudCatCur') as HTMLElement;
+    const closeCatPanel = () => {
+        catPanel.hidden = true;
+        catTrigger.setAttribute('aria-expanded', 'false');
+    };
+    const wireCatOptions = () => {
+        catPanel.querySelectorAll<HTMLButtonElement>('.bud-cat-dd__opt').forEach((opt) => {
+            opt.addEventListener('click', () => {
+                selectedCatId = opt.dataset.id || 'all';
+                catCur.innerHTML = catCurInner(selectedCatId);
+                catPanel.innerHTML = renderCatOptions(selectedCatId);
+                wireCatOptions(); // re-bind after re-render
+                closeCatPanel();
+            });
+        });
+    };
+    wireCatOptions();
+    catTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        catPanel.hidden = !catPanel.hidden;
+        catTrigger.setAttribute('aria-expanded', catPanel.hidden ? 'false' : 'true');
+    });
+    root.addEventListener('click', (e) => {
+        if (catDd && !catDd.contains(e.target as Node)) closeCatPanel();
+    });
     // F2-DSGN1: toggle the manual EUR-target field when the chosen currency has
     // no live rate (so VND/EGP/ARS budgets are enterable). Initial state
     // reflects the default-selected (home) currency, which always has a rate.
@@ -469,7 +527,7 @@ export const openCreateBudgetModal = (existing?: Budget) => {
             // Reuse the id when editing so the upsert UPDATES the row.
             id: existing?.id || generateId(),
             tripId: (q(root, '#newBudTrip') as HTMLSelectElement).value,
-            categoryId: (q(root, '#newBudCat') as HTMLSelectElement).value,
+            categoryId: selectedCatId,
             user: (q(root, '#newBudUser') as HTMLSelectElement).value,
             amount: eurAmt,
             // MM-7: `amount` is already canonical EUR (converted/typed above),
