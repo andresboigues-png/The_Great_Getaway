@@ -2480,6 +2480,72 @@
     opacity: 0.6;
     cursor: default;
 }
+.trip-transport__btn-icon {
+    display: inline-flex;
+    vertical-align: -3px;
+    margin-right: 5px;
+}
+/* Grouped mode ranges — a long trip collapses to "Metro · Días 1–3" rows;
+   tap to expand the days. */
+.trip-transport__range {
+    display: flex;
+    flex-direction: column;
+}
+.trip-transport__range-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    padding: 12px 14px;
+    border: 0;
+    border-radius: 14px;
+    background: var(--surface-2, rgba(0, 45, 91, 0.05));
+    font: inherit;
+    color: var(--text-brand-navy);
+    cursor: pointer;
+    transition: background 0.14s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+.trip-transport__range-head:hover {
+    background: rgba(0, 113, 227, 0.08);
+}
+.trip-transport__range-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--accent-blue, #0071e3);
+}
+.trip-transport__range-label {
+    font-weight: 800;
+    font-size: 0.9rem;
+}
+.trip-transport__range-days {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+.trip-transport__range-count {
+    margin-left: auto;
+    min-width: 20px;
+    text-align: center;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--accent-blue, #0071e3);
+    background: rgba(0, 113, 227, 0.1);
+    border-radius: 999px;
+    padding: 2px 7px;
+}
+.trip-transport__range-chev {
+    flex-shrink: 0;
+    opacity: 0.5;
+    transition: transform 0.15s ease;
+}
+.trip-transport__range-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px 0 2px 14px;
+}
 /* Defensive: the shared tab card must never exceed its column on mobile
    (the Trip Hub overflow the transport ranges used to aggravate). */
 .trip-companions-card {
