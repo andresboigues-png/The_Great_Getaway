@@ -1525,6 +1525,14 @@ export const fr: Translations = {
         placeFallback: 'Lieu',
         searchLoadError: "Impossible de charger ce lieu.",
     },
+    airport: {
+        title: 'Aéroport le plus proche',
+        toAirport: "Itinéraire vers l'aéroport",
+        fromAirport: "Itinéraire depuis l'aéroport",
+        suggestRoutes: 'Suggérer des trajets',
+        loading: 'Recherche de trajets…',
+        error: "Impossible de charger les trajets — réessayez plus tard.",
+    },
     templates: {
         useCount: { one: '{count} utilisation', other: '{count} utilisations' },
         startDatePromptV2: 'Les modèles ont un nombre de jours défini — choisis ton premier jour et nous daterons le reste. Seuls le plan et les lieux enregistrés sont repris ; les dépenses, les compagnons et les photos ne sont pas copiés.',

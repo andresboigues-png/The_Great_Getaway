@@ -1524,6 +1524,14 @@ export const pt: Translations = {
         placeFallback: 'Local',
         searchLoadError: 'Não foi possível carregar este local.',
     },
+    airport: {
+        title: 'Aeroporto mais próximo',
+        toAirport: 'Direções para o aeroporto',
+        fromAirport: 'Direções a partir do aeroporto',
+        suggestRoutes: 'Sugerir rotas',
+        loading: 'A procurar rotas…',
+        error: 'Não foi possível carregar sugestões de rota — tente mais tarde.',
+    },
     templates: {
         useCount: { one: '{count} uso', other: '{count} usos' },
         startDatePromptV2: 'Os modelos vêm com um número fixo de dias — escolhe o primeiro dia e nós datamos os restantes. Só o plano e os locais guardados são copiados; despesas, companheiros e fotos não são copiados.',

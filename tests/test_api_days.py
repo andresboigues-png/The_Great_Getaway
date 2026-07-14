@@ -1006,3 +1006,96 @@ def test_suggest_transport_no_keys_is_429(client, seed_user, auth_headers, monke
     )
     assert r.status_code == 429
     assert called["n"] == 0
+
+
+# ── Closest-airport marker: /api/airport_routes validation ───────────────────
+# Mirrors the suggest_transport suite above — the endpoint copies its auth /
+# rate-limit / key-handling / parse posture, so the guards get the same
+# tripwires.
+
+
+def test_airport_routes_requires_airport(client, seed_user, auth_headers):
+    r = client.post(
+        "/api/airport_routes",
+        headers=auth_headers,
+        json={"airport": "", "city": "Lisbon"},
+    )
+    assert r.status_code == 400
+
+
+def test_airport_routes_rejects_junk_airport(client, seed_user, auth_headers):
+    """A non-string airport (or one that scrubs to nothing) is a 400, never a
+    Gemini call."""
+    r = client.post(
+        "/api/airport_routes",
+        headers=auth_headers,
+        json={"airport": ["LIS"], "city": "Lisbon"},
+    )
+    assert r.status_code == 400
+    r = client.post(
+        "/api/airport_routes",
+        headers=auth_headers,
+        json={"airport": "\u200b\u200b", "city": "Lisbon"},  # zero-width chars scrub to nothing
+    )
+    assert r.status_code == 400
+
+
+def test_airport_routes_no_keys_is_429(client, seed_user, auth_headers, monkeypatch):
+    """With no BYO key and an empty host pool the endpoint answers 429
+    (unavailable) without attempting any outbound call."""
+    from routes import integrations
+
+    monkeypatch.setattr(integrations, "_available_host_keys", lambda: [])
+    called = {"n": 0}
+
+    def _boom(*a, **k):
+        called["n"] += 1
+        raise AssertionError("no outbound call expected")
+
+    monkeypatch.setattr(integrations.requests, "post", _boom)
+    r = client.post(
+        "/api/airport_routes",
+        headers=auth_headers,
+        json={"airport": "Humberto Delgado Airport", "city": "Lisbon"},
+    )
+    assert r.status_code == 429
+    assert called["n"] == 0
+
+
+def test_airport_routes_filters_junk_and_caps(client, seed_user, auth_headers, monkeypatch):
+    """Success path with a faked Gemini answer: modes outside the allowlist
+    are dropped, oversized summaries truncated to 160 chars, empty summaries
+    skipped, and the list capped at 4 routes."""
+    import json as _json
+
+    from routes import integrations
+
+    fake_routes = [
+        {"mode": "bus", "summary": "Bus 91 (Aerobus) to city centre, ~30 min"},
+        {"mode": "rocket", "summary": "not a real mode"},
+        {"mode": "metro", "summary": "x" * 500},
+        {"mode": "train", "summary": ""},
+        {"mode": "taxi", "summary": "Taxi rank outside arrivals, ~20 min"},
+        {"mode": "walk", "summary": "Long walk along the river"},
+        {"mode": "tram", "summary": "Tram 15E, beyond the cap"},
+    ]
+
+    class _Resp:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {"candidates": [{"content": {"parts": [{"text": _json.dumps(fake_routes)}]}}]}
+
+    monkeypatch.setattr(integrations, "_available_host_keys", lambda: [(1, "host-key")])
+    monkeypatch.setattr(integrations.requests, "post", lambda *a, **k: _Resp())
+    r = client.post(
+        "/api/airport_routes",
+        headers=auth_headers,
+        json={"airport": "Humberto Delgado Airport", "city": "Lisbon", "locale": "en"},
+    )
+    assert r.status_code == 200
+    routes = r.get_json()["routes"]
+    assert [x["mode"] for x in routes] == ["bus", "metro", "taxi", "walk"]  # junk out, capped at 4
+    assert all(len(x["summary"]) <= 160 for x in routes)
+    assert all(x["summary"] for x in routes)

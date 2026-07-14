@@ -65,6 +65,7 @@ import {
 } from '../home/pathSelection.js';
 import { paintDayMarkers } from '../home/dayMarkers.js';
 import { paintTodoMarkers } from '../home/todoMarkers.js';
+import { paintAirportMarker } from '../home/airportMarker.js';
 import { renderDayRoutePolyline } from '../home/routePolyline.js';
 import { wireMapSearchBanner } from '../home/mapSearch.js';
 import { useNavSettled } from '../../react/useNavSettled.js';
@@ -778,6 +779,18 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
 
         // ── Day-to-day route polyline ─────────────────────────
         renderDayRoutePolyline(map, currentTripDays, activeTrip);
+
+        // ── Closest-airport marker ────────────────────────────
+        // Billing-conscious: at most ONE Places nearbySearch per
+        // trip+anchor (cached in localStorage), then zero calls on
+        // repeat loads. See pages/home/airportMarker.ts.
+        paintAirportMarker({
+            map,
+            activeTrip,
+            days: currentTripDays,
+            getPlacesService,
+            getInfoWindow,
+        });
 
         // ── Re-attach pin-edit map click listener if active ──
         if (activeMapClickListener) {

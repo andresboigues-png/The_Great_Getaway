@@ -1520,6 +1520,14 @@ export const es: Translations = {
         placeFallback: 'Lugar',
         searchLoadError: 'No se pudo cargar este lugar.',
     },
+    airport: {
+        title: 'Aeropuerto más cercano',
+        toAirport: 'Cómo llegar al aeropuerto',
+        fromAirport: 'Cómo llegar desde el aeropuerto',
+        suggestRoutes: 'Sugerir rutas',
+        loading: 'Buscando rutas…',
+        error: 'No se pudieron cargar las rutas — inténtalo más tarde.',
+    },
     templates: {
         useCount: { one: '{count} uso', other: '{count} usos' },
         startDatePromptV2: 'Las plantillas vienen con un número fijo de días: elige tu primer día y nosotros fechamos el resto. Solo se copian el plan y los lugares guardados; los gastos, los compañeros y las fotos no se copian.',

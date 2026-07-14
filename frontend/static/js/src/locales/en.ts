@@ -1856,6 +1856,14 @@ export const en = {
         placeFallback: 'Place',
         searchLoadError: "Couldn't load this place.",
     },
+    airport: {
+        title: 'Closest airport',
+        toAirport: 'Directions to the airport',
+        fromAirport: 'Directions from the airport',
+        suggestRoutes: 'Suggest routes',
+        loading: 'Finding routes…',
+        error: "Couldn't load route ideas — try again later.",
+    },
     templates: {
         useCount: { one: '{count} use', other: '{count} uses' },
         startDatePromptV2: 'Templates come with a set number of days — pick your first day and we\'ll date the rest. Only the plan and saved places carry over; expenses, companions, and photos aren\'t copied.',
