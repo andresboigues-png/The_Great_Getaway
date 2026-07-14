@@ -1733,10 +1733,9 @@
        "Add new companion" form
      - .companion-picker-add-section (+ __friend-btn) — wraps the
        inline form alongside the friend-picker trigger
-     - .companion-picker-friend-sheet (+ __header / __list) —
-       slide-in friend list
      - .friend-pick-row (+ nested .companion-row__name) — friend
-       picker row variant of .companion-row
+       picker row variant of .companion-row (now inside the stacked
+       link/add pop-up modal)
      - .companion-link-pill (+ --pending / --linked) — link-state
        chip on each companion
      - .btn-link-action — row-inline action button used for "Link
@@ -1904,34 +1903,6 @@
     .companion-picker-add-path { flex-direction: column; align-items: stretch; }
     .companion-picker-add-path .companion-picker-add-form { flex: 1 1 auto; }
     .companion-picker-add-section__friend-btn { width: 100%; justify-content: center; }
-}
-
-/* Friend-picker sheet — slides in below the add-section when the user
-   clicks "Add a friend" (or the inline "Link to friend" on an unlinked
-   row). Each row has avatar + name + role select + Add button. */
-.companion-picker-friend-sheet {
-    margin-bottom: var(--space-5);
-    padding: var(--space-3);
-    border-radius: var(--radius-lg);
-    background: rgba(0, 113, 227, 0.04);
-    border: 1px solid rgba(0, 113, 227, 0.16);
-    flex-shrink: 0;
-    max-height: 240px;
-    overflow-y: auto;
-}
-.companion-picker-friend-sheet__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--space-2);
-    padding: 0 var(--space-2);
-    color: #002d5b;
-    font-size: 0.85rem;
-}
-.companion-picker-friend-sheet__list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
 }
 
 /* Friend-pick variant of `.companion-row` — same shell, but uses a radio

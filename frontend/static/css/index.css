@@ -3955,8 +3955,7 @@ body.is-signed-out .trip-controls-popover {
 /* (.companion-row (+.is-locked) + __name / __lock / __role-select,
    .companion-picker-add-form (+__input/__btn) +
    .companion-picker-add-section (+__friend-btn) +
-   .companion-picker-friend-sheet (+__header/__list), .friend-pick-row
-   (+nested __name), .companion-link-pill (+--pending/--linked),
+   .friend-pick-row (+nested __name), .companion-link-pill (+--pending/--linked),
    .btn-link-action (+ states), .trip-role-badge (+--relaxer) — all
    moved to pages/home-mount/home.css 2026-05-16 — FIXING_ROADMAP
    §3.1 slice 11. ~245 lines. All callsites for openCompanionPicker
@@ -4596,8 +4595,7 @@ body.is-signed-out #sidebarOverlay {
 [style*="overflow-y: auto"],
 [style*="overflow: auto"],
 .sidebar,
-.modal-overlay,
-.companion-picker-friend-sheet {
+.modal-overlay {
     -webkit-overflow-scrolling: touch;
 }
 
