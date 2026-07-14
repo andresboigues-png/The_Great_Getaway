@@ -45,7 +45,7 @@ export function EmptyState({ activeTab, bookmarkedOnly, onSwitchTab, onClearBook
 
     const html = buildEmptyCardHtml({
         accent: 'purple',
-        emoji: bookmarkedOnly ? '🔖' : '🌱',
+        iconName: bookmarkedOnly ? 'bookmark' : 'leaf',
         title,
         body,
         ctaLabel,

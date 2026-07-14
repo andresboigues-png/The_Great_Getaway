@@ -323,7 +323,7 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
 
                 <div className="ad-hero-headline" style={{ position: 'relative', zIndex: 1, maxWidth: 'calc(100% - 260px)' }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: CHIP_BG, border: CHIP_BORDER, padding: '6px 14px', borderRadius: '999px', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', marginBottom: '18px' }}>
-                        <span style={{ fontSize: '0.85rem', lineHeight: 1 }}>📚</span>
+                        <span style={{ lineHeight: 1, display: 'inline-flex', color: HERO_TEXT }} dangerouslySetInnerHTML={{ __html: iconSvg('books', { size: 15 }) }} />
                         <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.18em', color: HERO_TEXT }}>{t('archivedDetail.heroTag')}</span>
                     </div>
                     <h1 className="ad-hero-name" style={{ fontSize: '3.2rem', margin: 0, letterSpacing: '-0.04em', color: HERO_TEXT, fontWeight: 800, lineHeight: 1, textShadow: '0 2px 24px rgba(0,0,0,0.2)' }}>{trip.name}</h1>
@@ -515,7 +515,7 @@ export function ArchivedTripDetail({ trip }: { trip: Trip }) {
                             return (
                                 <a key={p._key} href={p.src} target="_blank" rel="noreferrer" style={{ position: 'relative', aspectRatio: '1', borderRadius: '14px', overflow: 'hidden', background: 'var(--gradient-day)', boxShadow: '0 4px 12px rgba(0,113,227,0.18)', border: '1px solid rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '14px', textAlign: 'center', color: 'white', textDecoration: 'none' }}>
                                     {chip}
-                                    <div style={{ fontSize: '1.8rem', lineHeight: 1, marginBottom: '8px' }}>🔗</div>
+                                    <div style={{ lineHeight: 1, marginBottom: '8px', display: 'flex' }} dangerouslySetInnerHTML={{ __html: iconSvg('link', { size: 26 }) }} />
                                     <div style={{ fontSize: '0.7rem', fontWeight: 800, opacity: 0.9, wordBreak: 'break-all', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>{p.src.replace(/^https?:\/\//, '')}</div>
                                 </a>
                             );

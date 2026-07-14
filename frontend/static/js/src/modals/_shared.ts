@@ -3,6 +3,7 @@
 
 import { generateId, q, esc } from '../utils.js';
 import { t } from '../i18n.js';
+import { iconSvg } from '../icons.js';
 import { getCountryOptions } from '../utils/place-names.js';
 
 /** A place pulled from Google Places Autocomplete. The picker normalises
@@ -172,7 +173,7 @@ export function _wirePlacePicker(
         pickedPlace = place;
         if (place && place.countryCode) {
             submitBtn.disabled = false;
-            hint.textContent = `📍 ${place.name}`;
+            hint.innerHTML = `${iconSvg('pin', { size: 14 })} ${esc(place.name)}`;
             setHintTone('success');
         } else if (place) {
             // Typed/free-text value with no resolved ISO country. Every
@@ -194,7 +195,7 @@ export function _wirePlacePicker(
     // and shouldn't be forced to re-pick the same place).
     if (initialPlace) {
         placeInput.value = initialPlace.name;
-        hint.textContent = `📍 ${initialPlace.name}`;
+        hint.innerHTML = `${iconSvg('pin', { size: 14 })} ${esc(initialPlace.name)}`;
         setHintTone(null);
         submitBtn.disabled = false;
     }

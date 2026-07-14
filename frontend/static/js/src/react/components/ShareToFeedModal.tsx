@@ -75,9 +75,8 @@ export function ShareToFeedModal({
                         {trip.country ? ` · ${trip.country}` : ''}
                     </p>
                 </div>
-                <button id="shareModalClose" className="close-x-btn" aria-label={t('common.close')} onClick={close}>
-                    ✕
-                </button>
+                <button id="shareModalClose" className="close-x-btn" aria-label={t('common.close')} onClick={close}
+                    dangerouslySetInnerHTML={{ __html: iconSvg('close', { size: 16 }) }} />
             </div>
             {willGoPublic && (
                 <div

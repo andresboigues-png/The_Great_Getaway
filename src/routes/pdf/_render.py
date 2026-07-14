@@ -431,7 +431,7 @@ def _place_block_flowables(
     place: dict, rl, styles, page_w, margin_lr, photo_png: bytes | None = None
 ) -> list:
     """Render a {type:'place'} plan block as a bordered place card — a photo
-    thumbnail (when available) beside the name (bold) + ★ rating + address.
+    thumbnail (when available) beside the name (bold) + rating (N/5) + address.
     The why/fact prose lives in the adjacent note block, so the card stays a
     clean visual anchor (photo + rating + location) rather than duplicating
     the reasoning."""
@@ -452,7 +452,7 @@ def _place_block_flowables(
     head = name_html
     rating = place.get("rating")
     if isinstance(rating, (int, float)):
-        head += f'&nbsp;&nbsp;<font color="{_BRAND_BLUE}">★ {rating:.1f}</font>'
+        head += f'&nbsp;&nbsp;<font color="{_BRAND_BLUE}">{rating:.1f}/5</font>'
     text_flows: list = [rl.Paragraph(head, styles["body"])]
     addr = str(place.get("address") or "").strip()
     if addr:
@@ -1461,9 +1461,9 @@ def _day_card(
         )
         # Try the AI-format parser first. If it pulls out structured
         # items (name / why / fact), render each as its own editorial
-        # block — bold name, body "why" prose, italic muted "fact"
-        # with a ★ glyph. Plain user notes (no "Why:" marker) fall
-        # back to single-paragraph rendering so we don't garble them.
+        # block — bold name, body "why" prose, italic muted "fact".
+        # Plain user notes (no "Why:" marker) fall back to
+        # single-paragraph rendering so we don't garble them.
         items = _parse_day_slot(val)
         if items:
             for it in items:
@@ -1483,8 +1483,7 @@ def _day_card(
                 if it["fact"]:
                     body.append(
                         rl.Paragraph(
-                            f'<font color="{_BRAND_BLUE}"><b>★</b></font>'
-                            f'  <i>{_esc(it["fact"])}</i>',
+                            f'<i>{_esc(it["fact"])}</i>',
                             styles["muted"],
                         )
                     )
@@ -1515,8 +1514,7 @@ def _day_card(
                 if it["fact"]:
                     body.append(
                         rl.Paragraph(
-                            f'<font color="{_BRAND_BLUE}"><b>★</b></font>'
-                            f'  <i>{_esc(it["fact"])}</i>',
+                            f'<i>{_esc(it["fact"])}</i>',
                             styles["muted"],
                         )
                     )

@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../../i18n.js';
 import { VIBES } from './vibes.js';
+import { Icon } from '../../react/components/Icon.js';
 
 interface VibeSelectProps {
     selected: string[];
@@ -63,7 +64,7 @@ export function VibeSelect({ selected, onToggle, disabled = false }: VibeSelectP
                     ) : (
                         chosen.map((v) => (
                             <span key={v.id} className="ai-vibe-tag">
-                                <span aria-hidden="true">{v.emoji}</span> {label(v)}
+                                <Icon name={v.iconKey} size={14} /> {label(v)}
                             </span>
                         ))
                     )}
@@ -98,7 +99,7 @@ export function VibeSelect({ selected, onToggle, disabled = false }: VibeSelectP
                                 onClick={() => onToggle(v.id)}
                             >
                                 <span className="ai-vibe-select__emoji" aria-hidden="true">
-                                    {v.emoji}
+                                    <Icon name={v.iconKey} size={16} />
                                 </span>
                                 <span className="ai-vibe-select__label">{label(v)}</span>
                                 <svg

@@ -166,7 +166,7 @@ export function TripHubTab({ activeTrip, isActive }: TripHubTabProps) {
                     across several days at once. */}
                 <div className="trip-hub__section">
                     <div className="trip-hub__section-head">
-                        <span>🛏️</span>
+                        <span dangerouslySetInnerHTML={{ __html: iconSvg('bed', { size: 16 }) }} />
                         <span>{t('tripHub.accommodationLabel')}</span>
                     </div>
                     <button

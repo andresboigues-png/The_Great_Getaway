@@ -245,7 +245,7 @@ export function Search() {
                     <div
                         className="text-center pt-5 px-5 pb-2 text-secondary"
                     >
-                        <div className="text-[1.9rem] mb-1.5">🔎</div>
+                        <div className="mb-1.5 flex justify-center" dangerouslySetInnerHTML={{ __html: iconSvg('search', { size: 30 }) }} />
                         <p className="m-0 font-semibold text-[0.92rem]">
                             {t('search.emptyPrompt')}
                         </p>

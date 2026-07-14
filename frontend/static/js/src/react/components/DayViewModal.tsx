@@ -89,9 +89,8 @@ export function DayViewModal({ day, close }: { day: TripDay; close: () => void }
                         {isAnchor ? t('dayDetail.titleAnchor') : day.name || t('tripMedia.dayBucketDay', { n: day.dayNumber })}
                     </h2>
                 </div>
-                <button id="closeViewBtn" className="close-x-btn" aria-label={t('common.close')} onClick={close}>
-                    ✕
-                </button>
+                <button id="closeViewBtn" className="close-x-btn" aria-label={t('common.close')} onClick={close}
+                    dangerouslySetInnerHTML={{ __html: iconSvg('close', { size: 16 }) }} />
             </div>
             <div className="dvm-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 'var(--space-10)' }}>
                 <div className="flex flex-col gap-6">
@@ -115,7 +114,7 @@ export function DayViewModal({ day, close }: { day: TripDay; close: () => void }
                         <div style={{ background: 'rgba(88,86,214,0.05)', padding: 'var(--space-6)', borderRadius: 24, border: '1px solid rgba(88,86,214,0.12)' }}>
                             <h4 className="text-tag">{t('dayDetail.accommodationHeading')}</h4>
                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 6 }}>
-                                <span style={{ fontSize: '1.1rem', lineHeight: 1.3 }}>🛏️</span>
+                                <span style={{ lineHeight: 1.3, display: 'inline-flex' }} dangerouslySetInnerHTML={{ __html: iconSvg('bed', { size: 18 }) }} />
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontWeight: 700, color: '#002d5b', lineHeight: 1.3, wordBreak: 'break-word' }}>{day.accommodation}</div>
                                     {day.accommodationAddress && (

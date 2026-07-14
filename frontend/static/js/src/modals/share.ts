@@ -3,6 +3,7 @@
 
 import { STATE, emit } from '../state.js';
 import { showLiquidAlert, q, esc } from '../utils.js';
+import { iconSvg } from '../icons.js';
 import {
     respondTripInvite,
     pullFromServer,
@@ -441,7 +442,7 @@ export function openShareChooserModal(opts: ShareChooserOpts) {
 
             ${showFeedOption ? `
                 <button type="button" id="shareChooserFeedBtn" style="display:flex; align-items:center; gap:14px; width:100%; padding:16px 18px; margin-bottom:12px; background:rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.22); border-radius:14px; color:#ffffff; cursor:pointer; text-align:left;">
-                    <span class="mdl-icon-1-6">📢</span>
+                    <span class="mdl-icon-1-6">${iconSvg('megaphone', { size: 24 })}</span>
                     <span class="flex-1-truncate">
                         <span class="mdl-field-label-block">${esc(t('share.chooserFeedTitle'))}</span>
                         <span class="mdl-field-sublabel">${esc(t('share.chooserFeedBody'))}</span>
@@ -450,7 +451,7 @@ export function openShareChooserModal(opts: ShareChooserOpts) {
             ` : ''}
 
             <button type="button" id="shareChooserLinkBtn" style="display:flex; align-items:center; gap:14px; width:100%; padding:16px 18px; background:rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.22); border-radius:14px; color:#ffffff; cursor:pointer; text-align:left;">
-                <span class="mdl-icon-1-6">🔗</span>
+                <span class="mdl-icon-1-6">${iconSvg('link', { size: 24 })}</span>
                 <span class="flex-1-truncate">
                     <span class="mdl-field-label-block">${esc(t('share.chooserLinkTitle'))}</span>
                     <span class="mdl-field-sublabel">${esc(t('share.chooserLinkBody'))}</span>

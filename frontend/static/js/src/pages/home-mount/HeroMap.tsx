@@ -48,6 +48,8 @@ import {
 } from '../../markedPlaces.js';
 import { esc } from '../../utils.js';
 import { t } from '../../i18n.js';
+import { iconSvg, iconForEmoji, emojiToIconKey, ICON_PATHS } from '../../icons.js';
+import { Icon } from '../../react/components/Icon.js';
 import {
     POI_CATEGORIES,
     pickPlaceIcon,
@@ -140,7 +142,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 const paint = () => {
                     const { time, offsetLabel } = formatLocalTime(tz);
                     chip.innerHTML =
-                        `<span class="trip-local-time-chip__icon">🕐</span>` +
+                        `<span class="trip-local-time-chip__icon">${iconSvg('clock', { size: 14 })}</span>` +
                         `<span class="trip-local-time-chip__time">${time}</span>` +
                         `<span class="trip-local-time-chip__offset">${offsetLabel}</span>`;
                     chip.style.display = 'inline-flex';
@@ -289,7 +291,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
             const safeVicinity = esc(place.vicinity || '');
             const ratingHtml =
                 typeof place.rating === 'number'
-                    ? `<div style="margin-top: 6px; font-size: 0.8125rem; color: #444;"><span style="color: #a85d00;">★</span> ${place.rating.toFixed(1)}${place.user_ratings_total ? ` <span style="color: #888;">(${place.user_ratings_total})</span>` : ''}</div>`
+                    ? `<div style="margin-top: 6px; font-size: 0.8125rem; color: #444;"><span style="color: #a85d00; display:inline-flex; vertical-align:middle;">${iconSvg('star', { size: 13 })}</span> ${place.rating.toFixed(1)}${place.user_ratings_total ? ` <span style="color: #888;">(${place.user_ratings_total})</span>` : ''}</div>`
                     : '';
             const mapsUrl = place.place_id
                 ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(place.place_id)}`
@@ -348,7 +350,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
             return `
                 <div style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; min-width: 240px; max-width: 280px; padding: 4px 2px;">
                     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                        <span style="font-size: 1.125rem;">${headerIcon}</span>
+                        <span style="display:inline-flex; color: ${cat.color};">${iconForEmoji(headerIcon, { size: 18, fallback: 'pin' })}</span>
                         <strong style="font-size: 0.9375rem; color: #002d5b; line-height: 1.25;">${safeName}</strong>
                     </div>
                     ${safeVicinity ? `<div style="font-size: 0.75rem; color: #666; line-height: 1.4;">${safeVicinity}</div>` : ''}
@@ -420,7 +422,14 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
         const dropPlaceMarker = (cat: PoiCategory, place: google.maps.places.PlaceResult) => {
             const loc = place.geometry?.location;
             if (!loc) return null;
+            // Emoji-strip: the pin used to stamp the stored POI emoji as an SVG
+            // <text>; the user chose "GG icons on pins too", so resolve that
+            // stored glyph to its GG line-icon and draw the path nested inside
+            // the pin (stroked in the category colour, matching the ring). The
+            // stored place/category `icon` value is untouched — only the render.
             const markerIcon = pickPlaceIcon(cat, place);
+            const glyphKey = emojiToIconKey(markerIcon) || 'pin';
+            const glyphPath = ICON_PATHS[glyphKey] || ICON_PATHS.pin;
             const svg =
                 'data:image/svg+xml;utf8,' +
                 `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">` +
@@ -428,7 +437,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 `<feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.35"/>` +
                 `</filter></defs>` +
                 `<circle cx="22" cy="22" r="18" fill="white" stroke="${encodeURIComponent(cat.color)}" stroke-width="3.5" filter="url(%23s)"/>` +
-                `<text x="22" y="29" text-anchor="middle" font-size="20">${markerIcon}</text>` +
+                `<svg x="11" y="11" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${encodeURIComponent(cat.color)}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${glyphPath}</svg>` +
                 '</svg>';
             const marker = new google.maps.Marker({
                 map,
@@ -1024,7 +1033,9 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                     className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-2 pointer-events-none"
                     style={{ background: 'rgba(0,0,0,0.08)' }}
                 >
-                    <span style={{ fontSize: '2rem', opacity: 0.4 }}>🗺️</span>
+                    <span style={{ opacity: 0.4, color: 'rgba(255,255,255,0.6)', display: 'inline-flex' }}>
+                        <Icon name="map" size={34} />
+                    </span>
                     <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>
                         {t('home.mapUnavailable')}
                     </span>
@@ -1074,7 +1085,13 @@ function PinEditToolbar({ label, canSave, onSave, onCancel }: PinEditToolbarProp
             <span
                 className="text-[0.82rem] font-bold text-brand-navy whitespace-nowrap overflow-hidden overflow-ellipsis"
             >
-                {canSave ? `📍 ${label}` : '👆 Tap the map to place the pin'}
+                {canSave ? (
+                    <>
+                        <Icon name="pin" size={13} /> {label}
+                    </>
+                ) : (
+                    'Tap the map to place the pin'
+                )}
             </span>
             <button
                 type="button"

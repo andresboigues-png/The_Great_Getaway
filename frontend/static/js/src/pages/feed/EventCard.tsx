@@ -14,6 +14,7 @@
 import { STATE } from '../../state.js';
 import { t } from '../../i18n.js';
 import { iconSvg } from '../../icons.js';
+import { Icon } from '../../react/components/Icon.js';
 import { viewArchivedDetails } from '../collections.js';
 import {
     LIKE_COUNT_THRESHOLD,
@@ -149,7 +150,7 @@ export function EventCard(props: EventCardProps) {
                         }
                         onClick={() => onUnshare(ev.post_id!)}
                     >
-                        ✕
+                        <Icon name="close" size={14} />
                     </button>
                 ) : null}
             </div>

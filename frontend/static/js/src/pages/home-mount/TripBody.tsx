@@ -58,6 +58,7 @@ import {
 } from './handlers.js';
 import { TripHubTab } from './TripHubTab.js';
 import { TransportTab } from './TransportTab.js';
+import { Icon } from '../../react/components/Icon.js';
 import type { Trip, TripDay } from '../../types';
 import { t, tn } from '../../i18n.js';
 
@@ -439,14 +440,14 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                                 className="trip-role-badge trip-role-badge--relaxer"
                                 title={t('companions.roleBudgeteer')}
                             >
-                                💰 {t('companions.roleBudgeteer')}
+                                <Icon name="wallet" size={13} /> {t('companions.roleBudgeteer')}
                             </span>
                         ) : (
                             <span
                                 className="trip-role-badge trip-role-badge--relaxer"
                                 title={t('companions.relaxerBadgeTitle')}
                             >
-                                👁 {t('companions.roleRelaxer')}
+                                <Icon name="eye" size={13} /> {t('companions.roleRelaxer')}
                             </span>
                         )}
                     </div>

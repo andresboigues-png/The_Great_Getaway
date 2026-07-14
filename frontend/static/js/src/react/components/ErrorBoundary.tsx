@@ -21,6 +21,7 @@
 // stylistic inconsistency is worth the resilience.
 
 import { Component, type ReactNode } from 'react';
+import { Icon } from './Icon.js';
 
 interface ErrorBoundaryProps {
     children: ReactNode;
@@ -99,8 +100,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 role="alert"
                 className="max-w-[520px] my-16 mx-auto py-8 px-7 bg-white border border-[rgba(0,_45,_91,_0.12)] rounded-[24px] shadow-[0_12px_36px_rgba(0,_45,_91,_0.08)] text-center font-sans"
             >
-                <div className="text-[3rem] mb-3" aria-hidden="true">
-                    🛟
+                <div className="mb-3 text-brand-navy" aria-hidden="true">
+                    <Icon name="lifebuoy" size={48} />
                 </div>
                 <h2
                     className="mt-0 mx-0 mb-2 text-[1.4rem] font-extrabold text-brand-navy tracking-[-0.02em]"

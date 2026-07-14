@@ -21,6 +21,7 @@
 
 import { fetchWeatherForecast, pickDaySummary } from '../../googleMapsServices.js';
 import { esc } from '../../utils.js';
+import { iconForEmoji } from '../../icons.js';
 
 
 /** A single forecast row. The Weather API returns structural variants:
@@ -77,7 +78,7 @@ export function paintWeatherChips(
             return;
         }
         slot.innerHTML = `
-            <span class="day-card__weather-icon" title="${esc(summary.label)}">${summary.icon}</span>
+            <span class="day-card__weather-icon" title="${esc(summary.label)}">${iconForEmoji(summary.icon, { size: 14, fallback: 'cloud' })}</span>
             <span class="day-card__weather-temp">${summary.tempC}°</span>
         `;
     });

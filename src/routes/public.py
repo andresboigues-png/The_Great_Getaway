@@ -531,28 +531,29 @@ def _bucket_share_views(n: int) -> int:
     return chosen
 
 
-# Transportation P4 — mode → (emoji, English label) for the standalone Jinja
-# share page (share.html is English-only with raw-emoji conventions; it can't
-# call the frontend's transportModeIcon/Label helpers). Mirrors MODE_ICONS in
-# frontend/static/js/src/pages/home/transportModal.ts.
+# Transportation P4 — mode → (icon-key, English label) for the standalone Jinja
+# share page (share.html is English-only; it inlines a GG line-icon SVG from the
+# icon-key rather than rendering a raw emoji, and can't call the frontend's
+# transportModeIcon/Label helpers). Key names track the GG icon system (icons.ts)
+# + MODE_ICONS in frontend/static/js/src/pages/home/transportModal.ts.
 _SHARE_TRANSPORT_MODES = {
-    "walk": ("🚶", "Walk"),
-    "metro": ("🚇", "Metro"),
-    "bus": ("🚌", "Bus"),
-    "train": ("🚆", "Train"),
-    "tram": ("🚊", "Tram"),
-    "car": ("🚗", "Car"),
-    "taxi": ("🚕", "Taxi"),
-    "bike": ("🚴", "Bike"),
-    "ferry": ("⛴️", "Ferry"),
-    "flight": ("✈️", "Flight"),
-    "mixed": ("🔀", "Mixed"),
+    "walk": ("footprints", "Walk"),
+    "metro": ("metro", "Metro"),
+    "bus": ("bus", "Bus"),
+    "train": ("train", "Train"),
+    "tram": ("tram", "Tram"),
+    "car": ("car", "Car"),
+    "taxi": ("taxi", "Taxi"),
+    "bike": ("bike", "Bike"),
+    "ferry": ("ferry", "Ferry"),
+    "flight": ("plane", "Flight"),
+    "mixed": ("shuffle", "Mixed"),
 }
 
 
 def _share_transport(raw_json):
     """Parse a trip_days.transport_json value into the share-template shape
-    {icon, label, note?} — mode whitelisted, `source` (internal provenance)
+    {iconKey, label, note?} — mode whitelisted, `source` (internal provenance)
     never shipped. None when unset/invalid."""
     try:
         tr = json.loads(raw_json) if raw_json else None
@@ -563,7 +564,7 @@ def _share_transport(raw_json):
     entry = _SHARE_TRANSPORT_MODES.get(tr.get("mode"))
     if not entry:
         return None
-    out = {"icon": entry[0], "label": entry[1]}
+    out = {"iconKey": entry[0], "label": entry[1]}
     note = tr.get("note")
     if isinstance(note, str) and note.strip():
         out["note"] = note.strip()
@@ -704,9 +705,10 @@ def fetch_share_payload(token, caller_id=None):
                     "evening": unwrap_legacy_plan_text(d["evening"] or ""),
                 }
                 day["tip"] = d["tip"] or ""
-                # Transportation P4: {icon, label, note} pre-resolved for the
-                # (English-only, emoji-friendly) Jinja template. `source` is
-                # deliberately NOT shipped (internal provenance metadata).
+                # Transportation P4: {iconKey, label, note} pre-resolved for the
+                # (English-only) Jinja template, which inlines a GG line-icon SVG
+                # from iconKey. `source` is deliberately NOT shipped (internal
+                # provenance metadata).
                 day["transport"] = _share_transport(d["transport_json"])
             days.append(day)
 

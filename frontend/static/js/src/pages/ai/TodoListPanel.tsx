@@ -20,6 +20,7 @@ import {
 } from '../../markedPlaces.js';
 import { t, tn, formatHourLabel } from '../../i18n.js';
 import { stripEmoji, iconSvg } from '../../icons.js';
+import { Icon, EmojiIcon } from '../../react/components/Icon.js';
 import type { Trip, TripDay, MarkedPlace } from '../../types';
 // Shared category helpers — same source-of-truth as Todo.tsx so the
 // AI plan's marked-place list groups + filters by the canonical
@@ -231,9 +232,12 @@ export function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                             onChange={setFilterIcon}
                             options={[
                                 { value: '', label: t('todo.categoryAll') },
+                                // Native <option> can't hold an SVG, so the
+                                // category filter is text-only (the emoji prefix
+                                // is dropped); the name still identifies it.
                                 ...presentIcons.map((icon) => ({
                                     value: icon,
-                                    label: `${icon} ${iconToLabel(icon)} (${iconCounts.get(icon) || 0})`,
+                                    label: `${iconToLabel(icon)} (${iconCounts.get(icon) || 0})`,
                                 })),
                             ]}
                         />
@@ -278,7 +282,7 @@ export function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                             <div
                                 className="flex items-center gap-2.5 pt-0 px-1 pb-2 border-b border-[rgba(155,89,182,0.18)] mb-2.5"
                             >
-                                <span className="text-[1.1rem] leading-none">{icon}</span>
+                                <EmojiIcon emoji={icon} fallback="pin" size={18} className="text-accent-purple-deep" />
                                 <span
                                     className="font-extrabold text-accent-purple-deep text-[0.78rem] tracking-[0.04em] uppercase"
                                 >
@@ -376,18 +380,13 @@ function MarkedCard({
                     aria-label={t('todo.openInMapsTitle', { place: place.name ?? '' })}
                     className="flex items-start gap-[10px] no-underline text-inherit hover:opacity-80 transition-[opacity_0.15s]"
                 >
-                    <span className="text-[1.4rem] leading-none">{place.icon}</span>
+                    <EmojiIcon emoji={place.icon} fallback="pin" size={22} className="leading-none" />
                     <div className="flex-1 min-w-0">
                         <div
                             className="font-extrabold text-brand-navy text-[0.95rem] leading-[1.25] inline-flex items-center gap-1"
                         >
                             {place.name}
-                            <span
-                                aria-hidden="true"
-                                className="text-[0.7rem] text-accent-blue opacity-70"
-                            >
-                                ↗
-                            </span>
+                            <Icon name="externalLink" size={11} className="text-accent-blue opacity-70" />
                         </div>
                         {place.address ? (
                             <div
@@ -400,7 +399,7 @@ function MarkedCard({
                 </a>
             ) : (
                 <div className="flex items-start gap-[10px]">
-                    <span className="text-[1.4rem] leading-none">{place.icon}</span>
+                    <EmojiIcon emoji={place.icon} fallback="pin" size={22} className="leading-none" />
                     <div className="flex-1 min-w-0">
                         <div
                             className="font-extrabold text-brand-navy text-[0.95rem] leading-[1.25]"

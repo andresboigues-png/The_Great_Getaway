@@ -53,6 +53,7 @@ import { convertCurrency, getSupportedCurrencies, hasRate } from '../../utils/cu
 import { navigate } from '../../router.js';
 import { t } from '../../i18n.js';
 import { iconSvg } from '../../icons.js';
+import { CategoryListbox } from './CategoryListbox.js';
 import type { Expense } from '../../types';
 
 
@@ -106,7 +107,6 @@ export function ManualTab() {
 
     // ── refs for uncontrolled form fields ────────────────────────
     const whoRef = useRef<HTMLSelectElement | null>(null);
-    const categoryRef = useRef<HTMLSelectElement | null>(null);
     const labelRef = useRef<HTMLInputElement | null>(null);
     const dateRef = useRef<HTMLInputElement | null>(null);
     const valueRef = useRef<HTMLInputElement | null>(null);
@@ -125,6 +125,17 @@ export function ManualTab() {
         () => STATE.draftExpense?.currency || '',
     );
     const needsManualEuro = !!selCurrency && !hasRate(selCurrency);
+
+    // ── category picker state ────────────────────────────────────
+    // The category picker is a custom listbox (a native <select><option>
+    // can't render the GG icon that replaced the stored category emoji), so
+    // the chosen id lives in React state instead of a DOM ref. Seeded from
+    // the draft or the first category — mirroring how a native <select> with
+    // no empty placeholder auto-selects its first option (so submit always
+    // has a real categoryId, matching the old `required` guarantee).
+    const [selCategory, setSelCategory] = useState<string>(
+        () => STATE.draftExpense?.categoryId || STATE.categories[0]?.id || '',
+    );
 
     // ── country combobox state ───────────────────────────────────
     const initialCountry = STATE.draftExpense?.country || '';
@@ -523,7 +534,7 @@ export function ManualTab() {
             id: isEdit && STATE.draftExpense.id ? STATE.draftExpense.id : generateId(),
             tripId,
             who: payer,
-            categoryId: categoryRef.current?.value || '',
+            categoryId: selCategory,
             label: labelRef.current?.value || '',
             date: dateVal,
             country: countryVal,
@@ -571,6 +582,11 @@ export function ManualTab() {
         // needsManualEuro stays true and the stale manual-EUR field + "no
         // rate for X" help text keep rendering for the next expense.
         setSelCurrency('EUR');
+        // Category is a custom listbox controlled by React state, so
+        // formEl.reset() doesn't clear it. Reset to the first category —
+        // mirroring the native <select>'s auto-select-first default — so the
+        // next blank form opens on a real category (never an empty one).
+        setSelCategory(STATE.categories[0]?.id || '');
         // B1-I3: countryValue is separate React state that neither
         // formEl.reset() (the input is controlled by countryValue, not a
         // defaultValue) nor the draft reset above clears — so after saving a
@@ -613,7 +629,6 @@ export function ManualTab() {
     };
 
     // ── render ──────────────────────────────────────────────────
-    const draftCategory = STATE.draftExpense?.categoryId || '';
     const draftCurrency = STATE.draftExpense?.currency || '';
     // BUG-5 (MK2 audit): distribute an equal split so the values actually sum
     // to 100 (the last person absorbs the rounding remainder). Pre-fix every
@@ -674,25 +689,20 @@ export function ManualTab() {
                         ) : null}
                     </div>
 
-                    {/* Category */}
-                    <div className="form-row">
+                    {/* Category — custom listbox (native <option> can't hold the
+                        GG icon that replaced the stored category emoji). */}
+                    <div className="form-row relative">
                         <label className="form-label-light" htmlFor="expCategory">
                             {t('expenses.catLabel')}
                         </label>
-                        <select
+                        <CategoryListbox
                             id="expCategory"
-                            ref={categoryRef}
-                            className="glass-input-light"
-                            required
-                            defaultValue={draftCategory}
-                            onChange={(e) => draft('categoryId', e.target.value)}
-                        >
-                            {categories.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                    {c.icon} {c.name}
-                                </option>
-                            ))}
-                        </select>
+                            triggerClassName="glass-input-light"
+                            ariaLabel={t('expenses.catLabel')}
+                            value={selCategory}
+                            onChange={(v) => { setSelCategory(v); draft('categoryId', v); }}
+                            options={categories.map((c) => ({ value: c.id, label: c.name, icon: c.icon }))}
+                        />
                     </div>
 
                     {/* Label */}

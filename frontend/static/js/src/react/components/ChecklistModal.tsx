@@ -27,6 +27,7 @@ import { upsertTrip } from '../../api.js';
 import { canEdit } from '../../permissions.js';
 import { generateId, showConfirmModal, showLiquidAlert } from '../../utils.js';
 import { t } from '../../i18n.js';
+import { iconSvg } from '../../icons.js';
 import { useStore } from '../store.js';
 import type { Trip } from '../../types';
 
@@ -230,9 +231,8 @@ export function ChecklistModal({ trip, close }: { trip: Trip; close: () => void 
                         {t('checklist.modalSubtitle', { name: trip.name })}
                     </p>
                 </div>
-                <button id="checklistModalClose" className="close-x-btn" aria-label={t('common.close')} onClick={close}>
-                    ✕
-                </button>
+                <button id="checklistModalClose" className="close-x-btn" aria-label={t('common.close')} onClick={close}
+                    dangerouslySetInnerHTML={{ __html: iconSvg('close', { size: 16 }) }} />
             </div>
             {editable && (
                 <form id="checklistAddForm" style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'flex-start' }} onSubmit={addItem}>
@@ -375,9 +375,8 @@ export function ChecklistModal({ trip, close }: { trip: Trip; close: () => void 
                                             aria-label={t('common.delete')}
                                             onClick={() => removeItem(item)}
                                             style={{ background: 'rgba(255,59,48,0.08)', border: '1px solid rgba(255,59,48,0.22)', color: '#ff3b30', borderRadius: 8, padding: '4px 10px', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}
-                                        >
-                                            ✕
-                                        </button>
+                                            dangerouslySetInnerHTML={{ __html: iconSvg('close', { size: 13 }) }}
+                                        />
                                     ))}
                             </div>
                         );

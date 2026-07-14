@@ -88,7 +88,7 @@ export const openTransportModal = (
         innerHTML: `
             <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px;">
                 <h2 style="margin:0; font-size:1.15rem; font-weight:800; color:var(--text-brand-navy);">${esc(t('transport.modalTitle', { n: day.dayNumber }))}</h2>
-                <button id="transportClose" class="close-x-btn" aria-label="${esc(t('common.close'))}">✕</button>
+                <button id="transportClose" class="close-x-btn" aria-label="${esc(t('common.close'))}">${iconSvg('close', { size: 16 })}</button>
             </div>
             <p style="margin:0 0 14px; font-size:0.84rem; color:var(--text-secondary);">${esc(t('transport.modalSub'))}</p>
             <div class="transport-dd" id="transportDd">

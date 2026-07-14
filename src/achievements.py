@@ -59,6 +59,11 @@ class BadgeDef:
     label: str
     description: str
     check: Callable[..., dict | None]
+    # GG icon-system key (icons.ts). The frontend renders a GG line icon from
+    # this instead of a raw emoji glyph. `emoji` stays — the profile
+    # AchievementsStrip still uses it as the iconForEmoji lookup key — but
+    # icon_key is the explicit display key served alongside it.
+    icon_key: str = "award"
     # MK6 P3: a "milestone" badge that, once earned, is NEVER soft-revoked even
     # if its check later returns None (the underlying row was deleted). Used for
     # first_share / first_settle_up — "earning sticks", per their docstrings.
@@ -495,6 +500,7 @@ BADGES: list[BadgeDef] = [
     BadgeDef(
         id="first_trip",
         emoji="🧳",
+        icon_key="suitcase",
         label="First Trip",
         description="Started planning your first trip.",
         check=_check_first_trip,
@@ -502,6 +508,7 @@ BADGES: list[BadgeDef] = [
     BadgeDef(
         id="archivist",
         emoji="📚",
+        icon_key="books",
         label="Archivist",
         description="Marked a trip complete.",
         check=_check_archivist,
@@ -509,6 +516,7 @@ BADGES: list[BadgeDef] = [
     BadgeDef(
         id="globe_trotter_3",
         emoji="🌍",
+        icon_key="globe",
         label="Globe Trotter — 3 countries",
         description="Completed trips to 3 distinct countries.",
         check=_make_globe_trotter_check(3),
@@ -516,6 +524,7 @@ BADGES: list[BadgeDef] = [
     BadgeDef(
         id="globe_trotter_10",
         emoji="🌏",
+        icon_key="globe",
         label="Globe Trotter — 10 countries",
         description="Completed trips to 10 distinct countries.",
         check=_make_globe_trotter_check(10),
@@ -523,6 +532,7 @@ BADGES: list[BadgeDef] = [
     BadgeDef(
         id="globe_trotter_25",
         emoji="🌐",
+        icon_key="globe",
         label="Globe Trotter — 25 countries",
         description="Completed trips to 25 distinct countries.",
         check=_make_globe_trotter_check(25),
@@ -530,6 +540,7 @@ BADGES: list[BadgeDef] = [
     BadgeDef(
         id="repeat_country",
         emoji="📍",
+        icon_key="pin",
         label="Local Hero",
         description="Completed two trips to the same country — repeat-destination respect.",
         check=_check_repeat_country,
@@ -537,6 +548,7 @@ BADGES: list[BadgeDef] = [
     BadgeDef(
         id="social_butterfly",
         emoji="🦋",
+        icon_key="users",
         label="Social Butterfly",
         description="Connected with 3 friends.",
         check=_check_social_butterfly,
@@ -544,6 +556,7 @@ BADGES: list[BadgeDef] = [
     BadgeDef(
         id="first_share",
         emoji="📣",
+        icon_key="megaphone",
         label="Storyteller",
         description="Shared your first trip on the feed.",
         check=_check_first_share,
@@ -553,6 +566,7 @@ BADGES: list[BadgeDef] = [
     BadgeDef(
         id="first_settle_up",
         emoji="🤝",
+        icon_key="handshake",
         label="Square Deal",
         description="Closed the loop on a settle-up.",
         check=_check_first_settle_up,
@@ -565,6 +579,7 @@ BADGES: list[BadgeDef] = [
     BadgeDef(
         id="globe_trotter_50",
         emoji="🪐",
+        icon_key="globe",
         label="Globe Trotter — 50 countries",
         description="Completed trips to 50 distinct countries.",
         check=_make_globe_trotter_check(50),
@@ -572,6 +587,7 @@ BADGES: list[BadgeDef] = [
     BadgeDef(
         id="intra_country_3",
         emoji="🏡",
+        icon_key="home",
         label="Homebody Explorer",
         description="Completed 3+ trips to the same country — you really know the place.",
         check=_check_intra_country_3,
@@ -579,6 +595,7 @@ BADGES: list[BadgeDef] = [
     BadgeDef(
         id="longest_trip",
         emoji="🛤️",
+        icon_key="route",
         label="Long Hauler",
         description=f"Completed a trip ≥{_LONGEST_TRIP_DAYS} days long.",
         check=_check_longest_trip,
@@ -586,6 +603,7 @@ BADGES: list[BadgeDef] = [
     BadgeDef(
         id="priciest_trip",
         emoji="💎",
+        icon_key="gem",
         label="Big Spender",
         description=f"Completed a trip with €{int(_PRICIEST_TRIP_EUR):,}+ recorded spend.",
         check=_check_priciest_trip,
@@ -593,6 +611,7 @@ BADGES: list[BadgeDef] = [
     BadgeDef(
         id="most_companions",
         emoji="👥",
+        icon_key="users",
         label="Squad Leader",
         description=f"Completed a trip with {_MOST_COMPANIONS}+ companions on the roster.",
         check=_check_most_companions,
@@ -600,6 +619,7 @@ BADGES: list[BadgeDef] = [
     BadgeDef(
         id="back_to_back",
         emoji="🔁",
+        icon_key="repost",
         label="Back to Back",
         description="Completed trips in two consecutive calendar months.",
         check=_check_back_to_back,
@@ -775,7 +795,10 @@ def check_user_achievements(cursor, user_id: str) -> list[dict]:
                         "badgeId": badge.id,
                         "context": context,
                         "label": badge.label,
+                        # `emoji` kept as the iconForEmoji lookup key; `iconKey`
+                        # is the explicit GG icon-system key the client renders.
                         "emoji": badge.emoji,
+                        "iconKey": badge.icon_key,
                         "description": badge.description,
                     }
                 )
@@ -845,7 +868,10 @@ def notify_achievements(cursor, user_id: str, newly_earned: list[dict]) -> None:
             kind='achievement_unlocked',
             title='Achievement unlocked',
             related_id=badge["badgeId"],
-            message=f"{badge['emoji']} {badge['label']}",
+            # Message is rendered as raw text in the bell dropdown, so it carries
+            # NO emoji glyph — the badge label alone (the client draws the GG icon
+            # separately from the badge's iconKey).
+            message=badge['label'],
         )
 
 
@@ -876,7 +902,11 @@ def list_user_achievements(cursor, user_id: str) -> list[dict]:
                 "earnedAt": row["earned_at"],
                 "context": context,
                 "label": bdef.label if bdef else row["badge_id"],
+                # `emoji` = iconForEmoji lookup key (legacy); `iconKey` = the GG
+                # icon-system key the client renders. "award" is the generic
+                # fallback for an unknown/renamed badge.
                 "emoji": bdef.emoji if bdef else "🏅",
+                "iconKey": bdef.icon_key if bdef else "award",
                 "description": bdef.description if bdef else "",
             }
         )

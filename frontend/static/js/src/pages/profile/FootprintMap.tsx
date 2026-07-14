@@ -20,6 +20,7 @@ import { applyMapTheme } from '../../theme.js';
 import { mobileSafeGestureHandling, whenGoogleMapsReady } from '../../googleMapsServices.js';
 import { viewArchivedDetails } from '../collections.js';
 import { esc } from '../../utils.js';
+import { iconSvg } from '../../icons.js';
 import type { Trip } from '../../types';
 
 
@@ -288,7 +289,7 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
                     (tr) => `
                 <div class="profile-iw__trip-row">
                     <div class="profile-iw__trip-info">
-                        <span class="profile-iw__trip-icon">🗺️</span>
+                        <span class="profile-iw__trip-icon">${iconSvg('map', { size: 15 })}</span>
                         <span class="profile-iw__trip-name">${esc(tr.name)}</span>
                     </div>
                     <button class="archived-trip-view-btn profile-iw__view-btn" data-trip-id="${esc(tr.id)}">View</button>
@@ -305,7 +306,7 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
             infoContent.className = 'profile-iw';
             infoContent.innerHTML = `
                 <div class="profile-iw__header">
-                    <span class="profile-iw__pin-icon">📍</span>
+                    <span class="profile-iw__pin-icon">${iconSvg('pin', { size: 18 })}</span>
                     <div class="profile-iw__header-text">
                         <div class="profile-iw__country">${esc(countryKey)}</div>
                         <div class="profile-iw__count">${tps.length} ${tps.length === 1 ? 'trip' : 'trips'}</div>

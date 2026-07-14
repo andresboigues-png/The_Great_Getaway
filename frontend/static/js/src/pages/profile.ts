@@ -32,6 +32,7 @@
 import { STATE, emit } from '../state.js';
 import { syncWithServer, apiFetch, clearAuthToken, wipeUserState } from '../api.js';
 import { esc } from '../utils.js';
+import { iconSvg } from '../icons.js';
 import { navigate } from '../router.js';
 import { showModal } from '../components/Modal.js';
 import { t } from '../i18n.js';
@@ -165,7 +166,7 @@ export function openStatListModal(opts: {
         innerHTML: `
             <div class="pf-list-head">
                 <h2 class="pf-list-title">${esc(opts.title)}<span class="pf-list-count">${items.length}</span></h2>
-                <button id="statListClose" class="close-x-btn" aria-label="${esc(t('common.close'))}">✕</button>
+                <button id="statListClose" class="close-x-btn" aria-label="${esc(t('common.close'))}">${iconSvg('close', { size: 16 })}</button>
             </div>
             <div class="pf-list-search-wrap">
                 <input id="statListSearch" type="text" class="pf-list-search" autocomplete="off"
@@ -278,7 +279,7 @@ export function updateUserUI() {
         if (avatar) { avatar.style.display = 'block'; }
         if (icon) { icon.style.display = 'none'; }
         if (label) { label.textContent = STATE.user.name; }
-        if (sub) { sub.style.display = 'block'; sub.textContent = 'Logged in ✓'; }
+        if (sub) { sub.style.display = 'block'; sub.innerHTML = 'Logged in ' + iconSvg('check', { size: 12 }); }
         if (pic) {
             // Google profile pictures need referrerpolicy=no-referrer
             // to load — without it Google often returns 403 / blank.

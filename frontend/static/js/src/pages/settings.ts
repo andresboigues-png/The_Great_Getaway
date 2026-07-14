@@ -38,6 +38,7 @@ import { syncCategories } from '../api.js';
 import { showModal } from '../components/Modal.js';
 import { t } from '../i18n.js';
 import { setSettingsTab, type SettingsTab } from './settings/tabState.js';
+import { iconSvg, emojiToIconKey, ICON_PATHS } from '../icons.js';
 
 
 /** Imperative-API surface for jumping to a specific Settings sub-tab
@@ -96,8 +97,20 @@ export function openEditCategoryModal(categoryId: string) {
     const cat = STATE.categories.find(c => c.id === categoryId);
     if (!cat) return;
 
-    const iconOptions = ['🍷','🏨','✈️','🚕','🍕','🎟️','🛍️','🍦','🥐','🏛️','🏖️','🎢','🚠','🚌','🚆','🌍','🗺️','🎒','📸','☕','🍔','🛒','🎨','💊','🎭','🚗']
-        .map(i => `<option value="${i}" ${i === cat.icon ? 'selected' : ''}>${i}</option>`).join('');
+    // GG icon-key palette (native <select> can't hold inline SVG). Mirrors
+    // Personalization's ADD_FORM_ICONS. Legacy categories that stored an emoji
+    // resolve to their GG key via emojiToIconKey so the right swatch pre-selects;
+    // saving always writes a KEY.
+    const PALETTE = [
+        'wine', 'coffee', 'utensils', 'iceCream', 'croissant',
+        'bed', 'plane', 'taxi', 'bus', 'train',
+        'car', 'ticket', 'shoppingBag', 'gift', 'backpack',
+        'landmark', 'tree', 'theater', 'photo', 'globe',
+    ];
+    const initialKey = (cat.icon && ICON_PATHS[cat.icon]) ? cat.icon : (emojiToIconKey(cat.icon) ?? 'tag');
+    const swatches = PALETTE
+        .map((key) => `<button type="button" class="edit-cat-swatch${key === initialKey ? ' is-active' : ''}" role="radio" aria-checked="${key === initialKey}" data-key="${esc(key)}" title="${esc(key)}" style="display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;border:1.5px solid var(--glass-border, rgba(0,45,91,0.14));background:transparent;color:var(--text-brand-navy,#002d5b);cursor:pointer;">${iconSvg(key, { size: 18 })}</button>`)
+        .join('');
 
     const { root, close } = showModal({
         variant: 'glass-light',
@@ -106,10 +119,10 @@ export function openEditCategoryModal(categoryId: string) {
             <h2 style="margin: 0 0 var(--space-5); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Edit Category</h2>
             <form id="editCategoryForm" style="display: flex; flex-direction: column; gap: var(--space-4);">
                 <div style="display: flex; gap: var(--space-3); align-items: center;">
-                    <select id="editCatIcon" class="glass-input" style="width: 80px;">${iconOptions}</select>
                     <input type="text" id="editCatName" class="glass-input" value="${esc(cat.name)}" placeholder="Category name" required style="flex: 1;">
                     <input type="color" id="editCatColor" class="glass-input" value="${esc(cat.color)}" style="width: 50px; padding: 2px;">
                 </div>
+                <div id="editCatIconGrid" role="radiogroup" aria-label="Category icon" style="display:grid;grid-template-columns:repeat(10,1fr);gap:6px;">${swatches}</div>
                 <div style="display: flex; gap: var(--space-3); margin-top: var(--space-2);">
                     <button type="submit" class="btn-primary" style="flex: 2;">${t('settings.editCategorySaveBtn')}</button>
                     <button type="button" id="cancelEditCatBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Cancel</button>
@@ -118,10 +131,27 @@ export function openEditCategoryModal(categoryId: string) {
         `,
     });
 
+    let selectedKey = initialKey;
+    root.querySelectorAll<HTMLButtonElement>('.edit-cat-swatch').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            selectedKey = btn.dataset.key || 'tag';
+            root.querySelectorAll<HTMLButtonElement>('.edit-cat-swatch').forEach((b) => {
+                const on = b === btn;
+                b.classList.toggle('is-active', on);
+                b.setAttribute('aria-checked', on ? 'true' : 'false');
+                b.style.borderColor = on ? 'var(--accent-blue,#0071e3)' : 'var(--glass-border, rgba(0,45,91,0.14))';
+                b.style.color = on ? 'var(--accent-blue,#0071e3)' : 'var(--text-brand-navy,#002d5b)';
+            });
+        });
+    });
+    // Reflect the pre-selected swatch's accent border on open.
+    const active0 = root.querySelector<HTMLButtonElement>('.edit-cat-swatch.is-active');
+    if (active0) { active0.style.borderColor = 'var(--accent-blue,#0071e3)'; active0.style.color = 'var(--accent-blue,#0071e3)'; }
+
     (q(root, '#cancelEditCatBtn') as HTMLButtonElement).onclick = () => close();
     (q(root, '#editCategoryForm') as HTMLFormElement).onsubmit = (e) => {
         e.preventDefault();
-        const icon = (q(root, '#editCatIcon') as HTMLSelectElement).value;
+        const icon = selectedKey;
         const name = (q(root, '#editCatName') as HTMLInputElement).value.trim();
         const color = (q(root, '#editCatColor') as HTMLInputElement).value;
         if (!name) return;

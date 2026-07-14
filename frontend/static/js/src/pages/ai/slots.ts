@@ -135,9 +135,9 @@ function renderSlotItem(item: AiPlanItem): string {
         // the standard "open external link without leaking referrer".
         const photoHtml = v.photoUrl
             ? `<img class="ai-place-card__photo" src="${esc(v.photoUrl)}" alt="" referrerpolicy="no-referrer" loading="lazy">`
-            : '<div class="ai-place-card__photo ai-place-card__photo--empty" aria-hidden="true">📍</div>';
+            : `<div class="ai-place-card__photo ai-place-card__photo--empty" aria-hidden="true">${iconSvg('pin', { size: 20 })}</div>`;
         const ratingHtml = (typeof v.rating === 'number')
-            ? `<span class="ai-place-card__rating">★ ${v.rating.toFixed(1)}${v.userRatingsTotal ? ` <span class="ai-place-card__rating-count">(${formatRatingCount(v.userRatingsTotal)})</span>` : ''}</span>`
+            ? `<span class="ai-place-card__rating">${iconSvg('star', { size: 12 })} ${v.rating.toFixed(1)}${v.userRatingsTotal ? ` <span class="ai-place-card__rating-count">(${formatRatingCount(v.userRatingsTotal)})</span>` : ''}</span>`
             : '';
         const addressHtml = v.address
             ? `<span class="ai-place-card__address">${esc(v.address)}</span>`
@@ -296,8 +296,10 @@ export function flattenMealForTextarea(place: AiPlanItem | null | undefined, hea
     if (!place) return '';
     const text = itemToText(place);
     if (!text) return '';
-    // `header` is the full headline line — callers pass a plain "🥐 Breakfast:"
-    // for the flat day.plan text, or a bold "🥐 **Breakfast**" for a plan block.
+    // `header` is the full headline line — callers pass a plain "Breakfast:"
+    // for the flat day.plan text, or a bold "**Breakfast**" for a plan block.
+    // (Post emoji-strip: no leading glyph; planRichText draws a GG icon for any
+    // legacy meal/sight emoji still saved on older trips.)
     const lines: string[] = [header, `- ${text}`];
     if (place && typeof place === 'object') {
         if (place.why) lines.push(`  Why: ${place.why}`);
@@ -308,7 +310,7 @@ export function flattenMealForTextarea(place: AiPlanItem | null | undefined, hea
 
 /** Flatten the day's `sights` list into a single string — one bullet per
  *  sight with its why/fact. `header` is the full headline line (plain
- *  "Sightseeing:" for the flat day.plan text, bold "🏛️ **Sightseeing**" for
+ *  "Sightseeing:" for the flat day.plan text, bold "**Sightseeing**" for
  *  a plan block). */
 export function flattenSightsForTip(sights: AiPlanItem[], header = 'Sightseeing:'): string {
     if (!Array.isArray(sights) || sights.length === 0) return '';

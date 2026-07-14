@@ -158,7 +158,10 @@ export function Templates() {
                 </div>
             ) : templates.length === 0 ? (
                 <div className="card glass" style={{ padding: '60px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '3.5rem', marginBottom: '14px' }}>🧭</div>
+                    <div
+                        style={{ display: 'flex', justifyContent: 'center', marginBottom: '14px', opacity: 0.6 }}
+                        dangerouslySetInnerHTML={{ __html: iconSvg('compass', { size: 52 }) }}
+                    />
                     <h2 style={{ margin: '0 0 6px' }}>{t('templates.emptyTitle')}</h2>
                     <p className="text-muted" style={{ margin: 0 }}>{t('templates.emptyBody')}</p>
                 </div>
@@ -269,7 +272,7 @@ function AlbumCard({ album, groupBy, label, onOpen }: AlbumCardProps) {
                   dangerouslySetInnerHTML={{ __html: iconSvg('user', { size: 34 }) }} />
         );
     } else {
-        art = <span className="templates-album__year">🧭</span>;
+        art = <span className="inline-flex" dangerouslySetInnerHTML={{ __html: iconSvg('compass', { size: 44 }) }} />;
     }
 
     return (
@@ -309,7 +312,9 @@ function TemplateCard({ tpl, busy, onUse }: TemplateCardProps) {
     return (
         <div className="card glass templates-card">
             <div className="templates-card__banner">
-                <span className="templates-card__flag">{flag || '🗺️'}</span>
+                <span className="templates-card__flag">
+                    {flag || <span className="inline-flex" dangerouslySetInnerHTML={{ __html: iconSvg('map', { size: 22 }) }} />}
+                </span>
                 <div className="templates-card__stats">
                     {tpl.useCount > 0 && (
                         <span className="templates-card__uses">
@@ -355,7 +360,7 @@ function TemplateCard({ tpl, busy, onUse }: TemplateCardProps) {
                     preview={preview}
                     loading={previewLoading}
                     busy={busy}
-                    flag={flag || '🗺️'}
+                    flag={flag}
                     dest={dest}
                     onUse={() => onUse(tpl.code)}
                     onClose={() => setPreviewOpen(false)}
@@ -421,7 +426,12 @@ function TemplatePreviewModal({
                 }}
             >
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                    <span style={{ fontSize: '1.6rem', lineHeight: 1 }}>{flag}</span>
+                    {flag ? (
+                        <span style={{ fontSize: '1.6rem', lineHeight: 1 }}>{flag}</span>
+                    ) : (
+                        <span style={{ display: 'inline-flex', lineHeight: 1 }}
+                              dangerouslySetInnerHTML={{ __html: iconSvg('map', { size: 24 }) }} />
+                    )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                         <h3 style={{ margin: 0 }} dangerouslySetInnerHTML={{ __html: esc(tpl.name) }} />
                         {dest && (
@@ -433,10 +443,9 @@ function TemplatePreviewModal({
                         type="button"
                         aria-label={t('templates.previewClose')}
                         onClick={onClose}
-                        style={{ flex: '0 0 auto', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.2rem', lineHeight: 1, color: 'var(--text-secondary)', padding: '2px 4px' }}
-                    >
-                        ✕
-                    </button>
+                        style={{ flex: '0 0 auto', border: 'none', background: 'transparent', cursor: 'pointer', display: 'inline-flex', lineHeight: 1, color: 'var(--text-secondary)', padding: '2px 4px' }}
+                        dangerouslySetInnerHTML={{ __html: iconSvg('close', { size: 18 }) }}
+                    />
                 </div>
 
                 {loading ? (

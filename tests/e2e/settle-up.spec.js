@@ -321,7 +321,9 @@ test.describe('Settle-up money flow', () => {
         const historyCard = page.locator('.stl-card-major').filter({ hasText: 'Past settlements' });
         await expect(historyCard).toContainText('Bob');
         await expect(historyCard).toContainText('Alice');
-        await expect(historyCard).toContainText('✓ Settled');
+        // The "Settled" chip now renders a GG check icon (<svg>) + the label
+        // text; the ✓ glyph is gone, so assert on the label only.
+        await expect(historyCard).toContainText('Settled');
         await expect(historyCard).toContainText('€50.00');
     });
 

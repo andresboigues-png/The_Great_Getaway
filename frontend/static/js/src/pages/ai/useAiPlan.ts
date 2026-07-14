@@ -45,6 +45,7 @@ import {
     type AiDayPlan,
 } from './slots.js';
 import { parseVibeIds, vibePrompt, vibePriceBand } from './vibes.js';
+import { iconSvg } from '../../icons.js';
 import { t, getLocale } from '../../i18n.js';
 import type { Trip, TripDay, PlanBlock, TransportMode } from '../../types';
 
@@ -333,7 +334,7 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
             innerHTML: `
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 12px;">
                     <h2 style="margin:0; font-size: 1.6rem; color:#7c3a9e; font-weight: 800; letter-spacing:-0.02em;">${t('ai.keyHelpModalTitle')}</h2>
-                    <button id="aiKeyHelpClose" class="close-x-btn" aria-label="${t('common.close')}">✕</button>
+                    <button id="aiKeyHelpClose" class="close-x-btn" aria-label="${t('common.close')}">${iconSvg('close', { size: 16 })}</button>
                 </div>
                 <p style="margin:0 0 14px; color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5;">
                     ${t('ai.keyHelpModalIntro')}
@@ -670,13 +671,13 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
             // the slot helpers below narrow defensively, so the casts to
             // their declared param types are safe (type-only).
             const planMorning = usesFoodSights
-                ? joinSlot(flattenMealForTextarea(dayInfo.breakfast as AiPlanItem, '🥐 Breakfast:'), sightsBySlot.morning)
+                ? joinSlot(flattenMealForTextarea(dayInfo.breakfast as AiPlanItem, 'Breakfast:'), sightsBySlot.morning)
                 : flattenSlotForTextarea(dayInfo.morning);
             const planAfternoon = usesFoodSights
-                ? joinSlot(flattenMealForTextarea(dayInfo.lunch as AiPlanItem, '🥗 Lunch:'), sightsBySlot.afternoon)
+                ? joinSlot(flattenMealForTextarea(dayInfo.lunch as AiPlanItem, 'Lunch:'), sightsBySlot.afternoon)
                 : flattenSlotForTextarea(dayInfo.afternoon);
             const planEvening = usesFoodSights
-                ? joinSlot(flattenMealForTextarea(dayInfo.dinner as AiPlanItem, '🍷 Dinner:'), sightsBySlot.evening)
+                ? joinSlot(flattenMealForTextarea(dayInfo.dinner as AiPlanItem, 'Dinner:'), sightsBySlot.evening)
                 : flattenSlotForTextarea(dayInfo.evening);
             // Sights now live inline in the slot text, so the separate day tip is
             // cleared (assigned unconditionally per C2-B1 so a re-run wipes stale).
@@ -684,9 +685,9 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
 
             // ── Explicit day.planBlocks (BOLD headers) — the reorderable block
             // editor renders these in this exact order per slot:
-            //   1. meal note (🥐 **Breakfast** + why/fun-fact)
+            //   1. meal note (**Breakfast** + why/fun-fact)
             //   2. meal place card
-            //   3. sightseeing note (🏛️ **Sightseeing** + each why/fun-fact)
+            //   3. sightseeing note (**Sightseeing** + each why/fun-fact)
             //   4. sight place cards
             // Only VERIFIED items (with a placeId) become place blocks; the
             // sights use the SAME round-robin as the card auto-push below, so
@@ -702,7 +703,7 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
                 if (mealText) blocks.push({ type: 'text', text: mealText });
                 const mealPid = verifiedPlaceId(meal);
                 if (mealPid) blocks.push({ type: 'place', placeId: mealPid });
-                const sightsText = flattenSightsForTip(slotSights, '🏛️ **Sightseeing**');
+                const sightsText = flattenSightsForTip(slotSights, '**Sightseeing**');
                 if (sightsText) blocks.push({ type: 'text', text: sightsText });
                 for (const s of slotSights) {
                     const pid = verifiedPlaceId(s);
@@ -712,9 +713,9 @@ export function useAiPlan(activeTrip: Trip, tripCountry: string): UseAiPlanResul
             };
             const planBlocks: TripDay['planBlocks'] = usesFoodSights
                 ? {
-                      morning: slotBlocks(dayInfo.breakfast, '🥐 **Breakfast**', sightsBySlot.morning),
-                      afternoon: slotBlocks(dayInfo.lunch, '🥗 **Lunch**', sightsBySlot.afternoon),
-                      evening: slotBlocks(dayInfo.dinner, '🍷 **Dinner**', sightsBySlot.evening),
+                      morning: slotBlocks(dayInfo.breakfast, '**Breakfast**', sightsBySlot.morning),
+                      afternoon: slotBlocks(dayInfo.lunch, '**Lunch**', sightsBySlot.afternoon),
+                      evening: slotBlocks(dayInfo.dinner, '**Dinner**', sightsBySlot.evening),
                   }
                 : null;
 

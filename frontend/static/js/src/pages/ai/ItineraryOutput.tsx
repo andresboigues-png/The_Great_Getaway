@@ -11,6 +11,7 @@ import { t } from '../../i18n.js';
 import { showLiquidAlert } from '../../utils.js';
 import { transportModeLabel } from '../home/transportModal.js';
 import { TransportModeIcon } from '../../react/components/TransportModeIcon.js';
+import { Icon } from '../../react/components/Icon.js';
 import type { TransportMode } from '../../types';
 
 // Transportation P2 (review fix): the preview must SHOW the per-day transport
@@ -49,7 +50,9 @@ export function GenerationErrorCard({
 }) {
     return (
         <div className="card glass text-center py-8 px-7">
-            <div className="text-[2.4rem] mb-2">😬</div>
+            <div className="mb-2 flex justify-center text-[color:var(--ai-warn)]">
+                <Icon name="info" size={40} />
+            </div>
             <h2 className="text-[color:var(--ai-warn)] mt-0 mx-0 mb-1.5 text-[1.2rem]">
                 {error.msg}
             </h2>

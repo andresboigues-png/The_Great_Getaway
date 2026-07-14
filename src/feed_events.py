@@ -815,7 +815,10 @@ def _build_achievement_unlocked(cursor, ctx: FeedContext) -> list:
                 "badge": {
                     "id": row["badge_id"],
                     "label": bdef.label if bdef else row["badge_id"],
+                    # `emoji` = iconForEmoji lookup key (legacy); `iconKey` = the
+                    # GG icon-system key the feed card renders.
                     "emoji": bdef.emoji if bdef else "🏅",
+                    "iconKey": bdef.icon_key if bdef else "award",
                     "description": bdef.description if bdef else "",
                 },
                 "when": row["earned_at"],
@@ -983,7 +986,10 @@ def _resolve_achievement(cursor, components) -> dict | None:
         "badge": {
             "id": row["badge_id"],
             "label": bdef.label if bdef else row["badge_id"],
+            # `emoji` = iconForEmoji lookup key (legacy); `iconKey` = the GG
+            # icon-system key the feed card renders.
             "emoji": bdef.emoji if bdef else "🏅",
+            "iconKey": bdef.icon_key if bdef else "award",
             "description": bdef.description if bdef else "",
         },
         "when": row["earned_at"],

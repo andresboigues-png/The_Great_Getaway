@@ -24,6 +24,7 @@
 
 import { esc } from '../../utils.js';
 import { getIntlLocale, t } from '../../i18n.js';
+import { iconSvg } from '../../icons.js';
 import type { Trip, TripDay, MarkedPlace } from '../../types';
 
 /** Inputs paintTodoMarkers needs from renderHome. */
@@ -120,7 +121,7 @@ export function paintTodoMarkers(ctx: TodoMarkersContext): Record<string, google
                 style="display:block; width:100%; height:96px; object-fit:cover; border-radius:10px; margin-top:8px; background:rgba(0,0,0,0.05);">`
             : '';
         const ratingHtml = (typeof place.rating === 'number')
-            ? `<span style="font-size:0.78rem; color:#444; font-weight:600;"><span style="color:#a85d00;">★</span> ${place.rating.toFixed(1)}${typeof place.userRatingsTotal === 'number' ? ` <span style="color:#888; font-weight:500;">(${place.userRatingsTotal.toLocaleString(getIntlLocale())})</span>` : ''}</span>`
+            ? `<span style="font-size:0.78rem; color:#444; font-weight:600;"><span style="color:#a85d00; display:inline-flex; vertical-align:middle;">${iconSvg('star', { size: 12 })}</span> ${place.rating.toFixed(1)}${typeof place.userRatingsTotal === 'number' ? ` <span style="color:#888; font-weight:500;">(${place.userRatingsTotal.toLocaleString(getIntlLocale())})</span>` : ''}</span>`
             : '';
         const addressHtml = place.address
             ? `<div style="font-size:0.74rem; color:#666; line-height:1.4;">${esc(place.address)}</div>`
@@ -138,7 +139,7 @@ export function paintTodoMarkers(ctx: TodoMarkersContext): Record<string, google
             ? `<div style="font-size:0.78rem; color:#002d5b; margin-top:8px; line-height:1.4; font-weight:500;">${esc(place.why)}</div>`
             : '';
         const factHtml = place.fact
-            ? `<div style="font-size:0.72rem; color:#666; margin-top:4px; line-height:1.4; font-style:italic;">✨ ${esc(place.fact)}</div>`
+            ? `<div style="font-size:0.72rem; color:#666; margin-top:4px; line-height:1.4; font-style:italic;">${iconSvg('sparkles', { size: 12 })} ${esc(place.fact)}</div>`
             : '';
         const assignedDay = place.dayId ? days.find(d => d.id === place.dayId) : null;
         const dayChipHtml = (assignedDay && selectedIsAnchor && assignedDay.dayNumber > 0)
@@ -153,7 +154,7 @@ export function paintTodoMarkers(ctx: TodoMarkersContext): Record<string, google
         const html = `
             <div style="font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif; min-width:260px; max-width:300px; padding:8px 10px 4px;">
                 <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-                    <span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:6px; background:rgba(155,89,182,0.14); color:#7c3a9e; font-size:0.85rem;">📋</span>
+                    <span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:6px; background:rgba(155,89,182,0.14); color:#7c3a9e; font-size:0.85rem;">${iconSvg('checklist', { size: 13 })}</span>
                     <span style="display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; background:rgba(155,89,182,0.14); color:#7c3a9e; font-size:0.6rem; font-weight:800; letter-spacing:0.08em; text-transform:uppercase;">${esc(t('map.onTodoPill'))}</span>
                 </div>
                 <div style="font-size:0.98rem; font-weight:800; color:#002d5b; line-height:1.25; letter-spacing:-0.01em;">${esc(displayName)}</div>

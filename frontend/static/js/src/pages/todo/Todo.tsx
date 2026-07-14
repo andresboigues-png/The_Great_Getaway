@@ -53,6 +53,7 @@ import { esc } from '../../utils/dom-helpers.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import { t, tn } from '../../i18n.js';
 import { stripEmoji } from '../../icons.js';
+import { Icon, EmojiIcon } from '../../react/components/Icon.js';
 // Page-scoped CSS — the .todo-mark-all-btn hover/focus styles plus the
 // view-toggle + collapsible group-header chrome. Vite chunks it
 // alongside the Todo mount module so the rules ship on Todo page
@@ -174,9 +175,9 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                         />
                     ) : (
                         <span
-                            className="text-[1.3rem] leading-none w-9 h-9 inline-flex items-center justify-center shrink-0"
+                            className="w-9 h-9 inline-flex items-center justify-center shrink-0"
                         >
-                            {p.icon || '📍'}
+                            <EmojiIcon emoji={p.icon} fallback="pin" size={20} />
                         </span>
                     );
                     if (mapsUrl) {
@@ -215,12 +216,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                                 className="font-bold text-brand-navy text-[0.92rem] leading-[1.25] overflow-hidden overflow-ellipsis whitespace-nowrap max-w-full no-underline inline-flex items-center gap-1"
                             >
                                 {p.name}
-                                <span
-                                    aria-hidden="true"
-                                    className="text-[0.7rem] text-accent-blue opacity-70"
-                                >
-                                    ↗
-                                </span>
+                                <Icon name="externalLink" size={11} className="text-accent-blue opacity-70" />
                             </a>
                         ) : (
                             <span
@@ -232,9 +228,10 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                         {p.source === 'ai' && (
                             <span
                                 title={t('todo.addedByAi')}
-                                className="inline-flex items-center py-px px-1.5 rounded-full bg-[rgba(155,_89,_182,_0.12)] text-[#7d3c98] border border-[rgba(155,_89,_182,_0.32)] text-[0.58rem] font-extrabold tracking-[0.06em] uppercase shrink-0"
+                                className="inline-flex items-center gap-0.5 py-px px-1.5 rounded-full bg-[rgba(155,_89,_182,_0.12)] text-[#7d3c98] border border-[rgba(155,_89,_182,_0.32)] text-[0.58rem] font-extrabold tracking-[0.06em] uppercase shrink-0"
                             >
-                                ✦ AI
+                                <Icon name="sparkles" size={9} />
+                                AI
                             </span>
                         )}
                     </div>
@@ -284,7 +281,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                         aria-label={`Remove ${p.name}`}
                         onClick={() => onRemove(p.placeId)}
                     >
-                        ✕
+                        <Icon name="close" size={12} />
                     </button>
                 )}
             </div>
@@ -317,9 +314,9 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                     )}
                     {p.fact && (
                         <div
-                            className="text-[0.72rem] text-secondary mt-1 leading-[1.4] italic"
+                            className="text-[0.72rem] text-secondary mt-1 leading-[1.4] italic flex items-baseline gap-1"
                         >
-                            ✨ {p.fact}
+                            <Icon name="sparkles" size={12} /> {p.fact}
                         </div>
                     )}
                     {mapsUrl && (
@@ -606,7 +603,7 @@ export function Todo() {
                 OUT into the toolbar below. */}
             <div className="card glass py-4 px-5 rounded-[18px] mb-4 border-[1.5px] border-[var(--accent-purple-border-soft)] flex flex-col gap-3">
                 <div className="flex items-center gap-[10px] min-w-0">
-                    <span className="text-[1.4rem]">📋</span>
+                    <Icon name="checklist" size={22} className="text-accent-purple-deep" />
                     <div className="min-w-0">
                         <div className="font-extrabold text-brand-navy text-base leading-[1.2]">
                             {tn('todo.itemCount', todoItems.length)}
@@ -657,10 +654,10 @@ export function Todo() {
                             </button>
                         )}
                         <button
-                            className="btn-primary py-2.5 px-[18px] rounded-full text-[0.85rem]"
+                            className="btn-primary py-2.5 px-[18px] rounded-full text-[0.85rem] inline-flex items-center gap-1.5"
                             onClick={() => navigate('ai')}
                         >
-                            Plan with AI ✦
+                            Plan with AI <Icon name="sparkles" size={14} />
                         </button>
                     </div>
                 </div>
@@ -762,7 +759,7 @@ export function Todo() {
                                 aria-expanded={isOpen}
                                 onClick={() => toggleGroup(g.key)}
                             >
-                                <span className="text-[1.3rem] leading-none">{g.icon}</span>
+                                <EmojiIcon emoji={g.icon} fallback="pin" size={20} className="text-brand-navy" />
                                 <span className="font-extrabold text-brand-navy text-[0.82rem] tracking-[0.04em] uppercase">
                                     {g.label}
                                 </span>

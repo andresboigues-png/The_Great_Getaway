@@ -32,6 +32,8 @@ import { deleteExpenseOnServer } from '../../api.js';
 import { navigate } from '../../router.js';
 import { t, tn, getIntlLocale } from '../../i18n.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
+import { Icon, CategoryIcon } from '../../react/components/Icon.js';
+import { CategoryListbox } from './CategoryListbox.js';
 import { openEditExpenseModal, deleteExpense } from '../expenses.js';
 import {
     applyHistoryFilters,
@@ -202,7 +204,8 @@ export function HistoryTab() {
                                     title={`Remove the ${lastImportBatch.expenseIds.length} expenses just imported`}
                                     onClick={onUndoBatch}
                                 >
-                                    ↶ {t('expenses.undoBatchBtn')} ({lastImportBatch.expenseIds.length})
+                                    <Icon name="restore" size={13} className="align-[-2px] mr-1" />
+                                    {t('expenses.undoBatchBtn')} ({lastImportBatch.expenseIds.length})
                                 </button>
                             ) : null}
                             {showRowActions && tripExpenseCount > 0 ? (
@@ -212,7 +215,8 @@ export function HistoryTab() {
                                     title={t('expenses.deleteAllTitle')}
                                     onClick={onDeleteAll}
                                 >
-                                    🗑 {t('expenses.deleteAllBtn')} ({tripExpenseCount})
+                                    <Icon name="trash" size={13} className="align-[-2px] mr-1" />
+                                    {t('expenses.deleteAllBtn')} ({tripExpenseCount})
                                 </button>
                             ) : null}
                             <button type="button" className="btn-chip-danger" onClick={clearFilters}>
@@ -240,21 +244,19 @@ export function HistoryTab() {
                         </div>
 
                         {/* Row 2: Category | Payer | Sort */}
-                        <div>
+                        <div className="relative">
                             <label className="filter-label">{t('expenses.filterCategoryLabel')}</label>
-                            <select
-                                className="filter-input"
+                            <CategoryListbox
+                                triggerClassName="filter-input"
+                                ariaLabel={t('expenses.filterCategoryLabel')}
                                 value={filters.catId}
-                                onChange={(e) => patch('catId', e.target.value)}
-                            >
-                                <option value="all">{t('expenses.filterAllCategories')}</option>
-                                {categories.map((c) => (
-                                    <option key={c.id} value={c.id}>
-                                        {c.icon} {c.name}
-                                    </option>
-                                ))}
-                                <option value="settlement">{t('expenses.filterCategorySettlement')}</option>
-                            </select>
+                                onChange={(v) => patch('catId', v)}
+                                options={[
+                                    { value: 'all', label: t('expenses.filterAllCategories') },
+                                    ...categories.map((c) => ({ value: c.id, label: c.name, icon: c.icon })),
+                                    { value: 'settlement', label: t('expenses.filterCategorySettlement') },
+                                ]}
+                            />
                         </div>
                         <div>
                             <label className="filter-label">{t('expenses.filterPayerLabel')}</label>
@@ -373,7 +375,9 @@ export function HistoryTab() {
                                 className="card glass expense-row py-3.5 px-[22px] rounded-xl border border-[rgba(255,255,255,0.4)] bg-[rgba(255,255,255,0.15)] backdrop-blur-[25px] flex justify-between items-center shadow-[0_10px_30px_rgba(0,0,0,0.1)]"
                             >
                                 <div className="flex items-center gap-4">
-                                    <div className="expense-row__icon">{cat ? cat.icon : '💰'}</div>
+                                    <div className="expense-row__icon">
+                                        {cat ? <CategoryIcon icon={cat.icon} size={22} /> : <Icon name="wallet" size={22} />}
+                                    </div>
                                     <div>
                                         <strong className="expense-row__title">{e.label || t('expenses.noLabelPlaceholder')}</strong>
                                         <div className="expense-row__meta">

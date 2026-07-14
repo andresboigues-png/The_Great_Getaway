@@ -19,7 +19,7 @@ import { STATE } from '../../state.js';
 import { t, tn, formatCurrency } from '../../i18n.js';
 import { formatHome, getHomeCurrency, convertCurrency } from '../../utils.js';
 import { hasRate } from '../../utils/currency.js';
-import { iconSvg } from '../../icons.js';
+import { iconSvg, stripEmoji } from '../../icons.js';
 import {
     computeTripBalances,
     computeTripBalancesByCurrency,
@@ -129,7 +129,7 @@ function TripsStrip({ currentTripId, onPickTrip }: { currentTripId: string | nul
                 htmlFor="settlementTripSelect"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.74rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)', flexShrink: 0 }}
             >
-                <span style={{ fontSize: '0.95rem' }}>⚖️</span>
+                <span className="inline-flex" dangerouslySetInnerHTML={{ __html: iconSvg('scale', { size: 15 }) }} />
                 {' '}{t('settlement.tripPickerLabel')}
             </label>
             <select
@@ -307,7 +307,7 @@ function TripTab({ trip, tripIsEditable, settlingKeys, onSettle, onManualSettle 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         {curDebts.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                                <div style={{ fontSize: '2.2rem', marginBottom: '8px' }}>🥂</div>
+                                <div style={{ marginBottom: '8px', color: 'var(--stl-green)' }} dangerouslySetInnerHTML={{ __html: iconSvg('handshake', { size: 34 }) }} />
                                 <p style={{ margin: 0, fontWeight: 800, color: 'var(--stl-green)' }}>{t('settlement.allSettledTitle')}</p>
                                 <p style={{ margin: '6px 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{t('settlement.allSettledBody')}</p>
                             </div>
@@ -379,7 +379,7 @@ function HistoryTab({ trip, tripIsEditable, onEditSettlement, onUnsettle }: {
     if (past.length === 0) {
         return (
             <div className="card glass" style={{ padding: '48px 32px', textAlign: 'center', borderRadius: '28px', border: '1.5px dashed rgba(52,199,89,0.3)', background: 'rgba(52,199,89,0.04)' }}>
-                <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>📜</div>
+                <div style={{ marginBottom: '8px', color: 'var(--text-secondary)' }} dangerouslySetInnerHTML={{ __html: iconSvg('journal', { size: 40 }) }} />
                 <h2 style={{ margin: '0 0 6px', color: 'var(--text-brand-navy)' }}>{t('settlement.historyEmptyTitle')}</h2>
                 <p className="text-muted" style={{ margin: 0 }}>{t('settlement.historyEmptyBody')}</p>
             </div>
@@ -450,7 +450,13 @@ function HistoryTab({ trip, tripIsEditable, onEditSettlement, onUnsettle }: {
                                                     <span className="stl-heading-3">{s.who}</span>
                                                     <span style={{ color: 'rgba(0,0,0,0.3)', fontWeight: 600 }}>→</span>
                                                     <span className="stl-heading-3">{s.to}</span>
-                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(52,199,89,0.12)', color: 'var(--stl-green)', padding: '1px 8px', borderRadius: '999px', fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('settlement.historyChipSettled')}</span>
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(52,199,89,0.12)', color: 'var(--stl-green)', padding: '1px 8px', borderRadius: '999px', fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                                        {/* emoji-strip: the ✓ in this locale string becomes a GG
+                                                            check icon; stripEmoji drops the glyph at render so no
+                                                            locale files need touching. */}
+                                                        <span className="inline-flex" dangerouslySetInnerHTML={{ __html: iconSvg('check', { size: 12 }) }} />
+                                                        {stripEmoji(t('settlement.historyChipSettled'))}
+                                                    </span>
                                                     {showMethod ? (
                                                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(52,199,89,0.08)', color: 'var(--stl-green-deep)', padding: '1px 8px', borderRadius: '999px', fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.method!.replace(/_/g, ' ')}</span>
                                                     ) : null}
@@ -509,7 +515,7 @@ function GlobalTab() {
         const everyoneSettled = Object.keys(globalBalances).length > 0;
         return (
             <div className="card glass" style={{ padding: '48px 32px', textAlign: 'center', borderRadius: '28px', border: '1.5px dashed rgba(52,199,89,0.3)', background: 'rgba(52,199,89,0.04)' }}>
-                <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>{everyoneSettled ? '🥂' : '🌍'}</div>
+                <div style={{ marginBottom: '8px', color: everyoneSettled ? 'var(--stl-green)' : 'var(--text-secondary)' }} dangerouslySetInnerHTML={{ __html: iconSvg(everyoneSettled ? 'handshake' : 'globe', { size: 40 }) }} />
                 <h2 style={{ margin: '0 0 6px', color: 'var(--text-brand-navy)' }}>{everyoneSettled ? t('settlement.crossTripSettledTitle') : t('settlement.crossTripEmptyTitle')}</h2>
                 <p className="text-muted" style={{ margin: 0 }}>{everyoneSettled ? t('settlement.crossTripSettledBody') : t('settlement.crossTripEmptyBody')}</p>
             </div>

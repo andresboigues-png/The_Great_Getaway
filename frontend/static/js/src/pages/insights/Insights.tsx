@@ -503,7 +503,10 @@ export function Insights() {
     // match — so name-string categoryIds from imports / legacy / external
     // writes (e.g. 'food') resolve to the real "Food" category instead of
     // collapsing the whole by-category view to "Unknown" (audit BUG).
-    const findCategory = (catId: string): { id: string; name: string; icon: string; color: string } => {
+    // NB: no `icon` field — the category glyph is never read off this result
+    // (only name / color / id are), so the emoji-strip drops it rather than
+    // carrying a dead '🏷️' literal that would never render.
+    const findCategory = (catId: string): { id: string; name: string; color: string } => {
         const match =
             categories.find((c: Category) => c.id === catId) ||
             categories.find((c: Category) => c.name.toLowerCase() === String(catId).toLowerCase());
@@ -513,7 +516,7 @@ export function Insights() {
         // key's own name with a STABLE hashed colour so the donut + ranking
         // stay readable and consistent across renders.
         const raw = String(catId || '').trim();
-        if (!raw) return { id: '', name: t('insights.unknownCategory'), icon: '🏷️', color: '#8e8e93' };
+        if (!raw) return { id: '', name: t('insights.unknownCategory'), color: '#8e8e93' };
         // IA-9 (MK3 audit): NO #8e8e93 here — that exact gray is the "Other"
         // slice color (pushed below), so a hashed synthetic category landing
         // on it would be visually indistinguishable from the aggregate slice.
@@ -522,7 +525,7 @@ export function Insights() {
         const _palette = ['#0071e3', '#9b59b6', '#ff9500', '#34c759', '#ff2d55', '#5ac8fa', '#ffd60a', '#af52de', '#ff6482', '#30b0c7'];
         let h = 0;
         for (let i = 0; i < raw.length; i++) h = (h * 31 + raw.charCodeAt(i)) >>> 0;
-        return { id: raw, name: raw.charAt(0).toUpperCase() + raw.slice(1), icon: '🏷️', color: _palette[h % _palette.length]! };
+        return { id: raw, name: raw.charAt(0).toUpperCase() + raw.slice(1), color: _palette[h % _palette.length]! };
     };
 
     // ── Spenders dashboard: per-person spend + count, ordered by the chosen sort.

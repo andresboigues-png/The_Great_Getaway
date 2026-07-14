@@ -80,6 +80,7 @@ import { fetchDaySummary } from '../../pages/home/weather.js';
 import { dayDirectionsUrl } from '../../todoCategories.js';
 import { repaintPathTab } from '../../pages/home/pathSelection.js';
 import { iconSvg } from '../../icons.js';
+import { EmojiIcon } from './Icon.js';
 import { sizedUploadUrl } from '../../utils/mediaUrl';
 import { PlanText } from './PlanText.js';
 import { mdToHtml, htmlToMd } from './planRichText.js';
@@ -110,7 +111,7 @@ const NOTE_FULL_MARGIN = 60;
 // narrow viewports). The label still rides along on `aria-label` so
 // the tab is announced clearly to screen-readers — it's just no longer
 // painted on the button.
-const SLOT_ICON: Record<Slot, string> = { morning: '☀️', afternoon: '🌅', evening: '🌙' };
+const SLOT_ICON: Record<Slot, string> = { morning: 'sun', afternoon: 'sunrise', evening: 'moon' };
 const SLOT_ACCENT: Record<Slot, string> = { morning: '0,113,227', afternoon: '255,149,0', evening: '88,86,214' };
 
 // Map a user-picked hour (0–23) to the coarse pane it belongs in, so a
@@ -1060,7 +1061,7 @@ export function DayDetailModal({
                 aria-label={`${slotLabel[slot]}${count > 0 ? ` (${count})` : ''}`}
                 title={slotLabel[slot]}
                 onClick={() => switchPlanTab(slot)}>
-                <span className="day-plan-tab__icon">{SLOT_ICON[slot]}</span>
+                <span className="day-plan-tab__icon" dangerouslySetInnerHTML={{ __html: iconSvg(SLOT_ICON[slot], { size: 20 }) }} />
                 <span className="day-plan-tab__count" data-plan-tab-count={slot}>{count > 0 ? count : ''}</span>
             </button>
         );
@@ -1069,9 +1070,9 @@ export function DayDetailModal({
     const renderPlaceCard = (p: MarkedPlace): ReactNode => {
         const photo = p.photoUrl
             ? <img className="day-plan-place__photo" src={p.photoUrl} alt="" referrerPolicy="no-referrer" loading="lazy" />
-            : <div className="day-plan-place__photo day-plan-place__photo--empty" aria-hidden="true">{p.icon || '📍'}</div>;
+            : <div className="day-plan-place__photo day-plan-place__photo--empty" aria-hidden="true"><EmojiIcon emoji={p.icon} fallback="pin" size={22} /></div>;
         const rating = (typeof p.rating === 'number')
-            ? <span className="day-plan-place__rating">★ {p.rating.toFixed(1)}</span>
+            ? <span className="day-plan-place__rating"><span dangerouslySetInnerHTML={{ __html: iconSvg('star', { size: 12 }) }} /> {p.rating.toFixed(1)}</span>
             : null;
         // Time chip: show the user's picked hour when set (e.g. "2:00 PM"
         // / "14:00"); otherwise an "Anytime" marker for items not yet
@@ -1120,9 +1121,8 @@ export function DayDetailModal({
                     link. */}
                 <button type="button" className="day-plan-place-remove" data-place-id={p.placeId || ''}
                     title={t('dayDetail.removeFromDay')} aria-label={t('dayDetail.removeFromDay')}
-                    onClick={(ev) => onRemovePlaceFromDay(ev, p.placeId)}>
-                    ✕
-                </button>
+                    onClick={(ev) => onRemovePlaceFromDay(ev, p.placeId)}
+                    dangerouslySetInnerHTML={{ __html: iconSvg('close', { size: 13 }) }} />
             </div>
         );
     };
@@ -1252,7 +1252,8 @@ export function DayDetailModal({
                     onClick={() => moveBlock(slot, i, i + 1)}>▼</button>
                 {b.type === 'text' && (
                     <button type="button" className="plan-block__del" aria-label={t('common.remove')}
-                        onClick={() => removeTextBlock(slot, b.k)}>✕</button>
+                        onClick={() => removeTextBlock(slot, b.k)}
+                        dangerouslySetInnerHTML={{ __html: iconSvg('close', { size: 13 }) }} />
                 )}
             </div>
         </div>
@@ -1383,7 +1384,9 @@ export function DayDetailModal({
                 aria-pressed={isThere} title={title}
                 style={{ background, border, color, padding: '5px 10px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}
                 onClick={(ev) => onShortlistSlotClick(ev, place, time)}>
-                {isThere ? `✓ ${label}` : label}
+                {isThere ? (
+                    <><span style={{ display: 'inline-flex' }} dangerouslySetInnerHTML={{ __html: iconSvg('check', { size: 11 }) }} /> {label}</>
+                ) : label}
             </button>
         );
     };
@@ -1407,14 +1410,14 @@ export function DayDetailModal({
                     display: rowMatches(p) ? 'flex' : 'none', alignItems: 'center', gap: 10, padding: '10px 12px',
                     background: 'var(--card-bg)', border: `1px solid ${p.color}40`, borderLeft: `3px solid ${p.color}`, borderRadius: 10,
                 }}>
-                <span style={{ fontSize: '1.2rem', lineHeight: 1, flexShrink: 0 }}>{p.icon}</span>
+                <span style={{ lineHeight: 1, flexShrink: 0, display: 'inline-flex' }}><EmojiIcon emoji={p.icon} fallback="pin" size={19} /></span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                     {mapsUrl ? (
                         <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
                             title={t('dayDetail.openOnMaps', { name: p.name || '' })}
                             style={{ ...nameStyle, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-                            <span aria-hidden="true" style={{ fontSize: '0.7rem', color: 'var(--accent-blue)', opacity: 0.7, flexShrink: 0 }}>↗</span>
+                            <span aria-hidden="true" style={{ color: 'var(--accent-blue)', opacity: 0.7, flexShrink: 0, display: 'inline-flex' }} dangerouslySetInnerHTML={{ __html: iconSvg('externalLink', { size: 11 }) }} />
                         </a>
                     ) : (
                         <div style={nameStyle}>{p.name}</div>
@@ -1476,7 +1479,7 @@ export function DayDetailModal({
                                     color: isActive ? 'white' : 'var(--text-brand-navy)',
                                     fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
                                 }}>
-                                <span style={{ fontSize: '0.95rem', lineHeight: 1 }}>{icon}</span>
+                                <span style={{ lineHeight: 1, display: 'inline-flex' }}><EmojiIcon emoji={icon} fallback="pin" size={15} /></span>
                                 <span>{ICON_TO_LABEL[icon] || t('poi.other')}</span>
                                 <span style={{
                                     fontSize: '0.62rem', fontWeight: 800, padding: '1px 6px', borderRadius: 999,
@@ -1610,9 +1613,8 @@ export function DayDetailModal({
                             <img src={sizedUploadUrl(p.src, 'thumb')} alt="" referrerPolicy="no-referrer" loading="lazy" />
                             <button type="button" className="day-media__remove" data-remove-photo={p.id || ''}
                                 title={removeTitle} aria-label={removeTitle}
-                                onClick={() => onRemovePhoto(p.id || '')}>
-                                ✕
-                            </button>
+                                onClick={() => onRemovePhoto(p.id || '')}
+                                dangerouslySetInnerHTML={{ __html: iconSvg('close', { size: 12 }) }} />
                         </div>
                     ))
                 ))}
@@ -1640,9 +1642,8 @@ export function DayDetailModal({
                             <a href={d.url} target="_blank" rel="noopener noreferrer">{d.name || d.url}</a>
                             <button type="button" className="day-media__remove" data-remove-doc={d.id || ''}
                                 title={removeTitle} aria-label={removeTitle}
-                                onClick={() => onRemoveDoc(d.id || '')}>
-                                ✕
-                            </button>
+                                onClick={() => onRemoveDoc(d.id || '')}
+                                dangerouslySetInnerHTML={{ __html: iconSvg('close', { size: 12 }) }} />
                         </div>
                     ))
                 ))}
@@ -1795,7 +1796,7 @@ export function DayDetailModal({
     const logisticsStrip = (
         <div className="day-detail__logistics">
             <button type="button" className="day-detail__logi-row" style={logiRowStyle} onClick={onAccommodation}>
-                <span style={logiIconStyle} aria-hidden="true">🛏️</span>
+                <span style={logiIconStyle} aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconSvg('bed', { size: 18 }) }} />
                 <span style={logiTextStyle}>{day.accommodation || t('pathTab.stayNotSet')}</span>
             </button>
             {transportRow}
@@ -1814,7 +1815,7 @@ export function DayDetailModal({
                             <span>{formatDayDate(day.date) || ''}</span>
                             {weather ? (
                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 700, color: 'var(--text-brand-navy)' }} title={weather.label}>
-                                    <span aria-hidden="true">{weather.icon}</span>{weather.tempC}°
+                                    <EmojiIcon emoji={weather.icon} size={15} />{weather.tempC}°
                                 </span>
                             ) : null}
                         </div>
@@ -1834,9 +1835,8 @@ export function DayDetailModal({
                         </svg>
                     </button>
                     <button id="closeDetailBtn" className="close-x-btn" aria-label={t('dayDetail.closeBtn')}
-                        onClick={onCloseClick}>
-                        ✕
-                    </button>
+                        onClick={onCloseClick}
+                        dangerouslySetInnerHTML={{ __html: iconSvg('close', { size: 16 }) }} />
                 </div>
             </div>
             {logisticsStrip}

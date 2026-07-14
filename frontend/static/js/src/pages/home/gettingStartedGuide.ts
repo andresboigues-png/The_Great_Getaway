@@ -222,7 +222,7 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
                             <div style="flex-shrink: 0; line-height: 1; color: var(--accent-blue); display: inline-flex;">${iconSvg(step.iconName, { size: 22 })}</div>
                             ` : `
                             <div style="width: 24px; height: 24px; border-radius: 50%; border: 2px solid ${showTick ? '#34c759' : 'var(--border-subtle)'}; display: flex; align-items: center; justify-content: center; color: ${showTick ? SUCCESS_TEXT : 'var(--text-secondary)'}; font-weight: 800; font-size: 0.8rem; background: ${showTick ? 'var(--card-bg)' : 'var(--surface-subtle)'}; flex-shrink: 0;">
-                                ${showTick ? '✓' : iconSvg(step.iconName, { size: 14 })}
+                                ${showTick ? iconSvg('check', { size: 14 }) : iconSvg(step.iconName, { size: 14 })}
                             </div>
                             `}
                             <div style="display: flex; flex-direction: column;">

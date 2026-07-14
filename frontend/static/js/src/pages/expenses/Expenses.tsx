@@ -26,6 +26,7 @@ import { useSyncExternalStore } from 'react';
 import { useActiveTrip } from '../../react/TripContext.js';
 import { t } from '../../i18n.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
+import { Icon } from '../../react/components/Icon.js';
 import { openNewTripModal } from '../../modals.js';
 import {
     getActiveExpensesTab,
@@ -152,7 +153,9 @@ function ReadOnlyNotice({ tabLabel, verb }: { tabLabel: string; verb: string }) 
         <div
             className="card glass max-w-[520px] my-8 mx-auto p-9 rounded-2xl text-center bg-[rgba(255,255,255,0.6)]"
         >
-            <div className="text-[2.4rem] mb-3">👁</div>
+            <div className="mb-3 flex justify-center text-[var(--text-secondary)]">
+                <Icon name="eye" size={34} />
+            </div>
             <h2
                 className="mt-0 mx-0 mb-3 text-[1.4rem] font-extrabold text-brand-navy tracking-[-0.02em]"
             >

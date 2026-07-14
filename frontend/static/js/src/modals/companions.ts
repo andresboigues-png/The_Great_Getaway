@@ -158,7 +158,7 @@ export const openCompanionPickerModal = (tripId: string) => {
             ? ''
             : isLocked
             ? `<span class="companion-row__lock" title="${esc(t('companions.rowLockTitle'))}" style="display:inline-flex; align-items:center;">${iconSvg('lock', { size: 14 })}</span>`
-            : `<button type="button" class="btn-x-bare picker-remove-btn" data-name="${esc(c.name)}" title="${esc(t('companions.rowRemoveTitle'))}">✕</button>`;
+            : `<button type="button" class="btn-x-bare picker-remove-btn" data-name="${esc(c.name)}" title="${esc(t('companions.rowRemoveTitle'))}">${iconSvg('close', { size: 14 })}</button>`;
 
         return `
             <div class="companion-row" data-name="${esc(c.name)}">
@@ -237,7 +237,7 @@ export const openCompanionPickerModal = (tripId: string) => {
             <div id="companionPickerFriendSheet" class="companion-picker-friend-sheet" hidden>
                 <div class="companion-picker-friend-sheet__header">
                     <strong id="companionPickerFriendSheetTitle">${esc(t('companions.friendSheetTitle'))}</strong>
-                    <button type="button" id="companionPickerFriendCancel" class="btn-x-bare" title="${esc(t('companions.rowCloseTitle'))}">✕</button>
+                    <button type="button" id="companionPickerFriendCancel" class="btn-x-bare" title="${esc(t('companions.rowCloseTitle'))}">${iconSvg('close', { size: 14 })}</button>
                 </div>
                 <div id="companionPickerFriendList" class="companion-picker-friend-sheet__list">
                     <p style="text-align:center; color: rgba(0,0,0,0.45); padding: var(--space-4); margin: 0;">${esc(t('companions.friendSheetLoading'))}</p>

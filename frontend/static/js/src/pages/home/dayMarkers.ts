@@ -23,6 +23,7 @@
 import { esc, formatDayDate } from '../../utils.js';
 import { streetViewUrl } from '../../googleMapsServices.js';
 import { t } from '../../i18n.js';
+import { iconSvg } from '../../icons.js';
 import { buildAccommodationColorMap } from './accommodationColors.js';
 import type { Trip, TripDay } from '../../types';
 
@@ -88,7 +89,7 @@ export function paintDayMarkers(ctx: DayMarkersContext): Record<string, google.m
             ? `<div style="font-size:0.78rem; color:rgba(0,45,91,0.6); margin-top:2px;">${esc(day.name)}</div>`
             : '';
         const dateHtml = day.date
-            ? `<div style="font-size:0.7rem; color:#005bb8; font-weight:700; margin-top:2px;">📅 ${esc(formatDayDate(day.date) || day.date)}</div>`
+            ? `<div style="font-size:0.7rem; color:#005bb8; font-weight:700; margin-top:2px; display:flex; align-items:center; gap:4px;">${iconSvg('calendar', { size: 12 })}<span>${esc(formatDayDate(day.date) || day.date)}</span></div>`
             : '';
         const imgHtml = url
             ? `<img src="${esc(url)}" alt="Street view of ${esc(headerLabel)}"

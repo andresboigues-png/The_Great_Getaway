@@ -101,21 +101,38 @@ describe('AI planner output renders + round-trips through the editor', () => {
     // day.plan.{morning,afternoon,evening} — header line + bullet + indented
     // why/fact lines. After the AI-run clears planBlocks, buildSlotBlocks
     // seeds ONE text block from this string, so it flows through mdToHtml.
-    const MEAL = '🥐 Breakfast:\n- Manteigaria Café\n  Why: best pastéis in Lisbon\n  Fun fact: opened in 1990';
+    // Post emoji-strip new saves have NO leading glyph; LEGACY trips still
+    // carry the meal emoji, which the renderer swaps for a GG icon.
+    const MEAL = 'Breakfast:\n- Manteigaria Café\n  Why: best pastéis in Lisbon\n  Fun fact: opened in 1990';
+    const LEGACY_MEAL = '🥐 Breakfast:\n- Manteigaria Café\n  Why: best pastéis in Lisbon\n  Fun fact: opened in 1990';
     // The legacy items[] schema (flattenSlotForTextarea): "activity:" + bullets.
     const LEGACY_SLOT = 'Explore Alfama:\n- São Jorge Castle\n- Fado museum';
 
     it('renders the meal string as a header + real bullet, no broken markup', () => {
         const html = mdToHtml(MEAL);
-        expect(html).toContain('<div>🥐 Breakfast:</div>');
+        expect(html).toContain('<div>Breakfast:</div>');
         expect(html).toContain('<li>Manteigaria Café</li>');
         // The indented why/fact lines survive as their own lines (not bullets).
         expect(html).toContain('Why: best pastéis in Lisbon');
         expect(html).not.toContain('<script');
     });
 
+    it('swaps a legacy leading meal emoji for a GG icon, dropping the emoji', () => {
+        const html = mdToHtml(LEGACY_MEAL);
+        // Icon drawn before the header text; the raw emoji is gone.
+        expect(html).toContain('<svg');
+        expect(html).toContain('Breakfast:');
+        expect(html).not.toContain('🥐');
+    });
+
     it('round-trips the meal string unchanged (editing an AI note is lossless)', () => {
         expect(roundTrip(MEAL)).toBe(MEAL);
+    });
+
+    it('editing a legacy emoji header persists the emoji-free text', () => {
+        // The icon has no text content, so reading the edited DOM back drops the
+        // legacy glyph — the note settles on the new emoji-free header.
+        expect(roundTrip(LEGACY_MEAL)).toBe(MEAL);
     });
 
     it('round-trips the legacy activity+bullets slot unchanged', () => {

@@ -178,12 +178,12 @@ test.describe('Day-detail modal (editable)', () => {
         const morningTa = dialog.locator('.day-plan-pane[data-plan-pane="morning"] .plan-block__rte').first();
         await morningTa.fill(MORNING_TEXT);
         // Status leaves idle immediately ('Editing…'), then walks
-        // Editing… → Saving… → Saved ✓. The intermediate states are
+        // Editing… → Saving… → Saved. The intermediate states are
         // sub-second windows on a local server, so accept any of the
         // three here and pin the TERMINAL state exactly below.
-        await expect(status).toHaveText(/Editing…|Saving…|Saved ✓/);
+        await expect(status).toHaveText(/Editing…|Saving…|Saved/);
         expect((await posted).ok()).toBe(true);
-        await expect(status).toHaveText('Saved ✓');
+        await expect(status).toHaveText('Saved');
 
         // The per-tab count chip counts PLACES pinned to the slot, NOT notes
         // — typing a note (no place slotted to morning here) must leave the
@@ -199,7 +199,7 @@ test.describe('Day-detail modal (editable)', () => {
         await dialog.locator('.day-plan-pane[data-plan-pane="evening"] .plan-block__rte').first().fill(EVENING_TEXT);
         expect((await posted).ok()).toBe(true);
 
-        // 'Saved ✓' decays back to the idle promise after 1400ms so the
+        // 'Saved' decays back to the idle promise after 1400ms so the
         // badge never lies about "nothing pending".
         await expect(status).toHaveText('Changes save automatically');
 
@@ -345,10 +345,10 @@ test.describe('Day-detail modal (editable)', () => {
         );
         await expect(card).toBeVisible();
         await expect(card).toContainText(PLACE_NAME);
-        // The slot button reflects membership: aria-pressed + ✓-prefixed
-        // localized label (refreshShortlistButtons).
+        // The slot button reflects membership: aria-pressed + a check
+        // icon rendered before the localized label (refreshShortlistButtons).
         await expect(pmBtn).toHaveAttribute('aria-pressed', 'true');
-        await expect(pmBtn).toHaveText(/^✓ /);
+        await expect(pmBtn.locator('svg')).toBeVisible();
 
         // Server truth: the assignment persisted on the markedPlaces entry.
         let media = await serverMedia(page, auth.headers);

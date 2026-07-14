@@ -416,7 +416,7 @@ export function Collections() {
                             <option value="">{t('collections.filterAllDestinations')}</option>
                             {availableDestinations.map((d) => (
                                 <option key={d} value={d}>
-                                    📍 {d}
+                                    {d}
                                 </option>
                             ))}
                         </select>
@@ -448,7 +448,10 @@ export function Collections() {
                 {archived.length === 0 ? (
                     <div className="grid-2 mt-4">
                         <div className="card glass col-span-full text-center p-[60px]">
-                            <div className="text-[4rem] mb-5">📚</div>
+                            <div
+                                className="mb-5 flex justify-center text-secondary opacity-70"
+                                dangerouslySetInnerHTML={{ __html: iconSvg('books', { size: 56 }) }}
+                            />
                             <h2>{t('collections.emptyNoTripsTitle')}</h2>
                             <p className="text-muted">{t('collections.emptyNoTripsBody')}</p>
                             <button
@@ -623,18 +626,26 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                         ) : (
                             <span>{tn('collections.dayCount', plannedDays)}</span>
                         )}
-                        <span>📒 {tn('collections.expenseCount', expenseCount)}</span>
+                        <span className="inline-flex items-center gap-1">
+                            <span className="inline-flex" dangerouslySetInnerHTML={{ __html: iconSvg('wallet', { size: 13 }) }} />
+                            {tn('collections.expenseCount', expenseCount)}
+                        </span>
                         {archivedAt && (
-                            <span title={t('collections.cardMarkedCompleteOn', { date: esc(archivedAt) })}>
-                                ✓ {archivedAt}
+                            <span
+                                title={t('collections.cardMarkedCompleteOn', { date: esc(archivedAt) })}
+                                className="inline-flex items-center gap-1"
+                            >
+                                <span className="inline-flex" dangerouslySetInnerHTML={{ __html: iconSvg('check', { size: 13 }) }} />
+                                {archivedAt}
                             </span>
                         )}
                         {trip.shareToken && (trip.shareViews ?? 0) > 0 && (
                             <span
                                 title={t('collections.publicViewsTitle')}
-                                className="text-[#0071e3] font-bold"
+                                className="text-[#0071e3] font-bold inline-flex items-center gap-1"
                             >
-                                👁 {trip.shareViews}{' '}
+                                <span className="inline-flex" dangerouslySetInnerHTML={{ __html: iconSvg('eye', { size: 13 }) }} />
+                                {trip.shareViews}{' '}
                                 {trip.shareViews === 1 ? 'view' : 'views'}
                             </span>
                         )}

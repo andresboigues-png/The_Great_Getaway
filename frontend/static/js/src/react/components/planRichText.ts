@@ -16,6 +16,27 @@
 // The token set mirrors PlanText EXACTLY (**bold**, _italic_, ~underline~,
 // "- "/"* " bullet lines) so what the author types is what a viewer sees.
 
+import { iconSvg, emojiToIconKey } from '../../icons.js';
+
+// Emoji-strip: legacy AI plans persisted meal/sight headers with a leading
+// emoji ("🥐 Breakfast:", "🏛️ **Sightseeing**"). New saves emit plain text
+// (no glyph), but already-saved trips still carry the emoji — so at RENDER a
+// leading meal/sight emoji on a line is swapped for its GG line-icon, dropping
+// the emoji from the display (and, once edited, from storage via htmlToMd).
+// Restricted to the four planner header glyphs so arbitrary user emoji aren't
+// silently rewritten.
+const _PLAN_HEADER_ICON_KEYS = new Set(['croissant', 'salad', 'wine', 'landmark']);
+
+/** If `line` starts with a planner meal/sight emoji, return the GG icon HTML
+ *  plus the remaining line text (emoji + trailing spaces removed); else null. */
+function leadingPlanIcon(line: string): { html: string; rest: string } | null {
+    const m = /^\s*(\p{Extended_Pictographic}️?)/u.exec(line);
+    if (!m) return null;
+    const key = emojiToIconKey(m[1]);
+    if (!key || !_PLAN_HEADER_ICON_KEYS.has(key)) return null;
+    return { html: iconSvg(key, { size: 14 }), rest: line.slice(m[0].length).replace(/^\s+/, '') };
+}
+
 const escapeHtml = (s: string): string =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -69,7 +90,16 @@ export function mdToHtml(md: string | null | undefined): string {
             html += `<li>${inlineMdToHtml(bullet[1] ?? '')}</li>`;
         } else {
             closeList();
-            html += line.trim() ? `<div>${inlineMdToHtml(line)}</div>` : '<div><br></div>';
+            if (!line.trim()) {
+                html += '<div><br></div>';
+            } else {
+                // Legacy meal/sight header: draw the GG icon in place of a
+                // leading planner emoji, then the escaped remainder.
+                const swap = leadingPlanIcon(line);
+                html += swap
+                    ? `<div>${swap.html}${inlineMdToHtml(swap.rest)}</div>`
+                    : `<div>${inlineMdToHtml(line)}</div>`;
+            }
         }
     }
     closeList();

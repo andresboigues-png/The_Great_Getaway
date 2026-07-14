@@ -39,7 +39,6 @@ text, glass-card aesthetic. PDFs can't do CSS gradients, but
 they can do:
   - A blue→purple horizontal rule under each section header
   - Navy headings + dark-grey body text
-  - The brand emoji (✦, 🧳, 📍) sprinkled where it makes sense
   - A subtle footer line with the trip name + page number
 
 The output is intentionally print-oriented — high contrast, no
@@ -234,7 +233,7 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             # Same R3-Round 4 Unicode-font fix as the body text;
             # this chrome path was missed. _strip_emoji ensures the
             # font doesn't trip over emoji glyphs it can't render
-            # (e.g. user adds "✦" or a flag to their trip name).
+            # (e.g. a decorative symbol or a flag in the trip name).
             canvas.setFont(_font(bold=True), 7.5)
             canvas.setFillColor(rl.colors.HexColor(_BRAND_BLUE))
             kicker_y = page_h - 0.9 * rl.cm
@@ -839,7 +838,7 @@ def _sec_days(b: _PdfBuild) -> None:
                     styles,
                     page_w,
                     margin_lr,
-                    number="✦",
+                    number="•",
                     title=tr("sec_ai"),
                     kicker=tr("ai_kicker"),
                     color=_BRAND_PURPLE,
@@ -958,7 +957,7 @@ def _sec_todos(b: _PdfBuild) -> None:
             ]
             for it in items:
                 done = bool(it.get("completed") or it.get("done"))
-                marker = "☑" if done else "☐"
+                marker = "[x]" if done else "[ ]"
                 body = it.get("text") or it.get("name") or ""
                 style = styles["muted"] if done else styles["body"]
                 cat_inner.append(rl.Paragraph(f"{marker}  {_esc(body)}", style))

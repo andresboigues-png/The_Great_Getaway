@@ -10,6 +10,7 @@
 import type { ExploreFeedItem } from '../../api.js';
 import { t } from '../../i18n.js';
 import { Avatar } from '../../react/components/Avatar.js';
+import { Icon } from '../../react/components/Icon.js';
 
 
 export function ExploreCard({ item }: { item: ExploreFeedItem }) {
@@ -28,9 +29,9 @@ export function ExploreCard({ item }: { item: ExploreFeedItem }) {
         >
             <div style={{ ...coverStyle, height: 160, position: 'relative' }}>
                 <div
-                    className="absolute right-2.5 top-2.5 bg-[rgba(0,0,0,0.55)] text-white py-1 px-2.5 rounded-full text-[0.72rem] font-bold backdrop-blur"
+                    className="absolute right-2.5 top-2.5 bg-[rgba(0,0,0,0.55)] text-white py-1 px-2.5 rounded-full text-[0.72rem] font-bold backdrop-blur flex items-center gap-1"
                 >
-                    👁 {item.shareViews}
+                    <Icon name="eye" size={13} /> {item.shareViews}
                 </div>
             </div>
             <div className="py-3.5 px-4">

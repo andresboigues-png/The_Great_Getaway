@@ -52,6 +52,7 @@ import {
     type StatListItem,
 } from '../profile.js';
 import { LoginWall } from './LoginWall.js';
+import { Icon } from '../../react/components/Icon.js';
 import { FootprintMap } from './FootprintMap.js';
 import { AchievementsStrip, type ProfileAchievement } from './AchievementsStrip.js';
 import { FollowButton } from './FollowButton.js';
@@ -513,8 +514,8 @@ function ProfileContent({
                         {(achievements.length > 0 || isOwnProfile) ? (
                         <>
                             <div className="flex items-baseline justify-between mb-[14px]">
-                                <h3 className="m-0 text-base font-extrabold tracking-[-0.02em] text-primary">
-                                    🏅 Achievements
+                                <h3 className="m-0 text-base font-extrabold tracking-[-0.02em] text-primary inline-flex items-center gap-1.5">
+                                    <Icon name="award" size={16} /> Achievements
                                 </h3>
                                 <span className="text-[0.8rem] text-secondary font-semibold">
                                     {achievements.length} earned
@@ -1032,7 +1033,7 @@ function ProfileInfoSection({
                             title={t('profile.visibilityPublicHint')}
                             onClick={() => void setVisibility(true)}
                         >
-                            <span aria-hidden="true">🌐</span> {t('profile.visibilityPublic')}
+                            <Icon name="globe" size={14} /> {t('profile.visibilityPublic')}
                         </button>
                         <button
                             type="button"
@@ -1044,7 +1045,7 @@ function ProfileInfoSection({
                             title={t('profile.visibilityPrivateHint')}
                             onClick={() => void setVisibility(false)}
                         >
-                            <span aria-hidden="true">🔒</span> {t('profile.visibilityPrivate')}
+                            <Icon name="lock" size={14} /> {t('profile.visibilityPrivate')}
                         </button>
                     </div>
                 ) : null}

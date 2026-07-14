@@ -16,6 +16,7 @@ import { countryCodeToFlag } from '../../utils/place-names.js';
 import { t } from '../../i18n.js';
 import { ExploreCard } from './ExploreCard.js';
 import { ExploreCountryChip } from './ExploreCountryChip.js';
+import { Icon } from '../../react/components/Icon.js';
 
 
 interface ExploreSectionProps {
@@ -58,7 +59,7 @@ export function ExploreSection({ explore, exploreCountry, onPickExploreCountry }
                 dangerouslySetInnerHTML={{
                     __html: buildEmptyCardHtml({
                         accent: 'blue',
-                        emoji: '🌍',
+                        iconName: 'globe',
                         title: t('feed.exploreEmptyTitle'),
                         body: t('feed.exploreEmptyBody'),
                     }),
@@ -140,7 +141,9 @@ export function ExploreSection({ explore, exploreCountry, onPickExploreCountry }
                 <div
                     className="card glass p-6 rounded-xl text-center"
                 >
-                    <div className="text-[1.6rem] mb-[6px]">🔎</div>
+                    <div className="mb-[6px] flex justify-center text-secondary">
+                        <Icon name="search" size={26} />
+                    </div>
                     <div
                         className="font-extrabold text-primary mb-1"
                     >

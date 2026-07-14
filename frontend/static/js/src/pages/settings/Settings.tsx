@@ -40,7 +40,7 @@ import { syncCategories, apiFetch } from '../../api.js';
 import { POI_CATEGORIES, getPoiTooltip, resolveAnchorMode } from '../home.js';
 import { setTheme } from '../../theme.js';
 import { t, getLocale, setLocale, type Locale } from '../../i18n.js';
-import { iconSvg } from '../../icons.js';
+import { iconSvg, iconForEmoji } from '../../icons.js';
 import {
     getSettingsTabState,
     setSettingsTab,
@@ -176,9 +176,9 @@ function confirmResetCategories(): void {
         confirmText: t('settings.resetCategoriesConfirmBtn'),
         onConfirm: () => {
             STATE.categories = [
-                { id: 'c1', name: 'Food', icon: '🍔', color: '#ff3b30' },
-                { id: 'c2', name: 'Transport', icon: '✈️', color: '#007aff' },
-                { id: 'c3', name: 'Accommodation', icon: '🛏️', color: '#5856d6' },
+                { id: 'c1', name: 'Food', icon: 'utensils', color: '#ff3b30' },
+                { id: 'c2', name: 'Transport', icon: 'plane', color: '#007aff' },
+                { id: 'c3', name: 'Accommodation', icon: 'bed', color: '#5856d6' },
             ];
             emit('state:changed');
             void syncCategories();
@@ -567,7 +567,7 @@ function GeneralPillsSection() {
         const innerHTML = `
             <div style="text-align:left;">
                 <div style="display:flex; align-items:center; gap:14px; padding:18px 22px; background:linear-gradient(135deg, var(--accent-blue) 0%, #5856d6 100%); color:white; border-top-left-radius: var(--radius-3xl); border-top-right-radius: var(--radius-3xl);">
-                    <div style="width:44px; height:44px; border-radius:12px; background:rgba(255,255,255,0.18); border:1px solid rgba(255,255,255,0.28); display:inline-flex; align-items:center; justify-content:center; font-size:1.5rem; flex-shrink:0;">${c.icon}</div>
+                    <div style="width:44px; height:44px; border-radius:12px; background:rgba(255,255,255,0.18); border:1px solid rgba(255,255,255,0.28); display:inline-flex; align-items:center; justify-content:center; font-size:1.5rem; flex-shrink:0;">${iconForEmoji(c.icon, { size: 24, fallback: 'pin' })}</div>
                     <div style="flex:1; min-width:0;">
                         <h2 style="margin:0; font-size:1.15rem; color:white; font-weight:800; letter-spacing:-0.02em; line-height:1.2;">${esc(c.label)}</h2>
                         <p style="margin:3px 0 0; color:rgba(255,255,255,0.85); font-size:0.78rem; font-weight:600;">${esc(t('settings.poiInfoModalSubtitle'))}</p>
@@ -662,7 +662,10 @@ function GeneralPillsSection() {
                             key={c.key}
                             className={`poi-filter-row${isVisible ? '' : ' poi-filter-row--hidden'}`}
                         >
-                            <span className="poi-filter-row__icon">{c.icon}</span>
+                            <span
+                                className="poi-filter-row__icon"
+                                dangerouslySetInnerHTML={{ __html: iconForEmoji(c.icon, { size: 20, fallback: 'pin' }) }}
+                            />
                             <div className="poi-filter-row__body">
                                 <div className="poi-filter-row__label">
                                     {c.label}
@@ -691,9 +694,8 @@ function GeneralPillsSection() {
                                                 aria-label={t('settings.poiInfoBtnAria', { name: c.label })}
                                                 title={tooltip}
                                                 onClick={() => openPoiInfoModal(c)}
-                                            >
-                                                ⓘ
-                                            </button>
+                                                dangerouslySetInnerHTML={{ __html: iconSvg('info', { size: 16 }) }}
+                                            />
                                         ) : null;
                                     })()}
                                 </div>
@@ -719,13 +721,13 @@ function GeneralPillsSection() {
                             >
                                 {RATING_OPTIONS.map((v) => (
                                     <option key={v} value={String(v)}>
-                                        {v === 0 ? t('settings.poiAnyRating') : `${v}★ +`}
+                                        {v === 0 ? t('settings.poiAnyRating') : `${v}+`}
                                     </option>
                                 ))}
                             </select>
                             <span
                                 className="poi-filter-row__default"
-                                title={`Defaults: ${c.defaultMinRating === 0 ? t('settings.poiAnyRating') : c.defaultMinRating + '★+'} / ${defaultAnchor === 'anchor' ? t('settings.poiAnchorTripWide') : t('settings.poiAnchorDayAware')} / shown`}
+                                title={`Defaults: ${c.defaultMinRating === 0 ? t('settings.poiAnyRating') : c.defaultMinRating + '+'} / ${defaultAnchor === 'anchor' ? t('settings.poiAnchorTripWide') : t('settings.poiAnchorDayAware')} / shown`}
                             >
                                 {isCustom ? (
                                     <button
@@ -825,14 +827,18 @@ function GeneralAppearanceSection() {
             className={`theme-option-card${currentTheme === value ? ' is-active' : ''}`}
             onClick={() => onPick(value)}
         >
-            <span className="theme-option-card__icon" aria-hidden="true">
-                {icon}
-            </span>
+            <span
+                className="theme-option-card__icon"
+                aria-hidden="true"
+                dangerouslySetInnerHTML={{ __html: iconSvg(icon, { size: 24 }) }}
+            />
             <span className="theme-option-card__label">{label}</span>
             <span className="theme-option-card__body">{body}</span>
-            <span className="theme-option-card__check" aria-hidden="true">
-                {currentTheme === value ? '✓' : ''}
-            </span>
+            <span
+                className="theme-option-card__check"
+                aria-hidden="true"
+                dangerouslySetInnerHTML={{ __html: currentTheme === value ? iconSvg('check', { size: 16 }) : '' }}
+            />
         </button>
     );
 
@@ -852,9 +858,9 @@ function GeneralAppearanceSection() {
             />
 
             <div className="theme-options">
-                {opt('light', t('settings.themeLight'), '☀️', t('settings.themeBodyLight'))}
-                {opt('dark', t('settings.themeDark'), '🌙', t('settings.themeBodyDark'))}
-                {opt('system', t('settings.themeSystem'), '🖥️', t('settings.themeBodySystem'))}
+                {opt('light', t('settings.themeLight'), 'sun', t('settings.themeBodyLight'))}
+                {opt('dark', t('settings.themeDark'), 'moon', t('settings.themeBodyDark'))}
+                {opt('system', t('settings.themeSystem'), 'monitor', t('settings.themeBodySystem'))}
             </div>
 
             {/* Round 19: mobile menu-handle (left-edge peek) on/off. */}
@@ -956,14 +962,18 @@ function GeneralLanguageSection() {
                 aria-busy={isPending}
                 onClick={() => void onPick(value)}
             >
-                <span className="theme-option-card__icon" aria-hidden="true">
-                    🌐
-                </span>
+                <span
+                    className="theme-option-card__icon"
+                    aria-hidden="true"
+                    dangerouslySetInnerHTML={{ __html: iconSvg('globe', { size: 24 }) }}
+                />
                 <span className="theme-option-card__label">{label}</span>
                 <span className="theme-option-card__body">{native}</span>
-                <span className="theme-option-card__check" aria-hidden="true">
-                    {isPending ? '…' : isActive ? '✓' : ''}
-                </span>
+                <span
+                    className="theme-option-card__check"
+                    aria-hidden="true"
+                    dangerouslySetInnerHTML={{ __html: isPending ? '…' : isActive ? iconSvg('check', { size: 16 }) : '' }}
+                />
             </button>
         );
     };
@@ -1147,7 +1157,8 @@ function FormatView() {
                         const done = used.has(v);
                         return (
                             <span key={v} className={`status-chip${done ? ' is-done' : ''}`}>
-                                {done ? '✓' : '★'} {v.toUpperCase()}
+                                <span dangerouslySetInnerHTML={{ __html: iconSvg(done ? 'check' : 'star', { size: 13 }) }} />{' '}
+                                {v.toUpperCase()}
                             </span>
                         );
                     })}
@@ -1168,9 +1179,11 @@ function FormatView() {
                                     key={m.variable}
                                     className={`format-row${isMandatory ? ' is-mandatory' : ''}`}
                                 >
-                                    <span className="format-row__star" aria-hidden="true">
-                                        {isMandatory ? '★' : ''}
-                                    </span>
+                                    <span
+                                        className="format-row__star"
+                                        aria-hidden="true"
+                                        dangerouslySetInnerHTML={{ __html: isMandatory ? iconSvg('star', { size: 12 }) : '' }}
+                                    />
                                     <span className="format-row__variable">{m.variable}</span>
                                     <span className="format-row__arrow" aria-hidden="true">
                                         <svg
@@ -1233,7 +1246,6 @@ function FormatView() {
                             <option value="">{t('settings.formatVariablePlaceholder')}</option>
                             {availableVars.map((v) => (
                                 <option key={v} value={v}>
-                                    {MANDATORY_VARS.includes(v) ? '★ ' : ''}
                                     {v}
                                 </option>
                             ))}
@@ -1277,7 +1289,10 @@ function FormatView() {
                         {savedFormats.map((f) => (
                             <div key={f.id} className="saved-format-card">
                                 <div className="saved-format-card__name">
-                                    <span className="saved-format-card__icon">📄</span>
+                                    <span
+                                        className="saved-format-card__icon"
+                                        dangerouslySetInnerHTML={{ __html: iconSvg('document', { size: 15 }) }}
+                                    />
                                     <span>{f.name}</span>
                                 </div>
                                 <div className="saved-format-card__actions">

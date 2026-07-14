@@ -22,6 +22,7 @@ import {
     openCreateBudgetModal,
 } from './helpers.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
+import { Icon, CategoryIcon } from '../../react/components/Icon.js';
 import type { Trip, Budget, Category } from '../../types';
 import { t, tn, formatCurrency } from '../../i18n.js';
 import { findAcceptedMemberUserId } from '../../companions.js';
@@ -427,7 +428,6 @@ export function Budgets() {
                                 ? t('budgets.cardOverBy', { amount: formatHome(status.spent - status.target, 'EUR') })
                                 : t('budgets.cardLeftSuffix', { amount: formatHome(Math.max(status.target - status.spent, 0), 'EUR') });
                         const category = (categories || []).find((c: Category) => c.id === b.categoryId);
-                        const icon = category?.icon || '💰';
                         const accentColor = category?.color || status.color;
                         return (
                             <div
@@ -451,7 +451,7 @@ export function Budgets() {
                                             flexShrink: 0,
                                         }}
                                     >
-                                        {icon}
+                                        {category ? <CategoryIcon icon={category.icon} size={22} /> : <Icon name="wallet" size={22} />}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div

@@ -8,6 +8,7 @@
 //   - formatDayDate: locale-aware "Apr 6" / "Apr 6, 2025"
 
 import { formatDateShort, formatShortMonthDay, t } from '../i18n.js';
+import { iconSvg } from '../icons.js';
 
 /** Module-level dedupe — if the same message fires multiple times
  *  in quick succession (a 401 cascade, a button double-click), we
@@ -19,7 +20,9 @@ import { formatDateShort, formatShortMonthDay, t } from '../i18n.js';
 const _activeAlerts = new Set<string>();
 
 export type AlertType = 'error' | 'success' | 'info';
-const _ALERT_ICON: Record<AlertType, string> = { error: '⚠️', success: '✅', info: 'ℹ️' };
+// GG line-icon keys per alert tone (was ⚠️ / ✅ / ℹ️) — rendered as inline
+// SVG via iconSvg() into the aria-hidden icon slot below.
+const _ALERT_ICON: Record<AlertType, string> = { error: 'alertTriangle', success: 'check', info: 'info' };
 
 export function showLiquidAlert(msg: string, type: AlertType = 'error'): void {
     // Dedupe — if this exact message is already on screen, skip.
@@ -45,7 +48,8 @@ export function showLiquidAlert(msg: string, type: AlertType = 'error'): void {
     const icon = document.createElement('span');
     icon.className = 'liquid-alert__icon';
     icon.setAttribute('aria-hidden', 'true');
-    icon.textContent = _ALERT_ICON[type];
+    // Static, code-controlled SVG string (no user data) — safe innerHTML.
+    icon.innerHTML = iconSvg(_ALERT_ICON[type], { size: 16 });
     const text = document.createElement('span');
     text.className = 'liquid-alert__text';
     text.textContent = msg;

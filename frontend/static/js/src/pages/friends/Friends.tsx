@@ -16,6 +16,7 @@ import { apiFetch } from '../../api.js';
 import { showLiquidAlert, showConfirmModal } from '../../utils.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import { Avatar } from '../../react/components/Avatar.js';
+import { Icon } from '../../react/components/Icon.js';
 import { t } from '../../i18n.js';
 // Per-page CSS — co-located so /friends works standalone without
 // depending on home.css being preloaded for the segmented tab bar.
@@ -726,7 +727,7 @@ function UnfollowButton({ onClick }: { onClick: () => void }) {
                 onClick();
             }}
         >
-            ✕
+            <Icon name="close" size={13} />
         </button>
     );
 }

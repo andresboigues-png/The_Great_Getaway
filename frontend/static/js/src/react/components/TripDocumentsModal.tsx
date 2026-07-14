@@ -215,9 +215,8 @@ export function TripDocumentsModal({
                     />{' '}
                     {t('tripMedia.docsTitle')}
                 </h2>
-                <button id="closeDocsModalBtn" className="close-x-btn" aria-label={t('tripMedia.closeAria')} onClick={close}>
-                    ✕
-                </button>
+                <button id="closeDocsModalBtn" className="close-x-btn" aria-label={t('tripMedia.closeAria')} onClick={close}
+                    dangerouslySetInnerHTML={{ __html: iconSvg('close', { size: 16 }) }} />
             </div>
             <div id="tripDocsBody">
                 {headerRow}
@@ -349,9 +348,8 @@ export function TripDocumentsModal({
                                                                 close();
                                                                 onEditDocument(d.id);
                                                             }}
-                                                        >
-                                                            ✎
-                                                        </button>
+                                                            dangerouslySetInnerHTML={{ __html: iconSvg('edit', { size: 14 }) }}
+                                                        />
                                                         <button
                                                             type="button"
                                                             className="trip-doc-remove-btn"
@@ -362,9 +360,8 @@ export function TripDocumentsModal({
                                                             onClick={() => {
                                                                 if (d.id) removeDoc(d.id);
                                                             }}
-                                                        >
-                                                            ✕
-                                                        </button>
+                                                            dangerouslySetInnerHTML={{ __html: iconSvg('close', { size: 14 }) }}
+                                                        />
                                                     </>
                                                 )}
                                             </div>

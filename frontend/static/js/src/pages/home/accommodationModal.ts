@@ -15,6 +15,7 @@ import { upsertDay } from '../../api.js';
 import { canEdit } from '../../permissions.js';
 import { showModal } from '../../components/Modal.js';
 import { esc, formatDayDate } from '../../utils.js';
+import { iconSvg } from '../../icons.js';
 import { whenGoogleMapsReady } from '../../googleMapsServices.js';
 import { t, tn } from '../../i18n.js';
 import { buildAccommodationColorMap } from './accommodationColors.js';
@@ -80,7 +81,7 @@ export const openAccommodationModal = (
                     ? `<span style="font-weight:700; color:#002d5b;">${esc(d.accommodation)}</span>${d.accommodationAddress ? ` <span style="color:var(--text-secondary); font-weight:500;">· ${esc(d.accommodationAddress)}</span>` : ''}`
                     : `<span style="color:var(--text-secondary); font-style:italic;">${esc(t('accommodation.notSet'))}</span>`;
                 const clear = editable && d.accommodation
-                    ? `<button type="button" class="acc-clear-btn" data-day-id="${esc(d.id)}" title="${esc(t('accommodation.clear'))}" aria-label="${esc(t('accommodation.clear'))}" style="flex-shrink:0; background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.22); color:#ff3b30; border-radius:8px; padding:3px 9px; font-size:0.75rem; font-weight:800; cursor:pointer;">✕</button>`
+                    ? `<button type="button" class="acc-clear-btn" data-day-id="${esc(d.id)}" title="${esc(t('accommodation.clear'))}" aria-label="${esc(t('accommodation.clear'))}" style="flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.22); color:#ff3b30; border-radius:8px; padding:3px 9px; font-size:0.75rem; font-weight:800; cursor:pointer;">${iconSvg('close', { size: 13 })}</button>`
                     : '';
                 const dateChip = d.date ? ` · ${esc(formatDayDate(d.date) || d.date)}` : '';
                 return `
@@ -104,7 +105,7 @@ export const openAccommodationModal = (
                 <h2 style="margin:0 0 4px; font-size:1.5rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">${esc(t('accommodation.modalTitle'))}</h2>
                 <p style="margin:0; color:var(--text-secondary); font-size:0.85rem;">${esc(t('accommodation.modalSubtitle'))}</p>
             </div>
-            <button id="accModalClose" class="close-x-btn" aria-label="${esc(t('common.close'))}">✕</button>
+            <button id="accModalClose" class="close-x-btn" aria-label="${esc(t('common.close'))}">${iconSvg('close', { size: 16 })}</button>
         </div>
         ${editable ? `
             <div style="background:rgba(88,86,214,0.05); border:1px solid rgba(88,86,214,0.12); border-radius:16px; padding:14px; margin-bottom:14px;">
@@ -155,9 +156,11 @@ export const openAccommodationModal = (
 
         const setPicked = (next: Picked | null) => {
             picked = next;
-            pickedHint.textContent = picked
-                ? `📍 ${picked.name}`
-                : t('accommodation.pickHint');
+            if (picked) {
+                pickedHint.innerHTML = iconSvg('pin', { size: 13 }) + ' ' + esc(picked.name);
+            } else {
+                pickedHint.textContent = t('accommodation.pickHint');
+            }
             refreshApply();
         };
 

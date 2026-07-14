@@ -161,7 +161,7 @@ function _showBanner(variant: 'chrome' | 'ios'): void {
         </button>
         <button id="ggInstallDismiss" type="button" aria-label="${esc(dismissLabel)}"
             style="background: transparent; border: 0; color: var(--text-secondary, rgba(0,0,0,0.5)); width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 1.1rem; line-height: 1; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
-            ✕
+            ${iconSvg('close', { size: 18 })}
         </button>
     `;
     // R7-F5: dismiss button bumped 28→44px to meet the iOS HIG +

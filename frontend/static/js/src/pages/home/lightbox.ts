@@ -20,6 +20,7 @@
 import { showModal } from '../../components/Modal.js';
 import { esc, q } from '../../utils.js';
 import { t } from '../../i18n.js';
+import { iconSvg } from '../../icons.js';
 import { sizedUploadUrl } from '../../utils/mediaUrl';
 
 // §0.4 follow-up — the visual rules for this widget live in
@@ -126,7 +127,7 @@ export function openPhotoLightbox(arg: string | string[], startIndex: number = 0
                  backdrop heuristic gets confused by an in-flight
                  swipe. -->
             <button id="lbClose" type="button" aria-label="${t('common.close')}"
-                class="lb-nav-btn lb-nav-btn--close">✕</button>
+                class="lb-nav-btn lb-nav-btn--close">${iconSvg('close', { size: 20 })}</button>
         `,
     });
 
@@ -276,15 +277,15 @@ export const openPdfPreview = (url: string, name?: string): void => {
             <!-- Header bar — name + actions. Sticks to the top of
                  the modal card; iframe takes the rest. -->
             <div class="pdf-preview-header">
-                <span class="pdf-preview-header__icon">📎</span>
+                <span class="pdf-preview-header__icon">${iconSvg('document', { size: 18 })}</span>
                 <h3 class="pdf-preview-header__title">${safeName}</h3>
                 <a href="${safeUrl}" target="_blank" rel="noreferrer"
                     class="pdf-preview-header__open-link"
                     title="Open this PDF in a new browser tab">
-                    Open in new tab ↗
+                    <span style="display:inline-flex;align-items:center;gap:4px;">Open in new tab ${iconSvg('externalLink', { size: 13 })}</span>
                 </a>
                 <button id="closePdfPreviewBtn" type="button" aria-label="${t('common.close')}"
-                    class="pdf-preview-header__close-btn">✕</button>
+                    class="pdf-preview-header__close-btn">${iconSvg('close', { size: 18 })}</button>
             </div>
             <!-- Body — iframe fills the rest. The #toolbar=0
                  fragment hint asks Chrome to hide its built-in

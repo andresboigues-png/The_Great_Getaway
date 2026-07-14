@@ -14,6 +14,7 @@
 
 import { STATE } from '../../state.js';
 import { POI_CATEGORIES, getPoiTooltip } from '../home/poiCategories.js';
+import { EmojiIcon } from '../../react/components/Icon.js';
 
 
 export interface PoiPillsRowProps {
@@ -41,7 +42,7 @@ export function PoiPillsRow({ visible }: PoiPillsRowProps) {
                     aria-pressed="false"
                     title={getPoiTooltip(c.key)}
                 >
-                    {c.icon} <span>{c.label}</span>
+                    <EmojiIcon emoji={c.icon} size={15} fallback="pin" /> <span>{c.label}</span>
                 </button>
             ))}
         </div>

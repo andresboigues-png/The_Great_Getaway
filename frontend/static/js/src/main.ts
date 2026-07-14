@@ -268,7 +268,7 @@ async function init() {
             } catch (e) {
                 testResult = `THREW: ${String(e).slice(0, 200)}`;
             }
-            alert('🔵 API DEBUG\n\n' +
+            alert('API DEBUG\n\n' +
                 'STATE.user: ' + (isLoggedIn ? 'YES' : 'NO') + '\n' +
                 'user: ' + userInfo + '\n' +
                 'visible cookies: ' + visibleCookies.slice(0, 200) + '\n' +

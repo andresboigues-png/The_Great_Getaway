@@ -444,9 +444,8 @@ export function TripPhotosModal({
                     />{' '}
                     {t('tripMedia.photosTitle')}
                 </h2>
-                <button id="closePhotosModalBtn" className="close-x-btn" aria-label={t('tripMedia.closeAria')} onClick={close}>
-                    ✕
-                </button>
+                <button id="closePhotosModalBtn" className="close-x-btn" aria-label={t('tripMedia.closeAria')} onClick={close}
+                    dangerouslySetInnerHTML={{ __html: iconSvg('close', { size: 16 }) }} />
             </div>
             <div id="tripPhotosBody" ref={bodyRef}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
@@ -586,9 +585,8 @@ export function TripPhotosModal({
                                     onClick={() => {
                                         if (p.id) removePhoto(p.id);
                                     }}
-                                >
-                                    ✕
-                                </button>
+                                    dangerouslySetInnerHTML={{ __html: iconSvg('close', { size: 13 }) }}
+                                />
                             ) : null;
                             // §4.9 — drag handle. Only on trip-source photos
                             // because day-source photos live inside day.photos
@@ -640,7 +638,7 @@ export function TripPhotosModal({
                                     {dayBadge}
                                     {removeBtn}
                                     {dragHandle}
-                                    <div style={{ fontSize: '1.8rem', lineHeight: 1, marginBottom: 8 }}>🔗</div>
+                                    <div style={{ lineHeight: 1, marginBottom: 8, display: 'flex' }} dangerouslySetInnerHTML={{ __html: iconSvg('link', { size: 28 }) }} />
                                     <div style={{ fontSize: '0.7rem', fontWeight: 800, opacity: 0.9, wordBreak: 'break-all', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
                                         {p.src.replace(/^https?:\/\//, '')}
                                     </div>

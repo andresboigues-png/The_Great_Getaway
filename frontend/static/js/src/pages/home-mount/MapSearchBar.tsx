@@ -15,6 +15,7 @@
 // document.getElementById lookups succeed.
 
 import { t } from '../../i18n.js';
+import { Icon } from '../../react/components/Icon.js';
 
 export function MapSearchBar() {
     return (
@@ -51,9 +52,9 @@ export function MapSearchBar() {
                     type="button"
                     title={t('map.clear')}
                     aria-label={t('map.clearSearch')}
-                    className="hidden bg-[rgba(0,0,0,0.05)] border-0 text-[rgba(0,0,0,0.5)] w-6 h-6 rounded-full cursor-pointer text-[0.8rem] leading-none shrink-0"
+                    className="hidden bg-[rgba(0,0,0,0.05)] border-0 text-[rgba(0,0,0,0.5)] w-6 h-6 rounded-full cursor-pointer text-[0.8rem] leading-none shrink-0 items-center justify-center"
                 >
-                    ✕
+                    <Icon name="close" size={13} />
                 </button>
             </div>
             {/* Dropdown overlay — absolutely positioned so it covers

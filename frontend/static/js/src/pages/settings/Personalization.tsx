@@ -20,16 +20,20 @@ import { STATE, emit } from '../../state.js';
 import { syncCategories } from '../../api.js';
 import { generateId } from '../../utils.js';
 import { t } from '../../i18n.js';
-import { iconSvg } from '../../icons.js';
+import { iconSvg, iconForCategory } from '../../icons.js';
 import { openEditCategoryModal, deleteCategory } from '../settings.js';
 import { RatesEditor } from './RatesEditor.js';
 import { takePendingPersonalizationTab, type PersTab } from '../../utils/persTab.js';
 
+// GG icon KEYS (not emoji). Native <select> can't render inline SVG, so the
+// picker is a swatch grid: choosing a swatch stores its KEY on the new
+// category. Legacy categories that stored an emoji still render fine via
+// iconForCategory() (it maps a stored emoji → its GG icon).
 const ADD_FORM_ICONS = [
-    '🍷', '🏨', '✈️', '🚕', '🍕',
-    '🎟️', '🛍️', '🍦', '🥐', '🏛️',
-    '🏖️', '🎢', '🚠', '🚌', '🚆',
-    '🌍', '🗺️', '🎒', '📸', '☕',
+    'wine', 'coffee', 'utensils', 'iceCream', 'croissant',
+    'bed', 'plane', 'taxi', 'bus', 'train',
+    'car', 'ticket', 'shoppingBag', 'gift', 'backpack',
+    'landmark', 'tree', 'theater', 'photo', 'globe',
 ];
 
 export function Personalization() {
@@ -37,14 +41,14 @@ export function Personalization() {
 
     const [tab, setTab] = useState<PersTab>(() => takePendingPersonalizationTab() || 'categories');
 
-    const iconRef = useRef<HTMLSelectElement | null>(null);
     const nameRef = useRef<HTMLInputElement | null>(null);
     const colorRef = useRef<HTMLInputElement | null>(null);
     const [adding, setAdding] = useState(false);
+    const [iconKey, setIconKey] = useState<string>(ADD_FORM_ICONS[0] ?? 'tag');
 
     const onAddCategory = () => {
         if (adding) return;
-        const icon = iconRef.current?.value || '🍷';
+        const icon = iconKey || 'tag';
         const name = (nameRef.current?.value || '').trim();
         const color = colorRef.current?.value || '#ff3b30';
         if (!name) return;
@@ -111,7 +115,10 @@ export function Personalization() {
                                     categories.map((c) => (
                                         <div key={c.id} className="cat-row" style={{ ['--cat-color' as string]: c.color }}>
                                             <span className="cat-row__stripe" aria-hidden="true"></span>
-                                            <span className="cat-row__icon">{c.icon}</span>
+                                            <span
+                                                className="cat-row__icon"
+                                                dangerouslySetInnerHTML={{ __html: iconForCategory(c.icon, { size: 20 }) }}
+                                            />
                                             <span className="cat-row__name">{c.name}</span>
                                             <span className="cat-row__swatch" style={{ background: c.color }} aria-label={`Color ${c.color}`}></span>
                                             <div className="cat-row__actions">
@@ -147,14 +154,44 @@ export function Personalization() {
 
                             <div className="section-divider">
                                 <h3 className="mb-3 text-[length:var(--font-lg)]">{t('settings.categoryAddNewHeading')}</h3>
+                                {/* Icon picker — was an emoji <select>; a native
+                                    option can't hold inline SVG, so it's now a
+                                    swatch grid of GG line-icons. Picking a swatch
+                                    stores its icon KEY on the new category. */}
+                                <div
+                                    className="flex flex-wrap gap-2 mb-3"
+                                    role="radiogroup"
+                                    aria-label={t('settings.categoryAddNewHeading')}
+                                >
+                                    {ADD_FORM_ICONS.map((key) => {
+                                        const active = iconKey === key;
+                                        return (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                role="radio"
+                                                aria-checked={active}
+                                                aria-label={key}
+                                                className="inline-flex items-center justify-center"
+                                                style={{
+                                                    width: 38,
+                                                    height: 38,
+                                                    padding: 0,
+                                                    borderRadius: 10,
+                                                    cursor: 'pointer',
+                                                    color: active ? 'var(--accent-blue)' : 'var(--text-primary)',
+                                                    border: active
+                                                        ? '2px solid var(--accent-blue)'
+                                                        : '1px solid var(--glass-border)',
+                                                    background: active ? 'rgba(0,113,227,0.10)' : 'rgba(0,0,0,0.04)',
+                                                }}
+                                                onClick={() => setIconKey(key)}
+                                                dangerouslySetInnerHTML={{ __html: iconSvg(key, { size: 18 }) }}
+                                            />
+                                        );
+                                    })}
+                                </div>
                                 <div className="flex gap-3 flex-wrap">
-                                    <select ref={iconRef} id="catIcon" className="glass-input w-20" defaultValue={ADD_FORM_ICONS[0]}>
-                                        {ADD_FORM_ICONS.map((i) => (
-                                            <option key={i} value={i}>
-                                                {i}
-                                            </option>
-                                        ))}
-                                    </select>
                                     <input
                                         ref={nameRef}
                                         type="text"

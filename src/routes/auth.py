@@ -146,10 +146,13 @@ def _seed_default_categories(cursor, user_id):
     cursor.execute("SELECT 1 FROM category_deletes WHERE user_id = ? LIMIT 1", (user_id,))
     if cursor.fetchone():
         return  # user cleared their categories on purpose — don't resurrect
+    # Icons are GG icon-system KEYS (icons.ts), not raw emoji — the frontend's
+    # iconForCategory() resolves a stored key OR a legacy emoji, so a fresh user
+    # gets clean line-icons while existing emoji rows keep rendering.
     for cid, cname, icon, color in (
-        ("c1", "Food", "🍔", "#ff3b30"),
-        ("c2", "Transport", "✈️", "#007aff"),
-        ("c3", "Accommodation", "🏨", "#5856d6"),
+        ("c1", "Food", "utensils", "#ff3b30"),
+        ("c2", "Transport", "plane", "#007aff"),
+        ("c3", "Accommodation", "bed", "#5856d6"),
     ):
         cursor.execute(
             "INSERT OR IGNORE INTO categories (id, user_id, name, icon, color) "

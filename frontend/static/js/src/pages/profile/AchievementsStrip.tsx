@@ -18,6 +18,7 @@
 // just paints the strip when there are 1+ achievements.
 
 import { useEffect, useRef, useState } from 'react';
+import { EmojiIcon } from '../../react/components/Icon.js';
 
 
 export interface ProfileAchievement {
@@ -81,7 +82,7 @@ export function AchievementsStrip({ achievements }: { achievements: ProfileAchie
                         aria-label={a.description ? `${label} — ${a.description}` : label}
                         onClick={() => setOpenId((cur) => (cur === a.badgeId ? null : a.badgeId))}
                     >
-                        <span className="text-[1.1rem] leading-none">{a.emoji || '🏅'}</span>
+                        <EmojiIcon emoji={a.emoji} size={17} fallback="award" className="leading-none" />
                         <span>{label}</span>
                         <span className="achievement-tooltip" role="tooltip">
                             <strong className="block mb-1">{label}</strong>

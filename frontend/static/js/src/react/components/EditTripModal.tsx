@@ -42,6 +42,7 @@ import {
 } from '../../api.js';
 import { navigate } from '../../router.js';
 import { t } from '../../i18n.js';
+import { iconSvg } from '../../icons.js';
 import { normalizeDayNumbers } from '../../utils/tripDays.js';
 import { mountDateRangePicker } from '../../utils/dateRangePicker.js';
 import {
@@ -577,7 +578,8 @@ export function EditTripModal({ trip, close }: { trip: Trip; close: () => void }
                             disabled={coverBusy}
                             onClick={() => coverInputRef.current?.click()}
                         >
-                            🖼 {t('editTrip.chooseCover')}
+                            <span style={{ marginRight: 6 }} dangerouslySetInnerHTML={{ __html: iconSvg('photo', { size: 15 }) }} />
+                            {t('editTrip.chooseCover')}
                         </button>
                         <div id="editTripCoverPreview" style={{ display: coverUrl ? 'flex' : 'none', flex: 1, alignItems: 'center', gap: 'var(--space-3)' }}>
                             {coverUrl && <img id="editTripCoverThumb" src={coverUrl} alt={t('editTrip.coverPreviewAlt')} style={{ width: 56, height: 56, borderRadius: 12, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.25)', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }} />}

@@ -260,7 +260,7 @@ export function wireMapSearchBanner(ctx: MapSearchContext): () => void {
         return `
             <button type="button" class="map-search-row" role="option" id="${OPTION_ID_PREFIX}${i}" aria-selected="false" data-place-id="${esc(row.placeId)}" data-title="${esc(row.title)}"
                 style="width:100%; text-align:left; padding:11px 16px; background:transparent; border:0; border-bottom:1px solid rgba(0,0,0,0.05); display:flex; gap:10px; align-items:center; cursor:pointer;">
-                <span style="font-size:1rem; line-height:1.2; flex-shrink:0;">📍</span>
+                <span style="flex-shrink:0; color:var(--accent-blue); display:inline-flex; align-items:center;">${iconSvg('pin', { size: 18 })}</span>
                 <div style="flex:1; min-width:0;">
                     <div style="font-weight:700; color:var(--text-brand-navy); font-size:0.88rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(row.title)}</div>
                     ${row.subtitle ? `<div style="font-size:0.74rem; color:var(--text-secondary); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(row.subtitle)}</div>` : ''}
