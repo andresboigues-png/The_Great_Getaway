@@ -1631,6 +1631,9 @@ export const fr: Translations = {
         seeRoute: 'Voir l\'itinéraire',
         findAirports: 'Aéroports à proximité',
         findTerminals: 'Terminaux à proximité',
+        seeTerminals: 'Voir les gares',
+        terminalsLoading: 'Recherche des gares…',
+        terminalsError: 'Impossible de charger les gares.',
     },
     tripHub: {
         cardTitle: 'Camp de base',

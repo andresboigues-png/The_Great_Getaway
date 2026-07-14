@@ -1626,6 +1626,9 @@ export const es: Translations = {
         seeRoute: 'Ver ruta',
         findAirports: 'Ver aeropuertos cerca',
         findTerminals: 'Ver terminales cerca',
+        seeTerminals: 'Ver terminales',
+        terminalsLoading: 'Buscando terminales…',
+        terminalsError: 'No se pudieron cargar los terminales.',
     },
     tripHub: {
         cardTitle: 'Centro del viaje',

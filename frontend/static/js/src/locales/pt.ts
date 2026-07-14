@@ -1630,6 +1630,9 @@ export const pt: Translations = {
         seeRoute: 'Ver rota',
         findAirports: 'Ver aeroportos perto',
         findTerminals: 'Ver terminais perto',
+        seeTerminals: 'Ver terminais',
+        terminalsLoading: 'A procurar terminais…',
+        terminalsError: 'Não foi possível carregar os terminais.',
     },
     tripHub: {
         cardTitle: 'Base da viagem',

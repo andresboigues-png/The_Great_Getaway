@@ -11,11 +11,11 @@
 // rows wrap rather than overflow.
 
 import { useEffect, useRef, useState } from 'react';
-import { t, tn } from '../../i18n.js';
+import { t, tn, getLocale } from '../../i18n.js';
 import { canEdit } from '../../permissions.js';
 import { showLiquidAlert, localTodayIso } from '../../utils.js';
 import { STATE, emit } from '../../state.js';
-import { upsertTrip, isUnretryableRejection } from '../../api.js';
+import { upsertTrip, isUnretryableRejection, apiFetch } from '../../api.js';
 import { openTransportModal, transportModeLabel } from '../home/transportModal.js';
 import { TransportModeIcon } from '../../react/components/TransportModeIcon.js';
 import { iconSvg } from '../../icons.js';
@@ -43,6 +43,122 @@ interface DayRange {
     from: number;
     to: number;
     days: TripDay[];
+}
+
+
+/** One curated arrival terminal from /api/arrival_terminals. */
+interface TerminalItem {
+    name: string;
+    note?: string;
+}
+
+/** Google Maps SEARCH link for one terminal ("<name> <city>"). */
+function terminalsMapsSearch(name: string, city: string): string {
+    const q = city ? `${name} ${city}` : name;
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+}
+
+/** "See terminals" — REPLACES the noisy Google Maps "find terminals nearby"
+ *  search for station-based legs (bus/train/tram/metro/ferry). On click it
+ *  POSTs /api/arrival_terminals and renders the curated MAJOR arrival hubs
+ *  inline, each as a small Maps search link. Mirrors airportMarker's
+ *  wireSuggestRoutes button pattern: loading label, inline error line, button
+ *  re-enabled on failure. Caches per trip+mode+locale in localStorage so
+ *  repeat clicks/loads make no billed call (like gg_airport_routes_*). */
+function TerminalsInline({ tripId, city, mode }: { tripId: string; city: string; mode: TransportMode }) {
+    const cacheKey = `gg_terminals_${tripId}_${mode}_${getLocale()}`;
+    const readCache = (): TerminalItem[] | null => {
+        try {
+            const raw = localStorage.getItem(cacheKey);
+            if (!raw) return null;
+            const arr = JSON.parse(raw) as unknown;
+            return Array.isArray(arr) && arr.length ? (arr as TerminalItem[]) : null;
+        } catch {
+            return null;
+        }
+    };
+    const [terminals, setTerminals] = useState<TerminalItem[] | null>(() => readCache());
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(false);
+
+    const fetchTerminals = () => {
+        void (async () => {
+            setLoading(true);
+            setError(false);
+            try {
+                const body = {
+                    city,
+                    mode,
+                    locale: getLocale(),
+                    ...(STATE.geminiApiKey ? { gemini_key: STATE.geminiApiKey } : {}),
+                };
+                // 120s budget (same as airport routes): the server sweeps up to
+                // 2 models × N keys at 30s each — the 20s apiFetch default would
+                // abort while the server still spends pool quota.
+                const res = await apiFetch(
+                    '/api/arrival_terminals',
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body),
+                    },
+                    120_000,
+                );
+                const json = (await res.json().catch(() => null)) as {
+                    terminals?: TerminalItem[];
+                } | null;
+                if (!res.ok || !json || !Array.isArray(json.terminals)) throw new Error('unavailable');
+                const list = json.terminals
+                    .filter((x) => x && typeof x.name === 'string')
+                    .slice(0, 5);
+                // An empty answer is not worth caching — leave the button usable
+                // so the user can retry later.
+                if (!list.length) throw new Error('empty');
+                try {
+                    localStorage.setItem(cacheKey, JSON.stringify(list));
+                } catch {
+                    /* quota / private mode — cache is best-effort */
+                }
+                setTerminals(list);
+            } catch {
+                setError(true);
+            } finally {
+                setLoading(false);
+            }
+        })();
+    };
+
+    if (terminals) {
+        return (
+            <div className="trip-travel__actions-row">
+                {terminals.map((term, i) => (
+                    <a
+                        key={`${term.name}-${i}`}
+                        className="trip-travel__action"
+                        href={terminalsMapsSearch(term.name, city)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        {...(term.note ? { title: term.note } : {})}
+                    >
+                        <span aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconSvg('externalLink', { size: 13 }) }} />
+                        {term.name}
+                    </a>
+                ))}
+            </div>
+        );
+    }
+    return (
+        <div className="trip-travel__actions-row">
+            <button type="button" className="trip-travel__action" disabled={loading} onClick={fetchTerminals}>
+                {loading ? t('transport.terminalsLoading') : t('transport.seeTerminals')}
+            </button>
+            {error ? (
+                <span className="trip-travel__leg-error" style={{ fontSize: '0.72rem', color: '#a33' }}>
+                    {t('transport.terminalsError')}
+                </span>
+            ) : null}
+        </div>
+    );
 }
 
 
@@ -351,7 +467,8 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
             );
         }
         if (TERMINAL_Q[mode]) {
-            return <div className="trip-travel__actions-row">{actionLink(mapsSearch(TERMINAL_Q[mode]!, base), t('transport.findTerminals'))}</div>;
+            const city = activeTrip.country || activeTrip.name || '';
+            return <TerminalsInline key={`${which}-${mode}`} tripId={activeTrip.id} city={city} mode={mode} />;
         }
         return null;
     };

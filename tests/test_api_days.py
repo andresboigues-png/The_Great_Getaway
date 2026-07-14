@@ -1099,3 +1099,93 @@ def test_airport_routes_filters_junk_and_caps(client, seed_user, auth_headers, m
     assert [x["mode"] for x in routes] == ["bus", "metro", "taxi", "walk"]  # junk out, capped at 4
     assert all(len(x["summary"]) <= 160 for x in routes)
     assert all(x["summary"] for x in routes)
+
+
+# ── Curated arrival terminals: /api/arrival_terminals validation ─────────────
+# Mirrors the airport_routes suite above — the endpoint copies its auth /
+# rate-limit / key-handling / parse posture, so the guards get the same
+# tripwires.
+
+
+def test_arrival_terminals_rejects_bad_mode(client, seed_user, auth_headers):
+    """A mode outside the station-based allowlist (or a missing one) is a 400,
+    never a Gemini call."""
+    r = client.post(
+        "/api/arrival_terminals",
+        headers=auth_headers,
+        json={"city": "Lisbon", "mode": "flight"},  # flight is not a terminal mode
+    )
+    assert r.status_code == 400
+    r = client.post(
+        "/api/arrival_terminals",
+        headers=auth_headers,
+        json={"city": "Lisbon"},  # missing mode
+    )
+    assert r.status_code == 400
+
+
+def test_arrival_terminals_no_keys_is_429(client, seed_user, auth_headers, monkeypatch):
+    """With no BYO key and an empty host pool the endpoint answers 429
+    (unavailable) without attempting any outbound call."""
+    from routes import integrations
+
+    monkeypatch.setattr(integrations, "_available_host_keys", lambda: [])
+    called = {"n": 0}
+
+    def _boom(*a, **k):
+        called["n"] += 1
+        raise AssertionError("no outbound call expected")
+
+    monkeypatch.setattr(integrations.requests, "post", _boom)
+    r = client.post(
+        "/api/arrival_terminals",
+        headers=auth_headers,
+        json={"city": "Lisbon", "mode": "train"},
+    )
+    assert r.status_code == 429
+    assert called["n"] == 0
+
+
+def test_arrival_terminals_filters_junk_and_caps(client, seed_user, auth_headers, monkeypatch):
+    """Success path with a faked Gemini answer: the list is capped at 5, empty
+    names dropped, and oversized names/notes truncated (80 / 120 chars)."""
+    import json as _json
+
+    from routes import integrations
+
+    fake_terminals = [
+        {"name": "Santa Apolónia", "note": "Trains from the north and Spain"},
+        {"name": "", "note": "no name — dropped"},
+        {"name": "x" * 200, "note": "y" * 400},
+        {"name": "Oriente", "note": "High-speed and international"},
+        {"name": "Rossio"},
+        {"name": "Cais do Sodré"},
+        {"name": "Beyond the cap"},
+    ]
+
+    class _Resp:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {"candidates": [{"content": {"parts": [{"text": _json.dumps(fake_terminals)}]}}]}
+
+    monkeypatch.setattr(integrations, "_available_host_keys", lambda: [(1, "host-key")])
+    monkeypatch.setattr(integrations.requests, "post", lambda *a, **k: _Resp())
+    r = client.post(
+        "/api/arrival_terminals",
+        headers=auth_headers,
+        json={"city": "Lisbon", "mode": "train", "locale": "en"},
+    )
+    assert r.status_code == 200
+    terminals = r.get_json()["terminals"]
+    assert len(terminals) == 5  # empty-name dropped, capped at 5
+    assert [t["name"] for t in terminals] == [
+        "Santa Apolónia",
+        "x" * 80,  # truncated to 80
+        "Oriente",
+        "Rossio",
+        "Cais do Sodré",
+    ]
+    assert all(len(t["name"]) <= 80 for t in terminals)
+    assert all(len(t.get("note", "")) <= 120 for t in terminals)

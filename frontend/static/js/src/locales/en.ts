@@ -1962,6 +1962,9 @@ export const en = {
         seeRoute: 'See route',
         findAirports: 'Find airports nearby',
         findTerminals: 'Find terminals nearby',
+        seeTerminals: 'See terminals',
+        terminalsLoading: 'Finding terminals…',
+        terminalsError: "Couldn't load terminals.",
     },
     tripHub: {
         cardTitle: 'Trip Hub',
