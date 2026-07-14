@@ -45,17 +45,31 @@ interface DayRange {
     days: TripDay[];
 }
 
+/** A directions endpoint — a display label + optional exact place_id / coords. */
+type Pt = { label: string; placeId?: string; coords?: string };
+
+/** Build a Google Maps directions deep link (the whole point of this tab:
+ *  one tap opens Maps already set to the right route + travel mode, no manual
+ *  filters). `null`/'current' origin = the device's current location. */
+function buildDirUrl(origin: Pt | 'current' | null, dest: Pt | null, travelmode?: string): string | null {
+    if (!dest) return null;
+    const p = new URLSearchParams();
+    p.set('api', '1');
+    p.set('destination', dest.coords || dest.label);
+    if (dest.placeId) p.set('destination_place_id', dest.placeId);
+    if (origin && origin !== 'current') {
+        p.set('origin', origin.coords || origin.label);
+        if (origin.placeId) p.set('origin_place_id', origin.placeId);
+    }
+    if (travelmode) p.set('travelmode', travelmode);
+    return `https://www.google.com/maps/dir/?${p.toString()}`;
+}
+
 
 /** One curated arrival terminal from /api/arrival_terminals. */
 interface TerminalItem {
     name: string;
     note?: string;
-}
-
-/** Google Maps SEARCH link for one terminal ("<name> <city>"). */
-function terminalsMapsSearch(name: string, city: string): string {
-    const q = city ? `${name} ${city}` : name;
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 
 /** "See terminals" — REPLACES the noisy Google Maps "find terminals nearby"
@@ -65,7 +79,25 @@ function terminalsMapsSearch(name: string, city: string): string {
  *  wireSuggestRoutes button pattern: loading label, inline error line, button
  *  re-enabled on failure. Caches per trip+mode+locale in localStorage so
  *  repeat clicks/loads make no billed call (like gg_airport_routes_*). */
-function TerminalsInline({ tripId, city, mode }: { tripId: string; city: string; mode: TransportMode }) {
+function TerminalsInline({
+    tripId,
+    city,
+    mode,
+    which,
+    base,
+    country,
+    lat,
+    lng,
+}: {
+    tripId: string;
+    city: string;
+    mode: TransportMode;
+    which: 'arrival' | 'departure';
+    base: Pt | null;
+    country?: string;
+    lat?: number;
+    lng?: number;
+}) {
     const cacheKey = `gg_terminals_${tripId}_${mode}_${getLocale()}`;
     const readCache = (): TerminalItem[] | null => {
         try {
@@ -90,6 +122,9 @@ function TerminalsInline({ tripId, city, mode }: { tripId: string; city: string;
                     city,
                     mode,
                     locale: getLocale(),
+                    ...(country ? { country } : {}),
+                    ...(typeof lat === 'number' ? { lat } : {}),
+                    ...(typeof lng === 'number' ? { lng } : {}),
                     ...(STATE.geminiApiKey ? { gemini_key: STATE.geminiApiKey } : {}),
                 };
                 // 120s budget (same as airport routes): the server sweeps up to
@@ -129,16 +164,31 @@ function TerminalsInline({ tripId, city, mode }: { tripId: string; city: string;
     };
 
     if (terminals) {
+        // Each terminal → a Google Maps DIRECTIONS link (transit), already set
+        // to route between the station and the trip's home base (arrival: the
+        // station → base; departure: base → the station). The station is
+        // geocoded as "<name>, <city>". No base (no accommodation/place yet) →
+        // fall back to a plain Maps search so the pill is still useful. THIS is
+        // the time-saver — one tap opens the ready-made route, no manual filters.
+        const termHref = (name: string): string => {
+            const term: Pt = { label: `${name}, ${city}` };
+            if (!base) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name} ${city}`)}`;
+            return (
+                which === 'arrival'
+                    ? buildDirUrl(term, base, 'transit')
+                    : buildDirUrl(base, term, 'transit')
+            ) as string;
+        };
         return (
             <div className="trip-travel__actions-row">
                 {terminals.map((term, i) => (
                     <a
                         key={`${term.name}-${i}`}
                         className="trip-travel__action"
-                        href={terminalsMapsSearch(term.name, city)}
+                        href={termHref(term.name)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        {...(term.note ? { title: term.note } : {})}
+                        title={term.note || (base ? t('transport.terminalRouteTitle') : term.name)}
                     >
                         <span aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconSvg('externalLink', { size: 13 }) }} />
                         {term.name}
@@ -366,7 +416,6 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
     // for arrival, last-day accommodation for departure, else the trip's own
     // place, else its name. When the trip is happening NOW, the "to airport"
     // origin defaults to the traveller's current location (Maps omits origin).
-    type Pt = { label: string; placeId?: string; coords?: string };
     const sortedDays = [...tripDays].filter((d) => d.dayNumber >= 1).sort((a, b) => a.dayNumber - b.dayNumber);
     const homeBase = (which: 'arrival' | 'departure'): Pt | null => {
         const d = which === 'arrival' ? sortedDays[0] : sortedDays[sortedDays.length - 1];
@@ -388,20 +437,8 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
         walk: 'walking', bike: 'bicycling', car: 'driving', taxi: 'driving',
         metro: 'transit', bus: 'transit', train: 'transit', tram: 'transit', ferry: 'transit', flight: 'transit',
     };
-    const mapsDir = (origin: Pt | 'current' | null, dest: Pt | null, mode?: TransportMode): string | null => {
-        if (!dest) return null;
-        const p = new URLSearchParams();
-        p.set('api', '1');
-        p.set('destination', dest.coords || dest.label);
-        if (dest.placeId) p.set('destination_place_id', dest.placeId);
-        if (origin && origin !== 'current') {
-            p.set('origin', origin.coords || origin.label);
-            if (origin.placeId) p.set('origin_place_id', origin.placeId);
-        }
-        const tm = mode ? _TRAVELMODE[mode] : undefined;
-        if (tm) p.set('travelmode', tm);
-        return `https://www.google.com/maps/dir/?${p.toString()}`;
-    };
+    const mapsDir = (origin: Pt | 'current' | null, dest: Pt | null, mode?: TransportMode): string | null =>
+        buildDirUrl(origin, dest, mode ? _TRAVELMODE[mode] : undefined);
     const mapsSearch = (query: string, near: Pt | null): string => {
         const q = near ? `${query} ${near.coords || near.label}` : query;
         return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
@@ -467,8 +504,22 @@ export function TransportTab({ activeTrip, isActive }: TransportTabProps) {
             );
         }
         if (TERMINAL_Q[mode]) {
-            const city = activeTrip.country || activeTrip.name || '';
-            return <TerminalsInline key={`${which}-${mode}`} tripId={activeTrip.id} city={city} mode={mode} />;
+            return (
+                <TerminalsInline
+                    key={`${which}-${mode}`}
+                    tripId={activeTrip.id}
+                    mode={mode}
+                    which={which}
+                    base={homeBase(which)}
+                    // Trip NAME first (it's the destination, city-like); country +
+                    // coords go along so the AI resolves the real city even from an
+                    // informal name ("Atlanta WC 2026" → Atlanta).
+                    city={activeTrip.name || activeTrip.country || ''}
+                    country={activeTrip.country || ''}
+                    {...(typeof activeTrip.lat === 'number' ? { lat: activeTrip.lat } : {})}
+                    {...(typeof activeTrip.lng === 'number' ? { lng: activeTrip.lng } : {})}
+                />
+            );
         }
         return null;
     };

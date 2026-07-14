@@ -1632,6 +1632,7 @@ export const fr: Translations = {
         findAirports: 'Aéroports à proximité',
         findTerminals: 'Terminaux à proximité',
         seeTerminals: 'Voir les gares',
+        terminalRouteTitle: 'Itinéraire en transport vers votre hébergement',
         terminalsLoading: 'Recherche des gares…',
         terminalsError: 'Impossible de charger les gares.',
     },

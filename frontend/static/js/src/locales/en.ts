@@ -1963,6 +1963,7 @@ export const en = {
         findAirports: 'Find airports nearby',
         findTerminals: 'Find terminals nearby',
         seeTerminals: 'See terminals',
+        terminalRouteTitle: 'Transit directions to/from your stay',
         terminalsLoading: 'Finding terminals…',
         terminalsError: "Couldn't load terminals.",
     },

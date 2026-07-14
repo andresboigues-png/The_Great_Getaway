@@ -1627,6 +1627,7 @@ export const es: Translations = {
         findAirports: 'Ver aeropuertos cerca',
         findTerminals: 'Ver terminales cerca',
         seeTerminals: 'Ver terminales',
+        terminalRouteTitle: 'Cómo llegar en transporte a tu alojamiento',
         terminalsLoading: 'Buscando terminales…',
         terminalsError: 'No se pudieron cargar los terminales.',
     },
