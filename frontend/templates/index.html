@@ -302,13 +302,12 @@
                  the label text and leaves the sibling SVG intact. -->
             <a href="#" class="nav-item" data-page="ai"><span data-i18n-key="nav.ai">Plan with AI</span> <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;vertical-align:-1px"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg></a>
             <a href="#" class="nav-item" data-page="expenses" data-i18n-key="nav.expenses">Expenses</a>
-            <!-- "Insights" used to live here as its own nav item +
-                 top-level page. 2026-05-14 restructure folded it
-                 into Expenses as a tab — see pages/expenses/
-                 Expenses.tsx. The old /insights route still works
-                 as a redirect (pages/insights/mount.ts) so any
-                 stale links land on the Expenses page with the
-                 Insights tab active. -->
+            <!-- Insights is BACK as a top-level nav item (2026-07-14, user
+                 request): it lives up here next to Expenses on desktop and
+                 in the mobile bottom tabs — it no longer sits in the left
+                 rail. (History: 2026-05-14 folded it into Expenses as a
+                 tab; it was later re-mounted as its own page.) -->
+            <a href="#" class="nav-item" data-page="insights" data-i18n-key="nav.insights">Insights</a>
             <!-- Desktop notification bell — LAST item in the nav strip (right
                  of "Expenses"), swapped with Feed per user request. The mobile
                  copy lives in the top-banner right cluster, hidden here at
@@ -485,14 +484,8 @@
                 <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
             </svg>
         </a>
-        <a href="#" class="sidebar-rail__item" data-page="insights" aria-label="Insights" data-i18n-aria-label="nav.insights" title="Insights">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M3 3v18h18" />
-                <path d="M18 17V9" />
-                <path d="M13 17V5" />
-                <path d="M8 17v-3" />
-            </svg>
-        </a>
+        <!-- Insights moved OUT of the rail (2026-07-14): it now lives in the
+             top navbar next to Expenses (desktop) and the mobile bottom tabs. -->
         <a href="#" class="sidebar-rail__item" data-page="settlement" aria-label="Settlements" data-i18n-aria-label="nav.settlement" title="Settlements">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
@@ -623,11 +616,19 @@
             </svg>
             <span data-i18n-key="nav.expenses">Expenses</span>
         </a>
-        <!-- "Insights" used to be its own bottom-nav item here.
-             2026-05-14 restructure folded it into Expenses as a
-             tab (Upload | Insights | History). The bottom nav is
-             4 items now instead of 5; the CSS in index.css scales
-             flex-basis off item count so no spacing fix is needed. -->
+        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="insights" aria-label="Insights" data-i18n-aria-label="nav.insights">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 3v18h18"></path>
+                <path d="M18 17V9"></path>
+                <path d="M13 17V5"></path>
+                <path d="M8 17v-3"></path>
+            </svg>
+            <span data-i18n-key="nav.insights">Insights</span>
+        </a>
+        <!-- Insights is back as its own bottom-nav item (2026-07-14, next to
+             Expenses — mirrors the desktop navbar). The bottom nav is 5 items;
+             the CSS in index.css scales flex-basis off item count so no
+             spacing fix is needed. -->
     </nav>
 
     {% if dev_mode %}
