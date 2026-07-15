@@ -443,110 +443,41 @@ body {
     font-weight: 800;
 }
 
-/* ── Active page: crystal liquid-glass label ─────────────────────────
-   The current page's label renders as glass: a blue gradient with a
-   bright refraction band clipped INTO the glyphs, plus a soft two-layer
-   blue glow (drop-shadow follows the glyph shapes; text-shadow would
-   wash out clipped text). On activation a single light-sweep crosses
-   the label once — liquid, then still. Deliberately restrained: same
-   size/weight as hover so nothing jumps, glow alphas kept low. */
-/* (v3: the glow was dropped entirely — no filter base needed; the
-   crystal fill + stroke swap in via the standard .2s transition.) */
-.nav-item.active {
-    /* BLUE CRYSTAL (v3, per user reference): the glyphs are translucent
-       blue glass — a watery blue gradient body with a bright sheen band
-       near the top and a thin deeper-blue edge for definition. NO glow
-       at all: the earlier drop-shadows read as blur and were dropped.
-       Layer 1 is the one-shot activation light-sweep (transparent at
-       rest); layer 2 is the crystal body. */
-    background-image:
-        linear-gradient(
-            105deg,
-            rgba(255, 255, 255, 0) 38%,
-            rgba(255, 255, 255, 0.95) 50%,
-            rgba(255, 255, 255, 0) 62%
-        ),
-        linear-gradient(
-            180deg,
-            #8ec6ff 0%,
-            #d3ebff 26%,
-            #56a8f8 52%,
-            #9dcdff 74%,
-            #2e8ff2 100%
-        );
-    background-size: 280% 100%, 100% 100%;
-    background-position: 130% 0, 0 0;
-    background-repeat: no-repeat;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-    -webkit-text-stroke: 0.7px rgba(0, 96, 190, 0.5);
-    animation: nav-glass-sweep 0.9s cubic-bezier(0.25, 0.8, 0.35, 1) 1;
+/* ── Active page: light shade behind the label ──────────────────────
+   Flat blue text (base colour + the weight bump above) with a soft
+   rounded shade behind it marking the current page — no glassy fill.
+   The shade is a ::before pill inset BEYOND the text (z-index:-1 puts
+   it under the glyphs, on the navbar) so the item never changes size
+   between states — zero layout shift. */
+.nav-item {
+    position: relative;
 }
-/* One pass of light across the ice when the page becomes active —
-   the sweep layer crosses the label, then parks off-glyph. */
-@keyframes nav-glass-sweep {
-    from {
-        background-position: -60% 0, 0 0;
-    }
-    to {
-        background-position: 130% 0, 0 0;
-    }
+.nav-item.active::before {
+    content: '';
+    position: absolute;
+    inset: -6px -12px;
+    border-radius: 11px;
+    background: rgba(0, 113, 227, 0.1);
+    z-index: -1;
 }
-@media (prefers-reduced-motion: reduce) {
-    .nav-item.active {
-        animation: none;
-    }
+:root[data-theme="dark"] .nav-item.active::before {
+    background: rgba(10, 132, 255, 0.16);
 }
-/* ── Crystal glass for the nav ICON buttons (Feed + notifications) ──
-   Same treatment as the text labels, adapted for SVG strokes: the
-   crystal gradient is an SVG paint server (#ggNavGlassGrad in the
-   navbar defs, stops driven by the vars below so dark mode re-tints
-   it), and the glow is the identical two-layer drop-shadow. Feed gets
-   `.active` from the router; the bells' "active" is their dropdown-open
-   state (aria-expanded). Zero-alpha base glow so it FADES in. */
-:root {
-    /* Blue-crystal palette (v3, no glow anywhere): watery highlight →
-       glass blue → deep anchor. The deep stop keeps a 2px icon stroke
-       legible on the white bar (icons can't carry a text-stroke edge). */
-    --nav-glass-s1: #bfe0ff;
-    --nav-glass-s2: #56a8f8;
-    --nav-glass-s3: #1d7fe8;
+/* Feed + notification-bell icon buttons get the same light shade when
+   the page is active / the dropdown is open — they already have padding
+   so the fill just sits in it. `!important` beats the mobile buttons'
+   inline background:transparent. The glyph stays the normal blue stroke. */
+#navFeedBtnDesktop.active,
+#navFeedBtnMobile.active,
+#notificationBellBtn[aria-expanded="true"],
+#notificationBellBtnDesktop[aria-expanded="true"] {
+    background: rgba(0, 113, 227, 0.1) !important;
 }
-:root[data-theme="dark"] {
-    --nav-glass-s1: #d8ecff;
-    --nav-glass-s2: #6cb4ff;
-    --nav-glass-s3: #4da2ff;
-}
-#navFeedBtnDesktop.active svg,
-#navFeedBtnMobile.active svg,
-#notificationBellBtn[aria-expanded="true"] svg,
-#notificationBellBtnDesktop[aria-expanded="true"] svg {
-    stroke: url(#ggNavGlassGrad);
-}
-
-/* Dark island: brighter glass + slightly stronger glow so the crystal
-   reads on the graphite navbar. */
-:root[data-theme="dark"] .nav-item.active {
-    /* Crystal on graphite: same watery body, one step brighter so the
-       glass reads on dark; edge lightened. Still no glow. */
-    background-image:
-        linear-gradient(
-            105deg,
-            rgba(255, 255, 255, 0) 38%,
-            rgba(255, 255, 255, 0.95) 50%,
-            rgba(255, 255, 255, 0) 62%
-        ),
-        linear-gradient(
-            180deg,
-            #a9d6ff 0%,
-            #e2f2ff 26%,
-            #6cb4ff 52%,
-            #b4dbff 74%,
-            #4da2ff 100%
-        );
-    -webkit-text-stroke: 0.7px rgba(140, 200, 255, 0.5);
+:root[data-theme="dark"] #navFeedBtnDesktop.active,
+:root[data-theme="dark"] #navFeedBtnMobile.active,
+:root[data-theme="dark"] #notificationBellBtn[aria-expanded="true"],
+:root[data-theme="dark"] #notificationBellBtnDesktop[aria-expanded="true"] {
+    background: rgba(10, 132, 255, 0.16) !important;
 }
 
 .nav-trips {
