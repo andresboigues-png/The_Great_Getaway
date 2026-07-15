@@ -443,6 +443,72 @@ body {
     font-weight: 800;
 }
 
+/* ── Active page: crystal liquid-glass label ─────────────────────────
+   The current page's label renders as glass: a blue gradient with a
+   bright refraction band clipped INTO the glyphs, plus a soft two-layer
+   blue glow (drop-shadow follows the glyph shapes; text-shadow would
+   wash out clipped text). On activation a single light-sweep crosses
+   the label once — liquid, then still. Deliberately restrained: same
+   size/weight as hover so nothing jumps, glow alphas kept low. */
+.nav-item {
+    /* zero-glow base so the drop-shadow can FADE in (filter: none →
+       drop-shadow(...) is a discrete, non-interpolable jump). */
+    filter: drop-shadow(0 0 4px rgba(0, 113, 227, 0)) drop-shadow(0 2px 10px rgba(0, 113, 227, 0));
+    transition: all 0.2s ease, filter 0.35s ease;
+}
+.nav-item.active {
+    /* Stops laid out so the RESTING window (background-position 100%,
+       i.e. the gradient's last 45%) is a legible mid→deep blue crystal;
+       the bright refraction band lives in the FIRST half and only
+       crosses the glyphs during the activation sweep. */
+    background-image: linear-gradient(
+        118deg,
+        #005bb8 0%,
+        #b8dcff 22%,
+        #2e8ff2 40%,
+        #5faaff 62%,
+        #99c8ff 76%,
+        #0071e3 100%
+    );
+    background-size: 220% 100%;
+    background-position: 100% 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    filter: drop-shadow(0 0 4px rgba(0, 113, 227, 0.4)) drop-shadow(0 2px 10px rgba(0, 113, 227, 0.22));
+    animation: nav-glass-sweep 0.9s cubic-bezier(0.25, 0.8, 0.35, 1) 1;
+}
+/* One pass of light through the glass when the page becomes active —
+   the band crosses the label, then settles off-glyph. */
+@keyframes nav-glass-sweep {
+    from {
+        background-position: 0% 0;
+    }
+    to {
+        background-position: 100% 0;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .nav-item.active {
+        animation: none;
+    }
+}
+/* Dark island: brighter glass + slightly stronger glow so the crystal
+   reads on the graphite navbar. */
+:root[data-theme="dark"] .nav-item.active {
+    background-image: linear-gradient(
+        118deg,
+        #0a84ff 0%,
+        #dcefff 22%,
+        #4da2ff 40%,
+        #8cc4ff 62%,
+        #c4e2ff 76%,
+        #0a84ff 100%
+    );
+    filter: drop-shadow(0 0 5px rgba(10, 132, 255, 0.55)) drop-shadow(0 2px 12px rgba(10, 132, 255, 0.3));
+}
+
 .nav-trips {
     display: flex;
     align-items: center;
