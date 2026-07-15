@@ -2660,7 +2660,7 @@
 .trip-travel__zone { padding: 14px 16px; }
 .trip-travel__zone-label {
     font-size: 0.72rem; font-weight: 800; text-transform: uppercase;
-    letter-spacing: 0.06em; color: var(--text-secondary);
+    letter-spacing: 0.06em; color: var(--accent-blue, #0071e3);
 }
 /* Collapsible zone header — the label + a chevron; the whole row toggles. */
 .trip-travel__zone-header {
