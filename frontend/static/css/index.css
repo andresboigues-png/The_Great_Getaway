@@ -450,19 +450,15 @@ body {
    wash out clipped text). On activation a single light-sweep crosses
    the label once — liquid, then still. Deliberately restrained: same
    size/weight as hover so nothing jumps, glow alphas kept low. */
-.nav-item {
-    /* zero-glow base so the drop-shadow can FADE in (filter: none →
-       drop-shadow(...) is a discrete, non-interpolable jump). */
-    filter: drop-shadow(0 0 4px rgba(0, 113, 227, 0)) drop-shadow(0 2px 10px rgba(0, 113, 227, 0));
-    transition: all 0.2s ease, filter 0.35s ease;
-}
+/* (v3: the glow was dropped entirely — no filter base needed; the
+   crystal fill + stroke swap in via the standard .2s transition.) */
 .nav-item.active {
-    /* FROZEN glass: an icy vertical gradient fills the glyphs (bright
-       frost core), a crisp frozen-blue text-stroke keeps the letterforms
-       fully legible on the white bar, and two TIGHT drop-shadows hug the
-       glyph edges — reading as a blue glow from INSIDE the ice, not a
-       fuzzy outer halo. Layer 1 is a light-sweep band (animated once on
-       activation, transparent at rest); layer 2 is the ice itself. */
+    /* BLUE CRYSTAL (v3, per user reference): the glyphs are translucent
+       blue glass — a watery blue gradient body with a bright sheen band
+       near the top and a thin deeper-blue edge for definition. NO glow
+       at all: the earlier drop-shadows read as blur and were dropped.
+       Layer 1 is the one-shot activation light-sweep (transparent at
+       rest); layer 2 is the crystal body. */
     background-image:
         linear-gradient(
             105deg,
@@ -472,11 +468,11 @@ body {
         ),
         linear-gradient(
             180deg,
-            #f4fbff 0%,
-            #cde8ff 34%,
-            #8fc4ff 54%,
-            #c2e2ff 76%,
-            #e8f5ff 100%
+            #8ec6ff 0%,
+            #d3ebff 26%,
+            #56a8f8 52%,
+            #9dcdff 74%,
+            #2e8ff2 100%
         );
     background-size: 280% 100%, 100% 100%;
     background-position: 130% 0, 0 0;
@@ -485,8 +481,7 @@ body {
     background-clip: text;
     -webkit-text-fill-color: transparent;
     color: transparent;
-    -webkit-text-stroke: 0.8px rgba(0, 101, 202, 0.6);
-    filter: drop-shadow(0 0 1.5px rgba(0, 113, 227, 0.65)) drop-shadow(0 0 5px rgba(64, 156, 255, 0.38));
+    -webkit-text-stroke: 0.7px rgba(0, 96, 190, 0.5);
     animation: nav-glass-sweep 0.9s cubic-bezier(0.25, 0.8, 0.35, 1) 1;
 }
 /* One pass of light across the ice when the page becomes active —
@@ -512,44 +507,30 @@ body {
    `.active` from the router; the bells' "active" is their dropdown-open
    state (aria-expanded). Zero-alpha base glow so it FADES in. */
 :root {
-    /* Frozen palette: ice at the top-left melting into a readable blue —
-       a 2px icon stroke can't carry a text-stroke edge, so the deep-blue
-       anchor stop keeps the glyph legible on the white bar. */
-    --nav-glass-s1: #eaf6ff;
-    --nav-glass-s2: #8fc4ff;
+    /* Blue-crystal palette (v3, no glow anywhere): watery highlight →
+       glass blue → deep anchor. The deep stop keeps a 2px icon stroke
+       legible on the white bar (icons can't carry a text-stroke edge). */
+    --nav-glass-s1: #bfe0ff;
+    --nav-glass-s2: #56a8f8;
     --nav-glass-s3: #1d7fe8;
 }
 :root[data-theme="dark"] {
-    --nav-glass-s1: #f4fbff;
-    --nav-glass-s2: #a5d2ff;
+    --nav-glass-s1: #d8ecff;
+    --nav-glass-s2: #6cb4ff;
     --nav-glass-s3: #4da2ff;
-}
-#navFeedBtnDesktop svg,
-#navFeedBtnMobile svg,
-#notificationBellBtn svg,
-#notificationBellBtnDesktop svg {
-    filter: drop-shadow(0 0 4px rgba(0, 113, 227, 0)) drop-shadow(0 2px 10px rgba(0, 113, 227, 0));
-    transition: filter 0.35s ease;
 }
 #navFeedBtnDesktop.active svg,
 #navFeedBtnMobile.active svg,
 #notificationBellBtn[aria-expanded="true"] svg,
 #notificationBellBtnDesktop[aria-expanded="true"] svg {
     stroke: url(#ggNavGlassGrad);
-    filter: drop-shadow(0 0 1.5px rgba(0, 113, 227, 0.65)) drop-shadow(0 0 5px rgba(64, 156, 255, 0.38));
-}
-:root[data-theme="dark"] #navFeedBtnDesktop.active svg,
-:root[data-theme="dark"] #navFeedBtnMobile.active svg,
-:root[data-theme="dark"] #notificationBellBtn[aria-expanded="true"] svg,
-:root[data-theme="dark"] #notificationBellBtnDesktop[aria-expanded="true"] svg {
-    filter: drop-shadow(0 0 1.5px rgba(10, 132, 255, 0.8)) drop-shadow(0 0 6px rgba(90, 170, 255, 0.5));
 }
 
 /* Dark island: brighter glass + slightly stronger glow so the crystal
    reads on the graphite navbar. */
 :root[data-theme="dark"] .nav-item.active {
-    /* Ice on graphite: same frost fill (bright ice pops naturally on
-       dark), lighter frozen edge, slightly stronger inner-blue glow. */
+    /* Crystal on graphite: same watery body, one step brighter so the
+       glass reads on dark; edge lightened. Still no glow. */
     background-image:
         linear-gradient(
             105deg,
@@ -559,14 +540,13 @@ body {
         ),
         linear-gradient(
             180deg,
-            #f8fdff 0%,
-            #d8eeff 34%,
-            #a5d2ff 54%,
-            #d0e9ff 76%,
-            #f0f9ff 100%
+            #a9d6ff 0%,
+            #e2f2ff 26%,
+            #6cb4ff 52%,
+            #b4dbff 74%,
+            #4da2ff 100%
         );
-    -webkit-text-stroke: 0.8px rgba(120, 190, 255, 0.55);
-    filter: drop-shadow(0 0 1.5px rgba(10, 132, 255, 0.8)) drop-shadow(0 0 6px rgba(90, 170, 255, 0.5));
+    -webkit-text-stroke: 0.7px rgba(140, 200, 255, 0.5);
 }
 
 .nav-trips {
