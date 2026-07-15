@@ -1403,10 +1403,11 @@ body.is-signed-out .rail-peek {
         overscroll-behavior: contain;
         scrollbar-width: none;
         -ms-overflow-style: none;
-        /* Solid centre, only the very top/bottom edges fade to see-through
-           (a thin band) so the focused icons stay fully opaque. */
-        -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
-        mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
+        /* 2026-07-15: the top/bottom fade mask is GONE — it made the whole
+           island (glass background included) read as faded/transparent at
+           the edges. The island now keeps its full Liquid Glass surface,
+           crisp to the rounded corners; the reel affordance comes from the
+           scaled/dimmed off-centre icons + the glass magnifier at centre. */
     }
     .sidebar-rail::-webkit-scrollbar {
         display: none;
@@ -1440,24 +1441,47 @@ body.is-signed-out .rail-peek {
         opacity: 0.55;
         transform: scale(0.86);
     }
-    /* Fixed "selection window" ring at the reel's centre — the picker frame
-       that makes it obvious you're spinning a wheel. Sits over the centre
-       slot; the focused icon shows through it. */
+    /* Fixed "selection window" at the reel's centre — the SAME liquid-glass
+       magnifying square the desktop rail lens uses (sheen gradient, hairline
+       double border, specular glare, soft shadow — no blue shade). Whatever
+       the reel parks inside it is the selection; the spin/commit logic in
+       railScrubber.ts is untouched. */
     .rail-hub {
         position: fixed;
         z-index: 1101;
-        border: 2px solid rgba(0, 113, 227, 0.6);
-        border-radius: 13px;
-        background: rgba(0, 113, 227, 0.1);
+        border-radius: 12px;
+        background: linear-gradient(150deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.14) 55%, rgba(0, 113, 227, 0.1) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.85);
+        outline: 1px solid rgba(0, 113, 227, 0.35);
         box-shadow:
-            0 3px 12px rgba(0, 45, 91, 0.16),
-            inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+            0 4px 14px rgba(0, 45, 91, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.85),
+            inset 0 -8px 12px -8px rgba(0, 113, 227, 0.3);
+        -webkit-backdrop-filter: saturate(1.35);
+        backdrop-filter: saturate(1.35);
         pointer-events: none;
         opacity: 0;
         transition: opacity 0.2s ease;
     }
+    /* Specular highlight — the same "glass glare" the lens carries. */
+    .rail-hub::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 4px;
+        width: 45%;
+        height: 34%;
+        border-radius: 50%;
+        background: radial-gradient(ellipse at 35% 30%, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 70%);
+        pointer-events: none;
+    }
     .rail-hub.is-shown {
         opacity: 1;
+    }
+    /* The desktop travelling lens would double up with the centre magnifier
+       on the reel — the hub square IS the mobile lens. */
+    .rail-lens {
+        display: none;
     }
 }
 
@@ -6111,6 +6135,16 @@ main#app-container.nav-anim-backward {
 }
 :root[data-theme="dark"] .sidebar-rail__item.lens-target {
     background: rgba(10, 132, 255, 0.14);
+}
+/* Mobile reel's centre magnifier — same dark-glass treatment as the lens. */
+:root[data-theme="dark"] .rail-hub {
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.06) 55%, rgba(10, 132, 255, 0.14) 100%);
+    border-color: rgba(255, 255, 255, 0.38);
+    outline-color: rgba(10, 132, 255, 0.45);
+    box-shadow:
+        0 4px 14px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35),
+        inset 0 -8px 12px -8px rgba(10, 132, 255, 0.35);
 }
 :root[data-theme="dark"] .sidebar-rail__item:hover,
 :root[data-theme="dark"] .sidebar-rail__item:focus-visible {

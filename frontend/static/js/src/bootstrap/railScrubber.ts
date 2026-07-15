@@ -225,5 +225,10 @@ export function initRailScrubber(): void {
     new MutationObserver(sync).observe(rail, { attributes: true, attributeFilter: ['class'] });
     window.addEventListener('resize', sync);
     mq.addEventListener?.('change', sync);
+    // The island slides in via a 0.35s transform transition; the class-flip
+    // sync() above reads the rail's rect MID-SLIDE, parking the overlays at
+    // the off-screen position (hub x ≈ -56). Re-sync when the slide settles
+    // so the centre magnifier + scrub line land on the island's REAL spot.
+    rail.addEventListener('transitionend', sync);
     sync();
 }
