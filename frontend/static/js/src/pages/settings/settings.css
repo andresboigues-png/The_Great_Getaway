@@ -363,15 +363,17 @@
     display: grid;
     grid-template-columns: 32px 1fr auto auto auto auto;
     align-items: end;
+    /* gap MUST mirror .poi-filter-row's gap — the header cells align to
+       the row columns by matched min-widths + identical track gaps. */
     gap: var(--space-3);
-    padding: 0 calc(var(--space-4) + 1px); /* +1px: match the rows' border inset */
-    margin-bottom: calc(var(--space-3) * -0.5);
+    padding: 0 calc(var(--space-4) + 1px) 6px; /* +1px: match the rows' border inset */
+    margin-bottom: 2px;
 }
 .poi-filter-head__cell {
-    font-size: 0.68rem;
+    font-size: 0.72rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.07em;
     color: var(--accent-blue, #0071e3);
     text-align: center;
     white-space: nowrap;
@@ -950,13 +952,26 @@
 .st-section-head {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 18px;
+    gap: 12px;
+    /* Generous air between the title row and the setting's body — the
+       header is the page's anchor, not a cramped label. */
+    margin-bottom: 30px;
     flex-wrap: wrap;
 }
 .st-section-title {
     margin: 0;
+    font-size: 1.35rem;
+    letter-spacing: -0.015em;
     color: color-mix(in srgb, rgb(var(--st-accent)) 72%, #1a1a2e);
+}
+/* Sub-card variant (h3, e.g. the Reset cards) — smaller but same voice. */
+h3.st-section-title {
+    font-size: 1.08rem;
+}
+/* The General sub-tab pill strip rides the header row's right slot —
+   kill its standalone bottom margin there. */
+.st-section-head .general-subtabs {
+    margin-bottom: 0;
 }
 .st-section-head__right {
     margin-left: auto;

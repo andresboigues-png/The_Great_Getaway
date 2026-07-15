@@ -492,7 +492,8 @@ function GeneralView() {
 
     return (
         <>
-            <SubTabStrip current={generalSubTab} />
+            {/* The sub-tab strip now rides each section's header row
+                (SettingsSectionHeader right slot) — in line with the title. */}
             {generalSubTab === 'pills' && <GeneralPillsSection />}
             {generalSubTab === 'appearance' && <GeneralAppearanceSection />}
             {generalSubTab === 'language' && <GeneralLanguageSection />}
@@ -639,6 +640,7 @@ function GeneralPillsSection() {
                     t('settings.poiIntroRating'),
                     t('settings.poiIntroAnchor'),
                 ]}
+                right={<SubTabStrip current="pills" />}
             />
             <div className="poi-filter-list">
                 {/* Column headers — one per control column, width-matched to
@@ -868,6 +870,7 @@ function GeneralAppearanceSection() {
                 accent={SETTINGS_ACCENTS.general}
                 icon="palette"
                 infoHtml={[t('settings.themePickerSubtitleV2')]}
+                right={<SubTabStrip current="appearance" />}
             />
 
             <div className="theme-options">
@@ -1001,6 +1004,7 @@ function GeneralLanguageSection() {
                 accent={SETTINGS_ACCENTS.general}
                 icon="globe"
                 info={[t('settings.languageDesc')]}
+                right={<SubTabStrip current="language" />}
             />
             <div className="theme-options">
                 {langOpt('en', t('settings.languageEnglish'), 'English')}
