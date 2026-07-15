@@ -6556,29 +6556,14 @@ main#app-container.nav-anim-backward {
         gap: 6px;
         max-width: 100%;
     }
+    /* Icon-only pills on desktop too — the label is a hover tooltip
+       (see settings.css), no inline text or drill chevron. Content-sized
+       so the pills don't stretch across the strip. */
     .general-subtab {
-        flex: 1 1 auto;
-        min-width: 0;
-        padding: 9px 12px;
+        flex: 0 0 auto;
         position: relative;
     }
     .general-subtab__icon { font-size: 0.9rem; }
-    .general-subtab__label {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    /* Inline chevron — sits flush right of the label so the tab reads
-       as "tap to open this section". Hidden on the currently-active
-       tab (no need to advertise affordance for the one already open). */
-    .general-subtab:not(.is-active)::after {
-        content: '›';
-        margin-left: 6px;
-        font-size: 1rem;
-        line-height: 1;
-        opacity: 0.55;
-        font-weight: 700;
-    }
 
     /* Management cards (menu view) — keep the left room for the pinned icon
        (the desktop rule sets it); just soften the radius on phones. */

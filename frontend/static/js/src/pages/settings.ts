@@ -109,23 +109,35 @@ export function openEditCategoryModal(categoryId: string) {
     ];
     const initialKey = (cat.icon && ICON_PATHS[cat.icon]) ? cat.icon : (emojiToIconKey(cat.icon) ?? 'tag');
     const swatches = PALETTE
-        .map((key) => `<button type="button" class="edit-cat-swatch${key === initialKey ? ' is-active' : ''}" role="radio" aria-checked="${key === initialKey}" data-key="${esc(key)}" title="${esc(key)}" style="display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;border:1.5px solid var(--glass-border, rgba(0,45,91,0.14));background:transparent;color:var(--text-brand-navy,#002d5b);cursor:pointer;">${iconSvg(key, { size: 18 })}</button>`)
+        .map((key) => `<button type="button" class="edit-cat-swatch${key === initialKey ? ' is-active' : ''}" role="radio" aria-checked="${key === initialKey}" data-key="${esc(key)}" title="${esc(key)}" style="display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:1;border-radius:13px;border:1.5px solid var(--glass-border, rgba(0,45,91,0.14));background:transparent;color:var(--text-brand-navy,#002d5b);cursor:pointer;transition:border-color .15s ease,color .15s ease,background .15s ease;">${iconSvg(key, { size: 20 })}</button>`)
         .join('');
+    const secLabel = 'font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-secondary);display:block;margin-bottom:8px;';
 
     const { root, close } = showModal({
         variant: 'glass-light',
-        cardStyle: 'width: 420px;',
+        cardStyle: 'width: 460px; max-width: calc(100vw - 32px);',
         innerHTML: `
-            <h2 style="margin: 0 0 var(--space-5); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Edit Category</h2>
-            <form id="editCategoryForm" style="display: flex; flex-direction: column; gap: var(--space-4);">
-                <div style="display: flex; gap: var(--space-3); align-items: center;">
-                    <input type="text" id="editCatName" class="glass-input" value="${esc(cat.name)}" placeholder="Category name" required style="flex: 1;">
-                    <input type="color" id="editCatColor" class="glass-input" value="${esc(cat.color)}" style="width: 50px; padding: 2px;">
+            <h2 style="margin: 0 0 var(--space-5); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">${esc(t('settings.editCategoryTitle'))}</h2>
+            <form id="editCategoryForm" style="display: flex; flex-direction: column; gap: var(--space-5);">
+                <div style="display:flex; gap: var(--space-4); align-items:flex-end;">
+                    <div style="flex:1; min-width:0;">
+                        <label style="${secLabel}">${esc(t('settings.editCategoryNameLabel'))}</label>
+                        <input type="text" id="editCatName" class="glass-input" value="${esc(cat.name)}" placeholder="${esc(t('settings.editCategoryNamePlaceholder'))}" required style="width:100%;">
+                    </div>
+                    <div style="flex-shrink:0;">
+                        <label style="${secLabel}">${esc(t('settings.editCategoryColorLabel'))}</label>
+                        <label class="edit-cat-color" style="display:block; position:relative; width:46px; height:46px; border-radius:50%; overflow:hidden; cursor:pointer; box-shadow: inset 0 0 0 2px #fff, 0 0 0 1.5px var(--glass-border, rgba(0,45,91,0.18)), 0 2px 8px rgba(0,45,91,0.12);">
+                            <input type="color" id="editCatColor" value="${esc(cat.color)}" style="position:absolute; inset:-8px; width:calc(100% + 16px); height:calc(100% + 16px); border:0; padding:0; margin:0; cursor:pointer;">
+                        </label>
+                    </div>
                 </div>
-                <div id="editCatIconGrid" role="radiogroup" aria-label="Category icon" style="display:grid;grid-template-columns:repeat(10,1fr);gap:6px;">${swatches}</div>
-                <div style="display: flex; gap: var(--space-3); margin-top: var(--space-2);">
+                <div>
+                    <label style="${secLabel}">${esc(t('settings.editCategoryIconLabel'))}</label>
+                    <div id="editCatIconGrid" role="radiogroup" aria-label="${esc(t('settings.editCategoryIconLabel'))}" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;">${swatches}</div>
+                </div>
+                <div style="display: flex; gap: var(--space-3); margin-top: var(--space-1);">
+                    <button type="button" id="cancelEditCatBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">${esc(t('settings.editCategoryCancelBtn'))}</button>
                     <button type="submit" class="btn-primary" style="flex: 2;">${t('settings.editCategorySaveBtn')}</button>
-                    <button type="button" id="cancelEditCatBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Cancel</button>
                 </div>
             </form>
         `,
@@ -135,18 +147,21 @@ export function openEditCategoryModal(categoryId: string) {
     root.querySelectorAll<HTMLButtonElement>('.edit-cat-swatch').forEach((btn) => {
         btn.addEventListener('click', () => {
             selectedKey = btn.dataset.key || 'tag';
-            root.querySelectorAll<HTMLButtonElement>('.edit-cat-swatch').forEach((b) => {
-                const on = b === btn;
-                b.classList.toggle('is-active', on);
-                b.setAttribute('aria-checked', on ? 'true' : 'false');
-                b.style.borderColor = on ? 'var(--accent-blue,#0071e3)' : 'var(--glass-border, rgba(0,45,91,0.14))';
-                b.style.color = on ? 'var(--accent-blue,#0071e3)' : 'var(--text-brand-navy,#002d5b)';
-            });
+            root.querySelectorAll<HTMLButtonElement>('.edit-cat-swatch').forEach((b) => paintSwatch(b, b === btn));
         });
     });
-    // Reflect the pre-selected swatch's accent border on open.
+    // Selected swatch: accent border + tint + a slightly thicker ring so the
+    // pick is obvious on the roomier grid.
+    function paintSwatch(b: HTMLButtonElement, on: boolean) {
+        b.classList.toggle('is-active', on);
+        b.setAttribute('aria-checked', on ? 'true' : 'false');
+        b.style.borderColor = on ? 'var(--accent-blue,#0071e3)' : 'var(--glass-border, rgba(0,45,91,0.14))';
+        b.style.borderWidth = on ? '2px' : '1.5px';
+        b.style.color = on ? 'var(--accent-blue,#0071e3)' : 'var(--text-brand-navy,#002d5b)';
+        b.style.background = on ? 'rgba(0,113,227,0.08)' : 'transparent';
+    }
     const active0 = root.querySelector<HTMLButtonElement>('.edit-cat-swatch.is-active');
-    if (active0) { active0.style.borderColor = 'var(--accent-blue,#0071e3)'; active0.style.color = 'var(--accent-blue,#0071e3)'; }
+    if (active0) paintSwatch(active0, true);
 
     (q(root, '#cancelEditCatBtn') as HTMLButtonElement).onclick = () => close();
     (q(root, '#editCategoryForm') as HTMLFormElement).onsubmit = (e) => {

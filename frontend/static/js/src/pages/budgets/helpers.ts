@@ -317,6 +317,67 @@ export const deleteBudget = (id: string) => {
     });
 };
 
+/** Imperative GG dropdown (text-only) — the same trigger+panel a
+ *  CategoryListbox renders, for the vanilla showModal budget form where a
+ *  React component can't mount. Returns the markup + a wire() that binds the
+ *  toggle, option-pick (re-renders rows so the check moves) and outside-click
+ *  close, reporting the chosen value through onChange. Mirrors the category
+ *  dropdown already in this modal, minus the per-row icon. */
+function ggTextDropdown(
+    id: string,
+    opts: ReadonlyArray<{ value: string; label: string }>,
+    selected: string,
+): { html: string; wire: (root: HTMLElement, onChange: (v: string) => void) => void } {
+    const labelOf = (v: string) => (opts.find((o) => o.value === v) || opts[0])?.label ?? '';
+    const rows = (sel: string): string =>
+        opts
+            .map(
+                (o) =>
+                    `<button type="button" class="gg-dd__opt" role="option" data-val="${esc(o.value)}" aria-selected="${o.value === sel ? 'true' : 'false'}" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border:0;background:${o.value === sel ? 'color-mix(in srgb, var(--accent-blue,#0071e3) 12%, transparent)' : 'transparent'};border-radius:8px;cursor:pointer;text-align:left;font:inherit;font-size:0.9rem;color:var(--text-brand-navy,#002d5b);"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(o.label)}</span>${o.value === sel ? `<span style="display:inline-flex;color:var(--accent-blue,#0071e3);">${iconSvg('check', { size: 15 })}</span>` : ''}</button>`,
+            )
+            .join('');
+    const html = `<div id="${id}Dd" style="position:relative;">
+        <button type="button" id="${id}Trigger" class="glass-input" aria-haspopup="listbox" aria-expanded="false" style="width:100%;padding:var(--space-3);border-radius:12px;background:white;display:flex;align-items:center;gap:8px;text-align:left;cursor:pointer;">
+            <span id="${id}Cur" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(labelOf(selected))}</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;color:var(--text-secondary);"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div id="${id}Panel" role="listbox" hidden style="position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:60;background:white;border:1px solid var(--glass-border, rgba(0,45,91,0.14));border-radius:12px;box-shadow:0 12px 32px rgba(0,45,91,0.18);max-height:240px;overflow:auto;padding:4px;">${rows(selected)}</div>
+    </div>`;
+    const wire = (root: HTMLElement, onChange: (v: string) => void): void => {
+        const dd = root.querySelector<HTMLElement>(`#${id}Dd`);
+        const trigger = root.querySelector<HTMLButtonElement>(`#${id}Trigger`);
+        const panel = root.querySelector<HTMLElement>(`#${id}Panel`);
+        const cur = root.querySelector<HTMLElement>(`#${id}Cur`);
+        if (!dd || !trigger || !panel || !cur) return;
+        const bindRows = () => {
+            panel.querySelectorAll<HTMLButtonElement>('.gg-dd__opt').forEach((opt) => {
+                opt.addEventListener('click', () => {
+                    const v = opt.dataset.val || opts[0]!.value;
+                    cur.textContent = labelOf(v);
+                    panel.innerHTML = rows(v);
+                    bindRows();
+                    panel.hidden = true;
+                    trigger.setAttribute('aria-expanded', 'false');
+                    onChange(v);
+                });
+            });
+        };
+        bindRows();
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            panel.hidden = !panel.hidden;
+            trigger.setAttribute('aria-expanded', panel.hidden ? 'false' : 'true');
+        });
+        root.addEventListener('click', (e) => {
+            if (!dd.contains(e.target as Node)) {
+                panel.hidden = true;
+                trigger.setAttribute('aria-expanded', 'false');
+            }
+        });
+    };
+    return { html, wire };
+}
+
 /** Modal-driven create-budget flow. Imperative showModal — kept as
  *  legacy because (a) the modal opens transiently so React's
  *  re-render advantage doesn't apply, and (b) showModal handles
@@ -331,14 +392,16 @@ export const openCreateBudgetModal = (existing?: Budget) => {
     const selTripId = existing?.tripId || (activeTripId || 'all');
     const selCatId = existing?.categoryId || 'all';
     const selUser = existing?.user || 'all';
-    const tripOpts = (STATE.trips || [])
-        .map(
-            // Renamed param from `t` to `tr` to avoid shadowing the i18n
-            // `t` import.
-            (tr) =>
-                `<option value="${esc(tr.id)}" ${tr.id === selTripId ? 'selected' : ''}>${esc(tr.name)}</option>`,
-        )
-        .join('');
+    // Trip picker — GG dropdown (mirrors the category one below). "All trips"
+    // first, then every trip by name.
+    const tripDd = ggTextDropdown(
+        'newBudTrip',
+        [
+            { value: 'all', label: t('budgets.createTripAll') },
+            ...(STATE.trips || []).map((tr) => ({ value: tr.id, label: tr.name })),
+        ],
+        selTripId,
+    );
     // Category picker — a custom GG-icon dropdown (native <option> can't hold
     // SVG). Options = "All categories" (no icon) + each category rendered via
     // iconForCategory (legacy emoji OR icon key). Mirrors the expense-form
@@ -365,7 +428,16 @@ export const openCreateBudgetModal = (existing?: Budget) => {
     const allCompanionNames = Array.from(
         new Set((STATE.trips || []).flatMap((tr) => getTripCompanionNames(tr))),
     ).sort();
-    const userOpts = allCompanionNames.map((g) => `<option value="${esc(g)}" ${g === selUser ? 'selected' : ''}>${esc(g)}</option>`).join('');
+    // Person picker — GG dropdown. "Everyone on the trip" first, then each
+    // companion name.
+    const userDd = ggTextDropdown(
+        'newBudUser',
+        [
+            { value: 'all', label: t('budgets.createPersonAll') },
+            ...allCompanionNames.map((g) => ({ value: g, label: g })),
+        ],
+        selUser,
+    );
     const home = getHomeCurrency();
     const selCurr = existing?.originalCurrency || home;
     // R3-Round 2 fix: same widening as ManualTab — show every currency
@@ -388,9 +460,7 @@ export const openCreateBudgetModal = (existing?: Budget) => {
             <p class="text-subtitle">${t('budgets.createSubtitle')}</p>
             <div style="display: flex; flex-direction: column; gap: var(--space-3); margin: var(--space-4) 0 var(--space-6);">
                 <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary);">${t('budgets.createTripLabel')}</label>
-                <select id="newBudTrip" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
-                    <option value="all" ${selTripId === 'all' ? 'selected' : ''}>${t('budgets.createTripAll')}</option>${tripOpts}
-                </select>
+                ${tripDd.html}
                 <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">${t('budgets.createCategoryLabel')}</label>
                 <div id="newBudCatDd" style="position:relative;">
                     <button type="button" id="newBudCatTrigger" class="glass-input" aria-haspopup="listbox" aria-expanded="false" style="width:100%; padding: var(--space-3); border-radius: 12px; background:white; display:flex; align-items:center; gap:8px; text-align:left; cursor:pointer;">
@@ -400,9 +470,7 @@ export const openCreateBudgetModal = (existing?: Budget) => {
                     <div id="newBudCatPanel" role="listbox" hidden style="position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:60; background:white; border:1px solid var(--glass-border, rgba(0,45,91,0.14)); border-radius:12px; box-shadow:0 12px 32px rgba(0,45,91,0.18); max-height:240px; overflow:auto; padding:4px;">${renderCatOptions(selCatId)}</div>
                 </div>
                 <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">${t('budgets.createPersonLabel')}</label>
-                <select id="newBudUser" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
-                    <option value="all" ${selUser === 'all' ? 'selected' : ''}>${t('budgets.createPersonAll')}</option>${userOpts}
-                </select>
+                ${userDd.html}
                 <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">${t('budgets.createTargetLabel')}</label>
                 <div style="display: grid; grid-template-columns: 1fr 110px; gap: var(--space-3);">
                     <input type="number" id="newBudAmt" class="glass-input" placeholder="1000" min="0" step="any" value="${isEdit && existing?.originalAmount != null ? esc(String(existing.originalAmount)) : ''}" style="padding: var(--space-3); border-radius: 12px;">
@@ -464,6 +532,11 @@ export const openCreateBudgetModal = (existing?: Budget) => {
     root.addEventListener('click', (e) => {
         if (catDd && !catDd.contains(e.target as Node)) closeCatPanel();
     });
+    // Trip + person GG dropdowns — track the chosen value for Save.
+    let selectedTripId = selTripId;
+    let selectedUser = selUser;
+    tripDd.wire(root, (v) => { selectedTripId = v; });
+    userDd.wire(root, (v) => { selectedUser = v; });
     // F2-DSGN1: toggle the manual EUR-target field when the chosen currency has
     // no live rate (so VND/EGP/ARS budgets are enterable). Initial state
     // reflects the default-selected (home) currency, which always has a rate.
@@ -526,9 +599,9 @@ export const openCreateBudgetModal = (existing?: Budget) => {
         const budget = {
             // Reuse the id when editing so the upsert UPDATES the row.
             id: existing?.id || generateId(),
-            tripId: (q(root, '#newBudTrip') as HTMLSelectElement).value,
+            tripId: selectedTripId,
             categoryId: selectedCatId,
-            user: (q(root, '#newBudUser') as HTMLSelectElement).value,
+            user: selectedUser,
             amount: eurAmt,
             // MM-7: `amount` is already canonical EUR (converted/typed above),
             // so the budget's own currency is EUR. Set it explicitly rather

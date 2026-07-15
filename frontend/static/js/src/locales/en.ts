@@ -641,6 +641,12 @@ export const en = {
         categoryDeleteConfirmBtn: 'Delete',
         // ── Edit category modal (referenced in code but not rendered above) ──
         editCategorySaveBtn: 'Save Changes',
+        editCategoryTitle: 'Edit Category',
+        editCategoryNameLabel: 'Name',
+        editCategoryNamePlaceholder: 'Category name',
+        editCategoryColorLabel: 'Colour',
+        editCategoryIconLabel: 'Icon',
+        editCategoryCancelBtn: 'Cancel',
     },
     profile: {
         memYearRange: "Enter a year between 1900 and 2100.",

@@ -536,6 +536,12 @@ export const pt: Translations = {
         categoryDeleteConfirmMessage: 'Não vai afetar despesas existentes, mas não vais poder voltar a selecionar esta categoria.',
         categoryDeleteConfirmBtn: 'Apagar',
         editCategorySaveBtn: 'Guardar alterações',
+        editCategoryTitle: 'Editar categoria',
+        editCategoryNameLabel: 'Nome',
+        editCategoryNamePlaceholder: 'Nome da categoria',
+        editCategoryColorLabel: 'Cor',
+        editCategoryIconLabel: 'Ícone',
+        editCategoryCancelBtn: 'Cancelar',
     },
     profile: {
         memYearRange: "Insira um ano entre 1900 e 2100.",

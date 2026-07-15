@@ -311,24 +311,49 @@
     font-size: 0.95rem;
     line-height: 1;
 }
-/* Mobile: icon-only pills. The text label would push the strip past a narrow
-   phone's width, so we hide it and keep just the symbol — the per-button
-   aria-label + title (set in Settings.tsx SubTabStrip and Personalization.tsx)
-   preserve the accessible name and a tap-and-hold tooltip. Applies to BOTH
-   strips because they share the .general-subtab class. The padding tightens to
-   a compact square-ish tap target now that there's no label to balance. */
-@media (max-width: 640px) {
+/* ── Icon-only pills on ALL viewports (2026-07-15, per user) ──────────
+   Both strips (General Map-pills/Appearance/Language + Personalization)
+   show ONLY the symbol; the label appears as a floating tooltip on
+   hover/focus (absolute → zero layout shift), and the drill chevron is
+   dropped. Per-button aria-label + title keep the accessible name + a
+   tap-and-hold fallback on touch. */
+.general-subtab {
+    padding: 11px 15px;
+    gap: 0;
+    position: relative;
+}
+.general-subtab::after {
+    display: none !important;
+}
+.general-subtab__label {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    padding: 5px 10px;
+    border-radius: 8px;
+    background: #1f2430;
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    box-shadow: 0 6px 18px rgba(0, 45, 91, 0.22);
+    transition: opacity 0.14s ease, transform 0.14s ease;
+    z-index: 70;
+}
+.general-subtab:hover .general-subtab__label,
+.general-subtab:focus-visible .general-subtab__label {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
     .general-subtab__label {
-        display: none;
-    }
-    /* Drop the drill-in chevron too — "just the symbol" means the icon alone,
-       not icon + chevron. */
-    .general-subtab::after {
-        display: none;
-    }
-    .general-subtab {
-        padding: 10px 15px;
-        gap: 0;
+        transition: opacity 0.14s ease;
+        transform: translateX(-50%);
     }
 }
 
