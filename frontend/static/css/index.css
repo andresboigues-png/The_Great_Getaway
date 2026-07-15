@@ -494,6 +494,44 @@ body {
         animation: none;
     }
 }
+/* ── Crystal glass for the nav ICON buttons (Feed + notifications) ──
+   Same treatment as the text labels, adapted for SVG strokes: the
+   crystal gradient is an SVG paint server (#ggNavGlassGrad in the
+   navbar defs, stops driven by the vars below so dark mode re-tints
+   it), and the glow is the identical two-layer drop-shadow. Feed gets
+   `.active` from the router; the bells' "active" is their dropdown-open
+   state (aria-expanded). Zero-alpha base glow so it FADES in. */
+:root {
+    --nav-glass-s1: #5faaff;
+    --nav-glass-s2: #99c8ff;
+    --nav-glass-s3: #0071e3;
+}
+:root[data-theme="dark"] {
+    --nav-glass-s1: #8cc4ff;
+    --nav-glass-s2: #c4e2ff;
+    --nav-glass-s3: #0a84ff;
+}
+#navFeedBtnDesktop svg,
+#navFeedBtnMobile svg,
+#notificationBellBtn svg,
+#notificationBellBtnDesktop svg {
+    filter: drop-shadow(0 0 4px rgba(0, 113, 227, 0)) drop-shadow(0 2px 10px rgba(0, 113, 227, 0));
+    transition: filter 0.35s ease;
+}
+#navFeedBtnDesktop.active svg,
+#navFeedBtnMobile.active svg,
+#notificationBellBtn[aria-expanded="true"] svg,
+#notificationBellBtnDesktop[aria-expanded="true"] svg {
+    stroke: url(#ggNavGlassGrad);
+    filter: drop-shadow(0 0 4px rgba(0, 113, 227, 0.4)) drop-shadow(0 2px 10px rgba(0, 113, 227, 0.22));
+}
+:root[data-theme="dark"] #navFeedBtnDesktop.active svg,
+:root[data-theme="dark"] #navFeedBtnMobile.active svg,
+:root[data-theme="dark"] #notificationBellBtn[aria-expanded="true"] svg,
+:root[data-theme="dark"] #notificationBellBtnDesktop[aria-expanded="true"] svg {
+    filter: drop-shadow(0 0 5px rgba(10, 132, 255, 0.55)) drop-shadow(0 2px 12px rgba(10, 132, 255, 0.3));
+}
+
 /* Dark island: brighter glass + slightly stronger glow so the crystal
    reads on the graphite navbar. */
 :root[data-theme="dark"] .nav-item.active {

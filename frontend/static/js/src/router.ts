@@ -392,7 +392,7 @@ export function navigate(
     // container by hand.
     if (!STATE.user) {
         mountReact(content, createElement(LoginWall));
-        document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+        document.querySelectorAll('.nav-item, #navFeedBtnDesktop, #navFeedBtnMobile').forEach(item => item.classList.remove('active'));
         isInternalNav = true;
         // Preserve the full target (incl. profile/<id>) so a deep link
         // survives the sign-in round trip — auth.ts re-navigates to it.
@@ -471,7 +471,10 @@ export function navigate(
             [PAGES.PERSONALIZATION]: PAGES.SETTINGS,
         };
         const navPage = NAV_TAB_FOR_PAGE[forPage] ?? forPage;
-        document.querySelectorAll('.nav-item, .sidebar-rail__item').forEach(item => {
+        // Feed's icon buttons carry data-page="feed" but are neither
+        // .nav-item nor rail items — include them so the Feed page gets
+        // an active state (the crystal-glass icon treatment keys off it).
+        document.querySelectorAll('.nav-item, .sidebar-rail__item, #navFeedBtnDesktop, #navFeedBtnMobile').forEach(item => {
             const isActive = item.getAttribute('data-page') === navPage;
             item.classList.toggle('active', isActive);
             if (isActive) {

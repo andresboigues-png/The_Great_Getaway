@@ -204,12 +204,26 @@
                  was promoted from the right cluster to here, so the banner
                  reads Feed · Your trip · Notifications. data-page="feed"
                  routes through the standard nav delegate in nav-chrome.ts. -->
+            <!-- Crystal-glass stroke gradient for ACTIVE nav icons (Feed / bell).
+                 One shared paint server; stop colours ride CSS vars so the dark
+                 theme re-tints it without a second gradient. userSpaceOnUse maps
+                 it diagonally across the icons' 24-unit viewBox. -->
+            <svg width="0" height="0" aria-hidden="true" focusable="false" style="position: absolute;">
+                <defs>
+                    <linearGradient id="ggNavGlassGrad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="24" y2="24">
+                        <stop offset="0%" style="stop-color: var(--nav-glass-s1, #5faaff)"></stop>
+                        <stop offset="48%" style="stop-color: var(--nav-glass-s2, #99c8ff)"></stop>
+                        <stop offset="100%" style="stop-color: var(--nav-glass-s3, #0071e3)"></stop>
+                    </linearGradient>
+                </defs>
+            </svg>
             <a href="#" data-page="feed" id="navFeedBtnMobile" class="navbar-icon-mobile-only" aria-label="Feed" title="Feed — what your friends are up to"
                 style="background: transparent; border: none; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M20 11a9 9 0 0 0-9 9"></path>
-                    <path d="M20 4a16 16 0 0 0-16 16"></path>
-                    <circle cx="19" cy="19" r="1"></circle>
+                    <path d="M2 8.82a15 15 0 0 1 20 0"></path>
+                    <path d="M5 12.859a10 10 0 0 1 14 0"></path>
+                    <path d="M8.5 16.429a5 5 0 0 1 7 0"></path>
+                    <circle cx="12" cy="20" r="1"></circle>
                 </svg>
             </a>
         </div>
@@ -288,9 +302,10 @@
                  delegation; no explicit JS wiring needed. -->
             <a href="#" data-page="feed" id="navFeedBtnDesktop" class="notif-desktop-btn notif-desktop-btn--feed" aria-label="Feed" title="Feed — what your friends are up to">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M20 11a9 9 0 0 0-9 9"></path>
-                    <path d="M20 4a16 16 0 0 0-16 16"></path>
-                    <circle cx="19" cy="19" r="1"></circle>
+                    <path d="M2 8.82a15 15 0 0 1 20 0"></path>
+                    <path d="M5 12.859a10 10 0 0 1 14 0"></path>
+                    <path d="M8.5 16.429a5 5 0 0 1 7 0"></path>
+                    <circle cx="12" cy="20" r="1"></circle>
                 </svg>
             </a>
             <a href="#" class="nav-item active" data-page="home" data-i18n-key="nav.home">Home</a>
