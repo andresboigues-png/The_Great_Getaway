@@ -600,10 +600,19 @@ function GeneralPillsSection() {
                 title={t('settings.poiTitle')}
                 accent={SETTINGS_ACCENTS.general}
                 icon="map"
-                info={[
-                    t('settings.poiIntroVisibility'),
-                    t('settings.poiIntroRating'),
-                    t('settings.poiIntroAnchor'),
+                infoSections={[
+                    {
+                        heading: t('settings.poiColAnchor'),
+                        body: t('settings.poiExplainAnchor'),
+                    },
+                    {
+                        heading: t('settings.poiColRating'),
+                        body: t('settings.poiExplainRating'),
+                    },
+                    {
+                        heading: t('settings.poiColShow'),
+                        body: t('settings.poiExplainShow'),
+                    },
                 ]}
                 right={<SubTabStrip current="pills" />}
             />

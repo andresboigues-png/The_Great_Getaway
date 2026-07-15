@@ -43,6 +43,10 @@ export interface SettingsSectionHeaderProps {
     info?: string[];
     /** Trusted locale HTML paragraphs (e.g. themePickerSubtitleV2's <strong>). */
     infoHtml?: string[];
+    /** Titled sections — each `heading` renders as a blue column-header-style
+     *  label above its `body` (e.g. the POI card's explanation, one section
+     *  per table column, in column order). */
+    infoSections?: { heading: string; body: string }[];
     /** Render as a slightly smaller heading (sub-cards like Reset). */
     small?: boolean;
     /** Extra content pinned to the right of the header row (count chips,
@@ -55,10 +59,11 @@ export function SettingsSectionHeader({
     accent,
     info,
     infoHtml,
+    infoSections,
     small = false,
     right,
 }: SettingsSectionHeaderProps) {
-    const hasInfo = Boolean(info?.length || infoHtml?.length);
+    const hasInfo = Boolean(info?.length || infoHtml?.length || infoSections?.length);
     const Tag = small ? 'h3' : 'h2';
     return (
         <div className="st-section-head">
@@ -75,6 +80,7 @@ export function SettingsSectionHeader({
                     title={title}
                     {...(info ? { paragraphs: info } : {})}
                     {...(infoHtml ? { paragraphsHtml: infoHtml } : {})}
+                    {...(infoSections ? { sections: infoSections } : {})}
                 />
             ) : null}
             {right ? <div className="st-section-head__right">{right}</div> : null}

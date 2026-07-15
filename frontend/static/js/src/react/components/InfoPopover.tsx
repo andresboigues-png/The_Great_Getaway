@@ -26,6 +26,10 @@ export interface InfoPopoverProps {
     paragraphs?: string[];
     /** Trusted locale HTML paragraphs (e.g. copy carrying <strong>). */
     paragraphsHtml?: string[];
+    /** Titled sections — each `heading` renders as a blue column-header-style
+     *  label above its `body`, so an explanation of a table maps 1:1 to its
+     *  columns. Rendered after `paragraphs`. */
+    sections?: { heading: string; body: string }[];
     /** Class for the ⓘ button so it matches its context (default the section
      *  header's `st-info-btn`; POI rows pass `poi-filter-row__info-btn`). */
     buttonClassName?: string;
@@ -44,6 +48,7 @@ export function InfoPopover({
     title,
     paragraphs,
     paragraphsHtml,
+    sections,
     buttonClassName = 'st-info-btn',
     iconSize = 14,
 }: InfoPopoverProps) {
@@ -141,6 +146,12 @@ export function InfoPopover({
                                   className="st-info-bubble__p"
                                   dangerouslySetInnerHTML={{ __html: p }}
                               />
+                          ))}
+                          {(sections || []).map((s, i) => (
+                              <span key={`s${i}`} className="st-info-bubble__section">
+                                  <span className="st-info-bubble__heading">{s.heading}</span>
+                                  <span className="st-info-bubble__p">{s.body}</span>
+                              </span>
                           ))}
                       </div>,
                       document.body,

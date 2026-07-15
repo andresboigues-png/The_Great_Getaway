@@ -1079,6 +1079,27 @@ h3.st-section-title {
     margin: 0;
     color: var(--text-secondary);
 }
+/* Titled section inside the bubble — one per explained table column, so the
+ * copy maps 1:1 to the column headers above the pill table. */
+.st-info-bubble__section {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.st-info-bubble__section + .st-info-bubble__section {
+    margin-top: 4px;
+    padding-top: 9px;
+    border-top: 1px solid rgba(var(--st-accent, 0, 113, 227), 0.14);
+}
+/* Blue small-caps heading — identical to the pill table's column headers
+ * (.poi-filter-head__cell) so the relationship is obvious. */
+.st-info-bubble__heading {
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--accent-blue, #0071e3);
+}
 @keyframes st-info-bubble-in {
     from { opacity: 0; transform: translateY(-5px); }
     to { opacity: 1; transform: translateY(0); }
