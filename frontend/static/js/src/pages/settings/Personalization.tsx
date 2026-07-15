@@ -117,7 +117,7 @@ export function Personalization() {
                                 ) : (
                                     categories.map((c) => (
                                         <div key={c.id} className="cat-row" style={{ ['--cat-color' as string]: c.color }}>
-                                            <span className="cat-row__stripe" aria-hidden="true"></span>
+                                            {/* stripe removed 2026-07-15 — the colour tints the icon glyph instead */}
                                             <span
                                                 className="cat-row__icon"
                                                 dangerouslySetInnerHTML={{ __html: iconForCategory(c.icon, { size: 20 }) }}

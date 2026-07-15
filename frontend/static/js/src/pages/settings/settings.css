@@ -169,14 +169,10 @@
     transform: translateY(-1px);
     box-shadow: 0 6px 16px rgba(0, 45, 91, 0.10);
 }
-.cat-row__stripe {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 5px;
-    background: var(--cat-color);
-}
+/* 2026-07-15: the left colour stripe is GONE — the category colour now
+   lives on the SYMBOL itself (GG icons stroke with currentColor, so
+   `color` tints the glyph). The square chip keeps a whisper of the same
+   colour as its wash so the tint reads deliberate, not accidental. */
 .cat-row__icon {
     font-size: 1.4rem;
     line-height: 1;
@@ -186,7 +182,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.04);
+    color: var(--cat-color, var(--accent-blue, #0071e3));
+    background: color-mix(in srgb, var(--cat-color, #0071e3) 10%, transparent);
     border-radius: 10px;
 }
 .cat-row__name {
@@ -356,6 +353,35 @@
     border: 1px solid rgba(0, 113, 227, 0.1);
     border-radius: var(--radius-lg);
     transition: opacity 0.2s ease;
+}
+/* Column headers over the pill table — same grid template + horizontal
+   padding as the rows, each control cell width-matched to the control
+   beneath (anchor 132 / rating 110 / status 64) so the labels line up.
+   GG-blue smallcaps per the table-header design ask. Hidden on ≤720px
+   where rows stack and columns stop existing. */
+.poi-filter-head {
+    display: grid;
+    grid-template-columns: 32px 1fr auto auto auto auto;
+    align-items: end;
+    gap: var(--space-3);
+    padding: 0 calc(var(--space-4) + 1px); /* +1px: match the rows' border inset */
+    margin-bottom: calc(var(--space-3) * -0.5);
+}
+.poi-filter-head__cell {
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent-blue, #0071e3);
+    text-align: center;
+    white-space: nowrap;
+}
+.poi-filter-head__cell--start { text-align: left; }
+.poi-filter-head__cell--anchor { min-width: 132px; }
+.poi-filter-head__cell--rating { min-width: 110px; }
+.poi-filter-head__cell--status { min-width: 64px; }
+@media (max-width: 720px) {
+    .poi-filter-head { display: none; }
 }
 /* 2026-05-25 (audit): 6-col rigid grid with min-widths totalling
    ~462px never collapsed on mobile — row overflowed iPhone SE
@@ -984,6 +1010,13 @@
     outline: none;
     border-color: rgb(var(--st-accent, 0, 113, 227)) !important;
     box-shadow: 0 0 0 3px rgba(var(--st-accent, 0, 113, 227), 0.18);
+}
+
+/* Format page: extra bottom room so an open dropdown panel (variables /
+ * columns, up to 400px tall) renders in full below its trigger instead of
+ * forcing the user to scroll to see the options. */
+.settings-section--roomy {
+    padding-bottom: 200px;
 }
 
 /* Format-page themed primary button — same amber the section title uses

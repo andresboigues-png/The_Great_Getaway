@@ -34,6 +34,11 @@ export interface CategoryListboxProps {
     ariaLabel?: string;
     placeholder?: string;
     disabled?: boolean;
+    /** Max height of the open options panel (px). Default 260 suits the
+     *  compact expense forms; pass more where the page has room so short
+     *  option lists (e.g. the Format page's 9 variables) show in full
+     *  without an internal scrollbar. */
+    panelMaxHeight?: number;
 }
 
 export function CategoryListbox({
@@ -45,6 +50,7 @@ export function CategoryListbox({
     ariaLabel,
     placeholder,
     disabled = false,
+    panelMaxHeight = 260,
 }: CategoryListboxProps) {
     const [open, setOpen] = useState(false);
     const [activeIdx, setActiveIdx] = useState(-1);
@@ -180,7 +186,7 @@ export function CategoryListbox({
                     left: 0,
                     right: 0,
                     zIndex: 1000,
-                    maxHeight: 260,
+                    maxHeight: panelMaxHeight,
                     overflowY: 'auto',
                     marginTop: 'var(--space-2)',
                     borderRadius: 'var(--radius-xl)',

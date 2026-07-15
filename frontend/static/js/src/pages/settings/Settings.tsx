@@ -641,6 +641,20 @@ function GeneralPillsSection() {
                 ]}
             />
             <div className="poi-filter-list">
+                {/* Column headers — one per control column, width-matched to
+                    the controls beneath (anchor 132 / rating 110 / status 64).
+                    Hidden ≤720px where the rows stack into a 2-row layout and
+                    columns stop existing. aria-hidden: each control already
+                    carries its own aria-label; the visual header is redundant
+                    for AT. */}
+                <div className="poi-filter-head" aria-hidden="true">
+                    <span></span>
+                    <span className="poi-filter-head__cell poi-filter-head__cell--start">{t('settings.poiColCategory')}</span>
+                    <span className="poi-filter-head__cell poi-filter-head__cell--anchor">{t('settings.poiColAnchor')}</span>
+                    <span className="poi-filter-head__cell poi-filter-head__cell--rating">{t('settings.poiColRating')}</span>
+                    <span className="poi-filter-head__cell poi-filter-head__cell--status">{t('settings.poiColStatus')}</span>
+                    <span className="poi-filter-head__cell">{t('settings.poiColShow')}</span>
+                </div>
                 {rows.map((c) => {
                     const userMin =
                         typeof filters[c.key]?.minRating === 'number'
@@ -1164,7 +1178,7 @@ function FormatView() {
     const availableVars = MANDATORY_VARS.concat(OPTIONAL_VARS).filter((v) => !used.has(v));
 
     return (
-        <div className="card glass settings-section">
+        <div className="card glass settings-section settings-section--roomy">
             <SettingsSectionHeader
                 title={t('settings.formatTitle')}
                 accent={SETTINGS_ACCENTS.format}
@@ -1268,6 +1282,7 @@ function FormatView() {
                             onChange={setMapVar}
                             options={availableVars.map((v) => ({ value: v, label: v }))}
                             triggerClassName="glass-input w-full st-select-trigger"
+                            panelMaxHeight={440}
                             ariaLabel={t('settings.formatVariableLabel')}
                             placeholder={t('settings.formatVariablePlaceholder')}
                         />
@@ -1283,6 +1298,7 @@ function FormatView() {
                             onChange={setMapCol}
                             options={'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((c) => ({ value: c, label: c }))}
                             triggerClassName="glass-input w-full st-select-trigger"
+                            panelMaxHeight={440}
                             ariaLabel={t('settings.formatColumnLabel')}
                             placeholder={t('settings.formatColumnPlaceholder')}
                         />
