@@ -718,6 +718,17 @@ html, body {
     margin-bottom: 0;
 }
 
+/* Menu cards are grid items spaced by `.settings-grid { gap }`; the
+   `.card:not(:last-child)` margin-bottom above leaks in and — under the
+   grid's default `align-items: stretch` — makes the LAST card (Data
+   Management, which alone has no such margin) render ~24px taller than the
+   siblings it shares a row with. Zero it so every card stretches to the
+   same track height. Selector `.settings-grid > .card` (0,2,0) ties
+   `.card:not(:last-child)` and wins on later source order. */
+.settings-grid > .card {
+    margin-bottom: 0;
+}
+
 .card-title {
     font-size: 1.5rem;
     font-weight: 600;
@@ -4863,11 +4874,16 @@ body.is-signed-out #sidebarOverlay {
     max-height: 420px;
     overflow-y: auto;
     border-radius: 18px;
-    background: rgba(18, 22, 30, 0.96);
-    backdrop-filter: saturate(180%) blur(24px);
-    -webkit-backdrop-filter: saturate(180%) blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+    background: linear-gradient(
+        180deg,
+        rgba(10, 74, 168, 0.84) 0%,
+        rgba(6, 52, 128, 0.88) 55%,
+        rgba(4, 40, 104, 0.9) 100%
+    );
+    backdrop-filter: saturate(170%) blur(24px);
+    -webkit-backdrop-filter: saturate(170%) blur(24px);
+    border: 1px solid rgba(120, 175, 255, 0.3);
+    box-shadow: 0 20px 50px rgba(0, 40, 100, 0.42);
     margin-top: 12px;
     display: none;
     z-index: 1000;

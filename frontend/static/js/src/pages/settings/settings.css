@@ -410,42 +410,11 @@
 @media (max-width: 720px) {
     .poi-filter-head { display: none; }
 }
-/* 2026-05-25 (audit): 6-col rigid grid with min-widths totalling
-   ~462px never collapsed on mobile — row overflowed iPhone SE
-   (320px) and iPhone 14 Pro Max (430px). Stack into two rows on
-   ≤720px: row 1 = icon + label + visibility switch on the right,
-   row 2 = the three controls (anchor / rating / reset) flowing
-   beneath. Anchor + rating selects shrink to the available width. */
-@media (max-width: 720px) {
-    .poi-filter-row {
-        grid-template-columns: 32px 1fr auto;
-        grid-template-areas:
-            "icon  label  switch"
-            "ctrls ctrls  ctrls";
-        row-gap: var(--space-2);
-    }
-    .poi-filter-row__icon { grid-area: icon; }
-    .poi-filter-row__body { grid-area: label; min-width: 0; }
-    .poi-visibility-switch { grid-area: switch; }
-    .poi-anchor-mode,
-    .poi-filter-rating,
-    .poi-filter-row__default {
-        grid-area: ctrls;
-        justify-self: stretch;
-    }
-    /* Force the three controls back into a single row inside their
-       shared grid cell so they wrap evenly instead of stacking. */
-    .poi-filter-row > .poi-anchor-mode,
-    .poi-filter-row > .poi-filter-rating,
-    .poi-filter-row > .poi-filter-row__default {
-        display: inline-block;
-    }
-    .poi-anchor-mode,
-    .poi-filter-rating {
-        min-width: 0 !important;
-        width: auto;
-    }
-}
+/* Mobile (≤720px): each pill becomes a self-contained CARD — see the
+   `.poi-filter-row` card block near the end of this POI section (placed
+   after the base control rules so it wins on source order without
+   !important). The old layout stacked all three controls into ONE grid
+   area, which overlapped them (the Reset/chevron collision). */
 /* Hidden pill: dim everything except the switch (and keep its
    tooltip readable) so the user sees the row's other controls
    don't apply while the pill itself is off. The switch stays at
@@ -460,7 +429,11 @@
     margin-left: var(--space-2);
 }
 .poi-anchor-mode {
-    background: white;
+    /* Theme-aware (was hardcoded `white`): in light theme
+       --card-bg-elevated is #fff so desktop light is pixel-identical; in
+       dark theme it becomes #2c2c2e so the text stops being white-on-white
+       (the "weird letters when off" the opacity:0.4 hidden-state amplified). */
+    background: var(--card-bg-elevated);
     border: 1px solid rgba(0, 113, 227, 0.2);
     border-radius: var(--radius-md);
     padding: 6px 10px;
@@ -509,7 +482,7 @@
     font-size: 0.78rem;
 }
 .poi-filter-row__default .muted {
-    color: rgba(0, 0, 0, 0.35);
+    color: var(--text-secondary);
     font-weight: 600;
 }
 .poi-filter-reset {
@@ -531,6 +504,56 @@
 .poi-filter-reset:focus-visible {
     outline: 2px solid var(--accent-blue);
     outline-offset: 2px;
+}
+
+/* ── Mobile: POI pill as a self-contained CARD (≤720px) ──────────────
+   The 6-col desktop grid (min-widths ~462px) can't fit a phone, so each
+   row becomes a card: a header line (icon + label left, ON/OFF switch
+   right), the two selects stacked full-width beneath, then a centred
+   reset/status foot. Every control gets its OWN grid area — the previous
+   layout put all three in one shared "ctrls" area, stacking them on top of
+   each other (the overlap / "Reset & chevron collide" bug). Placed AFTER
+   the base .poi-anchor-mode / .poi-filter-rating / .poi-filter-row__default
+   / .poi-filter-reset rules so it wins on source order — no !important. */
+@media (max-width: 720px) {
+    .poi-filter-row {
+        grid-template-columns: auto 1fr auto;
+        grid-template-areas:
+            "icon   label   switch"
+            "anchor anchor  anchor"
+            "rating rating  rating"
+            "status status  status";
+        align-items: center;
+        row-gap: var(--space-3);
+        column-gap: var(--space-3);
+        padding: var(--space-4);
+    }
+    .poi-filter-row__icon { grid-area: icon; }
+    .poi-filter-row__body { grid-area: label; min-width: 0; }
+    .poi-visibility-switch { grid-area: switch; margin-left: 0; }
+    .poi-anchor-mode { grid-area: anchor; }
+    .poi-filter-rating { grid-area: rating; }
+    .poi-filter-row__default { grid-area: status; }
+
+    /* Full-width, comfortable ~44px tap targets. width:100% already
+       exceeds the base 132/110px min-widths, so no min-width override. */
+    .poi-anchor-mode,
+    .poi-filter-rating {
+        width: 100%;
+        justify-self: stretch;
+        padding: 11px 14px;
+        font-size: 0.95rem;
+    }
+    /* Reset / "Default" foot: centred, not right-aligned. */
+    .poi-filter-row__default {
+        justify-self: center;
+        text-align: center;
+        min-width: 0;
+        margin-top: 2px;
+    }
+    .poi-filter-reset {
+        padding: 8px 22px;
+    }
 }
 
 /* ── Settings → Format mapping list ───────────────────────────────
@@ -732,6 +755,14 @@
     background: rgba(10, 132, 255, 0.14);
 }
 :root[data-theme="dark"] .poi-filter-rating {
+    background: var(--card-bg-elevated);
+    border-color: rgba(10, 132, 255, 0.32);
+    color: var(--text-primary);
+}
+/* Mirror the rating select's dark override for the anchor select — without
+   it the anchor select was white-on-white in dark theme (the illegible
+   "weird letters", worse under the hidden-state opacity:0.4). */
+:root[data-theme="dark"] .poi-anchor-mode {
     background: var(--card-bg-elevated);
     border-color: rgba(10, 132, 255, 0.32);
     color: var(--text-primary);
