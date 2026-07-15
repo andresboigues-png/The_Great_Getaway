@@ -73,7 +73,14 @@
 // promise) TypeError: Failed to fetch" on flaky LAN / dev-server
 // restarts. Strategy edit → bump so the fixed worker supersedes v7 on
 // clients that cached it.
-const SW_VERSION = 'v8';
+// 2026-07-15: bumped to v9 — the rail-lens + settings-headers release is
+// a "critical CSS shape change" (index.css DROPPED the .sidebar-rail__
+// item.active blue shade; the new .rail-lens JS in the bundle replaces
+// it). A client serving the old cached shell shows NO active-page marker
+// at all (user-reported: "the magnifying glass is not there"). Bump so
+// activate() prunes the stale gg-shell-v8 and re-caches fresh CSS+bundle
+// together.
+const SW_VERSION = 'v9';
 const SHELL_CACHE = `gg-shell-${SW_VERSION}`;
 const API_CACHE = `gg-api-${SW_VERSION}`;
 const UPLOADS_CACHE = `gg-uploads-${SW_VERSION}`;
