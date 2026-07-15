@@ -51,7 +51,14 @@ export function wireKeyboardDismiss(): void {
         el.className = 'kbd-dismiss-pill';
         Object.assign(el.style, {
             position: 'fixed',
-            top: 'calc(env(safe-area-inset-top, 0px) + 10px)',
+            // Sit BELOW the 60px-tall fixed top navbar (see `.navbar` in
+            // index.css), never over it. The old `+ 10px` put the pill inside
+            // the navbar band, so on a phone (and, with the old un-gated build,
+            // on any coarse-pointer viewport) it landed on top of the nav —
+            // exactly the "Done button appears over the nav" collision. 70px
+            // clears the 60px bar with a 10px gap; the pill still floats in the
+            // upper content area during text entry and vanishes on blur.
+            top: 'calc(env(safe-area-inset-top, 0px) + 70px)',
             left: '50%',
             transform: 'translateX(-50%)',
             zIndex: '2147483000',
