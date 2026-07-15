@@ -20,6 +20,7 @@ import { t, tn, formatCurrency } from '../../i18n.js';
 import { formatHome, getHomeCurrency, convertCurrency } from '../../utils.js';
 import { hasRate } from '../../utils/currency.js';
 import { iconSvg, stripEmoji } from '../../icons.js';
+import { CategoryListbox } from '../expenses/CategoryListbox.js';
 import {
     computeTripBalances,
     computeTripBalancesByCurrency,
@@ -132,20 +133,20 @@ function TripsStrip({ currentTripId, onPickTrip }: { currentTripId: string | nul
                 <span className="inline-flex" dangerouslySetInnerHTML={{ __html: iconSvg('scale', { size: 15 }) }} />
                 {' '}{t('settlement.tripPickerLabel')}
             </label>
-            <select
-                id="settlementTripSelect"
-                className="settlement-trip-select"
-                aria-label={t('settlement.tripPickerAriaLabel')}
-                value={currentTripId ?? ''}
-                onChange={(e) => { if (e.target.value) onPickTrip(e.target.value); }}
-                style={{ flex: 1, minWidth: '200px', maxWidth: '380px', padding: '10px 14px', borderRadius: '12px', border: '1.5px solid rgba(52,199,89,0.4)', background: 'linear-gradient(135deg, rgba(52,199,89,0.08), rgba(52,199,89,0.04))', fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-brand-navy)', cursor: 'pointer', outline: 'none', fontFamily: 'inherit', transition: 'border-color 0.18s ease, box-shadow 0.18s ease' }}
-            >
-                {STATE.trips.map((tr) => {
-                    const total = settledStatsForTrip(tr.id).eurTotal;
-                    const totalLabel = total > 0 ? ` — ${formatHome(total, 'EUR')} ${t('settlement.settledSuffix')}` : '';
-                    return <option key={tr.id} value={tr.id}>{tr.name + totalLabel}</option>;
-                })}
-            </select>
+            <div style={{ flex: 1, minWidth: '200px', maxWidth: '380px' }}>
+                <CategoryListbox
+                    id="settlementTripSelect"
+                    triggerClassName="settlement-trip-trigger"
+                    ariaLabel={t('settlement.tripPickerAriaLabel')}
+                    value={currentTripId ?? ''}
+                    onChange={(v) => { if (v) onPickTrip(v); }}
+                    options={STATE.trips.map((tr) => {
+                        const total = settledStatsForTrip(tr.id).eurTotal;
+                        const totalLabel = total > 0 ? ` — ${formatHome(total, 'EUR')} ${t('settlement.settledSuffix')}` : '';
+                        return { value: tr.id, label: tr.name + totalLabel };
+                    })}
+                />
+            </div>
             {activeTrip && settledTotal > 0 ? (
                 <span style={{ display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: '999px', background: 'rgba(52,199,89,0.08)', color: 'var(--stl-green-deep)', fontSize: '0.78rem', fontWeight: 800, flexShrink: 0 }}>
                     {formatHome(settledTotal, 'EUR')} {t('settlement.settledSuffix')}

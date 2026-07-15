@@ -955,7 +955,7 @@
     gap: 12px;
     /* Generous air between the title row and the setting's body — the
        header is the page's anchor, not a cramped label. */
-    margin-bottom: 30px;
+    margin-bottom: 40px;
     flex-wrap: wrap;
 }
 .st-section-title {
