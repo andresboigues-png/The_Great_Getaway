@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../../react/store.js';
 import { t } from '../../i18n.js';
 import { showLiquidAlert } from '../../utils.js';
+import { SettingsSectionHeader, SETTINGS_ACCENTS } from './SectionHeader.js';
 import {
     listTemplates,
     createTemplate,
@@ -151,8 +152,12 @@ export function Creator() {
 
     return (
         <div className="card glass settings-section card-glow-blue">
-            <h2 className="card-title m-0 mb-2">{t('settings.creatorTitle')}</h2>
-            <p className="st-help-text mb-5">{t('settings.creatorIntro')}</p>
+            <SettingsSectionHeader
+                title={t('settings.creatorTitle')}
+                accent={SETTINGS_ACCENTS.creator}
+                icon="sparkles"
+                info={[t('settings.creatorIntro')]}
+            />
 
             {/* ── Create / edit form ─────────────────────────────────── */}
             <div className="section-divider">

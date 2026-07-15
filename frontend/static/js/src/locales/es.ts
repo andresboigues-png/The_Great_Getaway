@@ -400,6 +400,7 @@ export const es: Translations = {
         poiVisibilitySwitchTitleHidden: 'Oculta de la fila de píldoras de Inicio — enciende para mostrar.',
         poiInfoModalSubtitle: 'Sobre esta categoría',
         poiInfoModalClose: 'Entendido',
+        sectionInfoBtn: 'Acerca de este ajuste',
         poiInfoBtnAria: 'Acerca de {name}',
         resetTripsTitle: 'Viajes y días',
         resetTripsBody: 'Elimina todos los viajes, itinerarios y registros diarios.',

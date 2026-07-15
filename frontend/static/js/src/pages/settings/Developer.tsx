@@ -19,6 +19,7 @@
 import { useEffect, useState } from 'react';
 import { apiFetch, setUserCreator } from '../../api.js';
 import { t } from '../../i18n.js';
+import { SettingsSectionHeader, SETTINGS_ACCENTS } from './SectionHeader.js';
 
 interface AdminUser {
     id: string;
@@ -94,23 +95,21 @@ export function Developer() {
 
     return (
         <div className="card glass settings-section">
-            <div
-                className="flex items-center justify-between mb-4 gap-3 flex-wrap"
-            >
-                <h2
-                    className="card-title m-0"
-                >
-                    {t('settings.devTitle')}
-                </h2>
-                <button
-                    type="button"
-                    className="btn btn-small btn-liquid-glass py-2 px-3.5 rounded-md"
-                    onClick={() => void fetchStats()}
-                    disabled={loading}
-                >
-                    {loading ? t('settings.devRefreshing') : t('settings.devRefresh')}
-                </button>
-            </div>
+            <SettingsSectionHeader
+                title={t('settings.devTitle')}
+                accent={SETTINGS_ACCENTS.developer}
+                icon="zap"
+                right={
+                    <button
+                        type="button"
+                        className="btn btn-small btn-liquid-glass py-2 px-3.5 rounded-md"
+                        onClick={() => void fetchStats()}
+                        disabled={loading}
+                    >
+                        {loading ? t('settings.devRefreshing') : t('settings.devRefresh')}
+                    </button>
+                }
+            />
 
             {error ? (
                 <div

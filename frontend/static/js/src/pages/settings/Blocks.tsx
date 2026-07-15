@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { fetchBlockedUsers, unblockUser, type BlockedUser } from '../../api.js';
 import { showConfirmModal } from '../../utils.js';
 import { getIntlLocale, t } from '../../i18n.js';
+import { SettingsSectionHeader, SETTINGS_ACCENTS } from './SectionHeader.js';
 
 function _formatRelativeTime(iso: string | null | undefined): string {
     if (!iso) return '—';
@@ -74,8 +75,12 @@ export function BlocksView() {
     // locale keys (title reuses settings.cardBlocksTitle).
     return (
         <div className="settings-section">
-            <h2 className="settings-section-title">{t('settings.cardBlocksTitle')}</h2>
-            <p className="settings-section-body">{t('settings.blocksBody')}</p>
+            <SettingsSectionHeader
+                title={t('settings.cardBlocksTitle')}
+                accent={SETTINGS_ACCENTS.blocks}
+                icon="lock"
+                info={[t('settings.blocksBody')]}
+            />
             {blocks === null ? (
                 <p className="text-muted" style={{ padding: '12px' }}>{t('settings.blocksLoading')}</p>
             ) : blocks.length === 0 ? (

@@ -30,6 +30,7 @@ const openDownloadChooserModal = async (trip: unknown) =>
     );
 import { initMobileSwipe } from '../mobileSwipe.js';
 import { initRailScrubber } from './railScrubber.js';
+import { initRailLens } from './railLens.js';
 import { renderNotificationDropdown, handleNotificationClick } from './notifications.js';
 import { archiveActiveTrip, deleteActiveTrip, toggleActiveTripSilence, selectActiveTrip } from './trip-controls.js';
 import { wireRoleButtonKeys } from '../components/Keyboard.js';
@@ -48,6 +49,8 @@ export function resolvePage(raw: string): PageName {
 export function wireNavChrome(): void {
     // Right-edge thumb-reach scrubber for the nav rail (mobile).
     initRailScrubber();
+    // Liquid-glass draggable lens marking the active page on the rail.
+    initRailLens();
 
     // ── Keyboard activation for `role="button"` divs ──
     // Notification rows in the bell dropdown (and any other future

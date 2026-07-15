@@ -404,6 +404,7 @@ export const pt: Translations = {
         poiVisibilitySwitchTitleHidden: 'Oculta da fila de pílulas do Início — liga para mostrar.',
         poiInfoModalSubtitle: 'Sobre esta categoria',
         poiInfoModalClose: 'Entendi',
+        sectionInfoBtn: 'Sobre esta opção',
         poiInfoBtnAria: 'Sobre {name}',
         resetTripsTitle: 'Viagens & dias',
         resetTripsBody: 'Remove todas as viagens, itinerários e registos diários.',

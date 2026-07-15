@@ -494,6 +494,7 @@ export const en = {
         // 2026-05-25: ⓘ info modal opened from each pill row.
         poiInfoModalSubtitle: 'About this pill',
         poiInfoModalClose: 'Got it',
+        sectionInfoBtn: 'About this setting',
         // aria-label on the ⓘ button next to each pill name in the
         // Settings → General → Map pills list. `{name}` interpolates
         // the pill's translated label (Restaurants / Hotels / …).

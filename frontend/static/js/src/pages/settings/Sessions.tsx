@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { fetchAuthSessions, revokeAuthSession, type AuthSession } from '../../api.js';
 import { showConfirmModal } from '../../utils.js';
 import { getIntlLocale, t } from '../../i18n.js';
+import { SettingsSectionHeader, SETTINGS_ACCENTS } from './SectionHeader.js';
 
 function _formatRelativeTime(iso: string | null | undefined): string {
     if (!iso) return '—';
@@ -110,8 +111,12 @@ export function SessionsView() {
     // locale keys (title reuses settings.cardSessionsTitle).
     return (
         <div className="settings-section">
-            <h2 className="settings-section-title">{t('settings.cardSessionsTitle')}</h2>
-            <p className="settings-section-body">{t('settings.sessionsBody')}</p>
+            <SettingsSectionHeader
+                title={t('settings.cardSessionsTitle')}
+                accent={SETTINGS_ACCENTS.sessions}
+                icon="smartphone"
+                info={[t('settings.sessionsBody')]}
+            />
             {sessions === null ? (
                 <p className="text-muted" style={{ padding: '12px' }}>{t('settings.sessionsLoading')}</p>
             ) : sessions.length === 0 ? (

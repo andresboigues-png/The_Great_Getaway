@@ -916,6 +916,87 @@
     margin-top: 0;
 }
 
+/* ── Unified settings section header (SectionHeader.tsx) ────────────
+ * ONE title style for every settings page: the h2 base font, coloured
+ * with the SAME accent the section's icon tile carries on the hub
+ * (--st-accent triplet), darkened for text contrast. The explanation
+ * lives behind the ⓘ button (info popup), not inline. */
+.st-section-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+}
+.st-section-title {
+    margin: 0;
+    color: color-mix(in srgb, rgb(var(--st-accent)) 72%, #1a1a2e);
+}
+.st-section-head__right {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.st-info-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(var(--st-accent), 0.32);
+    background: rgba(var(--st-accent), 0.12);
+    color: rgb(var(--st-accent));
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+.st-info-btn:hover {
+    background: rgba(var(--st-accent), 0.22);
+    transform: scale(1.06);
+}
+.st-info-btn > svg {
+    display: block;
+}
+
+/* Mobile-only settings rows (e.g. the menu-handle toggle — the grip only
+ * exists on mobile; on desktop the rail island is permanent). Mirrors the
+ * sidebar-item--mobile-only marker pattern in index.css. */
+@media (min-width: 721px) {
+    .st-mobile-only {
+        display: none !important;
+    }
+}
+
+/* Bordered GG-dropdown trigger for settings forms — the custom listbox
+ * (CategoryListbox) trigger needs a VISIBLE border so it reads as an
+ * input, unlike the borderless native selects it replaces. */
+.st-select-trigger {
+    border: 1.5px solid rgba(0, 45, 91, 0.22) !important;
+    border-radius: 12px;
+}
+.st-select-trigger:hover {
+    border-color: rgba(0, 45, 91, 0.38) !important;
+}
+.st-select-trigger:focus-visible {
+    outline: none;
+    border-color: rgb(var(--st-accent, 0, 113, 227)) !important;
+    box-shadow: 0 0 0 3px rgba(var(--st-accent, 0, 113, 227), 0.18);
+}
+
+/* Format-page themed primary button — same amber the section title uses
+ * (the hub's orange accent, darkened for contrast), replacing the generic
+ * blue btn-primary on "Save Format". */
+.st-btn-amber {
+    background: linear-gradient(135deg, #c47a00, #a85d00) !important;
+    box-shadow: 0 4px 12px rgba(168, 93, 0, 0.28) !important;
+}
+.st-btn-amber:hover {
+    box-shadow: 0 6px 16px rgba(168, 93, 0, 0.36) !important;
+}
+
 /* ── Creator → Trip Templates rows ────────────────────────────────── */
 .tmpl-row {
     display: flex;

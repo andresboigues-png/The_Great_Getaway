@@ -22,6 +22,7 @@ import { generateId } from '../../utils.js';
 import { t } from '../../i18n.js';
 import { iconSvg, iconForCategory } from '../../icons.js';
 import { openEditCategoryModal, deleteCategory } from '../settings.js';
+import { SettingsSectionHeader, SETTINGS_ACCENTS } from './SectionHeader.js';
 import { RatesEditor } from './RatesEditor.js';
 import { takePendingPersonalizationTab, type PersTab } from '../../utils/persTab.js';
 
@@ -103,10 +104,12 @@ export function Personalization() {
             {/* ── Categories pill ───────────────────────────────────────────── */}
             {tab === 'categories' ? (
                 <div className="card glass settings-section card-glow-blue">
-                            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-                                <h2 className="card-title m-0">{t('settings.categoriesTitle')}</h2>
-                                <span className="cat-count-chip">{categories.length}</span>
-                            </div>
+                            <SettingsSectionHeader
+                                title={t('settings.categoriesTitle')}
+                                accent={SETTINGS_ACCENTS.personalization}
+                                icon="user"
+                                right={<span className="cat-count-chip">{categories.length}</span>}
+                            />
 
                             <div className="cat-list mb-5">
                                 {categories.length === 0 ? (

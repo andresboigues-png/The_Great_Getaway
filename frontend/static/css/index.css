@@ -1180,25 +1180,78 @@ body.menu-handle-off .rail-peek {
     opacity: 1;
 }
 
-.rail-selector {
+/* ── Rail lens: the liquid-glass active-page marker ──────────────────
+   A draggable glass square (bootstrap/railLens.ts) that GLIDES to the
+   active rail item, replacing the flat blue-shade .active background
+   (and the never-wired .rail-selector this block used to hold). Sits
+   ABOVE the icon (grabbable); deliberately NO backdrop blur — it would
+   smear the icon it magnifies. Glass read = white sheen gradient +
+   hairline double border + inset specular + soft drop shadow;
+   saturate() adds the liquid pop without hurting legibility. */
+.rail-lens {
     position: absolute;
-    left: 4px;
-    right: 4px;
     top: 0;
-    height: 0;
-    border-radius: 14px;
-    background: rgba(0, 113, 227, 0.16);
-    border: 1px solid rgba(0, 113, 227, 0.34);
-    -webkit-backdrop-filter: blur(6px);
-    backdrop-filter: blur(6px);
-    pointer-events: none;
+    left: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    z-index: 2;
     opacity: 0;
-    z-index: 0;
-    transition: top 0.16s cubic-bezier(0.22, 1, 0.36, 1),
-        height 0.16s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.16s ease;
+    pointer-events: none;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.14) 55%, rgba(0, 113, 227, 0.1) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    outline: 1px solid rgba(0, 113, 227, 0.35);
+    box-shadow:
+        0 4px 14px rgba(0, 45, 91, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.85),
+        inset 0 -8px 12px -8px rgba(0, 113, 227, 0.3);
+    -webkit-backdrop-filter: saturate(1.35);
+    backdrop-filter: saturate(1.35);
+    transition:
+        top 0.4s cubic-bezier(0.3, 1.35, 0.4, 1),
+        left 0.4s cubic-bezier(0.3, 1.35, 0.4, 1),
+        transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 0.25s ease,
+        opacity 0.2s ease;
 }
-.rail-selector.is-visible {
+/* Specular highlight — the "glass glare" in the top-left corner. */
+.rail-lens::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 4px;
+    width: 45%;
+    height: 34%;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at 35% 30%, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 70%);
+    pointer-events: none;
+}
+.rail-lens.is-on {
     opacity: 1;
+    pointer-events: auto;
+}
+/* Picked up: lift + magnify — the "lens in hand" state. */
+.rail-lens.is-dragging {
+    cursor: grabbing;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    transform: scale(1.14);
+    box-shadow:
+        0 10px 26px rgba(0, 45, 91, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9),
+        inset 0 -8px 12px -8px rgba(0, 113, 227, 0.34);
+}
+/* The item the lens hovers over mid-drag — a soft "will land here" tint. */
+.sidebar-rail__item.lens-target {
+    background: rgba(0, 113, 227, 0.1);
+}
+@media (prefers-reduced-motion: reduce) {
+    .rail-lens {
+        transition: opacity 0.2s ease;
+    }
 }
 /* Match the burger drawer's icon styling: SVG stroke is the brand
    accent-blue regardless of hover/focus, since the rail items have
@@ -1224,13 +1277,11 @@ body.menu-handle-off .rail-peek {
 .sidebar-rail__item:active {
     transform: scale(0.94);
 }
-.sidebar-rail__item.active {
-    /* The .active class is set by main.ts's nav-item highlight on
-       navigation. Match the existing nav-item active emphasis with
-       a stronger backdrop tint — the icon stroke colour stays
-       constant per the rule above. */
-    background: rgba(0, 113, 227, 0.14);
-}
+/* .sidebar-rail__item.active no longer paints its own background — the
+   liquid-glass .rail-lens (above) IS the active-page marker now. The
+   class + aria-current are still applied by the router; the lens
+   observer keys off them. (Both .active and the lens are JS-applied,
+   so there is no "CSS-only" fallback gap to cover.) */
 /* Coloured section dot — small circle replacing the burger drawer's
    labelled section headers. The colour is per-section and threaded
    in via the inline `--dot-color` custom property on each <span>. */
@@ -6046,8 +6097,20 @@ main#app-container.nav-anim-backward {
    marks the current page. The base rule uses a translucent blue
    tint that's correct on light but reads as too pale on the new
    dark rail. Lift the saturation. */
-:root[data-theme="dark"] .sidebar-rail__item.active {
-    background: rgba(10, 132, 255, 0.18);
+/* Dark theme: the .active background is gone (the rail lens is the
+   marker); restyle the LENS for the graphite island instead — lighter
+   sheen alphas + a cooler blue edge so it reads as glass on dark. */
+:root[data-theme="dark"] .rail-lens {
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.06) 55%, rgba(10, 132, 255, 0.14) 100%);
+    border-color: rgba(255, 255, 255, 0.38);
+    outline-color: rgba(10, 132, 255, 0.45);
+    box-shadow:
+        0 4px 14px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35),
+        inset 0 -8px 12px -8px rgba(10, 132, 255, 0.35);
+}
+:root[data-theme="dark"] .sidebar-rail__item.lens-target {
+    background: rgba(10, 132, 255, 0.14);
 }
 :root[data-theme="dark"] .sidebar-rail__item:hover,
 :root[data-theme="dark"] .sidebar-rail__item:focus-visible {

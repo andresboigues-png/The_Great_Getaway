@@ -54,6 +54,8 @@ import { Developer } from './Developer.js';
 import { Creator } from './Creator.js';
 import { SessionsView } from './Sessions.js';
 import { BlocksView } from './Blocks.js';
+import { SettingsSectionHeader, SETTINGS_ACCENTS } from './SectionHeader.js';
+import { CategoryListbox } from '../expenses/CategoryListbox.js';
 // Page-scoped CSS — Theme picker styles. FIXING_ROADMAP §3.1 first
 // slice: importing CSS from the page module lets Vite chunk it into
 // the Settings JS bundle, so users who never visit /settings don't
@@ -628,16 +630,16 @@ function GeneralPillsSection() {
         // !important elsewhere). See "Settings → General → POI
         // filters: responsive layout" in index.css.
         <div className="card glass settings-section">
-            <h2 className="mt-0">{t('settings.poiTitle')}</h2>
-            <p className="st-paragraph-mb-16">
-                {t('settings.poiIntroVisibility')}
-            </p>
-            <p className="st-paragraph-mb-16">
-                {t('settings.poiIntroRating')}
-            </p>
-            <p className="st-paragraph-mb-24">
-                {t('settings.poiIntroAnchor')}
-            </p>
+            <SettingsSectionHeader
+                title={t('settings.poiTitle')}
+                accent={SETTINGS_ACCENTS.general}
+                icon="map"
+                info={[
+                    t('settings.poiIntroVisibility'),
+                    t('settings.poiIntroRating'),
+                    t('settings.poiIntroAnchor'),
+                ]}
+            />
             <div className="poi-filter-list">
                 {rows.map((c) => {
                     const userMin =
@@ -844,17 +846,14 @@ function GeneralAppearanceSection() {
 
     return (
         <div className="card glass settings-section">
-            <h2 className="st-card-title-indigo">{t('settings.appearance')}</h2>
-            {/* themePickerSubtitle contains a literal <strong> tag for
-                emphasis on "System" — render as HTML, not as a text
-                node, so the tag does NOT appear as visible markup. */}
-            {/* F6-I2: theme is device-local (localStorage only; no backend
-                route reads/writes it), so the copy adds an "applies to this
-                device" note so a Dark pick reverting on another device or
-                after clearing site data is expected, not a bug. */}
-            <p
-                className="st-paragraph-mb-24"
-                dangerouslySetInnerHTML={{ __html: t('settings.themePickerSubtitleV2') }}
+            {/* themePickerSubtitleV2 contains a literal <strong> tag (F6-I2
+                device-local note) — passed as trusted locale HTML into the
+                ⓘ popup instead of an inline paragraph. */}
+            <SettingsSectionHeader
+                title={t('settings.appearance')}
+                accent={SETTINGS_ACCENTS.general}
+                icon="palette"
+                infoHtml={[t('settings.themePickerSubtitleV2')]}
             />
 
             <div className="theme-options">
@@ -863,8 +862,11 @@ function GeneralAppearanceSection() {
                 {opt('system', t('settings.themeSystem'), 'monitor', t('settings.themeBodySystem'))}
             </div>
 
-            {/* Round 19: mobile menu-handle (left-edge peek) on/off. */}
-            <div className="flex items-center justify-between gap-4 mt-7">
+            {/* Round 19: mobile menu-handle (left-edge peek) on/off.
+                st-mobile-only: the grip only exists on mobile (the rail
+                island is permanent on desktop), so the toggle is hidden
+                on web viewports — it would be a dead switch there. */}
+            <div className="st-mobile-only flex items-center justify-between gap-4 mt-7">
                 <div className="min-w-0">
                     <div className="font-semibold text-[0.95rem]">{t('settings.menuHandleLabel')}</div>
                     <div className="text-secondary text-[0.82rem] mt-0.5">{t('settings.menuHandleSub')}</div>
@@ -980,10 +982,12 @@ function GeneralLanguageSection() {
 
     return (
         <div className="card glass settings-section">
-            <h2 className="st-card-title-indigo">{t('settings.language')}</h2>
-            <p className="st-paragraph-mb-24">
-                {t('settings.languageDesc')}
-            </p>
+            <SettingsSectionHeader
+                title={t('settings.language')}
+                accent={SETTINGS_ACCENTS.general}
+                icon="globe"
+                info={[t('settings.languageDesc')]}
+            />
             <div className="theme-options">
                 {langOpt('en', t('settings.languageEnglish'), 'English')}
                 {langOpt('pt', t('settings.languagePortuguese'), 'Português')}
@@ -1006,8 +1010,17 @@ function GeneralLanguageSection() {
 function ResetView() {
     return (
         <div className="settings-grid">
+            {/* Unified section-title treatment (SectionHeader). The reset
+                bodies + scope captions stay INLINE on purpose: they spell out
+                exactly what a wipe deletes — safety copy a user must see
+                before clicking, never behind an ⓘ. */}
             <div className="card glass p-6">
-                <h3 className="st-card-title-indigo">{t('settings.resetCategoriesTitle')}</h3>
+                <SettingsSectionHeader
+                    title={t('settings.resetCategoriesTitle')}
+                    accent={SETTINGS_ACCENTS.personalization}
+                    icon="trash"
+                    small
+                />
                 <p className="muted-meta">{t('settings.resetCategoriesBody')}</p>
                 <p className="text-secondary text-[0.78rem] font-semibold mb-4">
                     {t('settings.resetScopeLocal')}
@@ -1022,7 +1035,12 @@ function ResetView() {
                 </button>
             </div>
             <div className="card glass danger-card p-6 border-[rgba(255,_59,_48,_0.3)]">
-                <h3 className="text-[#ff3b30] mt-0">{t('settings.resetTripsTitle')}</h3>
+                <SettingsSectionHeader
+                    title={t('settings.resetTripsTitle')}
+                    accent={SETTINGS_ACCENTS.danger}
+                    icon="trash"
+                    small
+                />
                 <p className="muted-meta">{t('settings.resetTripsBody')}</p>
                 <p className="text-[#ff3b30] text-[0.78rem] font-semibold mb-4">
                     {t('settings.resetScopeServer')}
@@ -1038,7 +1056,12 @@ function ResetView() {
             <div
                 className="card glass danger-card p-6 border-[rgba(255,_59,_48,_0.3)]"
             >
-                <h3 className="text-[#ff3b30] mt-0">{t('settings.resetFactoryTitle')}</h3>
+                <SettingsSectionHeader
+                    title={t('settings.resetFactoryTitle')}
+                    accent={SETTINGS_ACCENTS.danger}
+                    icon="trash"
+                    small
+                />
                 <p className="muted-meta">{t('settings.resetFactoryBody')}</p>
                 <p className="text-[#ff3b30] text-[0.78rem] font-semibold mb-4">
                     {t('settings.resetScopeServer')}
@@ -1142,10 +1165,12 @@ function FormatView() {
 
     return (
         <div className="card glass settings-section">
-            <h2 className="st-card-title-amber">{t('settings.formatTitle')}</h2>
-            <p className="st-paragraph-mb-24">
-                {t('settings.formatSubtitle')}
-            </p>
+            <SettingsSectionHeader
+                title={t('settings.formatTitle')}
+                accent={SETTINGS_ACCENTS.format}
+                icon="document"
+                info={[t('settings.formatSubtitle')]}
+            />
 
             <div>
                 {/* Status chips — one per MANDATORY variable, showing
@@ -1238,18 +1263,14 @@ function FormatView() {
                         >
                             {t('settings.formatVariableLabel')}
                         </label>
-                        <select
-                            className="glass-input w-full"
+                        <CategoryListbox
                             value={mapVar}
-                            onChange={(e) => setMapVar(e.target.value)}
-                        >
-                            <option value="">{t('settings.formatVariablePlaceholder')}</option>
-                            {availableVars.map((v) => (
-                                <option key={v} value={v}>
-                                    {v}
-                                </option>
-                            ))}
-                        </select>
+                            onChange={setMapVar}
+                            options={availableVars.map((v) => ({ value: v, label: v }))}
+                            triggerClassName="glass-input w-full st-select-trigger"
+                            ariaLabel={t('settings.formatVariableLabel')}
+                            placeholder={t('settings.formatVariablePlaceholder')}
+                        />
                     </div>
                     <div className="flex-1 min-w-[120px]">
                         <label
@@ -1257,18 +1278,14 @@ function FormatView() {
                         >
                             {t('settings.formatColumnLabel')}
                         </label>
-                        <select
-                            className="glass-input w-full"
+                        <CategoryListbox
                             value={mapCol}
-                            onChange={(e) => setMapCol(e.target.value)}
-                        >
-                            <option value="">{t('settings.formatColumnPlaceholder')}</option>
-                            {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((c) => (
-                                <option key={c} value={c}>
-                                    {c}
-                                </option>
-                            ))}
-                        </select>
+                            onChange={setMapCol}
+                            options={'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((c) => ({ value: c, label: c }))}
+                            triggerClassName="glass-input w-full st-select-trigger"
+                            ariaLabel={t('settings.formatColumnLabel')}
+                            placeholder={t('settings.formatColumnPlaceholder')}
+                        />
                     </div>
                     <button
                         type="button"
@@ -1350,7 +1367,7 @@ function FormatView() {
                                 />
                                 <button
                                     type="button"
-                                    className="btn-primary"
+                                    className="btn-primary st-btn-amber"
                                     onClick={onSaveCustomFormat}
                                 >
                                     {t('settings.formatSavedSaveBtn')}

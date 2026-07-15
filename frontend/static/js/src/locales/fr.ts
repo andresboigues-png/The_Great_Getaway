@@ -405,6 +405,7 @@ export const fr: Translations = {
         poiVisibilitySwitchTitleHidden: 'Cachée de la rangée de pastilles d\'Accueil — active pour afficher.',
         poiInfoModalSubtitle: 'À propos de cette catégorie',
         poiInfoModalClose: 'Compris',
+        sectionInfoBtn: 'À propos de ce réglage',
         poiInfoBtnAria: 'À propos de {name}',
         resetTripsTitle: 'Voyages & jours',
         resetTripsBody: 'Supprime tous les voyages, itinéraires et journaux quotidiens.',
