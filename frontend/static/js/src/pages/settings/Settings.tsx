@@ -34,8 +34,8 @@
 import { useState, useSyncExternalStore } from 'react';
 import { useStore } from '../../react/store.js';
 import { STATE, emit } from '../../state.js';
-import { generateId, showConfirmModal, showLiquidAlert, esc } from '../../utils.js';
-import { showModal } from '../../components/Modal.js';
+import { generateId, showConfirmModal, showLiquidAlert } from '../../utils.js';
+import { InfoPopover } from '../../react/components/InfoPopover.js';
 import { syncCategories, apiFetch } from '../../api.js';
 import { POI_CATEGORIES, getPoiTooltip, resolveAnchorMode } from '../home.js';
 import { setTheme } from '../../theme.js';
@@ -557,41 +557,6 @@ function GeneralPillsSection() {
     const anchoring = prefs?.poiAnchoring || {};
     const visibility = prefs?.poiVisible || {};
 
-    // 2026-05-25: pill ⓘ button opens a real modal with a close X
-    // (was a 3-second toast which auto-dismissed before the user
-    // could finish reading the longer descriptions). Title shows
-    // the pill icon + name; body shows the full tooltip text.
-    const openPoiInfoModal = (c: { key: string; label: string; icon: string }) => {
-        // Tooltip text is locale-scoped — resolves through the
-        // shared `getPoiTooltip(key)` helper so the modal body
-        // reflects the active i18n locale, not the English copy
-        // that used to live inline on the POI_CATEGORIES entries.
-        const tooltip = getPoiTooltip(c.key);
-        const innerHTML = `
-            <div style="text-align:left;">
-                <div style="display:flex; align-items:center; gap:14px; padding:18px 22px; background:linear-gradient(135deg, var(--accent-blue) 0%, #5856d6 100%); color:white; border-top-left-radius: var(--radius-3xl); border-top-right-radius: var(--radius-3xl);">
-                    <div style="width:44px; height:44px; border-radius:12px; background:rgba(255,255,255,0.18); border:1px solid rgba(255,255,255,0.28); display:inline-flex; align-items:center; justify-content:center; font-size:1.5rem; flex-shrink:0;">${iconForEmoji(c.icon, { size: 24, fallback: 'pin' })}</div>
-                    <div style="flex:1; min-width:0;">
-                        <h2 style="margin:0; font-size:1.15rem; color:white; font-weight:800; letter-spacing:-0.02em; line-height:1.2;">${esc(c.label)}</h2>
-                        <p style="margin:3px 0 0; color:rgba(255,255,255,0.85); font-size:0.78rem; font-weight:600;">${esc(t('settings.poiInfoModalSubtitle'))}</p>
-                    </div>
-                </div>
-                <div style="padding:20px 22px 6px; color:var(--text-primary); font-size:0.92rem; line-height:1.5;">
-                    ${esc(tooltip)}
-                </div>
-                <div style="padding:18px 22px 22px;">
-                    <button type="button" id="poiInfoCloseBtn" style="width:100%; padding:11px 18px; border-radius:12px; border:0; background:linear-gradient(135deg, var(--accent-blue), #5856d6); color:white; font-weight:800; font-size:0.9rem; cursor:pointer; box-shadow:0 4px 12px rgba(0,113,227,0.28);">${esc(t('settings.poiInfoModalClose'))}</button>
-                </div>
-            </div>
-        `;
-        const { root, close } = showModal({
-            innerHTML,
-            cardStyle: 'max-width: 480px; width: min(480px, calc(100vw - 24px)); padding: 0; overflow: hidden; background: white;',
-        });
-        const closeBtn = root.querySelector('#poiInfoCloseBtn') as HTMLButtonElement | null;
-        if (closeBtn) closeBtn.onclick = () => close();
-    };
-
     const onResetPoi = (key: string) => {
         ensurePoiPrefs();
         delete STATE.preferences.poiFilters[key];
@@ -706,13 +671,13 @@ function GeneralPillsSection() {
                                         // shipped pill has a poiTooltips entry).
                                         const tooltip = getPoiTooltip(c.key);
                                         return tooltip ? (
-                                            <button
-                                                type="button"
-                                                className="poi-filter-row__info-btn"
-                                                aria-label={t('settings.poiInfoBtnAria', { name: c.label })}
-                                                title={tooltip}
-                                                onClick={() => openPoiInfoModal(c)}
-                                                dangerouslySetInnerHTML={{ __html: iconSvg('info', { size: 16 }) }}
+                                            <InfoPopover
+                                                accent={SETTINGS_ACCENTS.general}
+                                                ariaLabel={t('settings.poiInfoBtnAria', { name: c.label })}
+                                                title={c.label}
+                                                paragraphs={[tooltip]}
+                                                buttonClassName="poi-filter-row__info-btn"
+                                                iconSize={16}
                                             />
                                         ) : null;
                                     })()}

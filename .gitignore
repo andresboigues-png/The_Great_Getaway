@@ -78,3 +78,4 @@ playwright-report/
 .coverage
 htmlcov/
 .pytest_cache/
+run-dev.sh

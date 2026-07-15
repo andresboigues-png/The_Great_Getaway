@@ -1027,6 +1027,74 @@ h3.st-section-title {
     display: block;
 }
 
+/* ── Info bubble (InfoPopover) ────────────────────────────────────────
+   Non-blocking speech-bubble that the ⓘ buttons (section headers + POI
+   pills) open instead of a modal. Portaled to <body> at fixed coords, so
+   it's positioned inline via style; this rules the look. The arrow's x is
+   threaded in as --arrow-x (distance from the bubble's left edge). */
+.st-info-bubble {
+    z-index: 3000;
+    width: max-content;
+    max-width: 300px;
+    padding: 13px 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    background: #fff;
+    border: 1px solid rgba(var(--st-accent, 0, 113, 227), 0.28);
+    border-radius: 14px;
+    box-shadow: 0 14px 34px rgba(0, 45, 91, 0.2);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-primary);
+    text-align: left;
+    animation: st-info-bubble-in 0.14s ease;
+}
+/* Speech-bubble arrow pointing UP at the ⓘ button. */
+.st-info-bubble::before,
+.st-info-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: var(--arrow-x, 20px);
+    width: 0;
+    height: 0;
+    border: 8px solid transparent;
+    transform: translateX(-50%);
+}
+.st-info-bubble::before {
+    border-bottom-color: rgba(var(--st-accent, 0, 113, 227), 0.28);
+}
+.st-info-bubble::after {
+    margin-bottom: -1.5px;
+    border-bottom-color: #fff;
+    border-width: 7px;
+}
+.st-info-bubble__title {
+    font-weight: 800;
+    font-size: 0.9rem;
+    color: color-mix(in srgb, rgb(var(--st-accent, 0, 113, 227)) 72%, #1a1a2e);
+}
+.st-info-bubble__p {
+    margin: 0;
+    color: var(--text-secondary);
+}
+@keyframes st-info-bubble-in {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .st-info-bubble { animation: none; }
+}
+:root[data-theme="dark"] .st-info-bubble {
+    background: var(--card-bg, #26262c);
+    border-color: rgba(var(--st-accent, 10, 132, 255), 0.45);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
+}
+:root[data-theme="dark"] .st-info-bubble::after {
+    border-bottom-color: var(--card-bg, #26262c);
+}
+
 /* Mobile-only settings rows (e.g. the menu-handle toggle — the grip only
  * exists on mobile; on desktop the rail island is permanent). Mirrors the
  * sidebar-item--mobile-only marker pattern in index.css. */
